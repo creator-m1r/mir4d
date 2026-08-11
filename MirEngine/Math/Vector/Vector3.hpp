@@ -1,194 +1,747 @@
 // MirEngine/Math/Vector/Vector3.hpp
-// 🧭 Трёхмерный вектор — основа всей геометрии MirEngine.
 //
-// Vector3 представляет точку или направление в трёхмерном пространстве.
-// Он используется везде: координаты вершин, нормали, скорости, силы,
-// направления лучей, позиции объектов и камер.
+// 🧭 Трёхмерный вектор МИР 4D.
 //
-// Почему это так важно:
-//   • ВСЕ геометрические расчёты в движке строятся на Vector3.
-//   • Это простой, но мощный тип — как кирпичик, из которого
-//     складывается всё здание геометрии.
-//   • Благодаря перегрузке операторов (+, -, *, /) с векторами
-//     можно работать почти как с обычными числами.
+// Базовый математический тип геометрического ядра MirEngine.
 //
-// Возможности:
-//   • Сложение и вычитание векторов.
-//   • Умножение на число (масштабирование).
-//   • Длина вектора (length) и квадрат длины (lengthSquared).
-//   • Нормализация (превращение в вектор единичной длины).
-//   • Скалярное произведение (dot) — мера "сонаправленности".
-//   • Векторное произведение (cross) — даёт перпендикулярный вектор.
-//   • Расстояние между точками (distance).
+// Vector3 используется для:
+//   • координат точек;
+//   • направлений;
+//   • нормалей;
+//   • скоростей;
+//   • сил;
+//   • лучей;
+//   • положений объектов;
+//   • камер;
+//   • геометрических вычислений.
 //
-// Чистый C++23, без внешних зависимостей.
+// C++23
+// Без внешних зависимостей.
+//
 
 #pragma once
 
+#include "../../Core/Types/Scalar.hpp"
+
+#include <algorithm>
+#include <cmath>
 #include <compare>
+#include <cstddef>
 #include <functional>
 #include <ostream>
 #include <tuple>
-#include <cmath>
-#include <algorithm>
+#include <utility>
 
-#include "../../Core/Types/Scalar.hpp"   // mir::Scalar = double
+namespace mir
+{
 
-namespace mir {
+struct Vector3
+{
+    // ---------------------------------------------------------
+    // Components
+    // ---------------------------------------------------------
 
-struct Vector3 {
-    // ── Компоненты ───────────────────────────────────────────
-    Scalar x = 0.0;   // координата по оси X (вперёд/назад)
-    Scalar y = 0.0;   // координата по оси Y (вверх/вниз)
-    Scalar z = 0.0;   // координата по оси Z (вправо/влево)
+    Scalar x{0.0};
+    Scalar y{0.0};
+    Scalar z{0.0};
 
-    // ── Конструкторы ─────────────────────────────────────────
+    // ---------------------------------------------------------
+    // Constructors
+    // ---------------------------------------------------------
+
     constexpr Vector3() noexcept = default;
-    constexpr Vector3(Scalar x, Scalar y, Scalar z) noexcept : x(x), y(y), z(z) {}
 
-    // ── Статические константы ────────────────────────────────
-    [[nodiscard]] static constexpr Vector3 zero() noexcept  { return {0.0, 0.0, 0.0}; }
-    [[nodiscard]] static constexpr Vector3 unitX() noexcept { return {1.0, 0.0, 0.0}; }
-    [[nodiscard]] static constexpr Vector3 unitY() noexcept { return {0.0, 1.0, 0.0}; }
-    [[nodiscard]] static constexpr Vector3 unitZ() noexcept { return {0.0, 0.0, 1.0}; }
-    [[nodiscard]] static constexpr Vector3 one() noexcept   { return {1.0, 1.0, 1.0}; }
-
-    // ── Геометрические операции ──────────────────────────────
-    [[nodiscard]] constexpr Scalar lengthSquared() const noexcept {
-        return x * x + y * y + z * z;
+    constexpr Vector3(
+        Scalar x_,
+        Scalar y_,
+        Scalar z_) noexcept
+        : x(x_)
+        , y(y_)
+        , z(z_)
+    {
     }
-    [[nodiscard]] Scalar length() const noexcept {
+
+    // ---------------------------------------------------------
+    // Constants
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    static constexpr Vector3 zero() noexcept
+    {
+        return {0.0, 0.0, 0.0};
+    }
+
+    [[nodiscard]]
+    static constexpr Vector3 one() noexcept
+    {
+        return {1.0, 1.0, 1.0};
+    }
+
+    [[nodiscard]]
+    static constexpr Vector3 unitX() noexcept
+    {
+        return {1.0, 0.0, 0.0};
+    }
+
+    [[nodiscard]]
+    static constexpr Vector3 unitY() noexcept
+    {
+        return {0.0, 1.0, 0.0};
+    }
+
+    [[nodiscard]]
+    static constexpr Vector3 unitZ() noexcept
+    {
+        return {0.0, 0.0, 1.0};
+    }
+
+    // ---------------------------------------------------------
+    // Length
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    constexpr Scalar lengthSquared() const noexcept
+    {
+        return
+            x * x +
+            y * y +
+            z * z;
+    }
+
+    [[nodiscard]]
+    Scalar length() const noexcept
+    {
         return std::sqrt(lengthSquared());
     }
 
-    [[nodiscard]] Vector3 normalized() const noexcept {
-        Scalar len = length();
-        return (len > Scalar(1e-20)) ? Vector3{x / len, y / len, z / len} : zero();
-    }
-    void normalize() noexcept {
-        Scalar len = length();
-        if (len > Scalar(1e-20)) {
-            x /= len; y /= len; z /= len;
+    // ---------------------------------------------------------
+    // Normalization
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    Vector3 normalized(
+        Scalar epsilon = Scalar(1e-20)) const noexcept
+    {
+        const Scalar len = length();
+
+        if (len <= epsilon)
+        {
+            return zero();
         }
+
+        return *this / len;
     }
 
-    // ── Скалярное и векторное произведения ───────────────────
-    [[nodiscard]] static constexpr Scalar dot(const Vector3& a, const Vector3& b) noexcept {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
+    bool normalize(
+        Scalar epsilon = Scalar(1e-20)) noexcept
+    {
+        const Scalar len = length();
+
+        if (len <= epsilon)
+        {
+            return false;
+        }
+
+        *this /= len;
+
+        return true;
     }
-    [[nodiscard]] static constexpr Vector3 cross(const Vector3& a, const Vector3& b) noexcept {
-        return {
+
+    // ---------------------------------------------------------
+    // Dot product
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    static constexpr Scalar dot(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+            a.x * b.x +
+            a.y * b.y +
+            a.z * b.z;
+    }
+
+    [[nodiscard]]
+    constexpr Scalar dot(
+        const Vector3& other) const noexcept
+    {
+        return dot(*this, other);
+    }
+
+    // ---------------------------------------------------------
+    // Cross product
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    static constexpr Vector3 cross(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
             a.y * b.z - a.z * b.y,
             a.z * b.x - a.x * b.z,
             a.x * b.y - a.y * b.x
         };
     }
 
-    // ── Проекция и отражение ─────────────────────────────────
-    [[nodiscard]] Vector3 projectedOnto(const Vector3& other) const noexcept {
-        Scalar lenSq = other.lengthSquared();
-        return (lenSq > Scalar(1e-20)) ? other * (dot(*this, other) / lenSq) : zero();
-    }
-    [[nodiscard]] Vector3 reflected(const Vector3& normal) const noexcept {
-        return *this - normal * (Scalar(2) * dot(*this, normal));
+    [[nodiscard]]
+    constexpr Vector3 cross(
+        const Vector3& other) const noexcept
+    {
+        return cross(*this, other);
     }
 
-    // ── Расстояние ───────────────────────────────────────────
-    [[nodiscard]] static Scalar distance(const Vector3& a, const Vector3& b) noexcept {
-        return (a - b).length();
-    }
-    [[nodiscard]] static constexpr Scalar distanceSquared(const Vector3& a, const Vector3& b) noexcept {
+    // ---------------------------------------------------------
+    // Distance
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    static constexpr Scalar distanceSquared(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
         return (a - b).lengthSquared();
     }
 
-    // ── Угол между векторами ─────────────────────────────────
-    [[nodiscard]] Scalar angleTo(const Vector3& other) const noexcept {
-        Scalar denom = std::sqrt(lengthSquared() * other.lengthSquared());
-        if (denom < Scalar(1e-20)) return Scalar(0);
-        Scalar cosVal = std::clamp(dot(*this, other) / denom, Scalar(-1), Scalar(1));
-        return std::acos(cosVal);
+    [[nodiscard]]
+    static Scalar distance(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return std::sqrt(
+            distanceSquared(a, b)
+        );
     }
 
-    // ── Линейная интерполяция ────────────────────────────────
-    [[nodiscard]] static constexpr Vector3 lerp(const Vector3& a, const Vector3& b, Scalar t) noexcept {
-        return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+    // ---------------------------------------------------------
+    // Angle
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    Scalar angleTo(
+        const Vector3& other,
+        Scalar epsilon = Scalar(1e-20)) const noexcept
+    {
+        const Scalar denominator =
+            std::sqrt(
+                lengthSquared() *
+                other.lengthSquared()
+            );
+
+        if (denominator <= epsilon)
+        {
+            return Scalar(0.0);
+        }
+
+        const Scalar cosine =
+            std::clamp(
+                dot(other) / denominator,
+                Scalar(-1.0),
+                Scalar(1.0)
+            );
+
+        return std::acos(cosine);
     }
 
-    // ── Покомпонентные операции ──────────────────────────────
-    [[nodiscard]] static constexpr Vector3 componentMin(const Vector3& a, const Vector3& b) noexcept {
-        return {std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z)};
+    // ---------------------------------------------------------
+    // Projection
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    Vector3 projectedOnto(
+        const Vector3& other,
+        Scalar epsilon = Scalar(1e-20)) const noexcept
+    {
+        const Scalar lengthSq =
+            other.lengthSquared();
+
+        if (lengthSq <= epsilon)
+        {
+            return zero();
+        }
+
+        return
+            other *
+            (dot(other) / lengthSq);
     }
-    [[nodiscard]] static constexpr Vector3 componentMax(const Vector3& a, const Vector3& b) noexcept {
-        return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z)};
+
+    // ---------------------------------------------------------
+    // Reflection
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    Vector3 reflected(
+        const Vector3& normal) const noexcept
+    {
+        return
+            *this -
+            normal *
+            (Scalar(2.0) * dot(normal));
     }
-    [[nodiscard]] static constexpr Vector3 componentAbs(const Vector3& v) noexcept {
-        return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
+
+    // ---------------------------------------------------------
+    // Linear interpolation
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    static constexpr Vector3 lerp(
+        const Vector3& a,
+        const Vector3& b,
+        Scalar t) noexcept
+    {
+        return
+        {
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t
+        };
     }
 
-    // ── Арифметические операторы ─────────────────────────────
-    friend constexpr Vector3 operator+(const Vector3& a, const Vector3& b) noexcept { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
-    friend constexpr Vector3 operator-(const Vector3& a, const Vector3& b) noexcept { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
-    friend constexpr Vector3 operator*(const Vector3& v, Scalar s) noexcept { return {v.x * s, v.y * s, v.z * s}; }
-    friend constexpr Vector3 operator*(Scalar s, const Vector3& v) noexcept { return {v.x * s, v.y * s, v.z * s}; }
-    friend constexpr Vector3 operator/(const Vector3& v, Scalar s) noexcept { return {v.x / s, v.y / s, v.z / s}; }
-    constexpr Vector3 operator-() const noexcept { return {-x, -y, -z}; }
+    // ---------------------------------------------------------
+    // Component operations
+    // ---------------------------------------------------------
 
-    Vector3& operator+=(const Vector3& other) noexcept { x += other.x; y += other.y; z += other.z; return *this; }
-    Vector3& operator-=(const Vector3& other) noexcept { x -= other.x; y -= other.y; z -= other.z; return *this; }
-    Vector3& operator*=(Scalar s) noexcept { x *= s; y *= s; z *= s; return *this; }
-    Vector3& operator/=(Scalar s) noexcept { x /= s; y /= s; z /= s; return *this; }
+    [[nodiscard]]
+    static constexpr Vector3 componentMin(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            std::min(a.x, b.x),
+            std::min(a.y, b.y),
+            std::min(a.z, b.z)
+        };
+    }
 
-    // Покомпонентное умножение/деление
-    [[nodiscard]] static constexpr Vector3 componentMul(const Vector3& a, const Vector3& b) noexcept { return {a.x * b.x, a.y * b.y, a.z * b.z}; }
-    [[nodiscard]] static constexpr Vector3 componentDiv(const Vector3& a, const Vector3& b) noexcept { return {a.x / b.x, a.y / b.y, a.z / b.z}; }
+    [[nodiscard]]
+    static constexpr Vector3 componentMax(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            std::max(a.x, b.x),
+            std::max(a.y, b.y),
+            std::max(a.z, b.z)
+        };
+    }
 
-    // ── Сравнение ────────────────────────────────────────────
-    friend constexpr bool operator==(const Vector3& a, const Vector3& b) noexcept = default;
-    friend constexpr auto operator<=>(const Vector3& a, const Vector3& b) noexcept = default;
+    [[nodiscard]]
+    static Vector3 componentAbs(
+        const Vector3& value) noexcept
+    {
+        return
+        {
+            std::abs(value.x),
+            std::abs(value.y),
+            std::abs(value.z)
+        };
+    }
 
-    // ── Доступ по индексу ────────────────────────────────────
-    [[nodiscard]] constexpr Scalar& operator[](int i) noexcept { return (&x)[i]; }
-    [[nodiscard]] constexpr const Scalar& operator[](int i) const noexcept { return (&x)[i]; }
+    [[nodiscard]]
+    static constexpr Vector3 componentMul(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            a.x * b.x,
+            a.y * b.y,
+            a.z * b.z
+        };
+    }
 
-    // ── Проверки ─────────────────────────────────────────────
-    [[nodiscard]] constexpr bool isZero() const noexcept { return *this == zero(); }
+    [[nodiscard]]
+    static constexpr Vector3 componentDiv(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            a.x / b.x,
+            a.y / b.y,
+            a.z / b.z
+        };
+    }
+
+    // ---------------------------------------------------------
+    // Arithmetic
+    // ---------------------------------------------------------
+
+    friend constexpr Vector3 operator+(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            a.x + b.x,
+            a.y + b.y,
+            a.z + b.z
+        };
+    }
+
+    friend constexpr Vector3 operator-(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+        {
+            a.x - b.x,
+            a.y - b.y,
+            a.z - b.z
+        };
+    }
+
+    friend constexpr Vector3 operator*(
+        const Vector3& v,
+        Scalar value) noexcept
+    {
+        return
+        {
+            v.x * value,
+            v.y * value,
+            v.z * value
+        };
+    }
+
+    friend constexpr Vector3 operator*(
+        Scalar value,
+        const Vector3& v) noexcept
+    {
+        return v * value;
+    }
+
+    friend constexpr Vector3 operator/(
+        const Vector3& v,
+        Scalar value) noexcept
+    {
+        return
+        {
+            v.x / value,
+            v.y / value,
+            v.z / value
+        };
+    }
+
+    friend constexpr Vector3 operator-(
+        const Vector3& v) noexcept
+    {
+        return
+        {
+            -v.x,
+            -v.y,
+            -v.z
+        };
+    }
+
+    constexpr Vector3& operator+=(
+        const Vector3& other) noexcept
+    {
+        x += other.x;
+        y += other.y;
+        z += other.z;
+
+        return *this;
+    }
+
+    constexpr Vector3& operator-=(
+        const Vector3& other) noexcept
+    {
+        x -= other.x;
+        y -= other.y;
+        z -= other.z;
+
+        return *this;
+    }
+
+    constexpr Vector3& operator*=(
+        Scalar value) noexcept
+    {
+        x *= value;
+        y *= value;
+        z *= value;
+
+        return *this;
+    }
+
+    constexpr Vector3& operator/=(
+        Scalar value) noexcept
+    {
+        x /= value;
+        y /= value;
+        z /= value;
+
+        return *this;
+    }
+
+    // ---------------------------------------------------------
+    // Index access
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    constexpr Scalar& operator[](
+        std::size_t index) noexcept
+    {
+        return
+            index == 0 ? x :
+            index == 1 ? y :
+            z;
+    }
+
+    [[nodiscard]]
+    constexpr const Scalar& operator[](
+        std::size_t index) const noexcept
+    {
+        return
+            index == 0 ? x :
+            index == 1 ? y :
+            z;
+    }
+
+    // ---------------------------------------------------------
+    // State
+    // ---------------------------------------------------------
+
+    [[nodiscard]]
+    bool isZero(
+        Scalar epsilon = Scalar(1e-12)) const noexcept
+    {
+        return
+            std::abs(x) <= epsilon &&
+            std::abs(y) <= epsilon &&
+            std::abs(z) <= epsilon;
+    }
+
+    [[nodiscard]]
+    bool isFinite() const noexcept
+    {
+        return
+            std::isfinite(x) &&
+            std::isfinite(y) &&
+            std::isfinite(z);
+    }
+
+    // ---------------------------------------------------------
+    // Comparison
+    // ---------------------------------------------------------
+
+    friend constexpr bool operator==(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return
+            a.x == b.x &&
+            a.y == b.y &&
+            a.z == b.z;
+    }
+
+    friend constexpr bool operator!=(
+        const Vector3& a,
+        const Vector3& b) noexcept
+    {
+        return !(a == b);
+    }
+
+    // ---------------------------------------------------------
+    // Three-way comparison
+    //
+    // Важно:
+    // Scalar = double, поэтому сравнение является
+    // частичным порядком из-за NaN.
+    // ---------------------------------------------------------
+
+    friend constexpr auto operator<=>(
+        const Vector3& a,
+        const Vector3& b) noexcept = default;
 };
+
+// =============================================================
+// Structured bindings
+// =============================================================
+
+template <std::size_t I>
+[[nodiscard]]
+constexpr Scalar& get(
+    Vector3& value) noexcept
+{
+    static_assert(
+        I < 3,
+        "Vector3 index must be 0, 1 or 2"
+    );
+
+    if constexpr (I == 0)
+    {
+        return value.x;
+    }
+    else if constexpr (I == 1)
+    {
+        return value.y;
+    }
+    else
+    {
+        return value.z;
+    }
+}
+
+template <std::size_t I>
+[[nodiscard]]
+constexpr const Scalar& get(
+    const Vector3& value) noexcept
+{
+    static_assert(
+        I < 3,
+        "Vector3 index must be 0, 1 or 2"
+    );
+
+    if constexpr (I == 0)
+    {
+        return value.x;
+    }
+    else if constexpr (I == 1)
+    {
+        return value.y;
+    }
+    else
+    {
+        return value.z;
+    }
+}
+
+template <std::size_t I>
+[[nodiscard]]
+constexpr Scalar&& get(
+    Vector3&& value) noexcept
+{
+    static_assert(
+        I < 3,
+        "Vector3 index must be 0, 1 or 2"
+    );
+
+    if constexpr (I == 0)
+    {
+        return std::move(value.x);
+    }
+    else if constexpr (I == 1)
+    {
+        return std::move(value.y);
+    }
+    else
+    {
+        return std::move(value.z);
+    }
+}
+
+template <std::size_t I>
+[[nodiscard]]
+constexpr const Scalar&& get(
+    const Vector3&& value) noexcept
+{
+    static_assert(
+        I < 3,
+        "Vector3 index must be 0, 1 or 2"
+    );
+
+    if constexpr (I == 0)
+    {
+        return std::move(value.x);
+    }
+    else if constexpr (I == 1)
+    {
+        return std::move(value.y);
+    }
+    else
+    {
+        return std::move(value.z);
+    }
+}
+
 } // namespace mir
 
-// ── Хеш-функция ──────────────────────────────────────────────
-namespace std {
-    template <>
-    struct hash<mir::Vector3> {
-        [[nodiscard]] size_t operator()(const mir::Vector3& v) const noexcept {
-            size_t h1 = hash<mir::Scalar>{}(v.x);
-            size_t h2 = hash<mir::Scalar>{}(v.y);
-            size_t h3 = hash<mir::Scalar>{}(v.z);
-            return h1 ^ (h2 << 1) ^ (h3 << 2);
-        }
-    };
-}
 
-// ── Вывод в поток ────────────────────────────────────────────
-inline std::ostream& operator<<(std::ostream& os, const mir::Vector3& v) {
-    return os << '[' << v.x << ", " << v.y << ", " << v.z << ']';
-}
+// =============================================================
+// std::tuple_size / std::tuple_element
+// =============================================================
 
-// ── Структурные привязки (structured bindings) ────────────────
-template <> struct std::tuple_size<mir::Vector3> : std::integral_constant<std::size_t, 3> {};
-template <std::size_t I> struct std::tuple_element<I, mir::Vector3> { using type = mir::Scalar; };
+namespace std
+{
 
-template <std::size_t I> [[nodiscard]] constexpr mir::Scalar& get(mir::Vector3& v) noexcept {
-    if constexpr (I == 0) return v.x;
-    else if constexpr (I == 1) return v.y;
-    else if constexpr (I == 2) return v.z;
-}
-template <std::size_t I> [[nodiscard]] constexpr const mir::Scalar& get(const mir::Vector3& v) noexcept {
-    if constexpr (I == 0) return v.x;
-    else if constexpr (I == 1) return v.y;
-    else if constexpr (I == 2) return v.z;
-}
-template <std::size_t I> [[nodiscard]] constexpr mir::Scalar&& get(mir::Vector3&& v) noexcept {
-    if constexpr (I == 0) return std::move(v.x);
-    else if constexpr (I == 1) return std::move(v.y);
-    else if constexpr (I == 2) return std::move(v.z);
+template <>
+struct tuple_size<mir::Vector3>
+    : std::integral_constant<std::size_t, 3>
+{
+};
+
+template <std::size_t I>
+struct tuple_element<I, mir::Vector3>
+{
+    static_assert(
+        I < 3,
+        "Vector3 index must be 0, 1 or 2"
+    );
+
+    using type = mir::Scalar;
+};
+
+template <>
+struct hash<mir::Vector3>
+{
+    [[nodiscard]]
+    std::size_t operator()(
+        const mir::Vector3& value) const noexcept
+    {
+        const std::size_t hx =
+            std::hash<mir::Scalar>{}(value.x);
+
+        const std::size_t hy =
+            std::hash<mir::Scalar>{}(value.y);
+
+        const std::size_t hz =
+            std::hash<mir::Scalar>{}(value.z);
+
+        constexpr std::size_t magic =
+            static_cast<std::size_t>(
+                0x9e3779b97f4a7c15ULL
+            );
+
+        std::size_t result = hx;
+
+        result ^=
+            hy +
+            magic +
+            (result << 6) +
+            (result >> 2);
+
+        result ^=
+            hz +
+            magic +
+            (result << 6) +
+            (result >> 2);
+
+        return result;
+    }
+};
+
+} // namespace std
+
+
+// =============================================================
+// Stream output
+// =============================================================
+
+inline std::ostream& operator<<(
+    std::ostream& stream,
+    const mir::Vector3& value)
+{
+    return
+        stream
+        << '['
+        << value.x
+        << ", "
+        << value.y
+        << ", "
+        << value.z
+        << ']';
 }
