@@ -13,13 +13,8 @@ struct MIR4DStartMenuView: View {
     @ObservedObject var diagnostic: MIR4DBootCoordinator
 
     @State private var selectedMode: MIR4DStartMode?
-    @State private var presentedPanel: StartPanel?
-
-    private enum StartPanel: String, Identifiable {
-        case openProject
-        case newProject
-        var id: String { rawValue }
-    }
+    @State private var showOpenProject = false
+    @State private var showNewProject = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,19 +25,26 @@ struct MIR4DStartMenuView: View {
             footer
         }
         .background(Color(red: 0.025, green: 0.035, blue: 0.055))
-        .sheet(item: $presentedPanel) { panel in
-            switch panel {
-            case .openProject:
-                MIR4DProjectOpenView().environmentObject(appState)
-            case .newProject:
-                MIR4DNewProjectView().environmentObject(appState)
-            }
+        // Keep the two document dialogs independent. This avoids the SwiftUI
+        // sheet-item race that could leave the New Project button apparently
+        // inactive after the startup transition.
+        .sheet(isPresented: $showOpenProject) {
+            MIR4DProjectOpenView()
+                .environmentObject(appState)
+        }
+        .sheet(isPresented: $showNewProject) {
+            MIR4DNewProjectView()
+                .environmentObject(appState)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in
-            present(.newProject)
+            presentNewProject()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in
-            present(.openProject)
+            presentOpenProject()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
+            showNewProject = false
+            showOpenProject = false
         }
     }
 
@@ -115,9 +117,21 @@ struct MIR4DStartMenuView: View {
         .padding(.vertical, 14)
     }
 
-    private func present(_ panel: StartPanel) {
-        selectedMode = panel == .newProject ? .newProject : .openProject
-        DispatchQueue.main.async { presentedPanel = panel }
+    private func presentOpenProject() {
+        showNewProject = false
+        // Give SwiftUI one run-loop turn after the startup transition so the
+        // sheet is always attached to the active window.
+        DispatchQueue.main.async {
+            showOpenProject = true
+        }
+    }
+
+    private func presentNewProject() {
+        selectedMode = .newProject
+        showOpenProject = false
+        DispatchQueue.main.async {
+            showNewProject = true
+        }
     }
 
     private func activate(_ mode: MIR4DStartMode) {
@@ -125,14 +139,10 @@ struct MIR4DStartMenuView: View {
 
         switch mode {
         case .openProject:
-            // Единственная карточка, которая остаётся в стартовом меню:
-            // пользователь сначала выбирает существующий .mir4d проект.
-            present(.openProject)
+            presentOpenProject()
 
         case .newProject:
-            // После успешного создания MIR4DProjectSession отправит
-            // .mir4DProjectActivated, и StartupView плавно покажет CADMainView.
-            present(.newProject)
+            presentNewProject()
 
         case .laboratory4D:
             enterWorkspace(workbench: .fourD, message: "4D лаборатория активирована")
@@ -154,8 +164,6 @@ struct MIR4DStartMenuView: View {
         appState.documentDirty = false
         appState.showNotification(message, type: .success)
 
-        // Не создаём отдельное окно/экран для каждого режима.
-        // Все режимы входят в одно и то же главное рабочее пространство MIR 4D.
         NotificationCenter.default.post(
             name: .mir4DStartWorkspace,
             object: nil,
