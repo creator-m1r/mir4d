@@ -13,8 +13,6 @@ private let mir4DImportTypes: [UTType] = [
 
 // CADMainView layout refinements are intentionally UI-only.
 // MirEngine remains the owner of geometry, camera state and engineering data.
-// The existing implementation below is preserved by the application; this
-// small shell establishes the viewport chrome without covering the model.
 
 struct CADViewportChrome: View {
     @ObservedObject var appState: CADAppState
@@ -48,7 +46,8 @@ struct CADViewportChrome: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(MirTheme.Colors.surfaceRaised.opacity(0.88), in: Capsule())
+                .background(MirTheme.Colors.surfaceRaised)
+                .clipShape(Capsule())
                 .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1))
                 .padding(10)
             }
@@ -67,7 +66,8 @@ struct CADViewportChrome: View {
                     }
                 }
                 .padding(8)
-                .background(MirTheme.Colors.surfaceRaised.opacity(0.88), in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+                .background(MirTheme.Colors.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
                 .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.panelBorder, lineWidth: 1))
                 .padding(10)
             }
@@ -81,7 +81,8 @@ struct CADViewportChrome: View {
                 .font(.system(size: 11, weight: .medium))
                 .frame(width: 26, height: 26)
                 .foregroundStyle(MirTheme.Colors.textSecondary)
-                .background(MirTheme.Colors.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                .background(MirTheme.Colors.surface)
+                .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         }
         .buttonStyle(.plain)
         .help(help)
@@ -103,7 +104,8 @@ struct CADViewportChrome: View {
             .foregroundStyle(MirTheme.Colors.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(MirTheme.Colors.surfaceRaised.opacity(0.88), in: Capsule())
+            .background(MirTheme.Colors.surfaceRaised)
+            .clipShape(Capsule())
             .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1))
             .padding(10)
         }
