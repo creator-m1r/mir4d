@@ -30,17 +30,23 @@ struct TimelinePanelView: View {
     }
 
     private var timelineHeader: some View {
-        HStack(spacing: 7) {
-            HStack(spacing: 7) {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(MirTheme.Colors.accentBright)
-                Text(russian ? "4D Время" : "4D Time")
-                    .font(MirTheme.Typography.bodySemibold)
-                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(russian ? "4D ВРЕМЯ" : "4D TIME")
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(MirTheme.Colors.textPrimary)
+                    Text(russian ? "Ход проекта" : "Project progress")
+                        .font(MirTheme.Typography.status)
+                        .foregroundStyle(MirTheme.Colors.textTertiary)
+                }
             }
 
-            Divider().frame(height: 18)
+            Divider().frame(height: 22)
 
             playbackButton("backward.end.fill", help: russian ? "В начало" : "To start") { appState.resetTime() }
             playbackButton("backward.fill", help: russian ? "Назад" : "Step backward") { appState.stepBackward() }
@@ -49,13 +55,13 @@ struct TimelinePanelView: View {
             playbackButton("forward.end.fill", help: russian ? "В конец" : "To end") { appState.finishTime() }
 
             Text(String(format: "T = %.3f s", appState.currentTime))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(MirTheme.Colors.warning)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(MirTheme.Colors.surfaceRaised, in: Capsule())
 
-            Spacer(minLength: 10)
+            Spacer(minLength: 12)
 
             HStack(spacing: 2) {
                 ForEach(["День", "Неделя", "Месяц"], id: \.self) { mode in
@@ -73,16 +79,16 @@ struct TimelinePanelView: View {
             .background(MirTheme.Colors.surfaceRaised.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
         }
         .padding(.horizontal, MirTheme.Spacing.md)
-        .frame(height: 44)
-        .background(MirTheme.Colors.surface.opacity(0.7))
+        .frame(height: 48)
+        .background(MirTheme.Colors.surface.opacity(0.72))
     }
 
     private func playbackButton(_ image: String, active: Bool = false, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: image)
                 .font(.system(size: 10, weight: .semibold))
-                .frame(width: 26, height: 26)
-                .background(active ? MirTheme.Colors.accentSoft : Color.clear)
+                .frame(width: 28, height: 28)
+                .background(active ? MirTheme.Colors.accentSoft : MirTheme.Colors.surface.opacity(0.45))
                 .foregroundStyle(active ? MirTheme.Colors.accentBright : MirTheme.Colors.textSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         }
@@ -91,20 +97,21 @@ struct TimelinePanelView: View {
     }
 
     private var timeSlider: some View {
-        HStack(spacing: 10) {
-            Text(String(format: "%.3f", appState.time.startTime))
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(MirTheme.Colors.textTertiary)
-
+        VStack(spacing: 3) {
+            HStack {
+                Text(russian ? "Временная шкала" : "Time scale")
+                    .font(MirTheme.Typography.status)
+                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                Spacer()
+                Text(String(format: "%.3f / %.3f s", appState.currentTime, appState.time.endTime))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(MirTheme.Colors.textSecondary)
+            }
             Slider(value: Binding(get: { appState.currentTime }, set: { appState.seek($0) }), in: appState.time.startTime...appState.time.endTime)
                 .tint(MirTheme.Colors.accent)
-
-            Text(String(format: "%.3f s", appState.time.endTime))
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(MirTheme.Colors.textTertiary)
         }
         .padding(.horizontal, MirTheme.Spacing.md)
-        .frame(height: 32)
+        .padding(.vertical, 7)
         .background(MirTheme.Colors.surface.opacity(0.55))
     }
 
@@ -128,7 +135,7 @@ struct TimelinePanelView: View {
                 ganttHeaderRow
                 ForEach(tasks, id: \.wbs) { task in
                     HStack(spacing: 6) {
-                        Text(task.wbs).frame(width: 28, alignment: .leading).foregroundStyle(MirTheme.Colors.textTertiary)
+                        Text(task.wbs).frame(width: 30, alignment: .leading).foregroundStyle(MirTheme.Colors.textTertiary)
                         Text(task.name).lineLimit(1).foregroundStyle(MirTheme.Colors.textPrimary)
                         Spacer()
                         Text(task.duration).frame(width: 32, alignment: .trailing).foregroundStyle(MirTheme.Colors.textTertiary)
@@ -140,7 +147,7 @@ struct TimelinePanelView: View {
                     .background(task.wbs == "1.3" ? MirTheme.Colors.accentSoft.opacity(0.35) : Color.clear)
                 }
             }
-            .frame(width: 280)
+            .frame(width: 290)
             .overlay(Rectangle().fill(MirTheme.Colors.panelBorder).frame(width: 1), alignment: .trailing)
 
             GeometryReader { geo in
@@ -189,7 +196,7 @@ struct TimelinePanelView: View {
 
     private var ganttHeaderRow: some View {
         HStack {
-            Text("WBS").frame(width: 28, alignment: .leading)
+            Text("WBS").frame(width: 30, alignment: .leading)
             Text(russian ? "Задача" : "Task")
             Spacer()
             Text(russian ? "Длит." : "Dur.").frame(width: 32, alignment: .trailing)
