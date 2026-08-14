@@ -14,6 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # SwiftUI sources are compiled separately by Package.swift/Xcode.
 add_library(MirUI STATIC
     Core/Transform/TransformAdapter.cpp
+    Interop/MIR4DEngineDocumentBridge.cpp
     Interop/SelectionEventBridge.cpp
     Interop/SelectionInspectorBridge.cpp
     Widgets/PropertyGrid/RenderSelectionPropertyAdapter.cpp
@@ -37,4 +38,5 @@ set_target_properties(MirUI PROPERTIES
 
 message(STATUS "MirUI v${PROJECT_VERSION}")
 message(STATUS "  C++ presentation + engine interop: ON")
+message(STATUS "  Live MirEngine document bridge: ON")
 message(STATUS "  SwiftUI sources: Package.swift / Xcode")
