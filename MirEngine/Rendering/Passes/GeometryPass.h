@@ -4,17 +4,12 @@
 #include "../Core/RenderCommand.h"
 #include "../Resources/ShaderLibrary.h"
 #include "MirEngine/Core/Identity/ObjectId.hpp"
+#include "MirEngine/Geometry/Scene/Scene.hpp"
+#include "MirEngine/Math/Transform.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
-
-namespace mir
-{
-class Scene;
-class ModelNode;
-struct Transform;
-}
 
 namespace MirEngine::Rendering
 {
@@ -25,7 +20,8 @@ class VertexArray;
 class Shader;
 
 /// Canonical scene geometry pass.
-/// Consumes mir::Scene directly and materializes GPU resources by ObjectId.
+/// Consumes the canonical mir::Scene/model aliases and materializes GPU
+/// resources by the canonical mir4d::ObjectId.
 class GeometryPass final : public RenderPass
 {
 public:
@@ -43,7 +39,7 @@ private:
     MaterialHandle m_defaultMaterial{0};
     MeshHandle m_nextMeshHandle{1};
 
-    std::unordered_map<mir::ObjectId, MeshHandle> m_objectToHandle;
+    std::unordered_map<mir4d::ObjectId, MeshHandle> m_objectToHandle;
     std::unordered_map<MeshHandle, std::shared_ptr<VertexArray>> m_vaos;
     const mir::Scene* m_cachedScene{nullptr};
     std::uint64_t m_cachedRevision{0};
