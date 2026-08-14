@@ -156,13 +156,17 @@ struct MIR4DStartupView: View {
     private func resolveLaunch() {
         guard !didResolveLaunch else { return }
         didResolveLaunch = true
-        let intent = launch.resolveAfterBoot(autoOpenLastProject: MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled)
+
+        // The startup contract is explicit: after diagnostics the user always sees
+        // the Project Hub and chooses what to work with. Automatic restoration is
+        // intentionally not performed here; "Continue" remains an explicit choice.
+        let intent = launch.resolveAfterBoot(autoOpenLastProject: false)
+
         switch intent {
-        case .externalProject(let url): openExternalProject(url)
-        case .restoreLast:
-            if MIR4DProjectCommands.shared.restoreLastProjectOnLaunch(appState: appState) { return }
+        case .externalProject(let url):
+            openExternalProject(url)
+        case .restoreLast, .startMenu:
             showStartMenuAnimated()
-        case .startMenu: showStartMenuAnimated()
         }
     }
 
