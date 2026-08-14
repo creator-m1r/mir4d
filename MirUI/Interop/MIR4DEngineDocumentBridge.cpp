@@ -3,9 +3,7 @@
 #include "../../MirEngine/Document/CreateBoxCommandHandler.hpp"
 #include "../../MirEngine/Document/Document.hpp"
 
-#include <memory>
 #include <string>
-#include <utility>
 
 namespace MirUI
 {
@@ -32,7 +30,13 @@ void MIR4DEngineDocumentBridge::reset(const char* projectName)
     const std::string name =
         (projectName != nullptr && *projectName != '\0') ? projectName : "Новый проект";
 
-    impl_->document = mir4d::Document(name);
+    // Document contains a registry-backed ObjectStore, so it is intentionally
+    // non-assignable. Reset its owned state in place instead of replacing it.
+    impl_->document.scene().clear();
+    impl_->document.history().clear();
+    impl_->document.setTime(mir4d::Time{});
+    impl_->document.setName(name);
+    impl_->document.clearModified();
     impl_->name = name;
 }
 
