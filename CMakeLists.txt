@@ -122,6 +122,9 @@ target_link_libraries(MIR4D_CreateBox PRIVATE MirEngineBRep)
 add_executable(MIR4D_ObjectStore MirEngine/Tests/Document/ObjectStoreTests.cpp)
 target_link_libraries(MIR4D_ObjectStore PRIVATE MirEngine)
 
+add_executable(MIR4D_EngineDocumentBridge MirEngine/Tests/Document/EngineDocumentBridge.cpp)
+target_link_libraries(MIR4D_EngineDocumentBridge PRIVATE MirUI)
+
 add_executable(MIR4D_BRepBox MirEngine/Tests/BRep/BRepBox.cpp)
 target_link_libraries(MIR4D_BRepBox PRIVATE MirEngineBRep)
 
@@ -173,6 +176,7 @@ add_test(NAME MIR4D_DocumentRenderBridge COMMAND MIR4D_DocumentRenderBridge)
 add_test(NAME MIR4D_RenderCamera COMMAND MIR4D_RenderCamera)
 add_test(NAME MIR4D_CreateBox COMMAND MIR4D_CreateBox)
 add_test(NAME MIR4D_ObjectStore COMMAND MIR4D_ObjectStore)
+add_test(NAME MIR4D_EngineDocumentBridge COMMAND MIR4D_EngineDocumentBridge)
 add_test(NAME MIR4D_BRepBox COMMAND MIR4D_BRepBox)
 add_test(NAME MIR4D_BRepTopology COMMAND MIR4D_BRepTopology)
 add_test(NAME MIR4D_BRepProfileExtrude COMMAND MIR4D_BRepProfileExtrude)
