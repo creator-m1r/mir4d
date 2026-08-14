@@ -6,78 +6,53 @@ import SwiftUI
 import AppKit
 
 struct MIR4DProjectOpenView: View {
-
-    @Environment(\.dismiss)
-    private var dismiss
-
-    @EnvironmentObject
-    private var appState: CADAppState
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: CADAppState
 
     var body: some View {
-
         VStack(spacing: 20) {
-
             Image(systemName: "folder")
                 .font(.system(size: 44))
-
             Text("Открыть проект")
                 .font(.title2)
                 .bold()
-
-            Text(
-                "Выберите файл проекта MIR 4D."
-            )
-            .foregroundStyle(.secondary)
-
+            Text("Выберите каталог проекта MIR 4D (.mir4d).")
+                .foregroundStyle(.secondary)
             HStack {
-
-                Button("Отмена") {
-                    dismiss()
-                }
-
-                Button("Выбрать проект") {
-
-                    openProject()
-                }
-                .buttonStyle(.borderedProminent)
+                Button("Отмена") { dismiss() }
+                Button("Выбрать проект") { openProject() }
+                    .buttonStyle(.borderedProminent)
             }
         }
         .padding(40)
-        .frame(
-            width: 500,
-            height: 260
-        )
+        .frame(width: 500, height: 260)
     }
 
     private func openProject() {
-
-        let panel =
-            NSOpenPanel()
-
-        panel.title =
-            "Открыть проект MIR 4D"
-
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        let panel = NSOpenPanel()
+        panel.title = "Открыть проект MIR 4D"
+        panel.message = "Выберите каталог с расширением .mir4d."
+        panel.prompt = "Открыть"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.treatsFilePackagesAsDirectories = true
 
-        panel.allowedContentTypes = []
-
-        if panel.runModal() == .OK,
-           let url = panel.url {
-
-            appState.documentName =
-                url.deletingPathExtension()
-                    .lastPathComponent
-
-            appState.documentDirty = false
-
-            appState.showNotification(
-                "Проект открыт: \(url.lastPathComponent)",
-                type: .success
-            )
-
-            dismiss()
+        guard panel.runModal() == .OK,
+              let url = panel.url else {
+            return
         }
+
+        guard url.pathExtension.lowercased() == "mir4d" else {
+            appState.showNotification(
+                "Выберите каталог проекта с расширением .mir4d",
+                type: .warning
+            )
+            return
+        }
+
+        appState.openMIR4DProject(url: url)
+        dismiss()
     }
 }
