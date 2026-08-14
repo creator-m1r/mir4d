@@ -24,7 +24,6 @@ final class MIR4DModelRuntime: ObservableObject {
 #if !MIR4D_SWIFTPM
     private var engineDocument: UnsafeMutableRawPointer?
 #endif
-    private var createBoxObserver: NSObjectProtocol?
 
     private init() {
         document = MIR4DModelDocument.newProject(name: "Новый проект")
@@ -32,17 +31,9 @@ final class MIR4DModelRuntime: ObservableObject {
         engineDocument = MIR4DDocumentCreate()
         syncEngineState()
 #endif
-        createBoxObserver = NotificationCenter.default.addObserver(forName: .mir4DCreateBox, object: nil, queue: .main) { [weak self] notification in
-            guard let payload = notification.object as? [String: Any],
-                  let width = payload["width"] as? Double,
-                  let depth = payload["depth"] as? Double,
-                  let height = payload["height"] as? Double else { return }
-            Task { @MainActor [weak self] in self?.addBox(width: width, depth: depth, height: height) }
-        }
     }
 
     deinit {
-        if let observer = createBoxObserver { NotificationCenter.default.removeObserver(observer) }
 #if !MIR4D_SWIFTPM
         if let engineDocument { MIR4DDocumentDestroy(engineDocument) }
 #endif
@@ -64,10 +55,22 @@ final class MIR4DModelRuntime: ObservableObject {
 #if !MIR4D_SWIFTPM
         if engineDocument == nil { engineDocument = MIR4DDocumentCreate() }
         document.name.withCString { MIR4DDocumentReset(engineDocument, $0) }
+
+        // Rebuild the evaluated MirEngine document from the persisted
+        // parameter model. The renderer receives the same geometry below.
+        for geometry in document.geometry where geometry.kind == .box {
+            let width = geometry.parameters["width"] ?? 0
+            let depth = geometry.parameters["depth"] ?? 0
+            let height = geometry.parameters["height"] ?? 0
+            guard width > 0, depth > 0, height > 0 else { continue }
+            var objectID: UInt64 = 0
+            _ = MIR4DDocumentCreateBox(engineDocument, width, depth, height, &objectID)
+        }
         syncEngineState()
 #endif
         revision &+= 1
         publishChange()
+        replayGeometryToViewport()
     }
 
     @discardableResult
@@ -100,6 +103,29 @@ final class MIR4DModelRuntime: ObservableObject {
 #endif
         publishChange()
         return bodyID
+    }
+
+    private func replayGeometryToViewport() {
+        let payloads = document.geometry.compactMap { geometry -> [String: Any]? in
+            guard geometry.kind == .box else { return nil }
+            guard let width = geometry.parameters["width"],
+                  let depth = geometry.parameters["depth"],
+                  let height = geometry.parameters["height"],
+                  width > 0, depth > 0, height > 0 else { return nil }
+            return ["width": width, "depth": depth, "height": height]
+        }
+
+        guard !payloads.isEmpty else { return }
+
+        // CADMainView creates the native OpenGL view immediately after the
+        // project is loaded. Replay on the next run-loop turn so the renderer
+        // can consume the persisted geometry during workspace hydration.
+        DispatchQueue.main.async { [weak self] in
+            guard self != nil else { return }
+            for payload in payloads {
+                NotificationCenter.default.post(name: .mir4DCreateBox, object: payload)
+            }
+        }
     }
 
     private func publishChange() {
