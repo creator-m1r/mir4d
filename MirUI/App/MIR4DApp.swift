@@ -9,13 +9,18 @@ import AppKit
 @main
 struct MIR4DApp: App {
     @StateObject private var appState = CADAppState()
+    @StateObject private var launch = MIR4DLaunchCoordinator.shared
 
     var body: some Scene {
         WindowGroup {
             MIR4DStartupView()
                 .environmentObject(appState)
+                .environmentObject(launch)
                 .frame(minWidth: 1280, minHeight: 800)
                 .background(MIR4DWindowConfigurator())
+                .onOpenURL { url in
+                    launch.handleOpenURL(url)
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -89,9 +94,6 @@ final class WindowConfiguratorView: NSView {
         window.level = .floating
         window.collectionBehavior.insert(.fullScreenAuxiliary)
 
-        // Prefer Apple's dedicated fullscreen button. If the current window
-        // style does not expose it, fall back to the standard zoom button and
-        // explicitly route it to native fullscreen.
         if let fullscreen = window.standardWindowButton(.fullScreenButton) {
             fullscreen.isHidden = false
             fullscreen.isEnabled = true
