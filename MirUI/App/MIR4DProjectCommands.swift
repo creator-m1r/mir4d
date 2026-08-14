@@ -50,31 +50,15 @@ final class MIR4DProjectCommands {
         appState.closeMIR4DProject()
     }
 
-    /// User-initiated Hub action. Unlike cold-start restore, this action is
-    /// always allowed and therefore intentionally ignores the auto-open setting.
-    /// This keeps the Hub's "Продолжить" button independent from launch preferences.
+    /// User-initiated Hub action. This is independent from the launch preference.
     func restoreLastProject(appState: CADAppState) -> Bool {
-        let session = MIR4DProjectSession.shared
-        guard let url = session.lastProjectURL() else {
-            return false
-        }
-
-        guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
-            appState.showNotification(
-                "Последний проект недоступен. Выберите проект из списка недавних.",
-                type: .warning
-            )
-            return false
-        }
-
-        session.openProject(appState: appState, url: url)
-        return true
+        MIR4DProjectSession.shared.continueLastProject(appState: appState)
     }
 
-    /// Cold-start action. This is the only command path that respects the
+    /// Cold-start action. This is the only restore path that respects the
     /// user's "Открывать последний проект при запуске" preference.
     func restoreLastProjectOnLaunch(appState: CADAppState) -> Bool {
-        MIR4DProjectSession.shared.restoreLastProject(appState: appState)
+        MIR4DProjectSession.shared.restoreLastProjectOnLaunch(appState: appState)
     }
 }
 
