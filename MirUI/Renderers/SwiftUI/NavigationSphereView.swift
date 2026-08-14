@@ -9,16 +9,31 @@ struct NavigationSphereView: View {
     var distance: Double
 
     var body: some View {
-        ZStack {
-            sphereBody
-            latitudeLines
-            longitudeLines
-            orientationMarker
-            labels
-            navigationHitZones
+        VStack(spacing: 4) {
+            Text("НАВИГАЦИЯ")
+                .font(.system(size: 8, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+
+            ZStack {
+                sphereBody
+                latitudeLines
+                longitudeLines
+                orientationMarker
+                labels
+                navigationHitZones
+            }
+            .frame(width: 128, height: 128)
         }
-        .frame(width: 120, height: 120)
-        .contentShape(Circle())
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: MirTheme.Radius.large))
+        .overlay {
+            RoundedRectangle(cornerRadius: MirTheme.Radius.large)
+                .stroke(MirTheme.Colors.panelBorder.opacity(0.8), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: MirTheme.Radius.large))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Навигационная сфера")
         .accessibilityValue(orientationDescription)
@@ -29,20 +44,17 @@ struct NavigationSphereView: View {
             .fill(
                 RadialGradient(
                     colors: [
-                        Color.white.opacity(0.16),
-                        MirTheme.Colors.viewport.opacity(0.82),
-                        Color.black.opacity(0.48)
+                        Color.white.opacity(0.18),
+                        MirTheme.Colors.viewport.opacity(0.88),
+                        Color.black.opacity(0.52)
                     ],
                     center: .topLeading,
                     startRadius: 4,
-                    endRadius: 60
+                    endRadius: 64
                 )
             )
-            .overlay(
-                Circle()
-                    .stroke(MirTheme.Colors.accentBright.opacity(0.7), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.35), radius: 10, y: 5)
+            .overlay(Circle().stroke(MirTheme.Colors.accentBright.opacity(0.72), lineWidth: 1))
+            .shadow(color: .black.opacity(0.30), radius: 9, y: 4)
             .allowsHitTesting(false)
     }
 
@@ -79,7 +91,7 @@ struct NavigationSphereView: View {
                     )
                 }
             }
-            .stroke(Color.white.opacity(0.1), lineWidth: 0.8)
+            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
         }
         .clipShape(Circle())
         .allowsHitTesting(false)
@@ -98,38 +110,33 @@ struct NavigationSphereView: View {
                 .fill(MirTheme.Colors.selection)
                 .frame(width: 9, height: 9)
                 .shadow(color: MirTheme.Colors.selection.opacity(0.7), radius: 5)
-                .position(
-                    x: center.x + x * scale,
-                    y: center.y + y * scale
-                )
+                .position(x: center.x + x * scale, y: center.y + y * scale)
         }
         .allowsHitTesting(false)
     }
 
     private var labels: some View {
         ZStack {
-            Text("TOP").position(x: 60, y: 10)
-            Text("FRONT").position(x: 60, y: 110)
-            Text("L").position(x: 10, y: 60)
-            Text("R").position(x: 110, y: 60)
-            Text("ISO").position(x: 92, y: 25)
-            Text("BOTTOM").font(.system(size: 6)).position(x: 20, y: 112)
+            Text("ВЕРХ").position(x: 64, y: 10)
+            Text("ФРОНТ").position(x: 64, y: 118)
+            Text("Л").position(x: 10, y: 64)
+            Text("П").position(x: 118, y: 64)
+            Text("ISO").position(x: 98, y: 25)
+            Text("НИЗ").font(.system(size: 6)).position(x: 25, y: 118)
         }
         .font(.system(size: 8, weight: .semibold, design: .rounded))
         .foregroundStyle(Color.white.opacity(0.62))
         .allowsHitTesting(false)
     }
 
-    /// Hit zones cover the whole sphere so clicks never fall through to the
-    /// viewport (which would trigger the radial menu). Layout mirrors a
-    /// classic navigation cube: top band, bottom band, side bands, corners.
+    /// Hit zones cover the whole sphere so clicks never fall through to the viewport.
     private var navigationHitZones: some View {
         GeometryReader { proxy in
+            let w = proxy.size.width
+            let h = proxy.size.height
+            let cellW = w / 3
+            let cellH = h / 3
             ZStack {
-                let w = proxy.size.width
-                let h = proxy.size.height
-                let cellW = w / 3
-                let cellH = h / 3
                 presetZone(.top, rect: CGRect(x: 0, y: 0, width: cellW * 2, height: cellH))
                 presetZone(.isometric, rect: CGRect(x: cellW * 2, y: 0, width: cellW, height: cellH))
                 presetZone(.left, rect: CGRect(x: 0, y: cellH, width: cellW, height: cellH))
@@ -148,9 +155,7 @@ struct NavigationSphereView: View {
             .frame(width: rect.width, height: rect.height)
             .contentShape(Rectangle())
             .position(x: rect.midX, y: rect.midY)
-            .onTapGesture {
-                Mir4DSetActiveCameraPreset(preset)
-            }
+            .onTapGesture { Mir4DSetActiveCameraPreset(preset) }
             .accessibilityLabel(preset.titleRU)
     }
 
