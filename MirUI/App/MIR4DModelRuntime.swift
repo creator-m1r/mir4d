@@ -159,9 +159,10 @@ final class MIR4DModelRuntime: ObservableObject {
             guard let width = geometry.parameters["width"],
                   let depth = geometry.parameters["depth"],
                   let height = geometry.parameters["height"],
+                  let operationID = geometry.operationID,
                   width > 0, depth > 0, height > 0 else { return nil }
 
-            let operation = document.operations.first { $0.id == geometry.operationID }
+            let operation = document.operations.first { $0.id == operationID }
             let bodyID = operation?.bodyID
 
             var payload: [String: Any] = [
@@ -169,7 +170,7 @@ final class MIR4DModelRuntime: ObservableObject {
                 "depth": depth,
                 "height": height,
                 "geometryID": geometry.id.uuidString,
-                "operationID": geometry.operationID.uuidString
+                "operationID": operationID.uuidString
             ]
             if let bodyID = bodyID {
                 payload["bodyID"] = bodyID.uuidString
