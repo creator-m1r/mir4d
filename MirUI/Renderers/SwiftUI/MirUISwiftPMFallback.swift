@@ -1,3 +1,5 @@
+#if MIR4D_SWIFTPM
+
 import Foundation
 
 // MARK: - SwiftPM fallback for the MirUI C ABI
@@ -116,7 +118,7 @@ public func mirUIGetPropertyString(
 ) -> UnsafePointer<CChar>? {
     _ = widgetId
     _ = propertyName
-    return strdup("")
+    return strdup("").map { UnsafePointer<CChar>($0) }
 }
 
 @_cdecl("MirUI_SetProperty")
@@ -204,7 +206,7 @@ public func mirUISwitchTheme(_ themeId: UnsafePointer<CChar>?) {
 
 @_cdecl("MirUI_CurrentThemeName")
 public func mirUICurrentThemeName() -> UnsafePointer<CChar>? {
-    strdup("SwiftPM fallback")
+    strdup("SwiftPM fallback").map { UnsafePointer<CChar>($0) }
 }
 
 @_cdecl("MirUI_RegisterTheme")
@@ -215,7 +217,7 @@ public func mirUIRegisterTheme(_ themeId: UnsafePointer<CChar>?) {
 @_cdecl("MirUI_GetThemeColor")
 public func mirUIGetThemeColor(_ colorToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? {
     _ = colorToken
-    return strdup("#000000FF")
+    return strdup("#000000FF").map { UnsafePointer<CChar>($0) }
 }
 
 @_cdecl("MirUI_SetThemeColor")
@@ -242,7 +244,7 @@ public func mirUISetThemeMetric(_ metricToken: UnsafePointer<CChar>?, _ value: D
 @_cdecl("MirUI_GetThemeFont")
 public func mirUIGetThemeFont(_ fontToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? {
     _ = fontToken
-    return strdup("system")
+    return strdup("system").map { UnsafePointer<CChar>($0) }
 }
 
 @_cdecl("MirUI_SetThemeFont")
@@ -273,7 +275,7 @@ public func mirUIGetWidgetStyleField(
     _ = widgetType
     _ = widgetState
     _ = fieldName
-    return strdup("")
+    return strdup("").map { UnsafePointer<CChar>($0) }
 }
 
 @_cdecl("MirUI_SetWidgetStyleField")
@@ -305,3 +307,5 @@ public func mirUIExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: I
     _ = commandId
     _ = widgetId
 }
+
+#endif
