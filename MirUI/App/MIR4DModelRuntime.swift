@@ -171,7 +171,7 @@ final class MIR4DModelRuntime: ObservableObject {
                 "geometryID": geometry.id.uuidString,
                 "operationID": geometry.operationID.uuidString
             ]
-            if let bodyID {
+            if let bodyID = bodyID {
                 payload["bodyID"] = bodyID.uuidString
             }
             if let engineObjectID = engineObjectIDs[geometry.id] {
@@ -188,23 +188,27 @@ final class MIR4DModelRuntime: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard self != nil else { return }
             for payload in payloads {
-                NotificationCenter.default.post(name: .mir4DCreateBox, object: payload)
+                NotificationCenter.default.post(
+                    name: .mir4DEngineDocumentChanged,
+                    object: nil,
+                    userInfo: ["geometry": payload]
+                )
             }
         }
     }
 
-    private func publishChange() {
-        NotificationCenter.default.post(name: .mir4DModelChanged, object: revision)
-    }
-
 #if !MIR4D_SWIFTPM
     private func syncEngineState() {
-        engineObjectCount = MIR4DDocumentObjectCount(engineDocument)
-        engineCommandCount = MIR4DDocumentCommandCount(engineDocument)
+        engineObjectCount = Int(MIR4DDocumentObjectCount(engineDocument))
+        engineCommandCount = Int(MIR4DDocumentCommandCount(engineDocument))
         engineRevision = MIR4DDocumentRevision(engineDocument)
-        engineIsModified = MIR4DDocumentIsModified(engineDocument)
         engineIsValid = MIR4DDocumentIsValid(engineDocument)
-        NotificationCenter.default.post(name: .mir4DEngineDocumentChanged, object: engineRevision)
+        engineIsModified = MIR4DDocumentIsModified(engineDocument)
     }
 #endif
+
+    private func publishChange() {
+        objectWillChange.send()
+        NotificationCenter.default.post(name: .mir4DModelChanged, object: self)
+    }
 }
