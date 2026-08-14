@@ -29,6 +29,7 @@ final class MIR4DProjectSession {
     static let shared = MIR4DProjectSession()
     private(set) var projectURL: URL?
     private(set) var projectName: String = "Новый проект"
+    private(set) var projectUUID: UUID?
     private var autoSave: MIR4DProjectAutoSave?
     private let lastProjectDefaultsKey = "MIR4D.lastProjectURL"
     private let autoOpenLastKey = "MIR4D.autoOpenLastProject"
@@ -49,6 +50,7 @@ final class MIR4DProjectSession {
     func createProject(appState: CADAppState, name: String, parentURL: URL) {
         do {
             let url = try MIR4DProjectStore.shared.createProject(name: name, in: parentURL)
+            projectUUID = UUID()
             activate(url: url, name: name, appState: appState)
             modelRuntime.reset(projectName: appState.documentName)
             try save(appState: appState)
@@ -60,10 +62,13 @@ final class MIR4DProjectSession {
     func openProject(appState: CADAppState, url: URL) {
         do {
             let manifest = try MIR4DProjectStore.shared.load(from: url)
-            projectURL = url
+            projectURL = url.standardizedFileURL
             projectName = manifest.name
+            // Soft migration: old v1 manifests may not have an identity yet.
+            // Generate it once and persist it on the next save.
+            projectUUID = manifest.uuid ?? UUID()
             appState.documentName = manifest.name
-            appState.documentDirty = false
+            appState.documentDirty = manifest.uuid == nil
             appState.selectedTreeItem = manifest.selectedTreeItem
             appState.gridVisible = manifest.gridVisible
             appState.axesVisible = manifest.axesVisible
@@ -88,12 +93,10 @@ final class MIR4DProjectSession {
         }
     }
 
-    /// Synchronous full save for explicit commands such as Cmd-S.
     func save(appState: CADAppState) throws {
         try saveSync(appState: appState, scope: .full)
     }
 
-    /// Save only the requested project layer. Model autosave uses `modelOnly` so UI state is not rewritten.
     func saveSync(appState: CADAppState, scope: MIR4DSaveScope = .full) throws {
         guard let projectURL else { throw ProjectError.noActiveProject }
 
@@ -101,9 +104,7 @@ final class MIR4DProjectSession {
         case .manifestOnly:
             try MIR4DProjectStore.shared.save(manifest: makeManifest(from: appState, in: projectURL), to: projectURL)
         case .modelOnly:
-            guard modelRuntime.revision != lastSavedModelRevision else {
-                return
-            }
+            guard modelRuntime.revision != lastSavedModelRevision else { return }
             try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
             lastSavedModelRevision = modelRuntime.revision
         case .full:
@@ -119,16 +120,13 @@ final class MIR4DProjectSession {
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
     }
 
-    /// Autosave path: capture the current value document on the main actor, then encode/write off-main.
     func saveAsync(appState: CADAppState, scope: MIR4DSaveScope = .full) async throws {
         guard let projectURL else { throw ProjectError.noActiveProject }
 
         let manifest: MIR4DProjectManifest?
         switch scope {
-        case .manifestOnly, .full:
-            manifest = makeManifest(from: appState, in: projectURL)
-        case .modelOnly:
-            manifest = nil
+        case .manifestOnly, .full: manifest = makeManifest(from: appState, in: projectURL)
+        case .modelOnly: manifest = nil
         }
 
         let modelSnapshot: MIR4DModelDocument?
@@ -150,7 +148,6 @@ final class MIR4DProjectSession {
         }
         if let modelSnapshot {
             try await MIR4DProjectStore.shared.saveModelAsync(modelSnapshot, to: projectURL)
-            // The revision belongs to the captured snapshot. A newer edit will produce another revision and another autosave.
             lastSavedModelRevision = revision
         }
 
@@ -162,6 +159,7 @@ final class MIR4DProjectSession {
     func saveAs(appState: CADAppState, name: String, parentURL: URL) {
         do {
             let url = try MIR4DProjectStore.shared.createProject(name: name, in: parentURL)
+            projectUUID = UUID()
             projectURL = url
             projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             appState.documentName = projectName
@@ -178,6 +176,7 @@ final class MIR4DProjectSession {
         autoSave?.stop()
         autoSave = nil
         projectURL = nil
+        projectUUID = nil
         projectName = "Новый проект"
         lastSavedModelRevision = 0
         modelRuntime.reset(projectName: "Новый проект")
@@ -191,10 +190,10 @@ final class MIR4DProjectSession {
               let path = UserDefaults.standard.string(forKey: lastProjectDefaultsKey)
         else { return false }
 
-        let url = URL(fileURLWithPath: path, isDirectory: true)
-        let manifestURL = url.appendingPathComponent("project.mir4d.json")
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+        let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
             clearLastProject()
+            appState.showNotification("Последний проект недоступен. Открыт стартовый экран.", type: .warning)
             return false
         }
 
@@ -242,7 +241,7 @@ final class MIR4DProjectSession {
     }
 
     private func activate(url: URL, name: String, appState: CADAppState) {
-        projectURL = url
+        projectURL = url.standardizedFileURL
         projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         appState.documentName = projectName
         appState.documentDirty = false
@@ -277,7 +276,8 @@ final class MIR4DProjectSession {
             gridVisible: appState.gridVisible,
             axesVisible: appState.axesVisible,
             sectionMode: appState.sectionMode,
-            currentTime: appState.currentTime
+            currentTime: appState.currentTime,
+            uuid: projectUUID
         )
     }
 
@@ -299,7 +299,7 @@ final class MIR4DProjectSession {
     private func addToRecents(url: URL, name: String) {
         var list = loadRecentProjects()
         list.removeAll { $0.path == url.path }
-        list.insert(MIR4DRecentProject(id: UUID(), name: name, path: url.path, lastOpened: Date()), at: 0)
+        list.insert(MIR4DRecentProject(id: projectUUID ?? UUID(), name: name, path: url.path, lastOpened: Date()), at: 0)
         if list.count > maxRecentProjects { list = Array(list.prefix(maxRecentProjects)) }
         saveRecentProjects(list)
         UserDefaults.standard.set(url.path, forKey: lastProjectDefaultsKey)
