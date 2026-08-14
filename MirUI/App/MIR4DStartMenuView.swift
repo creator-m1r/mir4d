@@ -2,7 +2,8 @@
 //  MIR4DStartMenuView.swift
 //  MIR4D
 //
-//  Главное стартовое меню MIR 4D.
+//  Project Hub — центральная точка навигации по проектам MIR 4D.
+//  Вся работа с проектами проходит через MIR4DProjectCommands.
 //
 
 import SwiftUI
@@ -16,10 +17,23 @@ struct MIR4DStartMenuView: View {
     @State private var showOpenProject = false
     @State private var showNewProject = false
     @State private var autoOpenLastProject = MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled
+    @State private var recentRefreshToken = UUID()
+
+    private var commands: MIR4DProjectCommands { .shared }
 
     private var recentProjects: [MIR4DRecentProject] {
-        MIR4DProjectSession.shared.recentProjects
+        _ = recentRefreshToken
+        return MIR4DProjectSession.shared.recentProjectsList()
     }
+
+    private var continueProject: MIR4DRecentProject? { recentProjects.first }
+
+    private var continueAvailability: MIR4DRecentAvailability? {
+        guard let project = continueProject else { return nil }
+        return MIR4DProjectSession.shared.availability(of: project)
+    }
+
+    private var canContinue: Bool { continueAvailability == .available }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,16 +50,15 @@ struct MIR4DStartMenuView: View {
         .sheet(isPresented: $showNewProject) {
             MIR4DNewProjectView().environmentObject(appState)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in
-            presentNewProject()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in
-            presentOpenProject()
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in presentNewProject() }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in presentOpenProject() }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
             showNewProject = false
             showOpenProject = false
+            refreshRecents()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectSaved)) { _ in refreshRecents() }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in refreshRecents() }
     }
 
     private var header: some View {
@@ -73,98 +86,143 @@ struct MIR4DStartMenuView: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Начало работы")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text("Выберите проект или направление работы MIR 4D")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-
-                quickActions
-
-                if !recentProjects.isEmpty {
-                    recentSection
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Начало работы")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("Создайте проект, откройте существующий или продолжите работу.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                 }
 
+                primaryActions
+                openButton
+                recentSection
                 scenariosSection
             }
             .padding(32)
         }
     }
 
-    private var quickActions: some View {
-        HStack(spacing: 12) {
-            quickAction(title: "Создать проект", icon: "plus.square.fill") {
-                presentNewProject()
-            }
-            quickAction(title: "Открыть проект", icon: "folder.fill") {
-                presentOpenProject()
-            }
+    private var primaryActions: some View {
+        HStack(spacing: 14) {
+            continueCard
+            createCard
         }
     }
 
-    private func quickAction(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon).font(.system(size: 18))
-                Text(title).font(.system(size: 14, weight: .semibold))
+    private var continueCard: some View {
+        Button {
+            guard canContinue else { return }
+            _ = commands.restoreLastProject(appState: appState)
+        } label: {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack {
+                    Image(systemName: "arrow.forward.circle.fill").font(.system(size: 23))
+                    Spacer()
+                    Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
+                }
+                Text("Продолжить").font(.system(size: 18, weight: .semibold))
+                if let project = continueProject {
+                    Text(project.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                    Text(continueAvailability == .available ? "Последний проект" : "Проект недоступен")
+                        .font(.system(size: 11))
+                        .foregroundStyle(continueAvailability == .available ? .secondary : .orange)
+                } else {
+                    Text("Нет проекта для продолжения")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+            }
+            .foregroundStyle(.white)
+            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(canContinue ? 0.07 : 0.035)))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(canContinue ? 0.13 : 0.06), lineWidth: 1))
+        }
+        .buttonStyle(MIR4DStartCardButtonStyle())
+        .disabled(!canContinue)
+        .help(canContinue ? "Открыть последний проект" : "Нет доступного проекта для продолжения")
+    }
+
+    private var createCard: some View {
+        Button { presentNewProject() } label: {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack {
+                    Image(systemName: "plus.square.fill").font(.system(size: 23))
+                    Spacer()
+                    Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
+                }
+                Text("Создать проект").font(.system(size: 18, weight: .semibold))
+                Text("Новый проект MIR 4D")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                Text("CAD • BIM • 4D")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+            }
+            .foregroundStyle(.white)
+            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.07)))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.13), lineWidth: 1))
+        }
+        .buttonStyle(MIR4DStartCardButtonStyle())
+    }
+
+    private var openButton: some View {
+        Button { presentOpenProject() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "folder.fill").font(.system(size: 18))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Открыть проект .mir4d").font(.system(size: 14, weight: .semibold))
+                    Text("Выбрать существующий проект MIR 4D")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 11, weight: .bold))
+                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.10), lineWidth: 1))
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.045)))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.09), lineWidth: 1))
         }
         .buttonStyle(MIR4DStartCardButtonStyle())
     }
 
     private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack {
-                Text("Недавние проекты")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Недавние проекты")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("Последние открытые проекты MIR 4D")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Text("до 10 проектов")
-                    .font(.system(size: 10))
+                Text("до 10")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 1) {
-                ForEach(recentProjects) { project in
-                    Button {
-                        MIR4DProjectSession.shared.openProject(appState: appState, url: project.url)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "cube.transparent")
-                                .font(.system(size: 18))
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(project.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.white)
-                                Text(project.path)
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+            if recentProjects.isEmpty {
+                emptyRecentState
+            } else {
+                VStack(spacing: 1) {
+                    ForEach(recentProjects) { project in recentRow(project) }
                 }
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.035)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.07), lineWidth: 1))
             }
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.035)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.07), lineWidth: 1))
 
             Toggle("Открывать последний проект при запуске", isOn: Binding(
                 get: { autoOpenLastProject },
@@ -179,13 +237,109 @@ struct MIR4DStartMenuView: View {
         }
     }
 
+    private var emptyRecentState: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Нет недавних проектов")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                Text("Создайте проект или откройте существующий .mir4d.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.025)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.06), lineWidth: 1))
+    }
+
+    private func recentRow(_ project: MIR4DRecentProject) -> some View {
+        let availability = MIR4DProjectSession.shared.availability(of: project)
+        let available = availability == .available
+
+        return Button {
+            guard available else { return }
+            commands.open(appState: appState, url: project.url)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: available ? "cube.transparent" : "exclamationmark.triangle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(available ? .white : .orange)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(project.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    HStack(spacing: 7) {
+                        Text(project.path)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Text("•").foregroundStyle(.secondary)
+                        Text(project.lastOpened.formatted(date: .abbreviated, time: .shortened))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if availability == .missing {
+                        Text("Проект недоступен: папка не найдена")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    } else if availability == .invalid {
+                        Text("Проект недоступен: пакет MIR 4D повреждён или неполный")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Spacer()
+
+                if available {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("недоступен")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!available)
+        .contextMenu {
+            Button("Удалить из недавних") {
+                MIR4DProjectSession.shared.removeFromRecents(id: project.id)
+                refreshRecents()
+            }
+        }
+    }
+
     private var scenariosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Сценарии работы")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Сценарии работы")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("Рабочие области MIR 4D")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
                 startCard(mode: .laboratory4D)
                 startCard(mode: .mathematicalUniverse)
                 startCard(mode: .programmingWorld)
@@ -196,23 +350,24 @@ struct MIR4DStartMenuView: View {
 
     private func startCard(mode: MIR4DStartMode) -> some View {
         Button { activate(mode) } label: {
-            VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: mode.icon).font(.system(size: 30)).foregroundStyle(.white)
-                Text(mode.title).font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                Text(mode.description).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)
-                Spacer()
+            VStack(alignment: .leading, spacing: 12) {
+                Image(systemName: mode.icon).font(.system(size: 27)).foregroundStyle(.white)
+                Text(mode.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+                Text(mode.description).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3)
+                Spacer(minLength: 4)
                 HStack {
                     Text("Открыть рабочую область")
                     Spacer()
                     Image(systemName: "arrow.right")
                 }
-                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.7))
             }
-            .padding(22)
-            .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 16))
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.035)))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .padding(19)
+            .frame(maxWidth: .infinity, minHeight: 155, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 15))
+            .background(RoundedRectangle(cornerRadius: 15).fill(Color.white.opacity(0.035)))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.08), lineWidth: 1))
         }
         .buttonStyle(MIR4DStartCardButtonStyle())
         .help(mode.description)
@@ -260,7 +415,15 @@ struct MIR4DStartMenuView: View {
         appState.documentName = "Новый проект"
         appState.documentDirty = false
         appState.showNotification(message, type: .success)
-        NotificationCenter.default.post(name: .mir4DStartWorkspace, object: nil, userInfo: ["workbench": workbench.rawValue])
+        NotificationCenter.default.post(
+            name: .mir4DStartWorkspace,
+            object: nil,
+            userInfo: ["workbench": workbench.rawValue]
+        )
+    }
+
+    private func refreshRecents() {
+        recentRefreshToken = UUID()
     }
 }
 
@@ -275,7 +438,9 @@ struct MIR4DStartCardButtonStyle: ButtonStyle {
 
 enum MIR4DStartMode: String, CaseIterable, Identifiable {
     case openProject, newProject, laboratory4D, mathematicalUniverse, programmingWorld, knowledgeWorld
+
     var id: String { rawValue }
+
     var title: String {
         switch self {
         case .openProject: return "Открыть проект"
@@ -286,6 +451,7 @@ enum MIR4DStartMode: String, CaseIterable, Identifiable {
         case .knowledgeWorld: return "МИР Знаний"
         }
     }
+
     var description: String {
         switch self {
         case .openProject: return "Открыть существующий инженерный проект MIR 4D."
@@ -296,6 +462,7 @@ enum MIR4DStartMode: String, CaseIterable, Identifiable {
         case .knowledgeWorld: return "Интерактивное обучение инженерии, математике, программированию и проектированию."
         }
     }
+
     var icon: String {
         switch self {
         case .openProject: return "folder"
