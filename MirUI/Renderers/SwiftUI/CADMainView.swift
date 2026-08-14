@@ -17,7 +17,7 @@ private let mir4DSTLType: UTType = {
 }()
 
 struct CADMainView: View {
-    @StateObject private var appState = CADAppState()
+    @ObservedObject var appState: CADAppState
     @StateObject private var commandRegistry = CADCommandRegistry()
     @StateObject private var appearance = MirUIAppearanceStore.shared
     @StateObject private var productionWorld = ProductionWorldStore()
@@ -192,92 +192,28 @@ struct CADMainView: View {
 
     private func presentMeshImportPanel() {
         let panel = NSOpenPanel()
-
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-
         panel.allowedContentTypes = mir4DImportTypes
-
-        panel.title =
-            appState.ui.language == .russian
-            ? "Импорт модели"
-            : "Import Model"
-
-        panel.prompt =
-            appState.ui.language == .russian
-            ? "Импорт"
-            : "Import"
-
-        guard panel.runModal() == .OK,
-              let url = panel.url
-        else {
-            return
-        }
-
-        NotificationCenter.default.post(
-            name: .mir4DImportMesh,
-            object: url.path
-        )
-
-        appState.showNotification(
-            appState.ui.language == .russian
-            ? "Импорт: \(url.lastPathComponent)"
-            : "Importing: \(url.lastPathComponent)",
-            type: .info
-        )
+        panel.title = appState.ui.language == .russian ? "Импорт модели" : "Import Model"
+        panel.prompt = appState.ui.language == .russian ? "Импорт" : "Import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        NotificationCenter.default.post(name: .mir4DImportMesh, object: url.path)
+        appState.showNotification(appState.ui.language == .russian ? "Импорт: \(url.lastPathComponent)" : "Importing: \(url.lastPathComponent)", type: .info)
     }
 
     private func presentStlExportPanel(selectionOnly: Bool) {
         let panel = NSSavePanel()
-
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [mir4DSTLType]
-
-        panel.nameFieldStringValue =
-            selectionOnly
-            ? "selected.stl"
-            : "model.stl"
-
-        panel.title =
-            appState.ui.language == .russian
-            ? (
-                selectionOnly
-                ? "Экспорт выбранного STL"
-                : "Экспорт STL"
-            )
-            : (
-                selectionOnly
-                ? "Export Selected STL"
-                : "Export STL"
-            )
-
-        panel.prompt =
-            appState.ui.language == .russian
-            ? "Экспорт"
-            : "Export"
-
-        guard panel.runModal() == .OK,
-              let url = panel.url
-        else {
-            return
-        }
-
-        NotificationCenter.default.post(
-            name: .mir4DExportStl,
-            object: [
-                "path": url.path,
-                "selectionOnly": selectionOnly
-            ]
-        )
-
-        appState.showNotification(
-            appState.ui.language == .russian
-            ? "Экспорт STL: \(url.lastPathComponent)"
-            : "Export STL: \(url.lastPathComponent)",
-            type: .info
-        )
+        panel.nameFieldStringValue = selectionOnly ? "selected.stl" : "model.stl"
+        panel.title = appState.ui.language == .russian ? (selectionOnly ? "Экспорт выбранного STL" : "Экспорт STL") : (selectionOnly ? "Export Selected STL" : "Export STL")
+        panel.prompt = appState.ui.language == .russian ? "Экспорт" : "Export"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        NotificationCenter.default.post(name: .mir4DExportStl, object: ["path": url.path, "selectionOnly": selectionOnly])
+        appState.showNotification(appState.ui.language == .russian ? "Экспорт STL: \(url.lastPathComponent)" : "Export STL: \(url.lastPathComponent)", type: .info)
     }
 
     @ViewBuilder private var timeline: some View {
