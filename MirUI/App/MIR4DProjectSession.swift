@@ -60,8 +60,6 @@ final class MIR4DProjectSession {
 
     // MARK: - Recent projects
 
-    /// Recent entries are intentionally not filtered here. Missing/invalid projects
-    /// remain visible in the Hub so the user can see and explicitly remove them.
     var recentProjects: [MIR4DRecentProject] {
         loadRecentProjects()
     }
@@ -78,7 +76,6 @@ final class MIR4DProjectSession {
         return MIR4DProjectStore.shared.isValidPackage(at: url) ? .available : .invalid
     }
 
-    /// Records a project only after its operation has succeeded.
     func recordOpen(url: URL, name: String, uuid: UUID? = nil) {
         let normalizedURL = url.standardizedFileURL
         var list = loadRecentProjects()
@@ -157,18 +154,12 @@ final class MIR4DProjectSession {
                 appState.subMode = subMode
             }
 
-            do {
-                let model = try MIR4DProjectStore.shared.loadModel(from: normalizedURL)
-                modelRuntime.load(model)
-                lastSavedModelRevision = modelRuntime.revision
-                appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
-            } catch {
-                // A valid package with a missing/corrupt model is still reported as an
-                // open failure. Do not create a Recent entry for a failed open.
-                throw error
-            }
+            let model = try MIR4DProjectStore.shared.loadModel(from: normalizedURL)
+            modelRuntime.load(model)
+            lastSavedModelRevision = modelRuntime.revision
+            appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
 
-            // IMPORTANT: only record after the complete open path succeeded.
+            // Record only after manifest and model have both loaded successfully.
             recordOpen(url: normalizedURL, name: manifest.name, uuid: projectUUID)
             startAutoSave(for: appState)
             notifyActivation(url: normalizedURL, appState: appState, message: "Проект открыт: \(manifest.name)")
@@ -285,8 +276,26 @@ final class MIR4DProjectSession {
         NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil)
     }
 
+    /// User-initiated Hub action. It always attempts to continue the last project,
+    /// regardless of the cold-start auto-open preference.
+    func continueLastProject(appState: CADAppState) -> Bool {
+        openLastProjectIfAvailable(appState: appState)
+    }
+
+    /// Cold-start restore. This is the only path that consults the auto-open setting.
+    func restoreLastProjectOnLaunch(appState: CADAppState) -> Bool {
+        guard isAutoOpenLastProjectEnabled else { return false }
+        return openLastProjectIfAvailable(appState: appState)
+    }
+
+    /// Backward-compatible entry point for existing callers. New launch code should
+    /// use restoreLastProjectOnLaunch; Hub should use continueLastProject.
     func restoreLastProject(appState: CADAppState) -> Bool {
-        guard isAutoOpenLastProjectEnabled, let url = lastProjectURL() else { return false }
+        restoreLastProjectOnLaunch(appState: appState)
+    }
+
+    private func openLastProjectIfAvailable(appState: CADAppState) -> Bool {
+        guard let url = lastProjectURL() else { return false }
 
         guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
             appState.showNotification("Последний проект недоступен. Открыт стартовый экран.", type: .warning)
@@ -405,17 +414,14 @@ final class MIR4DProjectSession {
         }
     }
 
-    /// Deterministic fallback identity for legacy recent entries without UUID.
     private func stableLegacyID(for path: String) -> UUID {
-        let digest = path.utf8.reduce(into: (UInt64(1469598103934665603), UInt64(0))) { state, byte in
-            state.0 ^= UInt64(byte)
-            state.0 &*= 1099511628211
-        }.0
+        let digest = path.utf8.reduce(into: UInt64(1469598103934665603)) { hash, byte in
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
         var bytes = [UInt8](repeating: 0, count: 16)
         withUnsafeBytes(of: digest.bigEndian) { raw in
             for index in 0..<8 { bytes[index] = raw[index] }
-        }
-        withUnsafeBytes(of: digest.bigEndian) { raw in
             for index in 0..<8 { bytes[index + 8] = raw[index] ^ 0xA5 }
         }
         bytes[6] = (bytes[6] & 0x0F) | 0x40
