@@ -43,6 +43,12 @@ struct MIR4DStartupView: View {
                 showStartMenu = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
+            withAnimation(.easeInOut(duration: 0.35)) {
+                showWorkspace = false
+                showStartMenu = true
+            }
+        }
     }
 
     private var startupBackground: some View {
@@ -145,10 +151,16 @@ struct MIR4DStartupView: View {
         Task {
             await boot.start()
             try? await Task.sleep(for: .milliseconds(450))
-            if boot.state == .ready || boot.state == .warning {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    showStartMenu = true
-                }
+            guard boot.state == .ready || boot.state == .warning else { return }
+
+            // Restore the last valid local project automatically. If none exists,
+            // keep the normal start menu visible.
+            if MIR4DProjectCommands.shared.restoreLastProject(appState: appState) {
+                return
+            }
+
+            withAnimation(.easeInOut(duration: 0.5)) {
+                showStartMenu = true
             }
         }
     }
