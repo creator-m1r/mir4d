@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Renders a single dockable panel body.
-/// Used both inside the main workspace and inside floating windows.
+/// UI-only presentation layer: MirEngine remains untouched.
 struct CADPanelView: View {
     let panel: CADPanel
     @ObservedObject var appState: CADAppState
@@ -18,12 +18,15 @@ struct CADPanelView: View {
     }
 
     private var panelHeader: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             Image(systemName: panelIcon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(MirTheme.Colors.accentBright)
+                .frame(width: 22, height: 22)
+                .background(MirTheme.Colors.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(panelTitle)
                     .font(MirTheme.Typography.bodySemibold)
                     .foregroundStyle(MirTheme.Colors.textPrimary)
@@ -32,21 +35,46 @@ struct CADPanelView: View {
                     .foregroundStyle(MirTheme.Colors.textTertiary)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            Menu {
+                Button { appState.togglePanel(panel) } label: {
+                    Label(appState.ui.language == .russian ? "Скрыть панель" : "Hide panel", systemImage: "eye.slash")
+                }
+                Button { appState.setPanelPlacement(.left, for: panel) } label: {
+                    Label(appState.ui.language == .russian ? "Переместить влево" : "Move left", systemImage: "sidebar.leading")
+                }
+                Button { appState.setPanelPlacement(.right, for: panel) } label: {
+                    Label(appState.ui.language == .russian ? "Переместить вправо" : "Move right", systemImage: "sidebar.trailing")
+                }
+                Button { appState.setPanelPlacement(.bottom, for: panel) } label: {
+                    Label(appState.ui.language == .russian ? "Переместить вниз" : "Move bottom", systemImage: "rectangle.bottomhalf.inset.filled")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .menuStyle(.borderlessButton)
+            .foregroundStyle(MirTheme.Colors.textTertiary)
+            .background(MirTheme.Colors.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.border, lineWidth: 1))
+            .help(appState.ui.language == .russian ? "Действия панели" : "Panel actions")
 
             Button { appState.togglePanel(panel) } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .semibold))
-                    .frame(width: 22, height: 22)
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
             .foregroundStyle(MirTheme.Colors.textTertiary)
+            .background(MirTheme.Colors.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             .contentShape(Rectangle())
             .help(appState.ui.language == .russian ? "Скрыть панель" : "Hide panel")
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 8)
-        .background(MirTheme.Colors.surface.opacity(0.55))
+        .background(MirTheme.Colors.surface)
         .overlay(alignment: .bottom) {
             Rectangle().fill(MirTheme.Colors.border.opacity(0.8)).frame(height: 1)
         }
