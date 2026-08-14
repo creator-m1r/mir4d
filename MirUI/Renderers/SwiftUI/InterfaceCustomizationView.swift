@@ -1,30 +1,30 @@
 import SwiftUI
 
 /// Dedicated UI-only layout editor for MIR 4D panels.
-///
-/// This view changes presentation state only. It deliberately does not touch
-/// MirEngine or any engineering model data.
+/// This view changes presentation state only; MirEngine and engineering data remain untouched.
 struct InterfaceCustomizationView: View {
     @ObservedObject var appState: CADAppState
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedPanel: CADPanel?
+
+    private var russian: Bool { appState.ui.language == .russian }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(MirTheme.Colors.border)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: MirTheme.Spacing.lg) {
-                    intro
+                    modeBanner
                     panelList
-                    presets
+                    placementPresets
+                    workspaceRules
                 }
                 .padding(MirTheme.Spacing.xl)
             }
-
             footer
         }
-        .frame(minWidth: 720, idealWidth: 820, minHeight: 560, idealHeight: 640)
+        .frame(minWidth: 820, idealWidth: 920, minHeight: 650, idealHeight: 720)
         .background(MirTheme.Colors.background)
         .preferredColorScheme(.dark)
     }
@@ -34,129 +34,104 @@ struct InterfaceCustomizationView: View {
             Image(systemName: "rectangle.3.group")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(MirTheme.Colors.accentBright)
-
             VStack(alignment: .leading, spacing: 2) {
-                Text(appState.ui.language == .russian ? "Настройка интерфейса" : "Customize Interface")
+                Text(russian ? "Настройка интерфейса" : "Customize Interface")
                     .font(MirTheme.Typography.title)
                     .foregroundStyle(MirTheme.Colors.textPrimary)
-                Text(appState.ui.language == .russian ? "Панели и рабочее пространство МИР 4D" : "MIR 4D panels and workspace")
+                Text(russian ? "Редактор рабочего пространства МИР 4D" : "MIR 4D workspace editor")
                     .font(MirTheme.Typography.caption)
                     .foregroundStyle(MirTheme.Colors.textSecondary)
             }
-
             Spacer()
-
-            Text(appState.workbench.titleRU)
-                .font(MirTheme.Typography.caption)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(MirTheme.Colors.surfaceRaised, in: Capsule())
+            Label(russian ? "РЕЖИМ РЕДАКТИРОВАНИЯ" : "EDIT MODE", systemImage: "slider.horizontal.3")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.35)
+                .foregroundStyle(MirTheme.Colors.accentBright)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(MirTheme.Colors.accentSoft, in: Capsule())
         }
         .padding(.horizontal, MirTheme.Spacing.xl)
         .padding(.vertical, MirTheme.Spacing.lg)
     }
 
-    private var intro: some View {
+    private var modeBanner: some View {
         HStack(alignment: .top, spacing: MirTheme.Spacing.md) {
             Image(systemName: "hand.draw")
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(MirTheme.Colors.info)
+                .frame(width: 28)
             VStack(alignment: .leading, spacing: 5) {
-                Text(appState.ui.language == .russian ? "Отдельный режим редактирования" : "Dedicated editing mode")
+                Text(russian ? "Отдельный режим редактирования" : "Dedicated editing mode")
                     .font(MirTheme.Typography.bodySemibold)
                     .foregroundStyle(MirTheme.Colors.textPrimary)
-                Text(appState.ui.language == .russian
-                     ? "Изменяйте расположение панелей здесь. Рабочая область модели и инженерные данные не изменяются."
-                     : "Change panel placement here. The modeling workspace and engineering data remain untouched.")
+                Text(russian ? "Изменяйте расположение и видимость панелей здесь. Модель, геометрия и данные ядра не изменяются." : "Change panel placement and visibility here. The model, geometry and core data remain untouched.")
                     .font(MirTheme.Typography.body)
                     .foregroundStyle(MirTheme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer()
         }
         .padding(MirTheme.Spacing.lg)
         .background(MirTheme.Colors.surface, in: RoundedRectangle(cornerRadius: MirTheme.Radius.panel))
-        .overlay {
-            RoundedRectangle(cornerRadius: MirTheme.Radius.panel)
-                .stroke(MirTheme.Colors.border, lineWidth: 1)
-        }
+        .overlay { RoundedRectangle(cornerRadius: MirTheme.Radius.panel).stroke(MirTheme.Colors.border, lineWidth: 1) }
     }
 
     private var panelList: some View {
         VStack(alignment: .leading, spacing: MirTheme.Spacing.sm) {
-            Text(appState.ui.language == .russian ? "ПАНЕЛИ" : "PANELS")
-                .font(MirTheme.Typography.section)
-                .foregroundStyle(MirTheme.Colors.textTertiary)
-
-            ForEach(CADPanel.allCases) { panel in
-                panelRow(panel)
-            }
+            sectionTitle(russian ? "ПАНЕЛИ" : "PANELS", subtitle: russian ? "Выберите панель для настройки" : "Select a panel to customize")
+            ForEach(CADPanel.allCases) { panel in panelRow(panel) }
         }
     }
 
     private func panelRow(_ panel: CADPanel) -> some View {
         let visible = appState.visiblePanels.contains(panel)
-
+        let placement = appState.panelPlacement(for: panel)
+        let selected = selectedPanel == panel
         return HStack(spacing: MirTheme.Spacing.md) {
-            Image(systemName: icon(for: panel))
-                .frame(width: 24)
-                .foregroundStyle(visible ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
-
+            Button { selectedPanel = panel } label: {
+                Image(systemName: icon(for: panel))
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(selected || visible ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
+                    .background(selected ? MirTheme.Colors.accentSoft : MirTheme.Colors.surfaceRaised.opacity(0.55), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            }
+            .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 2) {
-                Text(appState.ui.language == .russian ? panel.titleRU : panel.titleEN)
+                Text(russian ? panel.titleRU : panel.titleEN)
                     .font(MirTheme.Typography.bodySemibold)
                     .foregroundStyle(visible ? MirTheme.Colors.textPrimary : MirTheme.Colors.textSecondary)
-                Text(placementTitle(for: panel))
+                Text(placementTitle(placement))
                     .font(MirTheme.Typography.status)
                     .foregroundStyle(MirTheme.Colors.textTertiary)
             }
-
             Spacer()
-
             Menu {
-                ForEach(PanelPlacement.allCases) { placement in
-                    Button {
-                        appState.setPanelPlacement(placement, for: panel)
-                    } label: {
-                        Label(placementTitle(placement), systemImage: placement.icon)
+                ForEach(PanelPlacement.allCases) { target in
+                    Button { appState.setPanelPlacement(target, for: panel); selectedPanel = panel } label: {
+                        Label(placementTitle(target), systemImage: target.icon)
                     }
                 }
             } label: {
-                Label(placementTitle(for: panel), systemImage: appState.panelPlacement(for: panel).icon)
+                Label(placementTitle(placement), systemImage: placement.icon)
                     .font(MirTheme.Typography.caption)
+                    .padding(.horizontal, 9).padding(.vertical, 6)
             }
             .menuStyle(.borderlessButton)
-            .frame(minWidth: 145, alignment: .trailing)
-
-            Toggle("", isOn: Binding(
-                get: { visible },
-                set: { _ in appState.togglePanel(panel) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            .background(MirTheme.Colors.surfaceRaised.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            Toggle("", isOn: Binding(get: { visible }, set: { _ in appState.togglePanel(panel) }))
+                .labelsHidden().toggleStyle(.switch).controlSize(.small)
         }
-        .padding(.horizontal, MirTheme.Spacing.lg)
-        .padding(.vertical, 10)
-        .background(MirTheme.Colors.surface, in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
-        .overlay {
-            RoundedRectangle(cornerRadius: MirTheme.Radius.medium)
-                .stroke(MirTheme.Colors.border, lineWidth: 1)
-        }
+        .padding(.horizontal, MirTheme.Spacing.lg).padding(.vertical, 10)
+        .background(selected ? MirTheme.Colors.accentSoft.opacity(0.28) : MirTheme.Colors.surface, in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        .overlay { RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(selected ? MirTheme.Colors.accent.opacity(0.65) : MirTheme.Colors.border, lineWidth: 1) }
     }
 
-    private var presets: some View {
+    private var placementPresets: some View {
         VStack(alignment: .leading, spacing: MirTheme.Spacing.sm) {
-            Text(appState.ui.language == .russian ? "РАЗМЕЩЕНИЕ" : "PLACEMENT")
-                .font(MirTheme.Typography.section)
-                .foregroundStyle(MirTheme.Colors.textTertiary)
-
+            sectionTitle(russian ? "БЫСТРОЕ РАЗМЕЩЕНИЕ" : "QUICK PLACEMENT", subtitle: russian ? "Переместить все видимые панели" : "Move all visible panels")
             HStack(spacing: MirTheme.Spacing.sm) {
                 ForEach(PanelPlacement.allCases) { placement in
-                    Button {
-                        moveVisiblePanels(to: placement)
-                    } label: {
-                        Label(placementTitle(placement), systemImage: placement.icon)
-                            .frame(maxWidth: .infinity)
+                    Button { moveVisiblePanels(to: placement) } label: {
+                        Label(placementTitle(placement), systemImage: placement.icon).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
@@ -165,39 +140,50 @@ struct InterfaceCustomizationView: View {
         }
     }
 
+    private var workspaceRules: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle(russian ? "ПРАВИЛА РАБОЧЕГО МЕСТА" : "WORKSPACE RULES", subtitle: nil)
+            ruleRow("1", russian ? "3D-вид остаётся главным рабочим пространством" : "3D view remains the primary workspace")
+            ruleRow("2", russian ? "Верхняя полоса принадлежит программе и не перекрывает рамку окна" : "The application top bar never covers the system window frame")
+            ruleRow("3", russian ? "Панели не должны закрывать модель без необходимости" : "Panels should not unnecessarily cover the model")
+            ruleRow("4", russian ? "Настройки изменяют только интерфейс" : "Settings change presentation only")
+        }
+        .padding(MirTheme.Spacing.lg)
+        .background(MirTheme.Colors.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.panel))
+    }
+
+    private func ruleRow(_ number: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Text(number).font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(MirTheme.Colors.accentBright).frame(width: 20)
+            Text(text).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
+            Spacer()
+        }
+    }
+
+    private func sectionTitle(_ title: String, subtitle: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(MirTheme.Typography.section).foregroundStyle(MirTheme.Colors.textTertiary)
+            if let subtitle { Text(subtitle).font(MirTheme.Typography.status).foregroundStyle(MirTheme.Colors.textTertiary) }
+        }
+    }
+
     private var footer: some View {
         HStack {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(MirTheme.Colors.success)
-            Text(appState.ui.language == .russian ? "Настройки применяются сразу" : "Changes apply immediately")
-                .font(MirTheme.Typography.caption)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(MirTheme.Colors.success)
+            Text(russian ? "Настройки применяются сразу" : "Changes apply immediately")
+                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
             Spacer()
-            Button(appState.ui.language == .russian ? "Готово" : "Done") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
+            Button(russian ? "Готово" : "Done") { dismiss() }
+                .buttonStyle(.borderedProminent).controlSize(.regular)
         }
-        .padding(.horizontal, MirTheme.Spacing.xl)
-        .padding(.vertical, MirTheme.Spacing.lg)
+        .padding(.horizontal, MirTheme.Spacing.xl).padding(.vertical, MirTheme.Spacing.lg)
         .background(MirTheme.Colors.surface)
     }
 
     private func moveVisiblePanels(to placement: PanelPlacement) {
-        for panel in appState.visiblePanels {
-            appState.setPanelPlacement(placement, for: panel)
-        }
+        for panel in appState.visiblePanels { appState.setPanelPlacement(placement, for: panel) }
     }
-
-    private func placementTitle(for panel: CADPanel) -> String {
-        placementTitle(appState.panelPlacement(for: panel))
-    }
-
-    private func placementTitle(_ placement: PanelPlacement) -> String {
-        appState.ui.language == .russian ? placement.titleRU : placement.titleEN
-    }
-
+    private func placementTitle(_ placement: PanelPlacement) -> String { russian ? placement.titleRU : placement.titleEN }
     private func icon(for panel: CADPanel) -> String {
         switch panel {
         case .project: return "folder"
