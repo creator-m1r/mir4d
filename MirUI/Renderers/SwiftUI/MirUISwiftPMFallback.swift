@@ -8,11 +8,12 @@ import Foundation
 // compile Objective-C++ sources inside the Swift-only MIR4DApp target, so the
 // package target needs a link-safe implementation of the same C symbols.
 //
-// This file is intentionally a fallback only. The native Xcode/macOS target
-// must continue to link MirUICppBridge.mm and therefore uses the real MirUI
-// implementation. SwiftPM builds use these no-op/default implementations so
-// the Swift application can be compiled and tested without directly linking
-// the internal SwiftUICore framework.
+// This file is intentionally a fallback only. The SwiftUI bridge itself,
+// MirUISwiftBridge.swift, owns MirUI_SwiftUI_UpdateViewNodes in both SwiftPM
+// and native builds. Therefore that symbol must NOT be duplicated here.
+//
+// The native Xcode/macOS target links the real MirUI implementation. SwiftPM
+// uses these no-op/default implementations for the remaining C ABI symbols.
 
 @_cdecl("MirUI_Init")
 public func mirUIInit() {}
@@ -289,17 +290,6 @@ public func mirUISetWidgetStyleField(
     _ = widgetState
     _ = fieldName
     _ = value
-}
-
-@_cdecl("MirUI_SwiftUI_UpdateViewNodes")
-public func mirUISwiftUIUpdateViewNodes(
-    _ nodes: UnsafeRawPointer?,
-    _ count: Int32,
-    _ rootIndex: Int32
-) {
-    _ = nodes
-    _ = count
-    _ = rootIndex
 }
 
 @_cdecl("MirUI_ExecuteCommand")
