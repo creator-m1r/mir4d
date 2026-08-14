@@ -1,5 +1,6 @@
 #include "ExportService.hpp"
 
+#include "../Document/Document.hpp"
 #include "Mesh/StlExporter.hpp"
 #include "Step/StepExporter.hpp"
 
