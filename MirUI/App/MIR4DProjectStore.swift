@@ -199,7 +199,7 @@ final class MIR4DProjectStore {
         }
     }
 
-    private static func makeEncoder() -> JSONEncoder {
+    nonisolated private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .iso8601
@@ -208,7 +208,7 @@ final class MIR4DProjectStore {
 
     private func makeEncoder() -> JSONEncoder { Self.makeEncoder() }
 
-    private static func makeDecoder() -> JSONDecoder {
+    nonisolated private static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
@@ -216,9 +216,9 @@ final class MIR4DProjectStore {
 
     private func makeDecoder() -> JSONDecoder { Self.makeDecoder() }
 
-    private static func writeModelData(_ data: Data, to projectURL: URL) throws {
+    nonisolated private static func writeModelData(_ data: Data, to projectURL: URL) throws {
         let fileManager = FileManager.default
-        let url = projectURL.appendingPathComponent(Self.modelRelativePath)
+        let url = projectURL.appendingPathComponent(MIR4DPaths.modelRelativePath)
         try fileManager.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
