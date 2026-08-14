@@ -2,6 +2,7 @@ import SwiftUI
 
 enum MirSelectionFilter: String, CaseIterable, Identifiable {
     case auto, vertex, edge, face, body, feature, sketch
+
     var id: String { rawValue }
 
     func title(_ language: CADLanguage) -> String {
@@ -41,31 +42,66 @@ struct SelectionFilterBar: View {
     @State private var filter: MirSelectionFilter = .auto
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "cursorarrow.rays")
-                .foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.leading, 7)
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "scope")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(MirTheme.Colors.accentBright)
+
+                Text(appState.ui.language == .russian ? "Выбор" : "Selection")
+                    .font(MirTheme.Typography.caption)
+                    .foregroundStyle(MirTheme.Colors.textSecondary)
+            }
+            .padding(.leading, 10)
+
+            Divider().frame(height: 18)
 
             ForEach(MirSelectionFilter.allCases) { item in
-                Button {
-                    filter = item
-                } label: {
-                    Label(item.title(appState.ui.language), systemImage: item.systemImage)
-                        .font(.system(size: 10, weight: filter == item ? .semibold : .regular))
-                        .labelStyle(.titleAndIcon)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 5)
-                        .background(filter == item ? MirTheme.Colors.selection.opacity(0.22) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
+                filterButton(item)
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 6)
         }
-        .frame(height: 30)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).stroke(MirTheme.Colors.border.opacity(0.45)))
+        .frame(height: 36)
+        .padding(.horizontal, 3)
+        .background(MirTheme.Colors.surfaceRaised.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        .overlay {
+            RoundedRectangle(cornerRadius: MirTheme.Radius.medium)
+                .stroke(MirTheme.Colors.panelBorder.opacity(0.72), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.10), radius: 8, y: 3)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(appState.ui.language == .russian ? "Фильтр выбора" : "Selection filter")
+    }
+
+    private func filterButton(_ item: MirSelectionFilter) -> some View {
+        let selected = filter == item
+
+        return Button {
+            withAnimation(MirTheme.Animation.fast) {
+                filter = item
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: item.systemImage)
+                    .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                Text(item.title(appState.ui.language))
+                    .font(.system(size: 10, weight: selected ? .semibold : .regular))
+            }
+            .foregroundStyle(selected ? MirTheme.Colors.textPrimary : MirTheme.Colors.textSecondary)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 27)
+            .background(selected ? MirTheme.Colors.accentSoft : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            .overlay {
+                if selected {
+                    RoundedRectangle(cornerRadius: MirTheme.Radius.small)
+                        .stroke(MirTheme.Colors.accent.opacity(0.55), lineWidth: 1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .help(item.title(appState.ui.language))
     }
 }
