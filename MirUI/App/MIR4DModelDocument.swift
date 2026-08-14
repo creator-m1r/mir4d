@@ -19,6 +19,57 @@ struct MIR4DModelDocument: Codable, Equatable {
             bodies: [MIR4DBody(id: bodyID, name: "Тело")]
         )
     }
+
+    // MARK: - Stable identity lookup
+
+    /// Returns the persisted body for a stable model UUID.
+    func body(id: UUID) -> MIR4DBody? {
+        bodies.first { $0.id == id }
+    }
+
+    /// Returns the persisted operation for a stable model UUID.
+    func operation(id: UUID) -> MIR4DOperation? {
+        operations.first { $0.id == id }
+    }
+
+    /// Returns the persisted geometry descriptor for a stable model UUID.
+    func geometry(id: UUID) -> MIR4DGeometry? {
+        geometry.first { $0.id == id }
+    }
+
+    /// Resolves the owning body of an operation without requiring the UI tree.
+    func bodyID(forOperation id: UUID) -> UUID? {
+        operation(id: id)?.bodyID
+    }
+
+    /// Returns all feature/geometry IDs belonging to a body through operations.
+    func geometryIDs(forBody bodyID: UUID) -> [UUID] {
+        let operationIDs = operations
+            .filter { $0.bodyID == bodyID }
+            .map(\.id)
+        return geometry
+            .filter { geometry in
+                guard let operationID = geometry.operationID else { return false }
+                return operationIDs.contains(operationID)
+            }
+            .map(\.id)
+    }
+
+    /// Resolves a persisted body UUID from the engine object identity stored on a geometry.
+    /// This is deliberately a model-layer lookup: UI selection must not invent a second ID.
+    func bodyID(forEngineObjectID objectID: UInt64) -> UUID? {
+        guard objectID > 0 else { return nil }
+        for geometry in geometry {
+            guard let raw = geometry.parameters["engineObjectID"], raw >= 0 else { continue }
+            guard raw.rounded() == raw, raw <= Double(UInt64.max) else { continue }
+            guard UInt64(raw) == objectID else { continue }
+            guard let operationID = geometry.operationID else { continue }
+            if let bodyID = bodyID(forOperation: operationID) {
+                return bodyID
+            }
+        }
+        return nil
+    }
 }
 
 struct MIR4DModelNode: Codable, Equatable, Identifiable {
