@@ -63,6 +63,7 @@ public func MirEngineViewportMouseUp(_ viewport: UnsafeMutableRawPointer?, _ but
 public func MirEngineViewportMouseMove(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float) {}
 public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float) {}
 public func MirEngineViewportPan(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float) {}
+public func MirEngineViewportOrbit(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float) {}
 public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool) {}
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
@@ -88,6 +89,7 @@ public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Fl
 @_silgen_name("MirEngineViewportMouseMove") public func MirEngineViewportMouseMove(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float)
 @_silgen_name("MirEngineViewportScroll") public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float)
 @_silgen_name("MirEngineViewportPan") public func MirEngineViewportPan(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
+@_silgen_name("MirEngineViewportOrbit") public func MirEngineViewportOrbit(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
 @_silgen_name("MirEngineViewportClick") public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool)
 #endif
 

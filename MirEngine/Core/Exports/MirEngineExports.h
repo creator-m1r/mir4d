@@ -141,6 +141,12 @@ void MirEngineViewportPan(
     float dy
 );
 
+void MirEngineViewportOrbit(
+    void* viewport,
+    float dx,
+    float dy
+);
+
 void MirEngineViewportClick(
     void* viewport,
     float x,

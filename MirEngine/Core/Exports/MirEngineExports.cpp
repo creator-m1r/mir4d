@@ -555,6 +555,22 @@ void MirEngineViewportPan(
 }
 
 
+void MirEngineViewportOrbit(
+    void* viewport,
+    float dx,
+    float dy
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->orbitBy(dx, dy);
+}
+
+
 void MirEngineViewportClick(
     void* viewport,
     float x,

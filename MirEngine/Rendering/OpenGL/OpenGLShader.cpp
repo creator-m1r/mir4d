@@ -128,6 +128,14 @@ void OpenGLShader::setMatrix(std::string_view name, const Matrix4Raw& matrix)
     }
 }
 
+void OpenGLShader::setMatrix3(std::string_view name, const float* values)
+{
+    GLint loc = getUniformLocation(name);
+    if (loc != -1) {
+        glUniformMatrix3fv(loc, 1, GL_FALSE, values);
+    }
+}
+
 // --------------------------------------------------------------------------
 // Внутренние методы
 // --------------------------------------------------------------------------

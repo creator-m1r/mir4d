@@ -44,6 +44,7 @@ public:
     void setVec3  (std::string_view name, float x, float y, float z) override;
     void setVec4  (std::string_view name, float x, float y, float z, float w) override;
     void setMatrix(std::string_view name, const Matrix4Raw& matrix) override;
+    void setMatrix3(std::string_view name, const float* values) override;
 
 private:
     GLuint m_program = 0;

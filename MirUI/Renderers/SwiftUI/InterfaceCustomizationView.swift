@@ -4,6 +4,7 @@ import SwiftUI
 /// This view changes presentation state only; MirEngine and engineering data remain untouched.
 struct InterfaceCustomizationView: View {
     @ObservedObject var appState: CADAppState
+    @ObservedObject private var navigation = MirNavigationSettingsStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPanel: CADPanel?
 
@@ -18,6 +19,7 @@ struct InterfaceCustomizationView: View {
                     modeBanner
                     panelList
                     placementPresets
+                    navigationSection
                     workspaceRules
                 }
                 .padding(MirTheme.Spacing.xl)
@@ -138,6 +140,64 @@ struct InterfaceCustomizationView: View {
                 }
             }
         }
+    }
+
+    private var navigationSection: some View {
+        VStack(alignment: .leading, spacing: MirTheme.Spacing.sm) {
+            sectionTitle(russian ? "НАВИГАЦИЯ · УПРАВЛЕНИЕ ТАЧПАДОМ" : "NAVIGATION · TRACKPAD CONTROL", subtitle: russian ? "Схема как в Blender: два пальца — поворот, Shift — панорама, Control — масштаб" : "Blender-style: two fingers orbit, Shift pans, Control zooms")
+            HStack(spacing: MirTheme.Spacing.md) {
+                Text(russian ? "Жест двумя пальцами" : "Two-finger gesture")
+                    .font(MirTheme.Typography.bodySemibold)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                Spacer()
+                Picker("", selection: $navigation.settings.trackpadGesture) {
+                    ForEach(MirTrackpadGesture.allCases) { gesture in
+                        Text(russian ? gesture.titleRU : gesture.titleEN).tag(gesture)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 260)
+            }
+            HStack(spacing: MirTheme.Spacing.md) {
+                Text(russian ? "Чувствительность поворота" : "Orbit sensitivity")
+                    .font(MirTheme.Typography.bodySemibold)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                Spacer()
+                Slider(value: $navigation.settings.orbitSensitivity, in: 0.001 ... 0.012, step: 0.0005)
+                    .frame(width: 220)
+                Text(String(format: "%.4f", navigation.settings.orbitSensitivity))
+                    .font(MirTheme.Typography.status.monospacedDigit())
+                    .foregroundStyle(MirTheme.Colors.textSecondary)
+                    .frame(width: 56, alignment: .trailing)
+            }
+            HStack(spacing: MirTheme.Spacing.md) {
+                Text(russian ? "Чувствительность масштаба" : "Zoom sensitivity")
+                    .font(MirTheme.Typography.bodySemibold)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                Spacer()
+                Slider(value: $navigation.settings.zoomSensitivity, in: 0.002 ... 0.05, step: 0.001)
+                    .frame(width: 220)
+                Text(String(format: "%.3f", navigation.settings.zoomSensitivity))
+                    .font(MirTheme.Typography.status.monospacedDigit())
+                    .foregroundStyle(MirTheme.Colors.textSecondary)
+                    .frame(width: 56, alignment: .trailing)
+            }
+            HStack(spacing: MirTheme.Spacing.md) {
+                Toggle(russian ? "Инвертировать поворот по X" : "Invert orbit X", isOn: $navigation.settings.invertOrbitX)
+                    .toggleStyle(.switch).controlSize(.small)
+                Spacer()
+                Toggle(russian ? "Инвертировать поворот по Y" : "Invert orbit Y", isOn: $navigation.settings.invertOrbitY)
+                    .toggleStyle(.switch).controlSize(.small)
+                Spacer()
+                Toggle(russian ? "Инвертировать масштаб" : "Invert zoom", isOn: $navigation.settings.invertZoom)
+                    .toggleStyle(.switch).controlSize(.small)
+            }
+            .font(MirTheme.Typography.caption)
+            .foregroundStyle(MirTheme.Colors.textSecondary)
+        }
+        .padding(MirTheme.Spacing.lg)
+        .background(MirTheme.Colors.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.panel))
     }
 
     private var workspaceRules: some View {

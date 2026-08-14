@@ -71,8 +71,8 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
         let targetOrigin = cascadeOrigin(for: panel, window: window)
         let direction = motionDirection(for: panel, appState: appState)
         let startOrigin = NSPoint(
-            x: targetOrigin.x + direction.x * 34,
-            y: targetOrigin.y + direction.y * 34
+            x: targetOrigin.x + direction.dx * 34,
+            y: targetOrigin.y + direction.dy * 34
         )
 
         window.setFrameOrigin(startOrigin)
@@ -101,7 +101,7 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
         closingPanels.insert(panel)
         let origin = window.frame.origin
         let direction = motionDirection(for: panel, appState: appState)
-        let target = NSPoint(x: origin.x + direction.x * 30, y: origin.y + direction.y * 30)
+        let target = NSPoint(x: origin.x + direction.dx * 30, y: origin.y + direction.dy * 30)
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.22
@@ -146,8 +146,6 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
             return CGVector(dx: 1, dy: 0)
         case .bottom:
             return CGVector(dx: 0, dy: -1)
-        case .top:
-            return CGVector(dx: 0, dy: 1)
         case .floating:
             return CGVector(dx: 0.65, dy: -0.35)
         }

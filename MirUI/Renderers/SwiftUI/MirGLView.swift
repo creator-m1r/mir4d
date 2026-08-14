@@ -1416,22 +1416,106 @@ final class MirGLCustomView: NSView {
 
         if event.hasPreciseScrollingDeltas {
 
-            // Trackpad two-finger drag pans the scene.
-            // Precise (pixel) deltas arrive only from trackpads, never from
-            // a mouse wheel, so the wheel keeps its zoom behavior below.
-            MirEngineViewportPan(
-                viewport,
-                Float(event.scrollingDeltaX),
-                Float(-event.scrollingDeltaY)
+            handleTrackpadScroll(
+                event,
+                viewport: viewport
             )
 
             return
         }
 
+        // Mouse wheel keeps its zoom behavior.
         MirEngineViewportScroll(
             viewport,
             Float(event.scrollingDeltaY)
         )
+    }
+
+    /// Blender-style trackpad scheme:
+    /// - two fingers drag — orbit (configurable: pan / zoom)
+    /// - Shift + two fingers — pan
+    /// - Control + two fingers — zoom
+    private func handleTrackpadScroll(
+        _ event: NSEvent,
+        viewport: UnsafeMutableRawPointer
+    ) {
+
+        let settings =
+            MirNavigationSettingsStore.shared.settings
+
+        let flags =
+            event.modifierFlags
+
+        let rawDX =
+            Float(event.scrollingDeltaX)
+
+        let rawDY =
+            Float(event.scrollingDeltaY)
+
+        if flags.contains(.control) {
+
+            // Control + two fingers — zoom, wheel-like.
+            let zoom =
+                rawDY * Float(settings.zoomSensitivity)
+                * (settings.invertZoom ? -1 : 1)
+
+            MirEngineViewportScroll(
+                viewport,
+                zoom
+            )
+
+            return
+        }
+
+        if flags.contains(.shift) {
+
+            // Shift + two fingers — pan.
+            MirEngineViewportPan(
+                viewport,
+                rawDX,
+                -rawDY
+            )
+
+            return
+        }
+
+        switch settings.trackpadGesture {
+
+        case .orbit:
+
+            let dx =
+                rawDX * Float(settings.orbitSensitivity)
+                * (settings.invertOrbitX ? -1 : 1)
+
+            let dy =
+                -rawDY * Float(settings.orbitSensitivity)
+                * (settings.invertOrbitY ? -1 : 1)
+
+            MirEngineViewportOrbit(
+                viewport,
+                dx,
+                dy
+            )
+
+        case .pan:
+
+            MirEngineViewportPan(
+                viewport,
+                rawDX,
+                -rawDY
+            )
+
+        case .zoom:
+
+            let zoom =
+                rawDY * Float(settings.zoomSensitivity)
+                * (settings.invertZoom ? -1 : 1)
+
+            MirEngineViewportScroll(
+                viewport,
+                zoom
+            )
+        }
     }
 
     override func magnify(

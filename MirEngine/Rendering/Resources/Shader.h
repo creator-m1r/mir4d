@@ -67,6 +67,7 @@ public:
     virtual void setVec3(std::string_view name, float x, float y, float z) = 0;
     virtual void setVec4(std::string_view name, float x, float y, float z, float w) = 0;
     virtual void setMatrix(std::string_view name, const Matrix4Raw& matrix) = 0;
+    virtual void setMatrix3(std::string_view name, const float* values) = 0;
 
 protected:
     Shader() = default;

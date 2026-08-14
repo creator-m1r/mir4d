@@ -53,7 +53,7 @@ public:
         {
             camera_->setOrbit(
                 camera_->theta() - dx * orbitSpeed_,
-                camera_->phi() - dy * orbitSpeed_,
+                clampPhi(camera_->phi() - dy * orbitSpeed_),
                 camera_->distance());
             return;
         }
@@ -85,6 +85,20 @@ public:
         camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
     }
 
+    /// Continuous two-finger / gesture orbiting.
+    /// Deltas follow the touchpad gesture direction, independent of Mode,
+    /// so trackpad orbiting never conflicts with mouse button state.
+    void orbitBy(Scalar dx, Scalar dy) noexcept
+    {
+        if (!camera_)
+            return;
+
+        camera_->setOrbit(
+            camera_->theta() - dx * orbitSpeed_,
+            clampPhi(camera_->phi() - dy * orbitSpeed_),
+            camera_->distance());
+    }
+
 private:
     enum class Mode { None, Orbit, Pan };
 
@@ -94,6 +108,11 @@ private:
         lastY_ = y;
     }
 
+    static Scalar clampPhi(Scalar phi) noexcept
+    {
+        return std::clamp(phi, kMinPhi, kMaxPhi);
+    }
+
     Camera* camera_{nullptr};
     Mode mode_{Mode::None};
     Scalar lastX_{0};
@@ -101,6 +120,9 @@ private:
     Scalar orbitSpeed_{0.005};
     Scalar panSpeed_{0.015};
     Scalar zoomSpeed_{0.8};
+
+    static constexpr Scalar kMinPhi = Scalar(0.05);
+    static constexpr Scalar kMaxPhi = Scalar(3.14159265358979) - Scalar(0.05);
 };
 
 } // namespace mir
