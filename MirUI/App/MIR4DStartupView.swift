@@ -22,6 +22,7 @@ struct MIR4DStartupView: View {
                     .transition(.opacity)
             } else {
                 startupBackground
+
                 if showStartMenu {
                     MIR4DStartMenuView(diagnostic: boot)
                         .transition(.asymmetric(
@@ -66,9 +67,6 @@ struct MIR4DStartupView: View {
     }
 
     private func openExternalProject(_ url: URL) {
-        // An external URL has absolute priority. Mark launch resolution here as
-        // well as in resolveLaunch() so a URL received just after bootFinished
-        // cannot be followed by a second restore/menu resolution.
         didResolveLaunch = true
 
         guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
@@ -85,7 +83,9 @@ struct MIR4DStartupView: View {
 
     private var startupBackground: some View {
         ZStack {
-            Color(red: 0.012, green: 0.018, blue: 0.030).ignoresSafeArea()
+            Color(red: 0.012, green: 0.018, blue: 0.030)
+                .ignoresSafeArea()
+
             RadialGradient(
                 colors: [Color.white.opacity(0.035), Color.clear],
                 center: .center,
@@ -99,51 +99,57 @@ struct MIR4DStartupView: View {
     private var bootView: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                Spacer(minLength: 30)
+                Spacer(minLength: 40)
 
                 VStack(spacing: 10) {
                     Image(systemName: "cube.transparent")
-                        .font(.system(size: 68))
+                        .font(.system(size: 64, weight: .light))
                         .foregroundStyle(.white)
+
                     Text("МИР 4D")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
+
                     Text("Мечтай • Изобретай • Развивай")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.55))
                 }
-                .frame(height: 150)
+                .padding(.bottom, 26)
 
                 diagnosticLayer
-                    .frame(maxWidth: 700)
+                    .frame(maxWidth: 720)
+                    .frame(maxWidth: .infinity)
                     .offset(y: diagnosticsLeaving ? -proxy.size.height * 0.72 : 0)
                     .opacity(diagnosticsLeaving ? 0 : 1)
                     .animation(.easeInOut(duration: 0.75), value: diagnosticsLeaving)
 
-                Spacer()
+                Spacer(minLength: 40)
 
                 Text("MIR 4D Engineering Platform")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.32))
                     .padding(.bottom, 24)
             }
-            .padding(40)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 40)
         }
     }
 
     private var diagnosticLayer: some View {
         VStack(spacing: 16) {
-            HStack {
+            HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(boot.currentTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                     Text(boot.currentDetail)
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .foregroundStyle(.white.opacity(0.52))
+                        .lineLimit(2)
                 }
-                Spacer()
+
+                Spacer(minLength: 12)
+
                 Text("\(Int(boot.progress * 100))%")
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -158,22 +164,31 @@ struct MIR4DStartupView: View {
         .padding(22)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.035))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+                .fill(Color.white.opacity(0.045))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
         )
+        .shadow(color: .black.opacity(0.22), radius: 24, y: 12)
     }
 
     private var bootSteps: some View {
         VStack(alignment: .leading, spacing: 7) {
             ForEach(boot.steps) { step in
                 HStack(spacing: 9) {
-                    Image(systemName: icon(for: step.severity)).font(.system(size: 11))
+                    Image(systemName: icon(for: step.severity))
+                        .font(.system(size: 11))
+
                     Text("\(step.index). \(step.title)")
                         .font(.system(size: 11, weight: .medium))
-                    Spacer()
+
+                    Spacer(minLength: 12)
+
                     Text(step.detail)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
                 }
                 .foregroundStyle(foreground(for: step.severity))
                 .transition(.opacity.combined(with: .move(edge: .top)))
