@@ -5,12 +5,8 @@ import SwiftUI
 public struct MirEngineSize2D {
     public var width: UInt32
     public var height: UInt32
-    public init(width: UInt32, height: UInt32) {
-        self.width = width
-        self.height = height
-    }
+    public init(width: UInt32, height: UInt32) { self.width = width; self.height = height }
 }
-
 public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer? { nil }
 public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?) {}
 public func MirEngineCreateOpenGLRenderer(_ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? { nil }
@@ -32,35 +28,6 @@ public func MirEngineViewportMouseUp(_ viewport: UnsafeMutableRawPointer?, _ but
 public func MirEngineViewportMouseMove(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float) {}
 public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float) {}
 public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool) {}
-
-public func MirUI_RenderFrame() {}
-public func MirUI_NewProject() {}
-public func MirUI_ResizeWidget(_ widgetId: Int64, _ newWidth: Double, _ newHeight: Double, _ newX: Double, _ newY: Double) {}
-public func MirUI_MoveWidget(_ widgetId: Int64, _ dx: Double, _ dy: Double) {}
-public func MirUI_DeleteWidget(_ widgetId: Int64) {}
-public func MirUI_CopyWidget(_ widgetId: Int64) {}
-public func MirUI_PasteWidget(_ parentId: Int64) {}
-public func MirUI_CutWidget(_ widgetId: Int64) {}
-public func MirUI_Undo() {}
-public func MirUI_Redo() {}
-public func MirUI_AlignWidgets(_ widgetIds: UnsafeRawPointer, _ count: Int32, _ strategy: UnsafePointer<CChar>) {}
-public func MirUI_SetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?) {}
-public func MirUI_GetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? { nil }
-public func MirUI_SetPropertyDouble(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Double) {}
-public func MirUI_SetPropertyBool(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Bool) {}
-public func MirUI_GetThemeColor(_ colorToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? { nil }
-public func MirUI_SetThemeColor(_ colorToken: UnsafePointer<CChar>?, _ hexColor: UnsafePointer<CChar>?) {}
-public func MirUI_GetThemeMetric(_ metricToken: UnsafePointer<CChar>?) -> Double { 0 }
-public func MirUI_SetThemeMetric(_ metricToken: UnsafePointer<CChar>?, _ value: Double) {}
-public func MirUI_GetThemeFont(_ fontToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? { nil }
-public func MirUI_SetThemeFont(_ fontToken: UnsafePointer<CChar>?, _ fontString: UnsafePointer<CChar>?) {}
-public func MirUI_GetThemeAnimationDuration() -> Double { 0.25 }
-public func MirUI_SetThemeAnimationDuration(_ duration: Double) {}
-public func MirUI_SwitchTheme(_ themeId: UnsafePointer<CChar>?) {}
-public func MirUI_CurrentThemeName() -> UnsafePointer<CChar>? { nil }
-public func MirUI_GetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>? { nil }
-public func MirUI_SetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?) {}
-public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: Int64) {}
 #else
 @_silgen_name("MirUI_RenderFrame") public func MirUI_RenderFrame()
 @_silgen_name("MirUI_NewProject") public func MirUI_NewProject()
@@ -113,25 +80,35 @@ public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: 
 @_silgen_name("MirEngineViewportClick") public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool)
 #endif
 
+// Live document bridge. These declarations intentionally mirror the C ABI
+// from MIR4DEngineDocumentBridge.hpp and are unavailable in the SwiftPM stub.
+#if !MIR4D_SWIFTPM
+@_silgen_name("MIR4DDocumentCreate") public func MIR4DDocumentCreate() -> UnsafeMutableRawPointer?
+@_silgen_name("MIR4DDocumentDestroy") public func MIR4DDocumentDestroy(_ handle: UnsafeMutableRawPointer?)
+@_silgen_name("MIR4DDocumentReset") public func MIR4DDocumentReset(_ handle: UnsafeMutableRawPointer?, _ projectName: UnsafePointer<CChar>?)
+@_silgen_name("MIR4DDocumentCreateBox") public func MIR4DDocumentCreateBox(_ handle: UnsafeMutableRawPointer?, _ width: Double, _ depth: Double, _ height: Double, _ objectId: UnsafeMutablePointer<UInt64>?) -> Bool
+@_silgen_name("MIR4DDocumentAdvanceTime") public func MIR4DDocumentAdvanceTime(_ handle: UnsafeMutableRawPointer?, _ seconds: Double) -> Bool
+@_silgen_name("MIR4DDocumentObjectCount") public func MIR4DDocumentObjectCount(_ handle: UnsafeMutableRawPointer?) -> Int
+@_silgen_name("MIR4DDocumentCommandCount") public func MIR4DDocumentCommandCount(_ handle: UnsafeMutableRawPointer?) -> Int
+@_silgen_name("MIR4DDocumentCurrentTime") public func MIR4DDocumentCurrentTime(_ handle: UnsafeMutableRawPointer?) -> Double
+@_silgen_name("MIR4DDocumentRevision") public func MIR4DDocumentRevision(_ handle: UnsafeMutableRawPointer?) -> UInt64
+@_silgen_name("MIR4DDocumentIsModified") public func MIR4DDocumentIsModified(_ handle: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MIR4DDocumentIsValid") public func MIR4DDocumentIsValid(_ handle: UnsafeMutableRawPointer?) -> Bool
+#endif
+
 public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
     guard let pointer else { return nil }
     let value = String(cString: pointer)
     return value.isEmpty ? nil : value
 }
-
-public func cStrToStringDefault(_ pointer: UnsafePointer<CChar>?, _ defaultValue: String = "") -> String {
-    cStrToString(pointer) ?? defaultValue
-}
+public func cStrToStringDefault(_ pointer: UnsafePointer<CChar>?, _ defaultValue: String = "") -> String { cStrToString(pointer) ?? defaultValue }
 
 public extension Color {
     init(hex: String) {
         var normalized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.hasPrefix("#") { normalized.removeFirst() }
         var value: UInt64 = 0
-        guard (normalized.count == 6 || normalized.count == 8), Scanner(string: normalized).scanHexInt64(&value) else {
-            self = .black
-            return
-        }
+        guard (normalized.count == 6 || normalized.count == 8), Scanner(string: normalized).scanHexInt64(&value) else { self = .black; return }
         let red = normalized.count == 6 ? Int((value >> 16) & 0xFF) : Int((value >> 24) & 0xFF)
         let green = normalized.count == 6 ? Int((value >> 8) & 0xFF) : Int((value >> 16) & 0xFF)
         let blue = normalized.count == 6 ? Int(value & 0xFF) : Int((value >> 8) & 0xFF)
