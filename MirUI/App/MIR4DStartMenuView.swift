@@ -35,6 +35,15 @@ struct MIR4DStartMenuView: View {
 
     private var canContinue: Bool { continueAvailability == .available }
 
+    private var continueStatusText: String {
+        if continueProject == nil { return "Нет проекта для продолжения" }
+        return canContinue ? "Последний проект" : "Проект недоступен"
+    }
+
+    private var continueStatusColor: Color {
+        canContinue ? .secondary : .orange
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -50,15 +59,23 @@ struct MIR4DStartMenuView: View {
         .sheet(isPresented: $showNewProject) {
             MIR4DNewProjectView().environmentObject(appState)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in presentNewProject() }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in presentOpenProject() }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in
+            presentNewProject()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in
+            presentOpenProject()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
             showNewProject = false
             showOpenProject = false
             refreshRecents()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectSaved)) { _ in refreshRecents() }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in refreshRecents() }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectSaved)) { _ in
+            refreshRecents()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
+            refreshRecents()
+        }
     }
 
     private var header: some View {
@@ -116,37 +133,50 @@ struct MIR4DStartMenuView: View {
             guard canContinue else { return }
             _ = commands.restoreLastProject(appState: appState)
         } label: {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack {
-                    Image(systemName: "arrow.forward.circle.fill").font(.system(size: 23))
-                    Spacer()
-                    Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
-                }
-                Text("Продолжить").font(.system(size: 18, weight: .semibold))
-                if let project = continueProject {
-                    Text(project.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                    Text(continueAvailability == .available ? "Последний проект" : "Проект недоступен")
-                        .font(.system(size: 11))
-                        .foregroundStyle(continueAvailability == .available ? .secondary : .orange)
-                } else {
-                    Text("Нет проекта для продолжения")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 4)
-            }
-            .foregroundStyle(.white)
-            .padding(20)
-            .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(canContinue ? 0.07 : 0.035)))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(canContinue ? 0.13 : 0.06), lineWidth: 1))
+            continueCardContent
         }
         .buttonStyle(MIR4DStartCardButtonStyle())
         .disabled(!canContinue)
         .help(canContinue ? "Открыть последний проект" : "Нет доступного проекта для продолжения")
+    }
+
+    private var continueCardContent: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                Image(systemName: "arrow.forward.circle.fill")
+                    .font(.system(size: 23))
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 11, weight: .bold))
+            }
+
+            Text("Продолжить")
+                .font(.system(size: 18, weight: .semibold))
+
+            if let project = continueProject {
+                Text(project.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+
+            Text(continueStatusText)
+                .font(.system(size: 11))
+                .foregroundStyle(continueStatusColor)
+
+            Spacer(minLength: 4)
+        }
+        .foregroundStyle(.white)
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(canContinue ? 0.07 : 0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(canContinue ? 0.13 : 0.06), lineWidth: 1)
+        )
     }
 
     private var createCard: some View {
@@ -218,19 +248,24 @@ struct MIR4DStartMenuView: View {
                 emptyRecentState
             } else {
                 VStack(spacing: 1) {
-                    ForEach(recentProjects) { project in recentRow(project) }
+                    ForEach(recentProjects) { project in
+                        recentRow(project)
+                    }
                 }
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.035)))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.07), lineWidth: 1))
             }
 
-            Toggle("Открывать последний проект при запуске", isOn: Binding(
-                get: { autoOpenLastProject },
-                set: {
-                    autoOpenLastProject = $0
-                    MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled = $0
-                }
-            ))
+            Toggle(
+                "Открывать последний проект при запуске",
+                isOn: Binding(
+                    get: { autoOpenLastProject },
+                    set: { value in
+                        autoOpenLastProject = value
+                        MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled = value
+                    }
+                )
+            )
             .toggleStyle(.switch)
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
