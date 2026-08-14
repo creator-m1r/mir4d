@@ -35,7 +35,7 @@ struct SidebarView: View {
 
     private var sectionPicker: some View {
         HStack(spacing: 4) {
-            ForEach(sections.indices, id: \\.self) { index in
+            ForEach(sections.indices, id: \.self) { index in
                 Button(sections[index]) { withAnimation(MirTheme.Animation.fast) { activeSection = index } }
                     .buttonStyle(.plain).font(MirTheme.Typography.caption).padding(.vertical, 6).frame(maxWidth: .infinity)
                     .background(activeSection == index ? MirTheme.Colors.accentSoft : Color.clear)
@@ -98,42 +98,55 @@ struct SidebarView: View {
                 layerRow(localized("Сетки", "Meshes"), appState.gridVisible)
                 layerRow(localized("Оси", "Axes"), appState.axesVisible)
                 layerRow(localized("Сечения", "Sections"), appState.sectionMode)
-                layerRow(localized("Инженерные данные", "Engineering data"), true)
-                layerRow(localized("Симуляции", "Simulations"), appState.workbench == .simulation)
-                layerRow(localized("Временные события", "Time events"), appState.workbench == .fourD)
-            }.padding(MirTheme.Spacing.md)
+            }
+            .padding(MirTheme.Spacing.md)
         }
     }
 
     private var filterList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(localized("ФИЛЬТР ОБЪЕКТОВ", "OBJECT FILTER")).font(.system(size: 9, weight: .semibold)).foregroundStyle(MirTheme.Colors.textTertiary).tracking(0.5)
-                filterButton(localized("Тела", "Bodies"), "cube")
-                filterButton(localized("Компоненты", "Components"), "square.stack.3d.up")
-                filterButton(localized("Эскизы", "Sketches"), "pencil.and.ruler")
-                filterButton(localized("Конструктивные элементы", "Construction geometry"), "point.3.connected.trianglepath.dotted")
-                filterButton(localized("Результаты расчёта", "Simulation results"), "waveform.path.ecg")
-            }.padding(MirTheme.Spacing.md)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(localized("Фильтры модели", "Model Filters"))
+                    .font(MirTheme.Typography.caption)
+                    .foregroundStyle(MirTheme.Colors.textSecondary)
+                Text(localized("Фильтрация дерева модели", "Model tree filtering"))
+                    .font(MirTheme.Typography.body)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(MirTheme.Spacing.md)
         }
     }
 
-    private func layerRow(_ title: String, _ enabled: Bool) -> some View {
-        HStack { Image(systemName: enabled ? "eye" : "eye.slash").foregroundStyle(enabled ? MirTheme.Colors.accent : MirTheme.Colors.textTertiary); Text(title).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textPrimary); Spacer() }.padding(.vertical, 5)
-    }
-
-    private func filterButton(_ title: String, _ icon: String) -> some View {
-        Button { appState.showNotification(localized("Фильтр: \(title)", "Filter: \(title)"), type: .info) } label: { Label(title, systemImage: icon).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary) }.buttonStyle(.plain)
+    private func layerRow(_ title: String, _ visible: Bool) -> some View {
+        HStack {
+            Text(title)
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textPrimary)
+            Spacer()
+            Image(systemName: visible ? "eye" : "eye.slash")
+                .foregroundStyle(visible ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(MirTheme.Colors.surface.opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
     }
 
     private var footer: some View {
         HStack {
-            Image(systemName: "circle.fill").font(.system(size: 5)).foregroundStyle(MirTheme.Colors.success)
-            Text(localized("Модель: \(modelRuntime.document.geometry.count) геометрических объектов", "Model: \(modelRuntime.document.geometry.count) geometry objects"))
-                .font(MirTheme.Typography.micro).foregroundStyle(MirTheme.Colors.textTertiary)
+            Text(localized("Модель", "Model"))
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
             Spacer()
-        }.padding(10)
+            Text("v\(modelRuntime.revision)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+        }
+        .padding(MirTheme.Spacing.md)
     }
 
-    private func localized(_ ru: String, _ en: String) -> String { appState.ui.language == .russian ? ru : en }
+    private func localized(_ russian: String, _ english: String) -> String {
+        appState.ui.language == .russian ? russian : english
+    }
 }
