@@ -7,8 +7,11 @@ import Foundation
 @MainActor
 final class MIR4DProjectAutoSave {
     private weak var appState: CADAppState?
-    private var modelObserver: NSObjectProtocol?
-    private var saveWorkItem: DispatchWorkItem?
+    // These two resources are also released from deinit, which is nonisolated in Swift 6.
+    // `nonisolated(unsafe)` is intentional here: all normal access remains on MainActor,
+    // while deinitialization only performs cancellation/removal during object teardown.
+    nonisolated(unsafe) private var modelObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var saveWorkItem: DispatchWorkItem?
 
     private let debounceInterval: TimeInterval
     private let minSaveInterval: TimeInterval
