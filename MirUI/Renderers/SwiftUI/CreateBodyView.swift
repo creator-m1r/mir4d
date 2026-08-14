@@ -53,19 +53,14 @@ struct CreateBodyView: View {
     }
 
     private func createBody() {
-        guard width > 0, depth > 0, height > 0 else {
-            appState.showNotification("Размеры должны быть больше нуля", type: .error)
+        guard MIR4DModelCommands.shared.createBox(
+            appState: appState,
+            width: width,
+            depth: depth,
+            height: height
+        ) != nil else {
             return
         }
-
-        NotificationCenter.default.post(
-            name: .mir4DCreateBox,
-            object: [
-                "width": width,
-                "depth": depth,
-                "height": height
-            ]
-        )
 
         dismiss()
     }
