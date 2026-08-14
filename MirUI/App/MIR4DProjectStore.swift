@@ -1,5 +1,9 @@
 import Foundation
 
+private enum MIR4DPaths {
+    static let modelRelativePath = "Scenes/model.mir4d.json"
+}
+
 struct MIR4DProjectManifest: Codable {
     static let currentFormat = "MIR4D"
     static let currentFormatVersion = 1
@@ -16,7 +20,7 @@ struct MIR4DProjectManifest: Codable {
     var axesVisible: Bool
     var sectionMode: Bool
     var currentTime: Double
-    var modelPath: String = MIR4DProjectStore.modelRelativePath
+    var modelPath: String = MIR4DPaths.modelRelativePath
 
     // Reserved for the next manifest migration. Keeping the properties optional
     // lets version-1 packages remain readable while the richer identity contract is introduced.
@@ -43,7 +47,7 @@ struct MIR4DProjectManifest: Codable {
         axesVisible: Bool,
         sectionMode: Bool,
         currentTime: Double,
-        modelPath: String = MIR4DProjectStore.modelRelativePath,
+        modelPath: String = MIR4DPaths.modelRelativePath,
         appVersion: String? = nil,
         uuid: UUID? = nil,
         thumbnailPath: String? = "Thumbnails/preview.png"
@@ -73,7 +77,7 @@ final class MIR4DProjectStore {
 
     static let packageExtension = "mir4d"
     static let manifestFileName = "project.mir4d.json"
-    static let modelRelativePath = "Scenes/model.mir4d.json"
+    static let modelRelativePath = MIR4DPaths.modelRelativePath
 
     private let fileManager = FileManager.default
 
