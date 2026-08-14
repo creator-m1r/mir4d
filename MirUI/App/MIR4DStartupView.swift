@@ -35,16 +35,27 @@ struct MIR4DStartupView: View {
         .frame(minWidth: 1280, minHeight: 800)
         .onAppear { startBoot() }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
-            withAnimation(.easeInOut(duration: 0.45)) {
-                showWorkspace = true
-                showStartMenu = false
+            enterWorkspace()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { notification in
+            if let rawValue = notification.userInfo?["workbench"] as? String,
+               let workbench = CADWorkbench(rawValue: rawValue) {
+                appState.selectWorkbench(workbench)
             }
+            enterWorkspace()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
             withAnimation(.easeInOut(duration: 0.45)) {
                 showWorkspace = false
                 showStartMenu = true
             }
+        }
+    }
+
+    private func enterWorkspace() {
+        withAnimation(.easeInOut(duration: 0.55)) {
+            showWorkspace = true
+            showStartMenu = false
         }
     }
 
@@ -146,34 +157,6 @@ struct MIR4DStartupView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: boot.steps.count)
-    }
-
-    private var bootFailureView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 58))
-                .foregroundStyle(.red)
-            Text("MIR 4D не может продолжить запуск")
-                .font(.system(size: 25, weight: .semibold))
-                .foregroundStyle(.white)
-            Text("Обнаружены критические ошибки.")
-                .foregroundStyle(.secondary)
-            bootSteps
-            HStack(spacing: 12) {
-                Button("Повторить диагностику") {
-                    boot.reset()
-                    diagnosticsLeaving = false
-                    startBoot()
-                }
-                Button("Продолжить") {
-                    withAnimation(.easeInOut(duration: 0.6)) {
-                        showStartMenu = true
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(40)
     }
 
     private func startBoot() {
