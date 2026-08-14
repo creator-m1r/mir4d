@@ -9,6 +9,12 @@ extension Notification.Name {
     static let mir4DProjectRestoreRequested = Notification.Name("MIR4D.ProjectRestoreRequested")
 }
 
+enum MIR4DSaveScope {
+    case manifestOnly
+    case modelOnly
+    case full
+}
+
 struct MIR4DRecentProject: Codable, Identifiable, Equatable {
     let id: UUID
     let name: String
@@ -29,6 +35,7 @@ final class MIR4DProjectSession {
     private let recentProjectsKey = "MIR4D.recentProjects"
     private let maxRecentProjects = 10
     private let modelRuntime = MIR4DModelRuntime.shared
+    private var lastSavedModelRevision: UInt64 = 0
 
     private init() {}
 
@@ -66,10 +73,12 @@ final class MIR4DProjectSession {
             if let subMode = CADSubMode(rawValue: manifest.subMode) { appState.subMode = subMode }
             if let model = try? MIR4DProjectStore.shared.loadModel(from: url) {
                 modelRuntime.load(model)
+                lastSavedModelRevision = modelRuntime.revision
                 appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
             } else {
                 modelRuntime.reset(projectName: manifest.name)
                 try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: url)
+                lastSavedModelRevision = modelRuntime.revision
             }
             addToRecents(url: url, name: manifest.name)
             startAutoSave(for: appState)
@@ -79,11 +88,72 @@ final class MIR4DProjectSession {
         }
     }
 
+    /// Synchronous full save for explicit commands such as Cmd-S.
     func save(appState: CADAppState) throws {
+        try saveSync(appState: appState, scope: .full)
+    }
+
+    /// Save only the requested project layer. Model autosave uses `modelOnly` so UI state is not rewritten.
+    func saveSync(appState: CADAppState, scope: MIR4DSaveScope = .full) throws {
         guard let projectURL else { throw ProjectError.noActiveProject }
-        let manifest = MIR4DProjectManifest(name: appState.documentName, createdAt: existingCreationDate(in: projectURL), modifiedAt: Date(), workbench: appState.workbench.rawValue, subMode: appState.subMode.rawValue, selectedTreeItem: appState.selectedTreeItem, gridVisible: appState.gridVisible, axesVisible: appState.axesVisible, sectionMode: appState.sectionMode, currentTime: appState.currentTime)
-        try MIR4DProjectStore.shared.save(manifest: manifest, to: projectURL)
-        try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
+
+        switch scope {
+        case .manifestOnly:
+            try MIR4DProjectStore.shared.save(manifest: makeManifest(from: appState, in: projectURL), to: projectURL)
+        case .modelOnly:
+            guard modelRuntime.revision != lastSavedModelRevision else {
+                return
+            }
+            try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
+            lastSavedModelRevision = modelRuntime.revision
+        case .full:
+            try MIR4DProjectStore.shared.save(manifest: makeManifest(from: appState, in: projectURL), to: projectURL)
+            if modelRuntime.revision != lastSavedModelRevision {
+                try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
+                lastSavedModelRevision = modelRuntime.revision
+            }
+        }
+
+        appState.documentDirty = false
+        addToRecents(url: projectURL, name: appState.documentName)
+        NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
+    }
+
+    /// Autosave path: capture the current value document on the main actor, then encode/write off-main.
+    func saveAsync(appState: CADAppState, scope: MIR4DSaveScope = .full) async throws {
+        guard let projectURL else { throw ProjectError.noActiveProject }
+
+        let manifest: MIR4DProjectManifest?
+        switch scope {
+        case .manifestOnly, .full:
+            manifest = makeManifest(from: appState, in: projectURL)
+        case .modelOnly:
+            manifest = nil
+        }
+
+        let modelSnapshot: MIR4DModelDocument?
+        let revision = modelRuntime.revision
+        switch scope {
+        case .modelOnly, .full:
+            guard revision != lastSavedModelRevision else {
+                if scope == .modelOnly { return }
+                modelSnapshot = nil
+                break
+            }
+            modelSnapshot = modelRuntime.document
+        case .manifestOnly:
+            modelSnapshot = nil
+        }
+
+        if let manifest {
+            try MIR4DProjectStore.shared.save(manifest: manifest, to: projectURL)
+        }
+        if let modelSnapshot {
+            try await MIR4DProjectStore.shared.saveModelAsync(modelSnapshot, to: projectURL)
+            // The revision belongs to the captured snapshot. A newer edit will produce another revision and another autosave.
+            lastSavedModelRevision = revision
+        }
+
         appState.documentDirty = false
         addToRecents(url: projectURL, name: appState.documentName)
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
@@ -95,6 +165,7 @@ final class MIR4DProjectSession {
             projectURL = url
             projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             appState.documentName = projectName
+            lastSavedModelRevision = 0
             try save(appState: appState)
             startAutoSave(for: appState)
             appState.showNotification("Проект сохранён как: \(projectName)", type: .success)
@@ -108,6 +179,7 @@ final class MIR4DProjectSession {
         autoSave = nil
         projectURL = nil
         projectName = "Новый проект"
+        lastSavedModelRevision = 0
         modelRuntime.reset(projectName: "Новый проект")
         appState.documentName = "Новый проект"
         appState.documentDirty = false
@@ -192,6 +264,21 @@ final class MIR4DProjectSession {
     private func startAutoSave(for appState: CADAppState) {
         autoSave?.stop()
         autoSave = MIR4DProjectAutoSave(appState: appState)
+    }
+
+    private func makeManifest(from appState: CADAppState, in projectURL: URL) -> MIR4DProjectManifest {
+        MIR4DProjectManifest(
+            name: appState.documentName,
+            createdAt: existingCreationDate(in: projectURL),
+            modifiedAt: Date(),
+            workbench: appState.workbench.rawValue,
+            subMode: appState.subMode.rawValue,
+            selectedTreeItem: appState.selectedTreeItem,
+            gridVisible: appState.gridVisible,
+            axesVisible: appState.axesVisible,
+            sectionMode: appState.sectionMode,
+            currentTime: appState.currentTime
+        )
     }
 
     private func existingCreationDate(in projectURL: URL) -> Date {
