@@ -21,9 +21,6 @@ target_compile_definitions(MirEngine INTERFACE MIR_ENABLE_OCCT=$<BOOL:${MIR_ENAB
 if(APPLE)
     target_compile_definitions(MirEngine INTERFACE MIR_PLATFORM_MACOS=1)
 
-    # The native macOS OpenGL bridge is compiled only on Apple platforms.
-    # SwiftUI talks to this library through the stable C ABI in
-    # MirEngine/Exports/MirEngineExports.h.
     enable_language(OBJCXX)
 
     find_library(MIR4D_OPENGL_FRAMEWORK OpenGL REQUIRED)
@@ -35,14 +32,25 @@ if(APPLE)
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
 
+    # MirEngineExports.cpp constructs B-Rep-backed scene objects. Keep the
+    # native OpenGL target independent from the declaration order of the
+    # MirEngineBRep interface target by publishing the required include roots
+    # directly on this target.
     target_include_directories(MirEngineMacOpenGL PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Core
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Topology
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Geometry
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Builders
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Tessellator
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Boolean
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Converters
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Commands
+        ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Validator
     )
-    # The native C ABI creates B-Rep-backed scene content, so the OpenGL
-    # bridge must inherit the complete B-Rep include graph, not only the
-    # base MirEngine include root.
     target_link_libraries(MirEngineMacOpenGL PUBLIC
-        MirEngineBRep
+        MirEngine
         ${MIR4D_OPENGL_FRAMEWORK}
         ${MIR4D_COCOA_FRAMEWORK}
     )
@@ -126,9 +134,6 @@ endif()
 add_subdirectory(MirUI)
 
 if(APPLE)
-    # MirUI is the C++ presentation/interop library consumed by SwiftUI.
-    # Link the native OpenGL implementation into the same dependency graph so
-    # Xcode cannot accidentally build the UI without the real renderer.
     target_link_libraries(MirUI PUBLIC MirEngineMacOpenGL)
 endif()
 
