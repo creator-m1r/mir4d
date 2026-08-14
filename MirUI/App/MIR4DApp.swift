@@ -22,20 +22,33 @@ struct MIR4DApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Новый проект") {
-                    NotificationCenter.default.post(
-                        name: .mir4DRequestNewProject,
-                        object: nil
-                    )
+                    NotificationCenter.default.post(name: .mir4DRequestNewProject, object: nil)
                 }
                 .keyboardShortcut("n", modifiers: [.command])
 
                 Button("Открыть проект…") {
-                    NotificationCenter.default.post(
-                        name: .mir4DOpenProject,
-                        object: nil
-                    )
+                    NotificationCenter.default.post(name: .mir4DOpenProject, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+            }
+
+            CommandGroup(after: .saveItem) {
+                Button("Сохранить") {
+                    MIR4DProjectCommands.shared.save(appState: appState)
+                }
+                .keyboardShortcut("s", modifiers: [.command])
+
+                Button("Сохранить как…") {
+                    MIR4DProjectCommands.shared.saveAs(appState: appState)
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Закрыть проект") {
+                    MIR4DProjectCommands.shared.close(appState: appState)
+                }
+                .keyboardShortcut("w", modifiers: [.command])
             }
         }
     }
