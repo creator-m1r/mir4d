@@ -55,9 +55,8 @@ struct MIR4DApp: App {
     }
 }
 
-/// Applies the MIR 4D macOS window policy.
-/// The app starts above normal windows and occupies the complete visible
-/// desktop area while keeping the macOS menu bar and Dock area available.
+/// Configures the native macOS window while preserving Apple's traffic lights.
+/// The green control is explicitly configured for native fullscreen mode.
 struct MIR4DWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowConfiguratorView {
         WindowConfiguratorView()
@@ -84,19 +83,31 @@ final class WindowConfiguratorView: NSView {
     func configureWindow() {
         guard let window else { return }
 
-        window.level = .floating
-        window.collectionBehavior.insert(.fullScreenAuxiliary)
+        // HiddenTitleBar hides title text, but we explicitly retain all native
+        // controls and the fullscreen capability.
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullScreen])
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
+        window.level = .floating
+        window.collectionBehavior.insert(.fullScreenAuxiliary)
 
-        // Keep the native macOS traffic-light controls. The green zoom button
-        // is the standard macOS fullscreen/maximize control and opens native
-        // fullscreen when the user presses it.
         if let zoom = window.standardWindowButton(.zoomButton) {
             zoom.isHidden = false
             zoom.isEnabled = true
+            zoom.target = window
+            zoom.action = #selector(NSWindow.toggleFullScreen(_:))
             zoom.toolTip = "На весь экран"
+        }
+
+        // On macOS versions that expose a dedicated fullscreen traffic-light,
+        // use it. AppKit owns the icon and changes it to enter/exit arrows.
+        if let fullscreen = window.standardWindowButton(.fullScreenButton) {
+            fullscreen.isHidden = false
+            fullscreen.isEnabled = true
+            fullscreen.target = window
+            fullscreen.action = #selector(NSWindow.toggleFullScreen(_:))
+            fullscreen.toolTip = "На весь экран"
         }
 
         if !didConfigure {
@@ -112,9 +123,8 @@ final class WindowConfiguratorView: NSView {
 
     private func positionAlmostFullscreen(_ window: NSWindow) {
         guard let screen = window.screen ?? NSScreen.main else { return }
-
-        // visibleFrame excludes the macOS menu bar and the Dock. This gives
-        // MIR 4D the largest safe window without hiding system UI.
+        // visibleFrame adapts to each display and excludes the macOS menu bar
+        // and Dock, so the app starts almost fullscreen without hiding them.
         window.setFrame(screen.visibleFrame, display: true, animate: false)
         window.collectionBehavior.insert(.fullScreenAuxiliary)
     }
