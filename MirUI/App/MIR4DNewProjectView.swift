@@ -27,6 +27,7 @@ struct MIR4DNewProjectView: View {
                     .font(.headline)
                 TextField("Например: Корпус насоса", text: $projectName)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit { createProject() }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -37,7 +38,7 @@ struct MIR4DNewProjectView: View {
                     Image(systemName: "folder")
                         .foregroundStyle(.secondary)
 
-                    Text(parentURL?.path ?? "Место не выбрано")
+                    Text(parentURL?.path ?? "Место не выбрано — нажмите «Выбрать…»")
                         .foregroundStyle(parentURL == nil ? .secondary : .primary)
                         .lineLimit(1)
 
@@ -70,11 +71,19 @@ struct MIR4DNewProjectView: View {
                     createProject()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parentURL == nil)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(28)
         .frame(width: 620)
+        .onAppear {
+            // The old implementation disabled the action until a folder was
+            // selected. This made the card look non-responsive. Creation now
+            // remains actionable and opens the folder chooser when necessary.
+            if parentURL == nil {
+                parentURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            }
+        }
     }
 
     private func chooseFolder() {
@@ -86,6 +95,7 @@ struct MIR4DNewProjectView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
+        panel.directoryURL = parentURL
 
         if panel.runModal() == .OK {
             parentURL = panel.url
@@ -94,17 +104,20 @@ struct MIR4DNewProjectView: View {
     }
 
     private func createProject() {
-        guard let parentURL else {
-            errorMessage = "Выберите место хранения проекта."
-            return
-        }
-
         let trimmedName = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             errorMessage = "Введите название проекта."
             return
         }
 
+        // If the user presses Create immediately, give them the normal macOS
+        // folder chooser instead of silently ignoring the click.
+        if parentURL == nil {
+            chooseFolder()
+            guard parentURL != nil else { return }
+        }
+
+        guard let parentURL else { return }
         let projectURL = parentURL.appendingPathComponent("\(trimmedName).mir4d", isDirectory: true)
         if FileManager.default.fileExists(atPath: projectURL.path) {
             errorMessage = "Проект с таким названием уже существует в выбранном месте."
