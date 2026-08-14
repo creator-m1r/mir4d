@@ -11,6 +11,7 @@ struct MIR4DStartupView: View {
     @StateObject private var boot = MIR4DBootCoordinator()
     @State private var showStartMenu = false
     @State private var showWorkspace = false
+    @State private var diagnosticsLeaving = false
 
     var body: some View {
         ZStack {
@@ -19,32 +20,28 @@ struct MIR4DStartupView: View {
                     .transition(.opacity)
             } else {
                 startupBackground
-
-                switch boot.state {
-                case .idle, .booting:
+                if showStartMenu {
+                    MIR4DStartMenuView(diagnostic: boot)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                } else {
                     bootView
-                case .ready, .warning:
-                    if showStartMenu {
-                        MIR4DStartMenuView(diagnostic: boot)
-                            .transition(.opacity)
-                    } else {
-                        bootView
-                    }
-                case .failed:
-                    bootFailureView
+                        .transition(.opacity)
                 }
             }
         }
         .frame(minWidth: 1280, minHeight: 800)
         .onAppear { startBoot() }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(.easeInOut(duration: 0.45)) {
                 showWorkspace = true
                 showStartMenu = false
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(.easeInOut(duration: 0.45)) {
                 showWorkspace = false
                 showStartMenu = true
             }
@@ -65,40 +62,71 @@ struct MIR4DStartupView: View {
     }
 
     private var bootView: some View {
-        VStack(spacing: 28) {
-            Spacer()
-            Image(systemName: "cube.transparent")
-                .font(.system(size: 68))
-                .foregroundStyle(.white)
-            VStack(spacing: 7) {
-                Text("МИР 4D")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                Text("Мечтай • Изобретай • Развивай")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-            }
-            VStack(spacing: 10) {
-                HStack {
-                    Text(boot.currentTitle).foregroundStyle(.white)
-                    Spacer()
-                    Text("\(Int(boot.progress * 100))%")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                Spacer(minLength: 30)
+
+                // The logo stays fixed. Only the diagnostic layer moves upward.
+                VStack(spacing: 10) {
+                    Image(systemName: "cube.transparent")
+                        .font(.system(size: 68))
                         .foregroundStyle(.white)
+                    Text("МИР 4D")
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("Мечтай • Изобретай • Развивай")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
                 }
-                ProgressView(value: boot.progress, total: 1)
+                .frame(height: 150)
+
+                diagnosticLayer
+                    .frame(maxWidth: 700)
+                    .offset(y: diagnosticsLeaving ? -proxy.size.height * 0.72 : 0)
+                    .opacity(diagnosticsLeaving ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.75), value: diagnosticsLeaving)
+
+                Spacer()
+
+                Text("MIR 4D Engineering Platform")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 24)
             }
-            .frame(maxWidth: 650)
-            Text(boot.currentDetail)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            bootSteps
-            Spacer()
-            Text("MIR 4D Engineering Platform")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            .padding(40)
         }
-        .padding(40)
+    }
+
+    private var diagnosticLayer: some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(boot.currentTitle)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(boot.currentDetail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text("\(Int(boot.progress * 100))%")
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+
+            ProgressView(value: boot.progress, total: 1)
+                .tint(.white)
+                .animation(.easeInOut(duration: 0.25), value: boot.progress)
+
+            bootSteps
+        }
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.035))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        )
     }
 
     private var bootSteps: some View {
@@ -114,11 +142,10 @@ struct MIR4DStartupView: View {
                         .foregroundStyle(.secondary)
                 }
                 .foregroundStyle(foreground(for: step.severity))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .frame(maxWidth: 650)
-        .padding(18)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.025)))
+        .animation(.easeInOut(duration: 0.3), value: boot.steps.count)
     }
 
     private var bootFailureView: some View {
@@ -135,10 +162,13 @@ struct MIR4DStartupView: View {
             HStack(spacing: 12) {
                 Button("Повторить диагностику") {
                     boot.reset()
+                    diagnosticsLeaving = false
                     startBoot()
                 }
                 Button("Продолжить") {
-                    showStartMenu = true
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        showStartMenu = true
+                    }
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -150,16 +180,20 @@ struct MIR4DStartupView: View {
         guard boot.state == .idle else { return }
         Task {
             await boot.start()
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .milliseconds(350))
             guard boot.state == .ready || boot.state == .warning else { return }
 
-            // Restore the last valid local project automatically. If none exists,
-            // keep the normal start menu visible.
+            withAnimation(.easeInOut(duration: 0.75)) {
+                diagnosticsLeaving = true
+            }
+
+            try? await Task.sleep(for: .milliseconds(650))
+
             if MIR4DProjectCommands.shared.restoreLastProject(appState: appState) {
                 return
             }
 
-            withAnimation(.easeInOut(duration: 0.5)) {
+            withAnimation(.easeInOut(duration: 0.55)) {
                 showStartMenu = true
             }
         }
