@@ -4,6 +4,7 @@ import AppKit
 extension Notification.Name {
     static let mir4DProjectActivated = Notification.Name("MIR4D.ProjectActivated")
     static let mir4DRequestNewProject = Notification.Name("MIR4D.RequestNewProject")
+    static let mir4DProjectSaved = Notification.Name("MIR4D.ProjectSaved")
 }
 
 @MainActor
@@ -12,6 +13,7 @@ final class MIR4DProjectSession {
 
     private(set) var projectURL: URL?
     private(set) var projectName: String = "Новый проект"
+    private var autoSave: MIR4DProjectAutoSave?
 
     private init() {}
 
@@ -32,6 +34,7 @@ final class MIR4DProjectSession {
             appState.time.reset()
 
             try save(appState: appState)
+            startAutoSave(for: appState)
 
             appState.showNotification(
                 "Проект создан: \(projectName)",
@@ -72,6 +75,8 @@ final class MIR4DProjectSession {
                 appState.subMode = subMode
             }
 
+            startAutoSave(for: appState)
+
             appState.showNotification(
                 "Проект открыт: \(manifest.name)",
                 type: .success
@@ -109,6 +114,12 @@ final class MIR4DProjectSession {
 
         try MIR4DProjectStore.shared.save(manifest: manifest, to: projectURL)
         appState.documentDirty = false
+        NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
+    }
+
+    private func startAutoSave(for appState: CADAppState) {
+        autoSave?.stop()
+        autoSave = MIR4DProjectAutoSave(appState: appState)
     }
 
     private func existingCreationDate(in projectURL: URL) -> Date {
