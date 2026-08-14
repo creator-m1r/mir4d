@@ -30,7 +30,7 @@ struct TopBarView: View {
                 .font(MirTheme.Typography.caption)
                 .foregroundStyle(MirTheme.Colors.textTertiary)
                 .padding(.horizontal, 7).padding(.vertical, 4)
-                .background(Color.white.opacity(0.035)).clipShape(Capsule())
+                .background(MirTheme.Colors.surface.opacity(0.6)).clipShape(Capsule())
             Spacer()
             commandPaletteButton
             historyButtons
@@ -41,7 +41,7 @@ struct TopBarView: View {
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(MirTheme.Colors.textSecondary)
                     .frame(width: 34, height: 28)
-                    .background(Color.white.opacity(0.04))
+                    .background(MirTheme.Colors.surface.opacity(0.6))
                     .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             }
             .buttonStyle(.plain)
@@ -81,7 +81,7 @@ struct TopBarView: View {
             }
             .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(Color.white.opacity(0.04)).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+            .background(MirTheme.Colors.surface.opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
         }
         .buttonStyle(.plain).keyboardShortcut("k", modifiers: [.command])
     }
@@ -108,7 +108,7 @@ struct TopBarView: View {
             Image(systemName: icon).font(.system(size: 12)).frame(width: 28, height: 28)
         }
         .buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textSecondary)
-        .background(Color.white.opacity(0.035)).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+        .background(MirTheme.Colors.surface.opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         .help(label)
     }
 

@@ -24,6 +24,7 @@ struct CADMainView: View {
     @StateObject private var radialMenuSettings = RadialMenuSettingsStore.shared
     @StateObject private var radialContextPolicies = RadialMenuContextPolicyStore.shared
     @StateObject private var radialContextStore = RadialMenuContextStore.shared
+    @ObservedObject private var modelRuntime = MIR4DModelRuntime.shared
 
     @State private var commandPalettePresented = false
     @State private var createBodyPresented = false
@@ -41,25 +42,11 @@ struct CADMainView: View {
             appearance.theme.windowBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 TopBarView(appState: appState, registry: commandRegistry, commandPalettePresented: $commandPalettePresented)
-                HStack(spacing: 0) {
-                    if appState.visiblePanels.contains(.project) {
-                        SidebarView(appState: appState).frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
-                    }
-                    viewport.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if appState.visiblePanels.contains(.properties) {
-                        VStack(spacing: 0) {
-                            SelectionIdentityInspector(appState: appState)
-                            InspectorTabsView(appState: appState)
-                        }.frame(minWidth: 300, idealWidth: 340, maxWidth: 440)
-                    }
-                }
-                .animation(MirTheme.Animation.normal, value: appState.visiblePanels)
+                sidePanels
+                    .animation(MirTheme.Animation.normal, value: appState.visiblePanels)
                 if appState.visiblePanels.contains(.timeline) { timeline }
             }
-            VStack {
-                HStack { Spacer(); NotificationsView(appState: appState).padding(.trailing, 18).padding(.top, 90) }
-                Spacer()
-            }
+            notificationsOverlay
         }
         .environment(\.locale, appearance.language.locale)
         .preferredColorScheme(appearance.theme.colorScheme)
@@ -95,64 +82,210 @@ struct CADMainView: View {
         }
     }
 
+    private var sidePanels: some View {
+        HStack(spacing: 0) {
+            if appState.visiblePanels.contains(.project) {
+                SidebarView(appState: appState).frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
+            }
+            viewport.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if appState.visiblePanels.contains(.properties) {
+                inspector
+            }
+        }
+    }
+
+    private var inspector: some View {
+        VStack(spacing: 0) {
+            SelectionIdentityInspector(appState: appState)
+            InspectorTabsView(appState: appState)
+        }
+        .frame(minWidth: 300, idealWidth: 340, maxWidth: 440)
+    }
+
     private var viewport: some View {
         ZStack {
             MirGLView(
                 onSelectionChanged: { objectId in
                     if objectId == 0 { appState.clearSelection() } else { appState.setSelection(ids: [String(objectId)], kind: .body) }
                 },
-                onIOError: { message in appState.showNotification(message, type: .error) },
+                onIOError: { message in
+                    appState.showNotification(userFacingErrorMessage(message), type: .error)
+                    print("MIR4D IO: \(message)")
+                },
                 onCameraOrientationChanged: { theta, phi, distance in cameraTheta = theta; cameraPhi = phi; cameraDistance = distance }
             )
             .background(MirTheme.Colors.viewport)
 
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            SelectionFilterBar(appState: appState)
-                            Button { createBodyPresented = true } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }.buttonStyle(.borderedProminent).controlSize(.small)
-                            Button { presentMeshImportPanel() } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered).controlSize(.small)
-                            Button { presentStlExportPanel(selectionOnly: false) } label: { Label(appState.ui.language == .russian ? "Экспорт STL" : "Export STL", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered).controlSize(.small)
-                            Button { NotificationCenter.default.post(name: .mir4DFitViewport, object: nil) } label: { Label(appState.ui.language == .russian ? "Подогнать" : "Fit All", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }.buttonStyle(.bordered).controlSize(.small)
-                            if appState.selection.hasSelection {
-                                Button { presentStlExportPanel(selectionOnly: true) } label: { Label(appState.ui.language == .russian ? "Выбранное" : "Selected", systemImage: "arrow.up.doc") }.buttonStyle(.bordered).controlSize(.small)
-                            }
-                            Button { radialSettingsPresented = true } label: { Image(systemName: "circle.grid.3x3.fill") }.buttonStyle(.bordered).controlSize(.small)
-                        }.padding(.top, 10).padding(.leading, 12)
-                        ContextualToolbarView(appState: appState, registry: commandRegistry).padding(.leading, 12)
-                        WorkbenchContentRouter(appState: appState, registry: commandRegistry)
-                    }
-                    Spacer()
-                    if appState.workbench == .fourD || appState.workbench == .simulation { FourDSceneOverlayView(appState: appState) }
-                }
-                Spacer()
-                if productionWorld.activeStage == .idea { IdeaStudioView(appState: appState, store: productionWorld) }
-                if productionWorld.activeStage == .test || productionWorld.activeStage == .scenario { DigitalWorldHUD(appState: appState, store: productionWorld) }
-                if productionWorld.activeStage == .drawing || productionWorld.activeStage == .manufacture { ManufacturingHandoffView(appState: appState, store: productionWorld) }
-                ProductionWorldView(appState: appState, store: productionWorld)
-                statusBar
-            }
+            viewportOverlay
+            navigationOverlay
+            radialMenuOverlay
 
-            GeometryReader { geometry in
-                NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance).position(x: geometry.size.width - 92, y: 92)
-                if radialMenuVisible {
-                    let panels = RadialMenuGeometry.enabledPanels(radialMenuSettings.settings)
-                    let panelIndex = RadialMenuGeometry.panelIndex(for: radialVector.dx, dy: radialVector.dy, settings: radialMenuSettings.settings)
-                    let selectedPanel = panelIndex.flatMap { index in panels.indices.contains(index) ? panels[index] : nil }
-                    let selectedToolIndex = selectedPanel.flatMap { panel in RadialMenuGeometry.toolIndex(for: radialVector.dx, dy: radialVector.dy, panel: panel, settings: radialMenuSettings.settings) }
-                    let selectedTool: RadialMenuTool? = selectedPanel.flatMap { panel in
-                        guard let index = selectedToolIndex, panel.tools.indices.contains(index) else { return nil }
-                        return panel.tools[index]
-                    }
-                    VStack(spacing: 8) {
-                        RadialMenuView(store: radialMenuSettings, center: CGPoint(x: radialCenterNormalized.x * geometry.size.width, y: radialCenterNormalized.y * geometry.size.height), vector: radialVector, onToolActivated: { tool in activateRadialTool(tool) }, onSettings: { radialSettingsPresented = true })
-                        RadialMenuAvailabilityView(tool: selectedTool, context: appState.activeContext, policyStore: radialContextPolicies, registry: commandRegistry)
-                    }
-                    .position(x: radialCenterNormalized.x * geometry.size.width, y: radialCenterNormalized.y * geometry.size.height + 205)
-                }
-            }.allowsHitTesting(false)
+            if showEmptyState { emptyState }
         }
+    }
+
+    private var viewportOverlay: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
+                viewportToolbar
+                Spacer()
+                if appState.workbench == .fourD || appState.workbench == .simulation { FourDSceneOverlayView(appState: appState) }
+            }
+            Spacer()
+            productionOverlays
+            statusBar
+        }
+    }
+
+    private var viewportToolbar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                SelectionFilterBar(appState: appState)
+                Button { createBodyPresented = true } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }.buttonStyle(.borderedProminent).controlSize(.small)
+                    .help(appState.ui.language == .russian ? "Создать тело" : "Create Body")
+                Button { presentMeshImportPanel() } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered).controlSize(.small)
+                    .help(appState.ui.language == .russian ? "Импорт модели (STL, OBJ, PLY, GLTF, GLB, FBX)" : "Import model (STL, OBJ, PLY, GLTF, GLB, FBX)")
+                Button { presentStlExportPanel(selectionOnly: false) } label: { Label(appState.ui.language == .russian ? "Экспорт" : "Export", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered).controlSize(.small)
+                    .help(appState.ui.language == .russian ? "Экспорт STL" : "Export STL")
+                Button { NotificationCenter.default.post(name: .mir4DFitViewport, object: nil) } label: { Label(appState.ui.language == .russian ? "Подогнать" : "Fit All", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }.buttonStyle(.bordered).controlSize(.small)
+                    .help(appState.ui.language == .russian ? "Показать всё" : "Fit all objects")
+                if appState.selection.hasSelection {
+                    Button { presentStlExportPanel(selectionOnly: true) } label: { Label(appState.ui.language == .russian ? "Выбранное" : "Selected", systemImage: "arrow.up.doc") }.buttonStyle(.bordered).controlSize(.small)
+                        .help(appState.ui.language == .russian ? "Экспортировать выбранное в STL" : "Export selection to STL")
+                }
+                viewOptionsMenu
+                Button { radialSettingsPresented = true } label: { Image(systemName: "circle.grid.3x3.fill") }.buttonStyle(.bordered).controlSize(.small)
+                    .help(appState.ui.language == .russian ? "Радиальное меню" : "Radial menu settings")
+            }.padding(.top, 10).padding(.leading, 12)
+            ContextualToolbarView(appState: appState, registry: commandRegistry).padding(.leading, 12)
+            WorkbenchContentRouter(appState: appState, registry: commandRegistry)
+        }
+    }
+
+    private var viewOptionsMenu: some View {
+        Menu {
+            Button {
+                appState.toggleGrid()
+            } label: {
+                Label(appState.ui.language == .russian ? "Сетка" : "Grid", systemImage: "grid")
+            }
+            Button {
+                appState.toggleAxes()
+            } label: {
+                Label(appState.ui.language == .russian ? "Оси" : "Axes", systemImage: "cube")
+            }
+            Divider()
+            Button {
+                appState.togglePanel(.project)
+            } label: {
+                Label(appState.ui.language == .russian ? "Модель" : "Model Tree", systemImage: "sidebar.left")
+            }
+            Button {
+                appState.togglePanel(.properties)
+            } label: {
+                Label(appState.ui.language == .russian ? "Свойства" : "Inspector", systemImage: "sidebar.right")
+            }
+        } label: {
+            Label(appState.ui.language == .russian ? "Вид" : "View", systemImage: "eye")
+        }
+        .menuStyle(.borderlessButton)
+        .controlSize(.small)
+        .help(appState.ui.language == .russian ? "Параметры вида" : "View options")
+    }
+
+    private var productionOverlays: some View {
+        VStack(spacing: 0) {
+            if productionWorld.activeStage == .idea { IdeaStudioView(appState: appState, store: productionWorld) }
+            if productionWorld.activeStage == .test || productionWorld.activeStage == .scenario { DigitalWorldHUD(appState: appState, store: productionWorld) }
+            if productionWorld.activeStage == .drawing || productionWorld.activeStage == .manufacture { ManufacturingHandoffView(appState: appState, store: productionWorld) }
+            ProductionWorldView(appState: appState, store: productionWorld)
+        }
+    }
+
+    private var navigationOverlay: some View {
+        GeometryReader { geometry in
+            NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance)
+                .position(x: geometry.size.width - 82, y: 82)
+        }
+    }
+
+    private var radialMenuOverlay: some View {
+        GeometryReader { geometry in
+            if radialMenuVisible {
+                let panels = RadialMenuGeometry.enabledPanels(radialMenuSettings.settings)
+                let panelIndex = RadialMenuGeometry.panelIndex(for: radialVector.dx, dy: radialVector.dy, settings: radialMenuSettings.settings)
+                let selectedPanel = panelIndex.flatMap { index in panels.indices.contains(index) ? panels[index] : nil }
+                let selectedToolIndex = selectedPanel.flatMap { panel in RadialMenuGeometry.toolIndex(for: radialVector.dx, dy: radialVector.dy, panel: panel, settings: radialMenuSettings.settings) }
+                let selectedTool: RadialMenuTool? = selectedPanel.flatMap { panel in
+                    guard let index = selectedToolIndex, panel.tools.indices.contains(index) else { return nil }
+                    return panel.tools[index]
+                }
+                VStack(spacing: 8) {
+                    RadialMenuView(store: radialMenuSettings, center: CGPoint(x: radialCenterNormalized.x * geometry.size.width, y: radialCenterNormalized.y * geometry.size.height), vector: radialVector, onToolActivated: { tool in activateRadialTool(tool) }, onSettings: { radialSettingsPresented = true })
+                    RadialMenuAvailabilityView(tool: selectedTool, context: appState.activeContext, policyStore: radialContextPolicies, registry: commandRegistry)
+                }
+                .position(x: radialCenterNormalized.x * geometry.size.width, y: radialCenterNormalized.y * geometry.size.height + 205)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var notificationsOverlay: some View {
+        VStack {
+            HStack { Spacer(); NotificationsView(appState: appState).padding(.trailing, 18).padding(.top, 90) }
+            Spacer()
+        }
+    }
+
+    private var showEmptyState: Bool {
+        appState.workbench == .model && modelRuntime.document.bodies.isEmpty
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: MirTheme.Spacing.md) {
+            Image(systemName: "cube.transparent")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Text("МИР 4D")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(MirTheme.Colors.textPrimary)
+            Text(appState.ui.language == .russian ? "Проект пока пуст" : "Project is empty")
+                .font(MirTheme.Typography.body)
+                .foregroundStyle(MirTheme.Colors.textSecondary)
+            Button {
+                _ = commandRegistry.execute(id: "create.body", context: appState.activeContext)
+            } label: {
+                Label(appState.ui.language == .russian ? "Создать тело" : "Create Body", systemImage: "cube.transparent")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+        }
+        .padding(MirTheme.Spacing.xl)
+        .background(MirTheme.Colors.surface.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.large))
+        .overlay {
+            RoundedRectangle(cornerRadius: MirTheme.Radius.large)
+                .stroke(MirTheme.Colors.border, lineWidth: 1)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func userFacingErrorMessage(_ raw: String) -> String {
+        let ru = appState.ui.language == .russian
+        let lower = raw.lowercased()
+        if lower.contains("unsupported") || lower.contains("format") {
+            return ru ? "Не удалось импортировать модель: неподдерживаемый формат файла" : "Could not import model: unsupported file format"
+        }
+        if lower.contains("not found") || lower.contains("no such file") {
+            return ru ? "Не удалось открыть файл: файл не найден" : "Could not open file: file not found"
+        }
+        if lower.contains("permission") || lower.contains("denied") {
+            return ru ? "Не удалось получить доступ к файлу: недостаточно прав" : "Could not access file: permission denied"
+        }
+        if lower.contains("export") || lower.contains("write") {
+            return ru ? "Не удалось экспортировать модель: ошибка записи" : "Could not export model: write error"
+        }
+        return ru ? "Не удалось выполнить операцию с моделью" : "Model operation failed"
     }
 
     private func applyContextualRadialLayout() {

@@ -49,19 +49,69 @@ struct SidebarView: View {
 
     private var modelTree: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 1) {
-                ForEach(filteredModelTree) { node in TreeItemView(node: node, appState: appState, level: 0) }
+            LazyVStack(alignment: .leading, spacing: MirTheme.Spacing.sm) {
+                ForEach(treeSections) { section in
+                    VStack(alignment: .leading, spacing: 1) {
+                        sectionHeader(section)
+                        ForEach(section.nodes) { node in
+                            TreeItemView(node: node, appState: appState, level: 0)
+                        }
+                    }
+                }
             }
             .padding(.horizontal, 10).padding(.top, MirTheme.Spacing.md)
         }
         .animation(MirTheme.Animation.normal, value: modelRuntime.revision)
     }
 
-    private var filteredModelTree: [TreeNodeData] {
-        let nodes = modelRuntime.document.root.children.map(convert)
+    private struct TreeSection: Identifiable {
+        let id: String
+        let title: String
+        let icon: String
+        let nodes: [TreeNodeData]
+    }
+
+    private var treeSections: [TreeSection] {
+        let children = modelRuntime.document.root.children
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return nodes }
-        return nodes.filter { contains($0, query: query) }
+        let visible = query.isEmpty ? children : children.filter { contains($0, query: query) }
+
+        func section(_ id: String, _ title: String, _ icon: String, _ predicate: (MIR4DModelNode.Kind) -> Bool) -> TreeSection {
+            TreeSection(
+                id: id,
+                title: title,
+                icon: icon,
+                nodes: visible.filter { predicate($0.kind) }.map(convert)
+            )
+        }
+
+        return [
+            section("bodies", localized("Тела", "Bodies"), "cube.transparent", { $0 == .body }),
+            section("sketches", localized("Эскизы", "Sketches"), "pencil.and.ruler", { $0 == .sketch }),
+            section("features", localized("Функции", "Features"), "gearshape.2", { $0 == .operation || $0 == .result }),
+            section("construction", localized("Конструктив", "Construction"), "square.stack.3d.up", { $0 == .component }),
+            section("references", localized("Ссылки", "References"), "link", { $0 == .project })
+        ].filter { !$0.nodes.isEmpty }
+    }
+
+    private func sectionHeader(_ section: TreeSection) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: section.icon)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Text(section.title.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.4)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Spacer()
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, MirTheme.Spacing.xs)
+    }
+
+    private func contains(_ node: MIR4DModelNode, query: String) -> Bool {
+        if node.title.lowercased().contains(query) { return true }
+        return node.children.contains { contains($0, query: query) }
     }
 
     private func convert(_ node: MIR4DModelNode) -> TreeNodeData {
@@ -83,11 +133,6 @@ struct SidebarView: View {
             icon: icon,
             children: node.children.map(convert)
         )
-    }
-
-    private func contains(_ node: TreeNodeData, query: String) -> Bool {
-        if node.name.lowercased().contains(query) { return true }
-        return node.children.contains { contains($0, query: query) }
     }
 
     private var layerList: some View {

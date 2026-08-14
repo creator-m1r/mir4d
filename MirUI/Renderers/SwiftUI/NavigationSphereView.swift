@@ -17,7 +17,7 @@ struct NavigationSphereView: View {
             labels
             navigationHitZones
         }
-        .frame(width: 156, height: 156)
+        .frame(width: 120, height: 120)
         .contentShape(Circle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Навигационная сфера")
@@ -35,7 +35,7 @@ struct NavigationSphereView: View {
                     ],
                     center: .topLeading,
                     startRadius: 4,
-                    endRadius: 78
+                    endRadius: 60
                 )
             )
             .overlay(
@@ -108,11 +108,11 @@ struct NavigationSphereView: View {
 
     private var labels: some View {
         ZStack {
-            Text("TOP").position(x: 78, y: 13)
-            Text("FRONT").position(x: 78, y: 145)
-            Text("L").position(x: 13, y: 79)
-            Text("R").position(x: 143, y: 79)
-            Text("ISO").position(x: 119, y: 33)
+            Text("TOP").position(x: 60, y: 10)
+            Text("FRONT").position(x: 60, y: 110)
+            Text("L").position(x: 10, y: 60)
+            Text("R").position(x: 110, y: 60)
+            Text("ISO").position(x: 92, y: 25)
         }
         .font(.system(size: 8, weight: .semibold, design: .rounded))
         .foregroundStyle(Color.white.opacity(0.62))
@@ -122,11 +122,11 @@ struct NavigationSphereView: View {
     private var navigationHitZones: some View {
         GeometryReader { proxy in
             ZStack {
-                presetButton(.top, at: CGPoint(x: proxy.size.width / 2, y: 13), size: CGSize(width: 72, height: 25))
-                presetButton(.front, at: CGPoint(x: proxy.size.width / 2, y: proxy.size.height - 13), size: CGSize(width: 78, height: 25))
-                presetButton(.left, at: CGPoint(x: 15, y: proxy.size.height / 2), size: CGSize(width: 30, height: 42))
-                presetButton(.right, at: CGPoint(x: proxy.size.width - 15, y: proxy.size.height / 2), size: CGSize(width: 30, height: 42))
-                presetButton(.isometric, at: CGPoint(x: proxy.size.width - 38, y: 31), size: CGSize(width: 52, height: 28))
+                presetButton(.top, at: CGPoint(x: proxy.size.width / 2, y: 10), size: CGSize(width: 56, height: 20))
+                presetButton(.front, at: CGPoint(x: proxy.size.width / 2, y: proxy.size.height - 10), size: CGSize(width: 60, height: 20))
+                presetButton(.left, at: CGPoint(x: 11, y: proxy.size.height / 2), size: CGSize(width: 24, height: 32))
+                presetButton(.right, at: CGPoint(x: proxy.size.width - 11, y: proxy.size.height / 2), size: CGSize(width: 24, height: 32))
+                presetButton(.isometric, at: CGPoint(x: proxy.size.width - 29, y: 24), size: CGSize(width: 40, height: 22))
             }
         }
     }
