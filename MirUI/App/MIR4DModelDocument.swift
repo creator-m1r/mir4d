@@ -11,12 +11,13 @@ struct MIR4DModelDocument: Codable, Equatable {
     var geometry: [MIR4DGeometry] = []
 
     static func newProject(name: String) -> MIR4DModelDocument {
-        let bodyID = UUID()
-        return MIR4DModelDocument(
-            root: MIR4DModelNode(id: UUID(), title: name, kind: .project, children: [
-                MIR4DModelNode(id: bodyID, title: "Тело", kind: .body, children: [])
-            ]),
-            bodies: [MIR4DBody(id: bodyID, name: "Тело")]
+        MIR4DModelDocument(
+            root: MIR4DModelNode(
+                id: UUID(),
+                title: name,
+                kind: .project,
+                children: []
+            )
         )
     }
 
