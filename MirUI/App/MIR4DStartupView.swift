@@ -8,10 +8,12 @@ import AppKit
 
 struct MIR4DStartupView: View {
     @EnvironmentObject private var appState: CADAppState
+    @EnvironmentObject private var launch: MIR4DLaunchCoordinator
     @StateObject private var boot = MIR4DBootCoordinator()
     @State private var showStartMenu = false
     @State private var showWorkspace = false
     @State private var diagnosticsLeaving = false
+    @State private var didResolveLaunch = false
 
     var body: some View {
         ZStack {
@@ -77,7 +79,6 @@ struct MIR4DStartupView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 30)
 
-                // The logo stays fixed. Only the diagnostic layer moves upward.
                 VStack(spacing: 10) {
                     Image(systemName: "cube.transparent")
                         .font(.system(size: 68))
@@ -160,25 +161,58 @@ struct MIR4DStartupView: View {
     }
 
     private func startBoot() {
-        guard boot.state == .idle else { return }
-        Task {
+        guard boot.state == .idle, !didResolveLaunch else { return }
+
+        Task { @MainActor in
             await boot.start()
             try? await Task.sleep(for: .milliseconds(350))
             guard boot.state == .ready || boot.state == .warning else { return }
+
+            launch.markBootFinished()
 
             withAnimation(.easeInOut(duration: 0.75)) {
                 diagnosticsLeaving = true
             }
 
             try? await Task.sleep(for: .milliseconds(650))
+            resolveLaunch()
+        }
+    }
 
+    private func resolveLaunch() {
+        guard !didResolveLaunch else { return }
+        didResolveLaunch = true
+
+        let intent = launch.resolveAfterBoot(
+            autoOpenLastProject: MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled
+        )
+
+        switch intent {
+        case .externalProject(let url):
+            guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
+                appState.showNotification(
+                    "Не удалось открыть проект: пакет .mir4d недействителен.",
+                    type: .warning
+                )
+                showStartMenuAnimated()
+                return
+            }
+            appState.openMIR4DProject(url: url)
+
+        case .restoreLast:
             if MIR4DProjectCommands.shared.restoreLastProject(appState: appState) {
                 return
             }
+            showStartMenuAnimated()
 
-            withAnimation(.easeInOut(duration: 0.55)) {
-                showStartMenu = true
-            }
+        case .startMenu:
+            showStartMenuAnimated()
+        }
+    }
+
+    private func showStartMenuAnimated() {
+        withAnimation(.easeInOut(duration: 0.55)) {
+            showStartMenu = true
         }
     }
 
