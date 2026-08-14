@@ -3,6 +3,8 @@ import SwiftUI
 /// Single visual language for MIR 4D.
 enum MirTheme {
     enum Colors {
+        // Opaque application chrome. Never use material/opacity for the top application bar.
+        static let topBar = Color(red: 0.028, green: 0.034, blue: 0.044)
         static let background = Color(red: 0.035, green: 0.043, blue: 0.055)
         static let viewport = Color(red: 0.020, green: 0.027, blue: 0.035)
         static let surface = Color(red: 0.055, green: 0.067, blue: 0.086)
