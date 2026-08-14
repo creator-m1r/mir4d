@@ -138,12 +138,12 @@ bool MirEngineCreateBox(void* viewport,
     if (!native || !native->scene || !native->brep)
         return false;
 
-    const auto result = mir::BRepSceneBridge::createBox(
-        *native->brep,
+    const auto result = mir4d::BRepSceneBridge::createBox(
         *native->scene,
-        width,
-        depth,
-        height);
+        *native->brep,
+        static_cast<mir::Scalar>(width),
+        static_cast<mir::Scalar>(depth),
+        static_cast<mir::Scalar>(height));
 
     if (!result.success)
         return false;
@@ -160,7 +160,9 @@ void MirEngineViewportOrbit(void* viewport, double deltaX, double deltaY)
     if (!native || !native->runtime)
         return;
 
-    native->runtime->controller().orbit(deltaX, deltaY);
+    native->runtime->beginOrbit(0.0, 0.0);
+    native->runtime->move(static_cast<mir::Scalar>(deltaX), static_cast<mir::Scalar>(deltaY));
+    native->runtime->endInteraction();
 }
 
 void MirEngineViewportPan(void* viewport, double deltaX, double deltaY)
@@ -169,7 +171,9 @@ void MirEngineViewportPan(void* viewport, double deltaX, double deltaY)
     if (!native || !native->runtime)
         return;
 
-    native->runtime->controller().pan(deltaX, deltaY);
+    native->runtime->beginPan(0.0, 0.0);
+    native->runtime->move(static_cast<mir::Scalar>(deltaX), static_cast<mir::Scalar>(deltaY));
+    native->runtime->endInteraction();
 }
 
 void MirEngineViewportZoom(void* viewport, double delta)
@@ -178,7 +182,7 @@ void MirEngineViewportZoom(void* viewport, double delta)
     if (!native || !native->runtime)
         return;
 
-    native->runtime->controller().zoom(delta);
+    native->runtime->zoom(static_cast<mir::Scalar>(delta));
 }
 
 } // extern "C"
