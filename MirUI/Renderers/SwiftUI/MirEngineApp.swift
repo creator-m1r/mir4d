@@ -1,16 +1,3 @@
-import SwiftUI
-
-@main
-struct MirEngineApp: App {
-    var body: some Scene {
-        WindowGroup {
-            CADMainView()
-                .frame(minWidth: 1400, minHeight: 900)
-                .preferredColorScheme(.dark)
-        }
-        .windowStyle(.hiddenTitleBar)
-        .commands {
-            CommandGroup(replacing: .newItem) {}
-        }
-    }
-}
+// Legacy application entry point intentionally disabled.
+// MIR4DApp in MirUI/App/MIR4DApp.swift is the single application entry point.
+// This file is retained temporarily so older Xcode project references remain valid.
