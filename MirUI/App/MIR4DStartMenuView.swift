@@ -34,6 +34,9 @@ struct MIR4DStartMenuView: View {
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRequestNewProject)) { _ in
             showNewProjectPanel = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DOpenProject)) { _ in
+            showOpenPanel = true
+        }
     }
 
     private var header: some View {
