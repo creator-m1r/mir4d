@@ -22,7 +22,10 @@ struct MIR4DApp: App {
                     launch.handleOpenURL(url)
                 }
         }
-        .windowStyle(.hiddenTitleBar)
+        // Keep the native macOS title bar and traffic-light controls owned by
+        // the window. MIR 4D's application header is rendered inside the
+        // SwiftUI content area below it, never over the system title region.
+        .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Новый проект") {
@@ -59,7 +62,10 @@ struct MIR4DApp: App {
 }
 
 /// Native macOS window configuration.
-/// The green traffic-light uses the standard zoom button as the fullscreen action.
+///
+/// The window itself owns its title bar, traffic-light controls and fullscreen
+/// transition. SwiftUI renders the MIR 4D application header inside the content
+/// area, so no application control is positioned over the native title region.
 struct MIR4DWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowConfiguratorView {
         WindowConfiguratorView()
@@ -84,9 +90,8 @@ final class WindowConfiguratorView: NSView {
     }
 
     /// macOS forbids mutating the window styleMask synchronously while the
-    /// SwiftUI layout pass is running (e.g. inside viewDidMoveToWindow called
-    /// from addSubview). All window mutations are deferred to the next
-    /// run-loop turn and performed exactly once.
+    /// SwiftUI layout pass is running. Window mutations are therefore deferred
+    /// to the next run-loop turn and performed once.
     func scheduleConfiguration() {
         guard !didConfigure else { return }
         guard window != nil else { return }
@@ -100,15 +105,15 @@ final class WindowConfiguratorView: NSView {
     private func configureWindow() {
         guard let window else { return }
 
-        // Fullscreen must NOT be inserted into styleMask directly: macOS only
-        // accepts it during a real toggleFullScreen transition. The zoom
-        // button below is bound to toggleFullScreen and manages it itself.
+        // Keep the standard native title bar. The application UI must not
+        // replace, cover or float over this system-owned region.
         window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.level = .floating
-        window.collectionBehavior.insert(.fullScreenAuxiliary)
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.isMovableByWindowBackground = false
+        window.level = .normal
+        window.collectionBehavior.remove(.fullScreenAuxiliary)
+        window.title = "МИР 4D"
 
         if let zoom = window.standardWindowButton(.zoomButton) {
             zoom.isHidden = false
@@ -120,26 +125,29 @@ final class WindowConfiguratorView: NSView {
 
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window else { return }
-            self.positionAlmostFullscreen(window)
+            self.positionInitialWindow(window)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
     }
 
-    private func positionAlmostFullscreen(_ window: NSWindow) {
+    private func positionInitialWindow(_ window: NSWindow) {
         guard let screen = window.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-        let width = visible.width * 0.92
-        let height = visible.height * 0.92
+
+        // Start large enough for the full CAD shell while retaining a small
+        // margin around the native window. The user can resize/maximize it.
+        let width = min(visible.width * 0.94, 1800)
+        let height = min(visible.height * 0.92, 1100)
         let origin = NSPoint(
             x: visible.midX - width / 2,
             y: visible.midY - height / 2
         )
+
         window.setFrame(
             NSRect(x: origin.x, y: origin.y, width: width, height: height),
             display: true,
             animate: false
         )
-        window.collectionBehavior.insert(.fullScreenAuxiliary)
     }
 }
