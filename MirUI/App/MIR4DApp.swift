@@ -59,8 +59,7 @@ struct MIR4DApp: App {
 }
 
 /// Native macOS window configuration.
-/// The green traffic-light uses Apple's fullscreen control and therefore shows
-/// the standard enter/exit fullscreen arrows rather than the ordinary zoom icon.
+/// The green traffic-light uses the standard zoom button as the fullscreen action.
 struct MIR4DWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowConfiguratorView {
         WindowConfiguratorView()
@@ -94,13 +93,7 @@ final class WindowConfiguratorView: NSView {
         window.level = .floating
         window.collectionBehavior.insert(.fullScreenAuxiliary)
 
-        if let fullscreen = window.standardWindowButton(.fullScreenButton) {
-            fullscreen.isHidden = false
-            fullscreen.isEnabled = true
-            fullscreen.target = window
-            fullscreen.action = #selector(NSWindow.toggleFullScreen(_:))
-            fullscreen.toolTip = "На весь экран"
-        } else if let zoom = window.standardWindowButton(.zoomButton) {
+        if let zoom = window.standardWindowButton(.zoomButton) {
             zoom.isHidden = false
             zoom.isEnabled = true
             zoom.target = window
