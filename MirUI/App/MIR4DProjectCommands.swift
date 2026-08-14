@@ -13,18 +13,18 @@ final class MIR4DProjectCommands {
     func saveAs(appState: CADAppState) {
         let panel = NSSavePanel()
         panel.title = "Сохранить проект MIR 4D как"
-        panel.message = "Выберите имя и место для нового проекта."
-        panel.nameFieldStringValue = appState.documentName
+        panel.message = "Выберите имя проекта и место его хранения."
+        panel.nameFieldStringValue = "\(appState.documentName).mir4d"
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
-        panel.allowedContentTypes = [.folder]
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        appState.saveMIR4DProjectAs(parentURL: url.deletingLastPathComponent(), name: url.deletingPathExtension().lastPathComponent)
+        let name = url.deletingPathExtension().lastPathComponent
+        appState.saveMIR4DProjectAs(parentURL: url.deletingLastPathComponent(), name: name)
     }
 
     func close(appState: CADAppState) {
-        MIR4DProjectSession.shared.close(appState: appState)
+        appState.closeMIR4DProject()
     }
 
     func restoreLastProject(appState: CADAppState) -> Bool {
