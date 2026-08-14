@@ -7,6 +7,8 @@ struct TopBarView: View {
     @ObservedObject private var appearance = MirUIAppearanceStore.shared
     @State private var interfaceCustomizationPresented = false
 
+    private var russian: Bool { appState.ui.language == .russian }
+
     var body: some View {
         VStack(spacing: 0) {
             applicationHeader
@@ -26,8 +28,8 @@ struct TopBarView: View {
         }
     }
 
-    /// Собственная полоса приложения находится внутри SwiftUI-окна и не перекрывает
-    /// системную область заголовка macOS.
+    /// Собственная полоса приложения является частью SwiftUI-окна.
+    /// Она не перекрывает системную область заголовка macOS.
     private var applicationHeader: some View {
         HStack(spacing: 0) {
             brand
@@ -35,50 +37,48 @@ struct TopBarView: View {
 
             Divider().frame(height: 22).foregroundStyle(MirTheme.Colors.border)
 
-            applicationMenu("Проект", icon: "folder") {
-                Button("Новый проект", action: { execute("document.new") })
+            applicationMenu(russian ? "Проект" : "Project", icon: "folder") {
+                Button(russian ? "Новый проект" : "New Project") { execute("document.new") }
                 Divider()
-                Button("Открыть проект…", action: { execute("document.open") })
-                Button("Сохранить", action: { execute("document.save") })
+                Button(russian ? "Открыть проект…" : "Open Project…") { execute("document.open") }
+                Button(russian ? "Сохранить" : "Save") { execute("document.save") }
             }
-            applicationMenu("Правка", icon: "pencil") {
-                Button("Отменить", action: { execute("history.undo") })
-                Button("Повторить", action: { execute("history.redo") })
+            applicationMenu(russian ? "Правка" : "Edit", icon: "pencil") {
+                Button(russian ? "Отменить" : "Undo") { execute("history.undo") }
+                Button(russian ? "Повторить" : "Redo") { execute("history.redo") }
                 Divider()
-                Button("Палитра команд…", action: { commandPalettePresented = true })
+                Button(russian ? "Палитра команд…" : "Command Palette…") { commandPalettePresented = true }
             }
-            applicationMenu("Вид", icon: "eye") {
-                Button("Сетка") { appState.toggleGrid() }
-                Button("Оси") { appState.toggleAxes() }
+            applicationMenu(russian ? "Вид" : "View", icon: "eye") {
+                Button(russian ? "Сетка" : "Grid") { appState.toggleGrid() }
+                Button(russian ? "Оси" : "Axes") { appState.toggleAxes() }
                 Divider()
-                Button("Настроить интерфейс…") { interfaceCustomizationPresented = true }
+                Button(russian ? "Настроить интерфейс…" : "Customize Interface…") { interfaceCustomizationPresented = true }
             }
-            applicationMenu("Создание", icon: "plus.circle") {
-                Button("Эскиз") { execute("create.sketch") }
-                Button("Тело") { execute("create.body") }
+            applicationMenu(russian ? "Создание" : "Create", icon: "plus.circle") {
+                Button(russian ? "Эскиз" : "Sketch") { execute("create.sketch") }
+                Button(russian ? "Тело" : "Body") { execute("create.body") }
             }
-            applicationMenu("Инструменты", icon: "wrench.and.screwdriver") {
-                Button("Измерить") { execute("inspect.measure") }
-                Button("Палитра команд…") { commandPalettePresented = true }
+            applicationMenu(russian ? "Инструменты" : "Tools", icon: "wrench.and.screwdriver") {
+                Button(russian ? "Измерить" : "Measure") { execute("inspect.measure") }
+                Button(russian ? "Палитра команд…" : "Command Palette…") { commandPalettePresented = true }
             }
 
             Spacer(minLength: MirTheme.Spacing.lg)
 
             HStack(spacing: 7) {
-                Circle()
-                    .fill(MirTheme.Colors.success)
-                    .frame(width: 6, height: 6)
-                Text(appState.ui.language == .russian ? "Рабочая среда" : "Workbench")
+                Circle().fill(MirTheme.Colors.success).frame(width: 6, height: 6)
+                Text(russian ? "Рабочая среда" : "Workbench")
                     .font(MirTheme.Typography.status)
                     .foregroundStyle(MirTheme.Colors.textTertiary)
-                Text(appState.ui.language == .russian ? appState.workbench.titleRU : appState.workbench.titleEN)
+                Text(russian ? appState.workbench.titleRU : appState.workbench.titleEN)
                     .font(MirTheme.Typography.bodySemibold)
                     .foregroundStyle(MirTheme.Colors.textPrimary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(MirTheme.Colors.surfaceRaised, in: Capsule())
-            .help(appState.ui.language == .russian ? "Текущая рабочая среда" : "Current workbench")
+            .help(russian ? "Текущая рабочая среда" : "Current workbench")
 
             Button { interfaceCustomizationPresented = true } label: {
                 Image(systemName: "rectangle.3.group")
@@ -88,19 +88,20 @@ struct TopBarView: View {
             .buttonStyle(.plain)
             .foregroundStyle(MirTheme.Colors.textSecondary)
             .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-            .help(appState.ui.language == .russian ? "Настроить панели интерфейса" : "Customize interface panels")
+            .help(russian ? "Настроить панели интерфейса" : "Customize interface panels")
             .padding(.leading, 8)
             .padding(.trailing, MirTheme.Spacing.md)
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
         .frame(height: 42)
         .background(MirTheme.Colors.background)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
+        }
     }
 
     private func applicationMenu(_ title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
-        Menu {
-            content()
-        } label: {
+        Menu { content() } label: {
             Label(title, systemImage: icon)
                 .font(MirTheme.Typography.caption)
                 .foregroundStyle(MirTheme.Colors.textSecondary)
@@ -114,19 +115,14 @@ struct TopBarView: View {
     private var mainToolbar: some View {
         HStack(spacing: MirTheme.Spacing.sm) {
             WorkbenchSwitcher(appState: appState)
-
             Divider().frame(height: 26)
-
             commandPaletteButton
             historyButtons
-
             Divider().frame(height: 26)
-
-            toolbarAction("doc.badge.plus", "Новый", "document.new")
-            toolbarAction("pencil.and.ruler", "Эскиз", "create.sketch")
-            toolbarAction("cube.transparent", "Тело", "create.body")
-            toolbarAction("ruler", "Измерить", "inspect.measure")
-
+            toolbarAction("doc.badge.plus", russian ? "Новый" : "New", "document.new")
+            toolbarAction("pencil.and.ruler", russian ? "Эскиз" : "Sketch", "create.sketch")
+            toolbarAction("cube.transparent", russian ? "Тело" : "Body", "create.body")
+            toolbarAction("ruler", russian ? "Измерить" : "Measure", "inspect.measure")
             Spacer(minLength: MirTheme.Spacing.md)
 
             Button { appState.toggleExperience() } label: {
@@ -141,16 +137,14 @@ struct TopBarView: View {
                 .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             }
             .buttonStyle(.plain)
-            .help(appState.ui.experience == .expert ? "Экспертный режим" : "Базовый режим")
+            .help(appState.ui.experience == .expert ? (russian ? "Экспертный режим" : "Expert mode") : (russian ? "Базовый режим" : "Basic mode"))
 
             MirUIAppearanceToolbar(appearance: appearance)
 
             Circle()
                 .fill(LinearGradient(colors: [MirTheme.Colors.accent, MirTheme.Colors.accentBright], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 30, height: 30)
-                .overlay {
-                    Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
-                }
+                .overlay { Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white) }
                 .help("МИР 4D")
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
@@ -168,7 +162,7 @@ struct TopBarView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(MirTheme.Colors.textPrimary)
                 HStack(spacing: 5) {
-                    Circle().fill(MirTheme.Colors.success).frame(width: 6, height: 6)
+                    Circle().fill(appState.documentDirty ? MirTheme.Colors.warning : MirTheme.Colors.success).frame(width: 6, height: 6)
                     Text(appState.documentName + (appState.documentDirty ? " •" : ""))
                         .font(MirTheme.Typography.status)
                         .foregroundStyle(MirTheme.Colors.textTertiary)
@@ -176,13 +170,14 @@ struct TopBarView: View {
                 }
             }
         }
+        .help(russian ? "Документ МИР 4D" : "MIR 4D document")
     }
 
     private var commandPaletteButton: some View {
         Button { commandPalettePresented = true } label: {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                Text(appState.ui.language == .russian ? "Команды" : "Commands")
+                Text(russian ? "Команды" : "Commands")
                 Text("⌘K").foregroundStyle(MirTheme.Colors.textTertiary)
             }
             .font(MirTheme.Typography.caption)
@@ -193,13 +188,13 @@ struct TopBarView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("k", modifiers: [.command])
-        .help("Палитра команд")
+        .help(russian ? "Палитра команд" : "Command palette")
     }
 
     private var historyButtons: some View {
         HStack(spacing: 2) {
-            topButton("arrow.uturn.backward", "Отменить") { execute("history.undo") }
-            topButton("arrow.uturn.forward", "Повторить") { execute("history.redo") }
+            topButton("arrow.uturn.backward", russian ? "Отменить" : "Undo") { execute("history.undo") }
+            topButton("arrow.uturn.forward", russian ? "Повторить" : "Redo") { execute("history.redo") }
         }
     }
 
