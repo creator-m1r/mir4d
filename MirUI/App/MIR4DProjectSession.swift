@@ -16,20 +16,33 @@ enum MIR4DSaveScope {
 }
 
 struct MIR4DRecentProject: Codable, Identifiable, Equatable {
-    let id: UUID
-    let name: String
-    let path: String
-    let lastOpened: Date
+    /// Stable identity of the recent entry. For modern projects this is the project UUID.
+    var id: UUID
+
+    /// Project identity stored in project.mir4d.json. Legacy entries may be nil.
+    var uuid: UUID?
+
+    var name: String
+    var path: String
+    var lastOpened: Date
 
     var url: URL { URL(fileURLWithPath: path, isDirectory: true) }
+}
+
+enum MIR4DRecentAvailability: Equatable {
+    case available
+    case missing
+    case invalid
 }
 
 @MainActor
 final class MIR4DProjectSession {
     static let shared = MIR4DProjectSession()
+
     private(set) var projectURL: URL?
     private(set) var projectName: String = "Новый проект"
     private(set) var projectUUID: UUID?
+
     private var autoSave: MIR4DProjectAutoSave?
     private let lastProjectDefaultsKey = "MIR4D.lastProjectURL"
     private let autoOpenLastKey = "MIR4D.autoOpenLastProject"
@@ -45,7 +58,66 @@ final class MIR4DProjectSession {
         set { UserDefaults.standard.set(newValue, forKey: autoOpenLastKey) }
     }
 
-    var recentProjects: [MIR4DRecentProject] { loadRecentProjects() }
+    // MARK: - Recent projects
+
+    /// Recent entries are intentionally not filtered here. Missing/invalid projects
+    /// remain visible in the Hub so the user can see and explicitly remove them.
+    var recentProjects: [MIR4DRecentProject] {
+        loadRecentProjects()
+    }
+
+    func recentProjectsList() -> [MIR4DRecentProject] {
+        loadRecentProjects()
+    }
+
+    func availability(of project: MIR4DRecentProject) -> MIR4DRecentAvailability {
+        let url = project.url.standardizedFileURL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return .missing
+        }
+        return MIR4DProjectStore.shared.isValidPackage(at: url) ? .available : .invalid
+    }
+
+    /// Records a project only after its operation has succeeded.
+    func recordOpen(url: URL, name: String, uuid: UUID? = nil) {
+        let normalizedURL = url.standardizedFileURL
+        var list = loadRecentProjects()
+        list.removeAll { $0.path == normalizedURL.path || (uuid != nil && $0.uuid == uuid) }
+
+        let identity = uuid ?? projectUUID ?? stableLegacyID(for: normalizedURL.path)
+        let entry = MIR4DRecentProject(
+            id: identity,
+            uuid: uuid,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            path: normalizedURL.path,
+            lastOpened: Date()
+        )
+
+        list.insert(entry, at: 0)
+        if list.count > maxRecentProjects {
+            list = Array(list.prefix(maxRecentProjects))
+        }
+        saveRecentProjects(list)
+        UserDefaults.standard.set(normalizedURL.path, forKey: lastProjectDefaultsKey)
+    }
+
+    func removeFromRecents(id: UUID) {
+        var list = loadRecentProjects()
+        list.removeAll { $0.id == id }
+        saveRecentProjects(list)
+
+        if let lastPath = UserDefaults.standard.string(forKey: lastProjectDefaultsKey),
+           list.allSatisfy({ $0.path != lastPath }) {
+            clearLastProject()
+        }
+    }
+
+    func lastProjectURL() -> URL? {
+        guard let path = UserDefaults.standard.string(forKey: lastProjectDefaultsKey) else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+    }
+
+    // MARK: - Create / Open
 
     func createProject(appState: CADAppState, name: String, parentURL: URL) {
         do {
@@ -56,17 +128,20 @@ final class MIR4DProjectSession {
             try save(appState: appState)
             startAutoSave(for: appState)
             notifyActivation(url: url, appState: appState, message: "Проект создан: \(projectName)")
-        } catch { appState.showNotification("Не удалось создать проект: \(error.localizedDescription)", type: .error) }
+        } catch {
+            appState.showNotification("Не удалось создать проект: \(error.localizedDescription)", type: .error)
+        }
     }
 
     func openProject(appState: CADAppState, url: URL) {
         do {
-            let manifest = try MIR4DProjectStore.shared.load(from: url)
-            projectURL = url.standardizedFileURL
+            let normalizedURL = url.standardizedFileURL
+            let manifest = try MIR4DProjectStore.shared.load(from: normalizedURL)
+
+            projectURL = normalizedURL
             projectName = manifest.name
-            // Soft migration: old v1 manifests may not have an identity yet.
-            // Generate it once and persist it on the next save.
             projectUUID = manifest.uuid ?? UUID()
+
             appState.documentName = manifest.name
             appState.documentDirty = manifest.uuid == nil
             appState.selectedTreeItem = manifest.selectedTreeItem
@@ -74,24 +149,35 @@ final class MIR4DProjectSession {
             appState.axesVisible = manifest.axesVisible
             appState.sectionMode = manifest.sectionMode
             appState.time.seek(manifest.currentTime)
-            if let workbench = CADWorkbench(rawValue: manifest.workbench) { appState.workbench = workbench }
-            if let subMode = CADSubMode(rawValue: manifest.subMode) { appState.subMode = subMode }
-            if let model = try? MIR4DProjectStore.shared.loadModel(from: url) {
+
+            if let workbench = CADWorkbench(rawValue: manifest.workbench) {
+                appState.workbench = workbench
+            }
+            if let subMode = CADSubMode(rawValue: manifest.subMode) {
+                appState.subMode = subMode
+            }
+
+            do {
+                let model = try MIR4DProjectStore.shared.loadModel(from: normalizedURL)
                 modelRuntime.load(model)
                 lastSavedModelRevision = modelRuntime.revision
                 appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
-            } else {
-                modelRuntime.reset(projectName: manifest.name)
-                try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: url)
-                lastSavedModelRevision = modelRuntime.revision
+            } catch {
+                // A valid package with a missing/corrupt model is still reported as an
+                // open failure. Do not create a Recent entry for a failed open.
+                throw error
             }
-            addToRecents(url: url, name: manifest.name)
+
+            // IMPORTANT: only record after the complete open path succeeded.
+            recordOpen(url: normalizedURL, name: manifest.name, uuid: projectUUID)
             startAutoSave(for: appState)
-            notifyActivation(url: url, appState: appState, message: "Проект открыт: \(manifest.name)")
+            notifyActivation(url: normalizedURL, appState: appState, message: "Проект открыт: \(manifest.name)")
         } catch {
             appState.showNotification("Не удалось открыть проект: \(error.localizedDescription)", type: .error)
         }
     }
+
+    // MARK: - Save
 
     func save(appState: CADAppState) throws {
         try saveSync(appState: appState, scope: .full)
@@ -102,13 +188,19 @@ final class MIR4DProjectSession {
 
         switch scope {
         case .manifestOnly:
-            try MIR4DProjectStore.shared.save(manifest: makeManifest(from: appState, in: projectURL), to: projectURL)
+            try MIR4DProjectStore.shared.save(
+                manifest: makeManifest(from: appState, in: projectURL),
+                to: projectURL
+            )
         case .modelOnly:
             guard modelRuntime.revision != lastSavedModelRevision else { return }
             try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
             lastSavedModelRevision = modelRuntime.revision
         case .full:
-            try MIR4DProjectStore.shared.save(manifest: makeManifest(from: appState, in: projectURL), to: projectURL)
+            try MIR4DProjectStore.shared.save(
+                manifest: makeManifest(from: appState, in: projectURL),
+                to: projectURL
+            )
             if modelRuntime.revision != lastSavedModelRevision {
                 try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
                 lastSavedModelRevision = modelRuntime.revision
@@ -116,7 +208,7 @@ final class MIR4DProjectSession {
         }
 
         appState.documentDirty = false
-        addToRecents(url: projectURL, name: appState.documentName)
+        recordOpen(url: projectURL, name: appState.documentName, uuid: projectUUID)
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
     }
 
@@ -125,12 +217,15 @@ final class MIR4DProjectSession {
 
         let manifest: MIR4DProjectManifest?
         switch scope {
-        case .manifestOnly, .full: manifest = makeManifest(from: appState, in: projectURL)
-        case .modelOnly: manifest = nil
+        case .manifestOnly, .full:
+            manifest = makeManifest(from: appState, in: projectURL)
+        case .modelOnly:
+            manifest = nil
         }
 
         let modelSnapshot: MIR4DModelDocument?
         let revision = modelRuntime.revision
+
         switch scope {
         case .modelOnly, .full:
             guard revision != lastSavedModelRevision else {
@@ -152,7 +247,7 @@ final class MIR4DProjectSession {
         }
 
         appState.documentDirty = false
-        addToRecents(url: projectURL, name: appState.documentName)
+        recordOpen(url: projectURL, name: appState.documentName, uuid: projectUUID)
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
     }
 
@@ -164,12 +259,17 @@ final class MIR4DProjectSession {
             projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             appState.documentName = projectName
             lastSavedModelRevision = 0
+
             try save(appState: appState)
             startAutoSave(for: appState)
             appState.showNotification("Проект сохранён как: \(projectName)", type: .success)
             NotificationCenter.default.post(name: .mir4DProjectActivated, object: url)
-        } catch { appState.showNotification("Не удалось сохранить проект как: \(error.localizedDescription)", type: .error) }
+        } catch {
+            appState.showNotification("Не удалось сохранить проект как: \(error.localizedDescription)", type: .error)
+        }
     }
+
+    // MARK: - Close / Restore
 
     func close(appState: CADAppState) {
         autoSave?.flush()
@@ -186,13 +286,9 @@ final class MIR4DProjectSession {
     }
 
     func restoreLastProject(appState: CADAppState) -> Bool {
-        guard isAutoOpenLastProjectEnabled,
-              let path = UserDefaults.standard.string(forKey: lastProjectDefaultsKey)
-        else { return false }
+        guard isAutoOpenLastProjectEnabled, let url = lastProjectURL() else { return false }
 
-        let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
         guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
-            clearLastProject()
             appState.showNotification("Последний проект недоступен. Открыт стартовый экран.", type: .warning)
             return false
         }
@@ -200,7 +296,6 @@ final class MIR4DProjectSession {
         do {
             _ = try MIR4DProjectStore.shared.load(from: url)
         } catch {
-            clearLastProject()
             appState.showNotification("Последний проект недоступен. Открыт стартовый экран.", type: .warning)
             return false
         }
@@ -210,24 +305,31 @@ final class MIR4DProjectSession {
     }
 
     func removeRecentProject(_ project: MIR4DRecentProject) {
-        var list = loadRecentProjects()
-        list.removeAll { $0.path == project.path }
-        saveRecentProjects(list)
-        if UserDefaults.standard.string(forKey: lastProjectDefaultsKey) == project.path { clearLastProject() }
+        removeFromRecents(id: project.id)
     }
 
-    func clearLastProject() { UserDefaults.standard.removeObject(forKey: lastProjectDefaultsKey) }
+    func clearLastProject() {
+        UserDefaults.standard.removeObject(forKey: lastProjectDefaultsKey)
+    }
 
-    func scheduleAutoSave() { autoSave?.scheduleSave() }
+    func scheduleAutoSave() {
+        autoSave?.scheduleSave()
+    }
 
     func requestClose(appState: CADAppState, confirm: @escaping (Bool) -> Void) {
-        guard appState.documentDirty else { close(appState: appState); confirm(true); return }
+        guard appState.documentDirty else {
+            close(appState: appState)
+            confirm(true)
+            return
+        }
+
         let alert = NSAlert()
         alert.messageText = "Сохранить изменения в проекте?"
         alert.informativeText = "В проекте «\(appState.documentName)» есть несохранённые изменения."
         alert.addButton(withTitle: "Сохранить")
         alert.addButton(withTitle: "Не сохранять")
         alert.addButton(withTitle: "Отмена")
+
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             autoSave?.flush()
@@ -236,9 +338,12 @@ final class MIR4DProjectSession {
         case .alertSecondButtonReturn:
             close(appState: appState)
             confirm(true)
-        default: confirm(false)
+        default:
+            confirm(false)
         }
     }
+
+    // MARK: - Private
 
     private func activate(url: URL, name: String, appState: CADAppState) {
         projectURL = url.standardizedFileURL
@@ -252,7 +357,6 @@ final class MIR4DProjectSession {
         appState.workbench = .fourD
         appState.subMode = .modelFeature
         appState.time.reset()
-        addToRecents(url: url, name: projectName)
     }
 
     private func notifyActivation(url: URL, appState: CADAppState, message: String) {
@@ -289,24 +393,39 @@ final class MIR4DProjectSession {
     private func loadRecentProjects() -> [MIR4DRecentProject] {
         guard let data = UserDefaults.standard.data(forKey: recentProjectsKey),
               let list = try? JSONDecoder().decode([MIR4DRecentProject].self, from: data)
-        else { return [] }
-        return list.filter {
-            FileManager.default.fileExists(atPath: $0.url.path) &&
-            FileManager.default.fileExists(atPath: $0.url.appendingPathComponent("project.mir4d.json").path)
+        else {
+            return []
         }
-    }
-
-    private func addToRecents(url: URL, name: String) {
-        var list = loadRecentProjects()
-        list.removeAll { $0.path == url.path }
-        list.insert(MIR4DRecentProject(id: projectUUID ?? UUID(), name: name, path: url.path, lastOpened: Date()), at: 0)
-        if list.count > maxRecentProjects { list = Array(list.prefix(maxRecentProjects)) }
-        saveRecentProjects(list)
-        UserDefaults.standard.set(url.path, forKey: lastProjectDefaultsKey)
+        return Array(list.prefix(maxRecentProjects))
     }
 
     private func saveRecentProjects(_ list: [MIR4DRecentProject]) {
-        if let data = try? JSONEncoder().encode(list) { UserDefaults.standard.set(data, forKey: recentProjectsKey) }
+        if let data = try? JSONEncoder().encode(list) {
+            UserDefaults.standard.set(data, forKey: recentProjectsKey)
+        }
+    }
+
+    /// Deterministic fallback identity for legacy recent entries without UUID.
+    private func stableLegacyID(for path: String) -> UUID {
+        let digest = path.utf8.reduce(into: (UInt64(1469598103934665603), UInt64(0))) { state, byte in
+            state.0 ^= UInt64(byte)
+            state.0 &*= 1099511628211
+        }.0
+        var bytes = [UInt8](repeating: 0, count: 16)
+        withUnsafeBytes(of: digest.bigEndian) { raw in
+            for index in 0..<8 { bytes[index] = raw[index] }
+        }
+        withUnsafeBytes(of: digest.bigEndian) { raw in
+            for index in 0..<8 { bytes[index + 8] = raw[index] ^ 0xA5 }
+        }
+        bytes[6] = (bytes[6] & 0x0F) | 0x40
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 
     enum ProjectError: LocalizedError {
@@ -316,9 +435,27 @@ final class MIR4DProjectSession {
 }
 
 extension CADAppState {
-    func createMIR4DProject(name: String, parentURL: URL) { MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL) }
-    func openMIR4DProject(url: URL) { MIR4DProjectSession.shared.openProject(appState: self, url: url) }
-    func saveMIR4DProject() { do { try MIR4DProjectSession.shared.save(appState: self) } catch { showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error) } }
-    func saveMIR4DProjectAs(parentURL: URL, name: String) { MIR4DProjectSession.shared.saveAs(appState: self, name: name, parentURL: parentURL) }
-    func closeMIR4DProject(confirm: @escaping (Bool) -> Void = { _ in }) { MIR4DProjectSession.shared.requestClose(appState: self, confirm: confirm) }
+    func createMIR4DProject(name: String, parentURL: URL) {
+        MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL)
+    }
+
+    func openMIR4DProject(url: URL) {
+        MIR4DProjectSession.shared.openProject(appState: self, url: url)
+    }
+
+    func saveMIR4DProject() {
+        do {
+            try MIR4DProjectSession.shared.save(appState: self)
+        } catch {
+            showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error)
+        }
+    }
+
+    func saveMIR4DProjectAs(parentURL: URL, name: String) {
+        MIR4DProjectSession.shared.saveAs(appState: self, name: name, parentURL: parentURL)
+    }
+
+    func closeMIR4DProject(confirm: @escaping (Bool) -> Void = { _ in }) {
+        MIR4DProjectSession.shared.requestClose(appState: self, confirm: confirm)
+    }
 }
