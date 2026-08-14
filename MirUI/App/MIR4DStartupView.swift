@@ -23,8 +23,12 @@ struct MIR4DStartupView: View {
     @State private var phase: Phase = .diagnostics
     @State private var diagnosticsLeaving = false
     @State private var hubEntering = false
+    @State private var hubLeaving = false
     @State private var workspaceRevealing = false
     @State private var didResolveLaunch = false
+
+    private let doorTiming = Animation.timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.88)
+    private let revealTiming = Animation.timingCurve(0.16, 0.82, 0.22, 1.0, duration: 0.82)
 
     var body: some View {
         GeometryReader { proxy in
@@ -32,7 +36,7 @@ struct MIR4DStartupView: View {
                 workspace
                     .zIndex(0)
 
-                if phase != .workspace {
+                if phase != .workspace || hubLeaving {
                     darkness
                         .zIndex(20)
                         .allowsHitTesting(false)
@@ -43,7 +47,7 @@ struct MIR4DStartupView: View {
                         .zIndex(30)
                 }
 
-                if phase == .projectHub {
+                if phase == .projectHub || hubLeaving {
                     projectHubDoor
                         .zIndex(30)
                 }
@@ -85,7 +89,7 @@ struct MIR4DStartupView: View {
         Rectangle()
             .fill(Color(red: 0.006, green: 0.009, blue: 0.015))
             .ignoresSafeArea()
-            .opacity(phase == .workspace ? 0 : 1)
+            .opacity(phase == .workspace && !hubLeaving ? 0 : 1)
             .animation(.easeOut(duration: 0.75), value: phase)
     }
 
@@ -132,8 +136,8 @@ struct MIR4DStartupView: View {
         .transition(.identity)
     }
 
-    /// The Project Hub is a translucent right-hand door. It enters only after
-    /// the diagnostic door has completely opened to the left.
+    /// The Project Hub is the translucent right-hand door. It enters from the
+    /// right after diagnostics and remains mounted while it slides away on selection.
     private var projectHubDoor: some View {
         GeometryReader { proxy in
             MIR4DStartMenuView(diagnostic: boot)
@@ -141,15 +145,14 @@ struct MIR4DStartupView: View {
                 .background(MirTheme.Colors.panel.opacity(0.15))
                 .clipShape(Rectangle())
                 .shadow(color: .black.opacity(0.42), radius: 34, x: -18, y: 0)
-                .offset(x: hubEntering ? 0 : proxy.size.width)
-                .opacity(hubEntering ? 1 : 0.98)
-                .animation(
-                    .timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.88),
-                    value: hubEntering
-                )
+                .offset(x: hubLeaving ? proxy.size.width : (hubEntering ? 0 : proxy.size.width))
+                .opacity(hubLeaving ? 0.72 : 1)
+                .animation(doorTiming, value: hubEntering)
+                .animation(revealTiming, value: hubLeaving)
         }
         .onAppear {
-            withAnimation(.timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.88)) {
+            guard !hubLeaving else { return }
+            withAnimation(doorTiming) {
                 hubEntering = true
             }
         }
@@ -264,9 +267,10 @@ struct MIR4DStartupView: View {
     }
 
     private func showProjectHub() {
+        hubLeaving = false
         hubEntering = false
         phase = .projectHub
-        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.88)) {
+        withAnimation(doorTiming) {
             hubEntering = true
         }
     }
@@ -284,19 +288,28 @@ struct MIR4DStartupView: View {
     }
 
     private func revealWorkspace() {
-        withAnimation(.timingCurve(0.16, 0.82, 0.22, 1.0, duration: 0.82)) {
+        guard phase == .projectHub, !hubLeaving else { return }
+
+        // Keep the right door mounted while it travels beyond the window edge.
+        // Only after the motion finishes do we remove the darkness and reveal the CAD workspace.
+        withAnimation(revealTiming) {
+            hubLeaving = true
             workspaceRevealing = true
         }
 
-        // The transparent right door slides beyond the right edge while darkness dissolves.
-        phase = .workspace
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(760))
+            phase = .workspace
+            hubLeaving = false
+        }
     }
 
     private func returnToProjectHub() {
         workspaceRevealing = false
+        hubLeaving = false
         hubEntering = false
         phase = .projectHub
-        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.88)) {
+        withAnimation(doorTiming) {
             hubEntering = true
         }
     }
