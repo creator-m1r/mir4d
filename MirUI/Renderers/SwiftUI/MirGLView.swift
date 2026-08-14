@@ -8,6 +8,7 @@ extension Notification.Name {
     static let mir4DImportMesh = Notification.Name("MIR4D.ImportMesh")
     static let mir4DExportStl = Notification.Name("MIR4D.ExportSTL")
     static let mir4DCreateBox = Notification.Name("MIR4D.CreateBox")
+    static let mir4DFitViewport = Notification.Name("MIR4D.FitViewport")
 }
 
 // MARK: - OpenGL / MirEngine View
@@ -33,13 +34,48 @@ final class MirGLCustomView: NSView {
     private var isRunning = false
 
     // Protects MirEngine objects from display-link / UI races.
-    private let engineLock = NSLock()
+    // Static so the CVDisplayLink callback can take it without touching any
+    // MainActor-isolated instance state (NSView subclasses are @MainActor).
+    //
+    // nonisolated(unsafe): MirGLCustomView inherits from @MainActor NSView, so
+    // its static members are main-isolated by default in Swift 6. The display
+    // link runs on its own CoreVideo thread and must take this lock without a
+    // MainActor check (which would trap via dispatch_assert_queue). NSLock is
+    // thread-safe by design, so the marker is sound.
+    nonisolated(unsafe) private static let engineLock = NSLock()
+
+    // Pure C render callback for CVDisplayLink.
+    //
+    // Must be nonisolated: it runs on the CoreVideo IO thread, never on the
+    // main actor. A closure defined inside an @MainActor-isolated method would
+    // inherit MainActor isolation and trap with dispatch_assert_queue when the
+    // Swift 6 executor check runs from the display-link thread.
+    //
+    // The only state touched is the raw MirEngine viewport pointer from
+    // userInfo plus the thread-safe engineLock; no Swift object state.
+    nonisolated private static let renderCallback: CVDisplayLinkOutputCallback = {
+        _, _, _, _, _, userInfo in
+
+        guard let userInfo else {
+            return kCVReturnSuccess
+        }
+
+        let renderViewport =
+            UnsafeMutableRawPointer(userInfo)
+
+        MirGLCustomView.engineLock.lock()
+        MirEngineRender(renderViewport)
+        MirGLCustomView.engineLock.unlock()
+
+        return kCVReturnSuccess
+    }
 
     // MARK: Notifications
 
     private var importObserver: NSObjectProtocol?
     private var exportObserver: NSObjectProtocol?
     private var createBoxObserver: NSObjectProtocol?
+    private var fitViewportObserver: NSObjectProtocol?
 
     // MARK: Mouse interaction
 
@@ -82,6 +118,7 @@ final class MirGLCustomView: NSView {
             observeImportRequests()
             observeExportRequests()
             observeCreateBoxRequests()
+            observeFitViewportRequests()
 
             setupEngine()
             startDisplayLink()
@@ -164,9 +201,9 @@ final class MirGLCustomView: NSView {
         let viewPointer =
             Unmanaged.passUnretained(self).toOpaque()
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         // IMPORTANT:
@@ -226,6 +263,13 @@ final class MirGLCustomView: NSView {
                 size.height
             )
 
+        if let startupViewport = viewport {
+            var startupBoxID: UInt64 = 0
+            if MirEngineCreateBox(startupViewport, 2.0, 2.0, 2.0, &startupBoxID) {
+                print("MIR4D: startup cube created (objectID=\(startupBoxID))")
+            }
+        }
+
         guard viewport != nil else {
 
             print(
@@ -248,42 +292,27 @@ final class MirGLCustomView: NSView {
 
     // MARK: Rendering
 
-    private func renderFrame() {
-
-        guard isRunning else {
-            return
-        }
-
-        engineLock.lock()
-        defer {
-            engineLock.unlock()
-        }
-
-        guard let viewport else {
-            return
-        }
-
-        MirEngineRender(viewport)
-    }
-
     // This method is intentionally NOT actor-isolated.
     //
     // CVDisplayLink runs on its own realtime thread.
-    // Therefore it must not call a @MainActor method.
+    // Therefore it must not call any @MainActor / NSView method.
     //
     // The actual MirEngine rendering is protected by engineLock.
-    private func renderFrameFromDisplayLink() {
-
-        renderFrame()
-    }
+    //
+    // IMPORTANT: the C callback must never touch Swift object state.
+    // MirGLCustomView inherits NSView, which is @MainActor-isolated in the
+    // modern AppKit SDK; touching `self` from the display-link thread traps
+    // with EXC_BREAKPOINT (incorrect actor executor assumption).
+    // The only state passed is the raw MirEngine viewport pointer, which is
+    // naturally Sendable and is rendered via the pure C ABI below.
 
     private func resizeEngine() {
 
         let size = physicalSize()
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -302,6 +331,10 @@ final class MirGLCustomView: NSView {
     private func startDisplayLink() {
 
         guard displayLink == nil else {
+            return
+        }
+
+        guard let viewport else {
             return
         }
 
@@ -324,31 +357,15 @@ final class MirGLCustomView: NSView {
 
         displayLink = link
 
-        let userPointer =
-            Unmanaged.passUnretained(self).toOpaque()
+        // The viewport pointer is stable while the display link runs:
+        // shutdownEngine() destroys it only after stopDisplayLink().
+        let viewportPointer =
+            UnsafeMutableRawPointer(viewport)
 
         CVDisplayLinkSetOutputCallback(
             link,
-            { _, _, _, _, _, userInfo in
-
-                guard let userInfo else {
-                    return kCVReturnSuccess
-                }
-
-                let view =
-                    Unmanaged<MirGLCustomView>
-                        .fromOpaque(userInfo)
-                        .takeUnretainedValue()
-
-                // DO NOT call Swift @MainActor code here.
-                //
-                // CVDisplayLink executes on its own thread.
-                // Rendering is protected by engineLock.
-                view.renderFrameFromDisplayLink()
-
-                return kCVReturnSuccess
-            },
-            userPointer
+            Self.renderCallback,
+            viewportPointer
         )
 
         isRunning = true
@@ -412,9 +429,9 @@ final class MirGLCustomView: NSView {
 
     private func publishCameraOrientation() {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -529,13 +546,37 @@ final class MirGLCustomView: NSView {
                     return
                 }
 
+                let bodyID =
+                    (payload["bodyID"] as? String)
+                    .flatMap(UUID.init(uuidString:))
+
                 DispatchQueue.main.async { [weak self] in
 
                     self?.createBox(
                         width: width,
                         depth: depth,
-                        height: height
+                        height: height,
+                        bodyID: bodyID
                     )
+                }
+            }
+    }
+
+    private func observeFitViewportRequests() {
+
+        guard fitViewportObserver == nil else {
+            return
+        }
+
+        fitViewportObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DFitViewport,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.fitViewport()
                 }
             }
     }
@@ -562,15 +603,22 @@ final class MirGLCustomView: NSView {
             )
             createBoxObserver = nil
         }
+
+        if let observer = fitViewportObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            fitViewportObserver = nil
+        }
     }
 
     // MARK: Engine shutdown
 
     private func shutdownEngine() {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         if let viewport {
@@ -619,9 +667,9 @@ final class MirGLCustomView: NSView {
 
     private func importMesh(path: String) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -668,9 +716,9 @@ final class MirGLCustomView: NSView {
         selectionOnly: Bool
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -716,12 +764,13 @@ final class MirGLCustomView: NSView {
     private func createBox(
         width: Double,
         depth: Double,
-        height: Double
+        height: Double,
+        bodyID: UUID? = nil
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -746,6 +795,15 @@ final class MirGLCustomView: NSView {
 
         if success {
 
+            if let bodyID {
+                Task { @MainActor in
+                    MIR4DModelRuntime.shared.registerViewportEngineID(
+                        bodyID: bodyID,
+                        engineObjectID: objectID
+                    )
+                }
+            }
+
             onSelectionChanged?(objectID)
 
             print(
@@ -765,13 +823,31 @@ final class MirGLCustomView: NSView {
         }
     }
 
+    // MARK: Fit All
+
+    private func fitViewport() {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        MirEngineFitViewport(viewport)
+
+        publishCameraOrientation()
+    }
+
     // MARK: Selection
 
     private func publishSelection() {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -996,6 +1072,15 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        if event.keyCode == 3 ||
+            event.charactersIgnoringModifiers == "f" ||
+            event.charactersIgnoringModifiers == "F" {
+
+            fitViewport()
+
+            return
+        }
+
         super.keyDown(with: event)
     }
 
@@ -1077,9 +1162,9 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -1222,9 +1307,9 @@ final class MirGLCustomView: NSView {
         with event: NSEvent
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -1243,9 +1328,9 @@ final class MirGLCustomView: NSView {
         _ event: NSEvent
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -1273,9 +1358,9 @@ final class MirGLCustomView: NSView {
         _ event: NSEvent
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {
@@ -1303,9 +1388,9 @@ final class MirGLCustomView: NSView {
         _ event: NSEvent
     ) {
 
-        engineLock.lock()
+        MirGLCustomView.engineLock.lock()
         defer {
-            engineLock.unlock()
+            MirGLCustomView.engineLock.unlock()
         }
 
         guard let viewport else {

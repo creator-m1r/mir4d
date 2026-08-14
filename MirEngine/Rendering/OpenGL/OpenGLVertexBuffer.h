@@ -53,6 +53,9 @@ public:
     void bind()   override;
     void unbind() override;
 
+    void upload(const void* data, size_t size,
+                BufferUsage usage = BufferUsage::Static) override;
+
     [[nodiscard]] size_t getVertexCount() const override { return m_vertexCount; }
     [[nodiscard]] size_t getVertexSize()  const override { return sizeof(Vertex); }
     [[nodiscard]] size_t getSize()        const override;

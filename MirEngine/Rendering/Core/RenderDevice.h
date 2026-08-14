@@ -32,6 +32,10 @@
 
 #include "RenderCommand.h"
 #include "RenderContext.h"
+#include "../Resources/VertexBuffer.h"
+#include "../Resources/IndexBuffer.h"
+#include "../Resources/VertexArray.h"
+#include "../Resources/Shader.h"
 
 namespace MirEngine {
 namespace Rendering {
@@ -110,6 +114,19 @@ public:
     // --------------------------------------------------------------------------
     virtual void setViewMatrix(const Matrix4Raw& viewMatrix) = 0;
     virtual void setProjectionMatrix(const Matrix4Raw& projMatrix) = 0;
+
+    // --------------------------------------------------------------------------
+    // Создание GPU-ресурсов.
+    // --------------------------------------------------------------------------
+    virtual std::shared_ptr<VertexBuffer> createVertexBuffer() = 0;
+    virtual std::shared_ptr<IndexBuffer>  createIndexBuffer() = 0;
+    virtual std::shared_ptr<VertexArray>  createVertexArray() = 0;
+
+    // --------------------------------------------------------------------------
+    // Регистрация мешей и материалов в кеше устройства.
+    // --------------------------------------------------------------------------
+    virtual void registerMesh(MeshHandle handle, std::shared_ptr<VertexArray> mesh) = 0;
+    virtual void registerMaterial(MaterialHandle handle, std::shared_ptr<Shader> shader) = 0;
 
 protected:
     RenderDevice() = default;

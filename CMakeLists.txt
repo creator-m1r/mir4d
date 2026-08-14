@@ -27,7 +27,7 @@ if(APPLE)
     find_library(MIR4D_COCOA_FRAMEWORK Cocoa REQUIRED)
 
     add_library(MirEngineMacOpenGL STATIC
-        MirEngine/Exports/MirEngineExports.cpp
+        MirEngine/Core/Exports/MirEngineExports.cpp
         MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
@@ -49,8 +49,12 @@ if(APPLE)
         ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Commands
         ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Validator
     )
+    target_compile_definitions(MirEngineMacOpenGL PUBLIC
+        GL_SILENCE_DEPRECATION=1
+    )
     target_link_libraries(MirEngineMacOpenGL PUBLIC
         MirEngine
+        MirEngineIO
         ${MIR4D_OPENGL_FRAMEWORK}
         ${MIR4D_COCOA_FRAMEWORK}
     )
@@ -123,12 +127,8 @@ endif()
 
 if(MIR_ENABLE_ASSIMP)
     find_package(assimp CONFIG REQUIRED)
-    add_library(MirEngineAssimpIO STATIC
-        MirEngine/IO/Mesh/AssimpImporter.cpp
-    )
-    target_link_libraries(MirEngineAssimpIO PUBLIC MirEngineIO assimp::assimp)
-    target_include_directories(MirEngineAssimpIO PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_compile_features(MirEngineAssimpIO PUBLIC cxx_std_23)
+    target_sources(MirEngineIO PRIVATE MirEngine/IO/Mesh/AssimpImporter.cpp)
+    target_link_libraries(MirEngineIO PUBLIC assimp::assimp)
 endif()
 
 add_subdirectory(MirUI)
@@ -148,6 +148,20 @@ target_link_libraries(MIR4D_StlRoundTrip PRIVATE MirEngineIO)
 
 add_executable(MIR4D_StepImporter MirEngine/Tests/IO/Step/StepImporterTest.cpp)
 target_link_libraries(MIR4D_StepImporter PRIVATE MirEngineIO)
+
+add_executable(MIR4D_AssimpImport MirEngine/Tests/IO/AssimpImport.cpp)
+target_include_directories(MIR4D_AssimpImport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(MIR4D_AssimpImport PRIVATE MirEngineIO)
+
+if(MIR_ENABLE_ASSIMP)
+    # AssimpImporter registers itself through a static initializer in AssimpImporter.cpp.
+    # Force the whole archive into the executable so the registrar is not dropped by the linker.
+    foreach(_t MIR4D_StlRoundTrip MIR4D_StepImporter MIR4D_AssimpImport MIR4D_DocumentRenderBridge)
+        if(TARGET ${_t})
+            target_link_options(${_t} PRIVATE -Wl,-force_load,$<TARGET_FILE:MirEngineIO>)
+        endif()
+    endforeach()
+endif()
 
 add_executable(MIR4D_DocumentRenderBridge MirEngine/Tests/Render/DocumentRenderBridge.cpp)
 target_link_libraries(MIR4D_DocumentRenderBridge PRIVATE MirEngineIO)
@@ -211,6 +225,7 @@ add_test(NAME MIR4D_BuildCheck COMMAND MIR4D_BuildCheck)
 add_test(NAME MIR4D_Integration4D COMMAND MIR4D_Integration4D)
 add_test(NAME MIR4D_StlRoundTrip COMMAND MIR4D_StlRoundTrip)
 add_test(NAME MIR4D_StepImporter COMMAND MIR4D_StepImporter)
+add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
 add_test(NAME MIR4D_DocumentRenderBridge COMMAND MIR4D_DocumentRenderBridge)
 add_test(NAME MIR4D_RenderCamera COMMAND MIR4D_RenderCamera)
 add_test(NAME MIR4D_CreateBox COMMAND MIR4D_CreateBox)

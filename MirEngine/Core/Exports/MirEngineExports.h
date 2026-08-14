@@ -94,6 +94,17 @@ void MirEngineSetCameraOrientation(
     float distance
 );
 
+// Camera presets for the navigation sphere:
+// 0 front, 1 back, 2 left, 3 right, 4 top, 5 bottom, 6 isometric.
+void MirEngineSetActiveCameraPreset(
+    void* viewport,
+    int preset
+);
+
+void MirEngineFitViewport(
+    void* viewport
+);
+
 
 // ------------------------------------------------------------
 // Mouse / navigation

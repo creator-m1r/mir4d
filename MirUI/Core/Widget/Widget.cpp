@@ -13,12 +13,20 @@
 
 #include "Widget.hpp"
 #include <algorithm>
+#include <atomic>
 
 namespace MirUI {
 
+namespace
+{
+
+std::atomic<std::uint64_t> gNextWidgetID{1};
+
+} // namespace
+
 // ── Конструктор ──────────────────────────────────────────────
 Widget::Widget(WidgetType type)
-    : m_id(WidgetID::generate())
+    : m_id(WidgetID(gNextWidgetID.fetch_add(1)))
     , m_type(type)
     , m_parent(nullptr)
     , m_visible(true)

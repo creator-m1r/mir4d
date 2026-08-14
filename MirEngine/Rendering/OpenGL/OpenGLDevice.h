@@ -11,6 +11,11 @@
 #include "../Core/RenderDevice.h"
 #include "OpenGLContext.h"
 #include "OpenGLState.h"
+#include "OpenGLVertexBuffer.h"
+#include "OpenGLIndexBuffer.h"
+#include "OpenGLVertexArray.h"
+
+#include <unordered_map>
 
 namespace MirEngine {
 namespace Rendering {
@@ -45,6 +50,13 @@ public:
     void setViewMatrix(const Matrix4Raw& viewMatrix) override;
     void setProjectionMatrix(const Matrix4Raw& projMatrix) override;
 
+    std::shared_ptr<VertexBuffer> createVertexBuffer() override;
+    std::shared_ptr<IndexBuffer>  createIndexBuffer() override;
+    std::shared_ptr<VertexArray>  createVertexArray() override;
+
+    void registerMesh(MeshHandle handle, std::shared_ptr<VertexArray> mesh) override;
+    void registerMaterial(MaterialHandle handle, std::shared_ptr<Shader> shader) override;
+
     // --------------------------------------------------------------------------
     // Дополнительные удобные методы
     // --------------------------------------------------------------------------
@@ -58,6 +70,10 @@ public:
 private:
     OpenGLContext* m_context = nullptr;
     OpenGLState    m_state;
+
+    // Кеши GPU-ресурсов, индексируемые MeshHandle / MaterialHandle
+    std::unordered_map<MeshHandle, std::shared_ptr<VertexArray>> m_meshes;
+    std::unordered_map<MaterialHandle, std::shared_ptr<Shader>>  m_materials;
 
     // Текущие матрицы (пока просто хранятся, позже уйдут в UBO)
     Matrix4Raw m_viewMatrix       = IdentityMatrix4();

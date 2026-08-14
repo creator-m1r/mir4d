@@ -52,6 +52,9 @@ public:
     void bind()   override;
     void unbind() override;
 
+    void upload(const void* data, size_t size,
+                BufferUsage usage = BufferUsage::Static) override;
+
     [[nodiscard]] size_t getIndexCount() const override { return m_indexCount; }
     [[nodiscard]] size_t getSize()       const override;
 

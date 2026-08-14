@@ -87,12 +87,22 @@ final class MIR4DUIConfigStore: ObservableObject {
     }
 
     private static func load<T: Decodable>(_ name: String, subdirectory: String) -> T? {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "json", subdirectory: subdirectory),
+        guard let url = configBundle.url(forResource: name, withExtension: "json", subdirectory: subdirectory),
               let data = try? Data(contentsOf: url),
               let value = try? JSONDecoder().decode(T.self, from: data) else {
             return nil
         }
         return value
+    }
+
+    /// SwiftPM exposes resources via Bundle.module; the Xcode target embeds
+    /// the same UIConfig folder as an app resource.
+    private static var configBundle: Bundle {
+#if SWIFT_PACKAGE
+        .module
+#else
+        .main
+#endif
     }
 }
 

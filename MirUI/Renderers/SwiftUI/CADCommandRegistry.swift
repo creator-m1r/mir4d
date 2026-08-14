@@ -153,7 +153,7 @@ final class CADCommandRegistry: ObservableObject {
             id: "viewport.axes",
             titleRU: "Оси",
             titleEN: "Axes",
-            icon: "axis.3d",
+            icon: "cube",
             shortcut: nil,
             workbenches: [.model, .sketch, .assembly, .fourD],
             isAvailable: { _ in true },

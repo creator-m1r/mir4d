@@ -13,8 +13,7 @@
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
 #include "MirEngine/Math/Transform.hpp"
 
-#include <spdlog/spdlog.h>
-
+#include <iostream>
 #include <cstdint>
 #include <vector>
 
@@ -69,7 +68,7 @@ bool GeometryPass::initialize(RenderDevice& device)
     const ShaderHandle handle = m_shaderLibrary.load("DefaultLit", kDefaultVert, kDefaultFrag);
     if (handle.empty())
     {
-        spdlog::error("[GeometryPass] Failed to load default shader.");
+        std::cerr << "[GeometryPass] Failed to load default shader.\n";
         return false;
     }
 
@@ -94,7 +93,7 @@ void GeometryPass::execute(RenderContext& context,
     auto shader = m_shaderLibrary.get("DefaultLit");
     if (!shader)
     {
-        spdlog::error("[GeometryPass] DefaultLit shader not found.");
+        std::cerr << "[GeometryPass] DefaultLit shader not found.\n";
         return;
     }
 

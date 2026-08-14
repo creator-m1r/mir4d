@@ -6,8 +6,15 @@
 #include "OpenGLDevice.h"
 #include "OpenGLContext.h"
 
-// Временная заглушка draw — полноценная реализация появится
-// после подключения VertexArray / Shader / Mesh кеша.
+// Реализация draw через кеш мешей и материалов.
+#include "OpenGLShader.h"
+
+#if defined(__APPLE__)
+#include <OpenGL/gl3.h>
+#else
+#include <glad/gl.h>
+#endif
+
 #include <iostream>
 
 namespace MirEngine {
@@ -54,7 +61,7 @@ void OpenGLDevice::clear(const ColorRGBA& color,
 }
 
 // --------------------------------------------------------------------------
-// Рисование (пока заглушка)
+// Рисование (через кеш мешей и материалов)
 // --------------------------------------------------------------------------
 void OpenGLDevice::draw(const RenderCommand& command)
 {
@@ -62,14 +69,84 @@ void OpenGLDevice::draw(const RenderCommand& command)
 
     m_context->makeCurrent();
 
-    // TODO: найти Mesh и Material по handle,
-    // установить model-матрицу, включить wireframe при необходимости,
-    // вызвать glDrawElements / glDrawArrays.
+    auto meshIt = m_meshes.find(command.mesh);
+    if (meshIt == m_meshes.end()) {
+        std::cerr << "[OpenGLDevice] Mesh handle not found: " << command.mesh << "\n";
+        return;
+    }
+    auto materialIt = m_materials.find(command.material);
+    if (materialIt == m_materials.end()) {
+        std::cerr << "[OpenGLDevice] Material handle not found: " << command.material << "\n";
+        return;
+    }
+
+    auto& mesh = meshIt->second;
+    auto& shader = materialIt->second;
+
+    shader->bind();
+    shader->setMatrix("u_model", command.modelMatrix);
+    shader->setMatrix("u_view", m_viewMatrix);
+    shader->setMatrix("u_projection", m_projectionMatrix);
+
+    mesh->bind();
 
     m_state.setWireframe(command.wireframe);
 
-    // Временная заглушка — просто чтобы код компилировался
-    (void)command;
+    const GLenum primitive = [](PrimitiveType type) -> GLenum
+    {
+        switch (type)
+        {
+        case PrimitiveType::Points:        return GL_POINTS;
+        case PrimitiveType::Lines:         return GL_LINES;
+        case PrimitiveType::LineStrip:     return GL_LINE_STRIP;
+        case PrimitiveType::LineLoop:      return GL_LINE_LOOP;
+        case PrimitiveType::TriangleStrip: return GL_TRIANGLE_STRIP;
+        case PrimitiveType::TriangleFan:   return GL_TRIANGLE_FAN;
+        case PrimitiveType::Triangles:
+        default:                           return GL_TRIANGLES;
+        }
+    }(command.primitive);
+
+    const GLsizei count = (command.indexCount != 0)
+        ? static_cast<GLsizei>(command.indexCount)
+        : static_cast<GLsizei>(mesh->getElementCount());
+
+    glDrawElements(primitive, count, GL_UNSIGNED_INT, nullptr);
+
+    mesh->unbind();
+    shader->unbind();
+}
+
+// --------------------------------------------------------------------------
+// Создание GPU-ресурсов
+// --------------------------------------------------------------------------
+std::shared_ptr<VertexBuffer> OpenGLDevice::createVertexBuffer()
+{
+    return std::make_shared<OpenGLVertexBuffer>();
+}
+
+std::shared_ptr<IndexBuffer> OpenGLDevice::createIndexBuffer()
+{
+    return std::make_shared<OpenGLIndexBuffer>();
+}
+
+std::shared_ptr<VertexArray> OpenGLDevice::createVertexArray()
+{
+    return std::make_shared<OpenGLVertexArray>();
+}
+
+void OpenGLDevice::registerMesh(MeshHandle handle, std::shared_ptr<VertexArray> mesh)
+{
+    if (mesh) {
+        m_meshes[handle] = std::move(mesh);
+    }
+}
+
+void OpenGLDevice::registerMaterial(MaterialHandle handle, std::shared_ptr<Shader> shader)
+{
+    if (shader) {
+        m_materials[handle] = std::move(shader);
+    }
 }
 
 // --------------------------------------------------------------------------

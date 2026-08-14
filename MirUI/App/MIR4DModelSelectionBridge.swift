@@ -8,7 +8,10 @@ import Foundation
 @MainActor
 extension MIR4DModelRuntime {
     func persistedBodyID(forEngineObjectID objectID: UInt64) -> UUID? {
-        document.bodyID(forEngineObjectID: objectID)
+        if let viewportBodyID = persistedBodyID(forViewportEngineObjectID: objectID) {
+            return viewportBodyID
+        }
+        return document.bodyID(forEngineObjectID: objectID)
     }
 
     func persistedSelectionID(forEngineObjectID objectID: UInt64) -> String? {

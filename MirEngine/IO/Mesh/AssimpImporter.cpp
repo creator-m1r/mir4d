@@ -1,6 +1,7 @@
 #include "AssimpImporter.hpp"
 
 #include "../ImportOptions.hpp"
+#include "../ImportService.hpp"
 
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
 
@@ -114,11 +115,11 @@ ImportResult AssimpImporter::importFile(
 {
     ImportResult result;
     result.sourcePath = path;
-    result.format = Format::Unknown;
+    result.format = ImportService::detectFormat(path);
 
     Assimp::Importer importer;
     unsigned int flags = aiProcess_Triangulate;
-    if (options.joinVertices)
+    if (options.joinIdenticalVertices)
         flags |= aiProcess_JoinIdenticalVertices;
     if (options.generateNormals)
         flags |= aiProcess_GenNormals;
@@ -153,5 +154,27 @@ ImportResult AssimpImporter::importFile(
     result.boundsMax = result.mesh->boundsMax();
     return result;
 }
+
+namespace
+{
+struct AssimpRegistrar
+{
+    AssimpRegistrar()
+    {
+        using namespace mir::io;
+        const auto assimpImporter = [](const std::string& path, const ImportOptions& options)
+        {
+            return AssimpImporter{}.importFile(path, options);
+        };
+        ImportService::registerImporter(Format::Obj, assimpImporter);
+        ImportService::registerImporter(Format::Ply, assimpImporter);
+        ImportService::registerImporter(Format::Gltf, assimpImporter);
+        ImportService::registerImporter(Format::Glb, assimpImporter);
+        ImportService::registerImporter(Format::Fbx, assimpImporter);
+    }
+};
+
+static const AssimpRegistrar g_assimpRegistrar;
+} // namespace
 
 } // namespace mir::io

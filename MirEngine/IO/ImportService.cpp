@@ -39,6 +39,22 @@ Format ImportService::detectFormat(const std::string& path) noexcept
     return Format::Unknown;
 }
 
+std::map<Format, ImportService::ImporterFn>& ImportService::registry()
+{
+    static std::map<Format, ImporterFn> instance;
+    return instance;
+}
+
+void ImportService::registerImporter(Format format, ImporterFn fn)
+{
+    registry()[format] = std::move(fn);
+}
+
+bool ImportService::hasImporter(Format format)
+{
+    return registry().find(format) != registry().end();
+}
+
 ImportResult ImportService::importFile(
     const std::string& path,
     const ImportOptions& options) const
@@ -55,14 +71,13 @@ ImportResult ImportService::importFile(
     result.format = format;
     result.sourcePath = path;
 
+    const auto it = registry().find(format);
+    if (it != registry().end())
+        return it->second(path, options);
+
     if (format == Format::Iges)
     {
         result.error = "IGES importer is reserved for the optional OCCT bridge.";
-    }
-    else if (isMeshFormat(format))
-    {
-        result.error = "Mesh format is recognized but its canonical importer is not enabled yet: " +
-                       std::string(formatName(format));
     }
     else
     {

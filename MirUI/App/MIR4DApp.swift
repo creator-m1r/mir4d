@@ -66,7 +66,7 @@ struct MIR4DWindowConfigurator: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: WindowConfiguratorView, context: Context) {
-        nsView.configureWindow()
+        nsView.scheduleConfiguration()
     }
 }
 
@@ -75,18 +75,35 @@ final class WindowConfiguratorView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        configureWindow()
+        scheduleConfiguration()
     }
 
     override func layout() {
         super.layout()
-        configureWindow()
+        scheduleConfiguration()
     }
 
-    func configureWindow() {
+    /// macOS forbids mutating the window styleMask synchronously while the
+    /// SwiftUI layout pass is running (e.g. inside viewDidMoveToWindow called
+    /// from addSubview). All window mutations are deferred to the next
+    /// run-loop turn and performed exactly once.
+    func scheduleConfiguration() {
+        guard !didConfigure else { return }
+        guard window != nil else { return }
+        didConfigure = true
+
+        DispatchQueue.main.async { [weak self] in
+            self?.configureWindow()
+        }
+    }
+
+    private func configureWindow() {
         guard let window else { return }
 
-        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable, .fullScreen])
+        // Fullscreen must NOT be inserted into styleMask directly: macOS only
+        // accepts it during a real toggleFullScreen transition. The zoom
+        // button below is bound to toggleFullScreen and manages it itself.
+        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -101,20 +118,28 @@ final class WindowConfiguratorView: NSView {
             zoom.toolTip = "На весь экран"
         }
 
-        if !didConfigure {
-            didConfigure = true
-            DispatchQueue.main.async { [weak self, weak window] in
-                guard let self, let window else { return }
-                self.positionAlmostFullscreen(window)
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window else { return }
+            self.positionAlmostFullscreen(window)
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
     private func positionAlmostFullscreen(_ window: NSWindow) {
         guard let screen = window.screen ?? NSScreen.main else { return }
-        window.setFrame(screen.visibleFrame, display: true, animate: false)
+        let visible = screen.visibleFrame
+        let width = visible.width * 0.92
+        let height = visible.height * 0.92
+        let origin = NSPoint(
+            x: visible.midX - width / 2,
+            y: visible.midY - height / 2
+        )
+        window.setFrame(
+            NSRect(x: origin.x, y: origin.y, width: width, height: height),
+            display: true,
+            animate: false
+        )
         window.collectionBehavior.insert(.fullScreenAuxiliary)
     }
 }

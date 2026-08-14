@@ -4,8 +4,9 @@
 #include "../Geometry/Primitives/Box.hpp"
 #include "../Geometry/Tessellation/TriangleMesh.hpp"
 
-#include <charconv>
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -54,10 +55,18 @@ private:
         std::string_view text,
         Scalar& value) noexcept
     {
-        const char* first = text.data();
-        const char* last = first + text.size();
-        const auto result = std::from_chars(first, last, value);
-        return result.ec == std::errc{} && result.ptr == last && std::isfinite(value);
+        if (text.empty())
+            return false;
+
+        const char* last = text.data() + text.size();
+        char* end = nullptr;
+        errno = 0;
+        const double parsed = std::strtod(text.data(), &end);
+        if (end != last || errno == ERANGE || !std::isfinite(parsed))
+            return false;
+
+        value = static_cast<Scalar>(parsed);
+        return true;
     }
 
     [[nodiscard]] static bool parseVector(

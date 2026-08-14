@@ -80,6 +80,30 @@ void OpenGLVertexBuffer::uploadVertices(const Vertex* data, size_t count,
     unbind();
 }
 
+void OpenGLVertexBuffer::upload(const void* data, size_t size,
+                                BufferUsage usage)
+{
+    if (!data || size == 0) {
+        m_vertexCount = 0;
+        return;
+    }
+
+    bind();
+
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(size), data, usageToGL(usage));
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGLVertexBuffer] glBufferData error: 0x"
+                  << std::hex << err << std::dec << "\n";
+        m_vertexCount = 0;
+    } else {
+        m_vertexCount = size / sizeof(Vertex);
+    }
+
+    unbind();
+}
+
 void OpenGLVertexBuffer::bind()
 {
     glBindBuffer(GL_ARRAY_BUFFER, m_handle);

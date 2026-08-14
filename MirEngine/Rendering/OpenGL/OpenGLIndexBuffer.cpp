@@ -78,6 +78,30 @@ void OpenGLIndexBuffer::uploadIndices(const uint32_t* data, size_t count,
     unbind();
 }
 
+void OpenGLIndexBuffer::upload(const void* data, size_t size,
+                               BufferUsage usage)
+{
+    if (!data || size == 0) {
+        m_indexCount = 0;
+        return;
+    }
+
+    bind();
+
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(size), data, usageToGL(usage));
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGLIndexBuffer] glBufferData error: 0x"
+                  << std::hex << err << std::dec << "\n";
+        m_indexCount = 0;
+    } else {
+        m_indexCount = size / sizeof(uint32_t);
+    }
+
+    unbind();
+}
+
 void OpenGLIndexBuffer::bind()
 {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_handle);

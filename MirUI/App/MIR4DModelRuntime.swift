@@ -22,13 +22,37 @@ final class MIR4DModelRuntime: ObservableObject {
     @Published private(set) var engineIsModified: Bool = false
 
 #if !MIR4D_SWIFTPM
-    private var engineDocument: UnsafeMutableRawPointer?
+    // C handle owned exclusively on the main actor. It is marked
+    // nonisolated(unsafe) so the deinit can release it; the instance is a
+    // process-lifetime singleton, so no cross-thread access can occur.
+    nonisolated(unsafe) private var engineDocument: UnsafeMutableRawPointer?
 #endif
 
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
     /// persisted because the engine document is rebuilt when a project opens.
     private var engineObjectIDs: [UUID: UInt64] = [:]
+
+    /// Maps a persisted body UUID to the runtime viewport engine object ID.
+    /// The viewport scene owns a separate registry, so its selection IDs must
+    /// be bridged back to persisted model identity without inventing a second
+    /// CAD ID scheme.
+    private var viewportObjectIDs: [UUID: UInt64] = [:]
+
+    /// Registers the viewport engine object identity created for a body.
+    func registerViewportEngineID(bodyID: UUID, engineObjectID: UInt64) {
+        guard engineObjectID > 0 else { return }
+        viewportObjectIDs[bodyID] = engineObjectID
+    }
+
+    /// Resolves a persisted body UUID from a viewport engine object ID.
+    func persistedBodyID(forViewportEngineObjectID objectID: UInt64) -> UUID? {
+        guard objectID > 0 else { return nil }
+        for (bodyID, viewportID) in viewportObjectIDs where viewportID == objectID {
+            return bodyID
+        }
+        return nil
+    }
 
     private init() {
         document = MIR4DModelDocument.newProject(name: "Новый проект")
@@ -47,6 +71,7 @@ final class MIR4DModelRuntime: ObservableObject {
     func reset(projectName: String) {
         document = MIR4DModelDocument.newProject(name: projectName)
         engineObjectIDs.removeAll(keepingCapacity: true)
+        viewportObjectIDs.removeAll(keepingCapacity: true)
 #if !MIR4D_SWIFTPM
         if engineDocument == nil { engineDocument = MIR4DDocumentCreate() }
         projectName.withCString { MIR4DDocumentReset(engineDocument, $0) }
@@ -59,6 +84,7 @@ final class MIR4DModelRuntime: ObservableObject {
     func load(_ document: MIR4DModelDocument) {
         self.document = document
         engineObjectIDs.removeAll(keepingCapacity: true)
+        viewportObjectIDs.removeAll(keepingCapacity: true)
 #if !MIR4D_SWIFTPM
         if engineDocument == nil { engineDocument = MIR4DDocumentCreate() }
         document.root.title.withCString { MIR4DDocumentReset(engineDocument, $0) }

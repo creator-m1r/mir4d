@@ -1,19 +1,15 @@
-#if MIR4D_SWIFTPM
-
-import Foundation
-
-// MARK: - SwiftPM fallback for the MirUI C ABI
+// MARK: - Link-safe fallback for the MirUI C ABI
 //
-// The native MirUI implementation lives in MirUICppBridge.mm. SwiftPM cannot
-// compile Objective-C++ sources inside the Swift-only MIR4DApp target, so the
-// package target needs a link-safe implementation of the same C symbols.
+// MirUICppBridge.mm is legacy Objective-C++ UI code that is not part of the
+// current build (MirUI CMake target and SwiftPM exclude it). Swift still needs
+// the MirUI_* C symbols declared in CBridge.swift, so this file provides
+// link-safe implementations for both SwiftPM and the Xcode target.
 //
 // This file is intentionally a fallback only. The SwiftUI bridge itself,
 // MirUISwiftBridge.swift, owns MirUI_SwiftUI_UpdateViewNodes in both SwiftPM
 // and native builds. Therefore that symbol must NOT be duplicated here.
-//
-// The native Xcode/macOS target links the real MirUI implementation. SwiftPM
-// uses these no-op/default implementations for the remaining C ABI symbols.
+
+import Foundation
 
 @_cdecl("MirUI_Init")
 public func mirUIInit() {}
@@ -297,5 +293,3 @@ public func mirUIExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: I
     _ = commandId
     _ = widgetId
 }
-
-#endif

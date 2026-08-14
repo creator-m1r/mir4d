@@ -131,23 +131,26 @@ void OpenGLVertexArray::setupAttributes()
     auto* glVB = dynamic_cast<OpenGLVertexBuffer*>(m_vertexBuffer.get());
     if (!glVB) return;
 
-    // Привязываем вершинный буфер к binding point 0
-    glBindVertexBuffer(0, glVB->handle(), 0, static_cast<GLsizei>(sizeof(Vertex)));
+    bind();
+    glVB->bind();
 
     // --- position (location = 0) ---
     glEnableVertexAttribArray(0);
-    glVertexAttribFormat(0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
-    glVertexAttribBinding(0, 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(Vertex)),
+                          reinterpret_cast<const void*>(offsetof(Vertex, position)));
 
     // --- normal (location = 1) ---
     glEnableVertexAttribArray(1);
-    glVertexAttribFormat(1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
-    glVertexAttribBinding(1, 0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(Vertex)),
+                          reinterpret_cast<const void*>(offsetof(Vertex, normal)));
 
     // --- uv (location = 2) ---
     glEnableVertexAttribArray(2);
-    glVertexAttribFormat(2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, uv));
-    glVertexAttribBinding(2, 0);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(Vertex)),
+                          reinterpret_cast<const void*>(offsetof(Vertex, uv)));
+
+    glVB->unbind();
+    unbind();
 }
 
 } // namespace Rendering

@@ -9,12 +9,11 @@
 //
 // Зависимости:
 //   - Shader.h (абстрактный интерфейс)
-//   - spdlog (логирование)
 // =================================================================================
 
 #include "ShaderLibrary.h"
 #include "Shader.h"                     // интерфейс Shader
-#include <spdlog/spdlog.h>
+#include <iostream>
 
 namespace MirEngine {
 namespace Rendering {
@@ -26,9 +25,9 @@ ShaderLibrary::ShaderLibrary(ShaderFactory factory)
     : m_factory(std::move(factory))
 {
     if (!m_factory) {
-        spdlog::error("[ShaderLibrary] Factory function is null.");
+        std::cerr << "[ShaderLibrary] Factory function is null.\n";
     } else {
-        spdlog::debug("[ShaderLibrary] Initialized with a valid factory.");
+        (void)0;
     }
 }
 
@@ -46,32 +45,32 @@ ShaderHandle ShaderLibrary::load(const std::string& name,
     if (!forceReload) {
         auto it = m_shaders.find(name);
         if (it != m_shaders.end()) {
-            spdlog::info("[ShaderLibrary] Shader '{}' already loaded, skipping.", name);
+            (void)0;
             return name;
         }
     }
 
     // Создаём новый шейдер через фабрику
     if (!m_factory) {
-        spdlog::error("[ShaderLibrary] Cannot load shader '{}': no factory provided.", name);
+        std::cerr << "[ShaderLibrary] Cannot load shader '" << name << "': no factory provided.\n";
         return {}; // возвращаем пустой дескриптор
     }
 
     auto shader = m_factory();
     if (!shader) {
-        spdlog::error("[ShaderLibrary] Factory failed to create shader '{}'.", name);
+        std::cerr << "[ShaderLibrary] Factory failed to create shader '" << name << "'.\n";
         return {};
     }
 
     // Компилируем
     if (!shader->compile(vertexSource, fragmentSource)) {
-        spdlog::error("[ShaderLibrary] Failed to compile shader '{}'.", name);
+        std::cerr << "[ShaderLibrary] Failed to compile shader '" << name << "'.\n";
         return {};
     }
 
     // Сохраняем в кэше
     m_shaders[name] = std::move(shader);
-    spdlog::info("[ShaderLibrary] Shader '{}' loaded and cached.", name);
+    (void)0;
     return name; // ShaderHandle это просто имя
 }
 
@@ -84,7 +83,7 @@ std::shared_ptr<Shader> ShaderLibrary::get(const ShaderHandle& handle) const
     if (it != m_shaders.end()) {
         return it->second;
     }
-    spdlog::warn("[ShaderLibrary] Shader '{}' not found.", handle);
+    std::cerr << "[ShaderLibrary] Shader '" << handle << "' not found.\n";
     return nullptr;
 }
 
@@ -104,9 +103,9 @@ void ShaderLibrary::remove(const ShaderHandle& handle)
     auto it = m_shaders.find(handle);
     if (it != m_shaders.end()) {
         m_shaders.erase(it);
-        spdlog::debug("[ShaderLibrary] Shader '{}' removed.", handle);
+        (void)0;
     } else {
-        spdlog::warn("[ShaderLibrary] Attempt to remove non-existent shader '{}'.", handle);
+        std::cerr << "[ShaderLibrary] Attempt to remove non-existent shader '" << handle << "'.\n";
     }
 }
 
@@ -116,7 +115,7 @@ void ShaderLibrary::remove(const ShaderHandle& handle)
 void ShaderLibrary::clear()
 {
     m_shaders.clear();
-    spdlog::debug("[ShaderLibrary] All shaders cleared.");
+    (void)0;
 }
 
 } // namespace Rendering

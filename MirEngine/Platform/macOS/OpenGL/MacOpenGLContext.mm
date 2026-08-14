@@ -40,12 +40,30 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
         NSOpenGLPFAStencilSize,   8,
         NSOpenGLPFADoubleBuffer,
         NSOpenGLPFAAccelerated,
+        NSOpenGLPFAMultisample,
+        NSOpenGLPFASampleBuffers, 1,
+        NSOpenGLPFASamples,        4,
         0
     };
 
     NSOpenGLPixelFormat* format =
         [[NSOpenGLPixelFormat alloc] initWithAttributes:attrs];
-    if (!format) return false;
+    if (!format) {
+        // Some GPUs / virtual machines do not offer MSAA 4x. Fall back to a
+        // plain core-profile format so the viewport still works.
+        NSOpenGLPixelFormatAttribute basicAttrs[] = {
+            NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core,
+            NSOpenGLPFAColorSize,     24,
+            NSOpenGLPFAAlphaSize,     8,
+            NSOpenGLPFADepthSize,     24,
+            NSOpenGLPFAStencilSize,   8,
+            NSOpenGLPFADoubleBuffer,
+            NSOpenGLPFAAccelerated,
+            0
+        };
+        format = [[NSOpenGLPixelFormat alloc] initWithAttributes:basicAttrs];
+        if (!format) return false;
+    }
 
     m_impl->context =
         [[NSOpenGLContext alloc] initWithFormat:format shareContext:nil];

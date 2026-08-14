@@ -43,14 +43,14 @@ struct CADMainView: View {
                 TopBarView(appState: appState, registry: commandRegistry, commandPalettePresented: $commandPalettePresented)
                 HStack(spacing: 0) {
                     if appState.visiblePanels.contains(.project) {
-                        SidebarView(appState: appState).frame(minWidth: 240, idealWidth: 280, maxWidth: 340)
+                        SidebarView(appState: appState).frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
                     }
                     viewport.frame(maxWidth: .infinity, maxHeight: .infinity)
                     if appState.visiblePanels.contains(.properties) {
                         VStack(spacing: 0) {
                             SelectionIdentityInspector(appState: appState)
                             InspectorTabsView(appState: appState)
-                        }.frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
+                        }.frame(minWidth: 300, idealWidth: 340, maxWidth: 440)
                     }
                 }
                 .animation(MirTheme.Animation.normal, value: appState.visiblePanels)
@@ -114,6 +114,7 @@ struct CADMainView: View {
                             Button { createBodyPresented = true } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }.buttonStyle(.borderedProminent).controlSize(.small)
                             Button { presentMeshImportPanel() } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered).controlSize(.small)
                             Button { presentStlExportPanel(selectionOnly: false) } label: { Label(appState.ui.language == .russian ? "Экспорт STL" : "Export STL", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered).controlSize(.small)
+                            Button { NotificationCenter.default.post(name: .mir4DFitViewport, object: nil) } label: { Label(appState.ui.language == .russian ? "Подогнать" : "Fit All", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }.buttonStyle(.bordered).controlSize(.small)
                             if appState.selection.hasSelection {
                                 Button { presentStlExportPanel(selectionOnly: true) } label: { Label(appState.ui.language == .russian ? "Выбранное" : "Selected", systemImage: "arrow.up.doc") }.buttonStyle(.bordered).controlSize(.small)
                             }
