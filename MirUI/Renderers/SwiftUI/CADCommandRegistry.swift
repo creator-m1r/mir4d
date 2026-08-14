@@ -63,6 +63,23 @@ final class CADCommandRegistry: ObservableObject {
             execute: { appState.newDocument() }
         ))
         register(CADCommand(
+            id: "create.body",
+            titleRU: "Создать тело",
+            titleEN: "Create Body",
+            icon: "cube.transparent",
+            shortcut: nil,
+            workbenches: Set(CADWorkbench.allCases),
+            isAvailable: { _ in MIR4DProjectSession.shared.projectURL != nil },
+            execute: {
+                _ = MIR4DModelCommands.shared.createBox(
+                    appState: appState,
+                    width: 100,
+                    depth: 60,
+                    height: 40
+                )
+            }
+        ))
+        register(CADCommand(
             id: "history.undo",
             titleRU: "Отменить",
             titleEN: "Undo",
