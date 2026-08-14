@@ -86,8 +86,8 @@ struct TopBarView: View {
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
         .frame(height: 42)
-        // ОПАКОВАННЫЙ, НЕПРОЗРАЧНЫЙ фон: верхняя полоса не просвечивает содержимое окна.
-        .background(MirTheme.Colors.background)
+        // Собственный сплошной тёмный фон: верхняя полоса не прозрачна.
+        .background(MirTheme.Colors.topBar)
         .overlay(alignment: .bottom) {
             Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
         }
@@ -157,19 +157,24 @@ struct TopBarView: View {
 
     private func toolbarAction(_ icon: String, _ label: String, _ command: String) -> some View {
         Button { execute(command) } label: {
-            HStack(spacing: 5) { Image(systemName: icon); Text(label) }.font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.horizontal, 9).frame(height: 30).background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            HStack(spacing: 5) { Image(systemName: icon); Text(label) }
+                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
+                .padding(.horizontal, 9).frame(height: 30)
+                .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         }.buttonStyle(.plain).help(label)
     }
 
     private func topButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 30, height: 28) }
-            .buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textSecondary)
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 30, height: 28)
+        }.buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textSecondary)
             .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small)).help(label)
     }
 
     private func execute(_ id: String) {
-        guard let command = registry.commands.first(where: { $0.id == id }) else { MirEventBus.shared.publish(.commandRequested(id)); return }
+        guard let command = registry.commands.first(where: { $0.id == id }) else {
+            MirEventBus.shared.publish(.commandRequested(id)); return
+        }
         guard command.workbenches.contains(appState.workbench), command.isAvailable(appState.activeContext) else { return }
         MirEventBus.shared.publish(.commandRequested(id)); MirEventBus.shared.publish(.commandStarted(id)); command.execute(); MirEventBus.shared.publish(.commandFinished(id))
     }
