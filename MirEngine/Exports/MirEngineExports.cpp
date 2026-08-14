@@ -1,8 +1,8 @@
 #include "MirEngineExports.h"
 
-#include "../../Platform/macOS/OpenGL/MacOpenGLContext.h"
-#include "../../Rendering/OpenGL/OpenGLRenderer.h"
-#include "../../Rendering/OpenGL/OpenGLContext.h"
+#include "../Platform/macOS/OpenGL/MacOpenGLContext.h"
+#include "../Rendering/OpenGL/OpenGLRenderer.h"
+#include "../Rendering/OpenGL/OpenGLContext.h"
 #include "../Viewport/ViewportRuntime.hpp"
 #include "../Geometry/Scene/Scene.hpp"
 #include "../BRep/Core/BRepModel.hpp"
@@ -21,8 +21,6 @@ namespace
 
 struct NativeViewport
 {
-    // These three objects form the complete native OpenGL viewport pipeline:
-    // NSView-owned context -> MirEngine renderer -> MirEngine Scene.
     std::unique_ptr<mir::ViewportRuntime> runtime;
     std::unique_ptr<mir::Scene> scene;
     std::unique_ptr<mir::BRepModel> brep;
@@ -98,12 +96,9 @@ void* MirEngineCreateViewport(void* renderer, uint32_t width, uint32_t height)
     auto& camera = native->runtime->state().camera;
     camera.setPerspective(
         mir::Scalar(0.7853981633974483),
-        mir::Scalar(safeWidth) / mir::Scalar(safeHeight),
+        static_cast<mir::Scalar>(safeWidth) / static_cast<mir::Scalar>(safeHeight),
         mir::Scalar(0.1),
-        mir::Scalar(500.0)
-    );
-    camera.setTarget({0.0, 0.0, 0.0});
-    camera.setOrbit(mir::Scalar(0.8), mir::Scalar(1.2), mir::Scalar(12.0));
+        mir::Scalar(10000.0));
 
     return native.release();
 }
@@ -113,108 +108,77 @@ void MirEngineDestroyViewport(void* viewport)
     delete asViewport(viewport);
 }
 
-void MirEngineRender(void* viewport)
+void MirEngineResizeViewport(void* viewport, uint32_t width, uint32_t height)
 {
     auto* native = asViewport(viewport);
     if (!native || !native->runtime)
         return;
 
-    native->runtime->update(0.0);
+    const uint32_t safeWidth = std::max(width, 1u);
+    const uint32_t safeHeight = std::max(height, 1u);
+    native->runtime->resize(safeWidth, safeHeight);
+}
+
+void MirEngineRenderViewport(void* viewport)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
     native->runtime->render();
 }
 
-void MirEngineResize(void* viewport, uint32_t width, uint32_t height)
+bool MirEngineCreateBox(void* viewport,
+                        double width,
+                        double depth,
+                        double height,
+                        uint64_t* objectId)
 {
     auto* native = asViewport(viewport);
-    if (!native || !native->runtime)
-        return;
-
-    native->runtime->resize(std::max(width, 1u), std::max(height, 1u));
-}
-
-bool MirEngineCreateBox(
-    void* viewport,
-    double width,
-    double depth,
-    double height,
-    uint64_t* objectId)
-{
-    if (objectId)
-        *objectId = 0;
-
-    auto* native = asViewport(viewport);
-    if (!native || !native->runtime || !native->scene || !native->brep)
+    if (!native || !native->scene || !native->brep)
         return false;
 
-    if (!(width > 0.0) || !(depth > 0.0) || !(height > 0.0))
-        return false;
-
-    const auto result = mir4d::BRepSceneBridge::createBox(
-        *native->scene,
+    const auto result = mir::BRepSceneBridge::createBox(
         *native->brep,
-        static_cast<mir::Scalar>(width),
-        static_cast<mir::Scalar>(depth),
-        static_cast<mir::Scalar>(height)
-    );
+        *native->scene,
+        width,
+        depth,
+        height);
 
     if (!result.success)
         return false;
 
     if (objectId)
-        *objectId = static_cast<uint64_t>(result.objectId);
+        *objectId = result.objectId;
 
-    // The viewport renderer references native->scene directly, so no copy or
-    // Swift-side mesh is required. The next OpenGL frame renders the newly
-    // inserted ModelNode through MirEngine::ViewportRuntime.
     return true;
 }
 
-void MirEngineViewportMouseDown(void* viewport, int button, float x, float y)
+void MirEngineViewportOrbit(void* viewport, double deltaX, double deltaY)
 {
     auto* native = asViewport(viewport);
     if (!native || !native->runtime)
         return;
 
-    constexpr int kLeftMouseButton = 0;
-    constexpr int kMiddleMouseButton = 1;
-    constexpr int kRightMouseButton = 2;
-
-    if (button == kLeftMouseButton)
-        native->runtime->beginOrbit(x, y);
-    else if (button == kMiddleMouseButton || button == kRightMouseButton)
-        native->runtime->beginPan(x, y);
+    native->runtime->controller().orbit(deltaX, deltaY);
 }
 
-void MirEngineViewportMouseUp(void* viewport, int button, float x, float y)
+void MirEngineViewportPan(void* viewport, double deltaX, double deltaY)
 {
-    (void)button;
-    (void)x;
-    (void)y;
-
     auto* native = asViewport(viewport);
-    if (native && native->runtime)
-        native->runtime->endInteraction();
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->controller().pan(deltaX, deltaY);
 }
 
-void MirEngineViewportMouseMove(void* viewport, float x, float y)
+void MirEngineViewportZoom(void* viewport, double delta)
 {
     auto* native = asViewport(viewport);
-    if (native && native->runtime)
-        native->runtime->move(x, y);
-}
+    if (!native || !native->runtime)
+        return;
 
-void MirEngineViewportScroll(void* viewport, float delta)
-{
-    auto* native = asViewport(viewport);
-    if (native && native->runtime)
-        native->runtime->zoom(delta);
-}
-
-void MirEngineViewportClick(void* viewport, float x, float y, bool addToSelection)
-{
-    auto* native = asViewport(viewport);
-    if (native && native->runtime)
-        native->runtime->selectAt(x, y, addToSelection);
+    native->runtime->controller().zoom(delta);
 }
 
 } // extern "C"
