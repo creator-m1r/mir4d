@@ -10,7 +10,6 @@ import AppKit
 
 @main
 struct MIR4DApp: App {
-
     @StateObject private var appState = CADAppState()
 
     var body: some Scene {
@@ -23,7 +22,10 @@ struct MIR4DApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Новый проект") {
-                    appState.newDocument()
+                    NotificationCenter.default.post(
+                        name: .mir4DRequestNewProject,
+                        object: nil
+                    )
                 }
                 .keyboardShortcut("n", modifiers: [.command])
 
