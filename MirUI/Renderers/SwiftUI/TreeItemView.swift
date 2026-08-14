@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// Recursive model-tree row used by SidebarView.
-/// Keeps tree presentation local to SwiftUI; selection remains owned by CADAppState.
+/// Selection is keyed by the persisted MIR4D model UUID, never by a display name.
 struct TreeItemView: View {
     let node: TreeNodeData
     @ObservedObject var appState: CADAppState
+    @ObservedObject private var modelRuntime = MIR4DModelRuntime.shared
     let level: Int
     @State private var isExpanded: Bool
 
@@ -16,7 +17,23 @@ struct TreeItemView: View {
     }
 
     private var isSelected: Bool {
-        appState.selectedTreeItem == node.name
+        appState.selection.ids.contains(node.id.uuidString)
+    }
+
+    private var modelNodeKind: MIR4DModelNode.Kind? {
+        findModelNode(in: modelRuntime.document.root, id: node.id)?.kind
+    }
+
+    private var selectionKind: CADSelectionKind {
+        switch modelNodeKind {
+        case .project: return .none
+        case .component: return .component
+        case .body: return .body
+        case .sketch: return .sketch
+        case .operation: return .feature
+        case .result: return .feature
+        case nil: return .unknown
+        }
     }
 
     var body: some View {
@@ -77,11 +94,11 @@ struct TreeItemView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            appState.selectedTreeItem = node.name
+            selectNode()
         }
         .contextMenu {
             Button("Select") {
-                appState.selectedTreeItem = node.name
+                selectNode()
             }
             if !node.children.isEmpty {
                 Button(isExpanded ? "Collapse" : "Expand") {
@@ -89,6 +106,26 @@ struct TreeItemView: View {
                 }
             }
         }
+    }
+
+    private func selectNode() {
+        // Keep the old display-name state for manifest/UI compatibility, but
+        // make the CAD selection itself UUID-based and stable across reopen.
+        appState.selectedTreeItem = node.name
+        appState.setSelection(
+            ids: [node.id.uuidString],
+            kind: selectionKind
+        )
+    }
+
+    private func findModelNode(in root: MIR4DModelNode, id: UUID) -> MIR4DModelNode? {
+        if root.id == id { return root }
+        for child in root.children {
+            if let match = findModelNode(in: child, id: id) {
+                return match
+            }
+        }
+        return nil
     }
 
     @ViewBuilder
