@@ -12,11 +12,11 @@ extension Notification.Name {
 @MainActor
 final class MIR4DProjectSession {
     static let shared = MIR4DProjectSession()
-
     private(set) var projectURL: URL?
     private(set) var projectName: String = "Новый проект"
     private var autoSave: MIR4DProjectAutoSave?
     private let lastProjectDefaultsKey = "MIR4D.lastProjectURL"
+    private let modelRuntime = MIR4DModelRuntime.shared
 
     private init() {}
 
@@ -24,12 +24,11 @@ final class MIR4DProjectSession {
         do {
             let url = try MIR4DProjectStore.shared.createProject(name: name, in: parentURL)
             activate(url: url, name: name, appState: appState)
+            modelRuntime.reset(projectName: appState.documentName)
             try save(appState: appState)
             startAutoSave(for: appState)
             notifyActivation(url: url, appState: appState, message: "Проект создан: \(projectName)")
-        } catch {
-            appState.showNotification("Не удалось создать проект: \(error.localizedDescription)", type: .error)
-        }
+        } catch { appState.showNotification("Не удалось создать проект: \(error.localizedDescription)", type: .error) }
     }
 
     func openProject(appState: CADAppState, url: URL) {
@@ -38,7 +37,6 @@ final class MIR4DProjectSession {
             projectURL = url
             projectName = manifest.name
             UserDefaults.standard.set(url.path, forKey: lastProjectDefaultsKey)
-
             appState.documentName = manifest.name
             appState.documentDirty = false
             appState.selectedTreeItem = manifest.selectedTreeItem
@@ -46,45 +44,25 @@ final class MIR4DProjectSession {
             appState.axesVisible = manifest.axesVisible
             appState.sectionMode = manifest.sectionMode
             appState.time.seek(manifest.currentTime)
-
             if let workbench = CADWorkbench(rawValue: manifest.workbench) { appState.workbench = workbench }
             if let subMode = CADSubMode(rawValue: manifest.subMode) { appState.subMode = subMode }
-
             if let model = try? MIR4DProjectStore.shared.loadModel(from: url) {
-                appState.showNotification("Модель загружена: \(model.root.title)", type: .success)
+                modelRuntime.load(model)
+                appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
             } else {
-                // Backward compatibility: older .mir4d projects only contain the manifest.
-                let model = MIR4DModelDocument.from(tree: appState.treeData, projectName: manifest.name)
-                try MIR4DProjectStore.shared.saveModel(model, to: url)
+                modelRuntime.reset(projectName: manifest.name)
+                try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: url)
             }
-
             startAutoSave(for: appState)
             notifyActivation(url: url, appState: appState, message: "Проект открыт: \(manifest.name)")
-        } catch {
-            appState.showNotification("Не удалось открыть проект: \(error.localizedDescription)", type: .error)
-        }
+        } catch { appState.showNotification("Не удалось открыть проект: \(error.localizedDescription)", type: .error) }
     }
 
     func save(appState: CADAppState) throws {
         guard let projectURL else { throw ProjectError.noActiveProject }
-
-        let manifest = MIR4DProjectManifest(
-            name: appState.documentName,
-            createdAt: existingCreationDate(in: projectURL),
-            modifiedAt: Date(),
-            workbench: appState.workbench.rawValue,
-            subMode: appState.subMode.rawValue,
-            selectedTreeItem: appState.selectedTreeItem,
-            gridVisible: appState.gridVisible,
-            axesVisible: appState.axesVisible,
-            sectionMode: appState.sectionMode,
-            currentTime: appState.currentTime
-        )
-
-        let model = MIR4DModelDocument.from(tree: appState.treeData, projectName: appState.documentName)
+        let manifest = MIR4DProjectManifest(name: appState.documentName, createdAt: existingCreationDate(in: projectURL), modifiedAt: Date(), workbench: appState.workbench.rawValue, subMode: appState.subMode.rawValue, selectedTreeItem: appState.selectedTreeItem, gridVisible: appState.gridVisible, axesVisible: appState.axesVisible, sectionMode: appState.sectionMode, currentTime: appState.currentTime)
         try MIR4DProjectStore.shared.save(manifest: manifest, to: projectURL)
-        try MIR4DProjectStore.shared.saveModel(model, to: projectURL)
-
+        try MIR4DProjectStore.shared.saveModel(modelRuntime.document, to: projectURL)
         appState.documentDirty = false
         UserDefaults.standard.set(projectURL.path, forKey: lastProjectDefaultsKey)
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
@@ -100,9 +78,7 @@ final class MIR4DProjectSession {
             startAutoSave(for: appState)
             appState.showNotification("Проект сохранён как: \(projectName)", type: .success)
             NotificationCenter.default.post(name: .mir4DProjectActivated, object: url)
-        } catch {
-            appState.showNotification("Не удалось сохранить проект как: \(error.localizedDescription)", type: .error)
-        }
+        } catch { appState.showNotification("Не удалось сохранить проект как: \(error.localizedDescription)", type: .error) }
     }
 
     func close(appState: CADAppState) {
@@ -110,6 +86,7 @@ final class MIR4DProjectSession {
         autoSave = nil
         projectURL = nil
         projectName = "Новый проект"
+        modelRuntime.reset(projectName: "Новый проект")
         appState.documentName = "Новый проект"
         appState.documentDirty = false
         NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil)
@@ -124,29 +101,17 @@ final class MIR4DProjectSession {
     }
 
     func requestClose(appState: CADAppState, confirm: @escaping (Bool) -> Void) {
-        guard appState.documentDirty else {
-            close(appState: appState)
-            confirm(true)
-            return
-        }
-
+        guard appState.documentDirty else { close(appState: appState); confirm(true); return }
         let alert = NSAlert()
         alert.messageText = "Сохранить изменения в проекте?"
         alert.informativeText = "В проекте «\(appState.documentName)» есть несохранённые изменения."
         alert.addButton(withTitle: "Сохранить")
         alert.addButton(withTitle: "Не сохранять")
         alert.addButton(withTitle: "Отмена")
-
         switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            appState.saveMIR4DProject()
-            close(appState: appState)
-            confirm(true)
-        case .alertSecondButtonReturn:
-            close(appState: appState)
-            confirm(true)
-        default:
-            confirm(false)
+        case .alertFirstButtonReturn: appState.saveMIR4DProject(); close(appState: appState); confirm(true)
+        case .alertSecondButtonReturn: close(appState: appState); confirm(true)
+        default: confirm(false)
         }
     }
 
@@ -189,10 +154,7 @@ final class MIR4DProjectSession {
 extension CADAppState {
     func createMIR4DProject(name: String, parentURL: URL) { MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL) }
     func openMIR4DProject(url: URL) { MIR4DProjectSession.shared.openProject(appState: self, url: url) }
-    func saveMIR4DProject() {
-        do { try MIR4DProjectSession.shared.save(appState: self) }
-        catch { showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error) }
-    }
+    func saveMIR4DProject() { do { try MIR4DProjectSession.shared.save(appState: self) } catch { showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error) } }
     func saveMIR4DProjectAs(parentURL: URL, name: String) { MIR4DProjectSession.shared.saveAs(appState: self, name: name, parentURL: parentURL) }
     func closeMIR4DProject(confirm: @escaping (Bool) -> Void = { _ in }) { MIR4DProjectSession.shared.requestClose(appState: self, confirm: confirm) }
 }
