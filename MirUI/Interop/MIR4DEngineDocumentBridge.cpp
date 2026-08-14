@@ -18,7 +18,10 @@ MIR4DEngineDocumentBridge::~MIR4DEngineDocumentBridge() { delete impl_; }
 void MIR4DEngineDocumentBridge::reset(const char* projectName)
 {
     const std::string name = (projectName != nullptr && *projectName != '\0') ? projectName : "Новый проект";
+    // A Document owns its registry and ObjectStore, so reset both ownership
+    // and history explicitly instead of replacing the non-assignable Document.
     impl_->document.scene().clear();
+    impl_->document.objectRegistry().clear();
     impl_->document.history().clear();
     impl_->document.setTime(mir4d::Time{});
     impl_->document.setName(name);
@@ -70,40 +73,13 @@ extern "C"
 {
 void* MIR4DDocumentCreate() { return new MirUI::MIR4DEngineDocumentBridge(); }
 void MIR4DDocumentDestroy(void* handle) { delete static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle); }
-void MIR4DDocumentReset(void* handle, const char* projectName)
-{
-    if (handle) static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->reset(projectName);
-}
-bool MIR4DDocumentCreateBox(void* handle, double w, double d, double h, std::uint64_t* id)
-{
-    return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->createBox(w, d, h, id);
-}
-bool MIR4DDocumentAdvanceTime(void* handle, double seconds)
-{
-    return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->advanceTime(seconds);
-}
-std::size_t MIR4DDocumentObjectCount(void* handle)
-{
-    return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->objectCount() : 0;
-}
-std::size_t MIR4DDocumentCommandCount(void* handle)
-{
-    return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->commandCount() : 0;
-}
-double MIR4DDocumentCurrentTime(void* handle)
-{
-    return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->currentTime() : 0.0;
-}
-std::uint64_t MIR4DDocumentRevision(void* handle)
-{
-    return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->revision() : 0;
-}
-bool MIR4DDocumentIsModified(void* handle)
-{
-    return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->isModified();
-}
-bool MIR4DDocumentIsValid(void* handle)
-{
-    return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->isValid();
-}
+void MIR4DDocumentReset(void* handle, const char* projectName) { if (handle) static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->reset(projectName); }
+bool MIR4DDocumentCreateBox(void* handle, double w, double d, double h, std::uint64_t* id) { return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->createBox(w, d, h, id); }
+bool MIR4DDocumentAdvanceTime(void* handle, double seconds) { return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->advanceTime(seconds); }
+std::size_t MIR4DDocumentObjectCount(void* handle) { return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->objectCount() : 0; }
+std::size_t MIR4DDocumentCommandCount(void* handle) { return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->commandCount() : 0; }
+double MIR4DDocumentCurrentTime(void* handle) { return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->currentTime() : 0.0; }
+std::uint64_t MIR4DDocumentRevision(void* handle) { return handle ? static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->revision() : 0; }
+bool MIR4DDocumentIsModified(void* handle) { return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->isModified(); }
+bool MIR4DDocumentIsValid(void* handle) { return handle && static_cast<MirUI::MIR4DEngineDocumentBridge*>(handle)->isValid(); }
 }
