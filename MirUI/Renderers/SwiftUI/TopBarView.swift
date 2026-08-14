@@ -64,28 +64,36 @@ struct TopBarView: View {
 
             Spacer(minLength: MirTheme.Spacing.lg)
 
-            Text(appState.ui.language == .russian ? "Рабочая среда" : "Workbench")
-                .font(MirTheme.Typography.status)
-                .foregroundStyle(MirTheme.Colors.textTertiary)
-
-            Text(appState.ui.language == .russian ? appState.workbench.titleRU : appState.workbench.titleEN)
-                .font(MirTheme.Typography.bodySemibold)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(MirTheme.Colors.surfaceRaised, in: Capsule())
-                .padding(.leading, 7)
-                .padding(.trailing, MirTheme.Spacing.md)
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(MirTheme.Colors.success)
+                    .frame(width: 6, height: 6)
+                Text(appState.ui.language == .russian ? "Рабочая среда" : "Workbench")
+                    .font(MirTheme.Typography.status)
+                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                Text(appState.ui.language == .russian ? appState.workbench.titleRU : appState.workbench.titleEN)
+                    .font(MirTheme.Typography.bodySemibold)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(MirTheme.Colors.surfaceRaised, in: Capsule())
+            .help(appState.ui.language == .russian ? "Текущая рабочая среда" : "Current workbench")
 
             Button { interfaceCustomizationPresented = true } label: {
                 Image(systemName: "rectangle.3.group")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 30, height: 28)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .foregroundStyle(MirTheme.Colors.textSecondary)
+            .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             .help(appState.ui.language == .russian ? "Настроить панели интерфейса" : "Customize interface panels")
+            .padding(.leading, 8)
             .padding(.trailing, MirTheme.Spacing.md)
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
-        .frame(height: 40)
+        .frame(height: 42)
         .background(MirTheme.Colors.background)
     }
 
@@ -122,11 +130,15 @@ struct TopBarView: View {
             Spacer(minLength: MirTheme.Spacing.md)
 
             Button { appState.toggleExperience() } label: {
-                Text(appState.ui.experience == .expert ? "EXP" : "BAS")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(MirTheme.Colors.textSecondary)
-                    .frame(width: 38, height: 28)
-                    .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                HStack(spacing: 5) {
+                    Image(systemName: "slider.horizontal.3")
+                    Text(appState.ui.experience == .expert ? "EXP" : "BAS")
+                }
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(MirTheme.Colors.textSecondary)
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             }
             .buttonStyle(.plain)
             .help(appState.ui.experience == .expert ? "Экспертный режим" : "Базовый режим")
@@ -139,6 +151,7 @@ struct TopBarView: View {
                 .overlay {
                     Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                 }
+                .help("МИР 4D")
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
         .frame(height: 46)
