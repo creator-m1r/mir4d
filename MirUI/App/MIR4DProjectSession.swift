@@ -50,6 +50,14 @@ final class MIR4DProjectSession {
             if let workbench = CADWorkbench(rawValue: manifest.workbench) { appState.workbench = workbench }
             if let subMode = CADSubMode(rawValue: manifest.subMode) { appState.subMode = subMode }
 
+            if let model = try? MIR4DProjectStore.shared.loadModel(from: url) {
+                appState.showNotification("Модель загружена: \(model.root.title)", type: .success)
+            } else {
+                // Backward compatibility: older .mir4d projects only contain the manifest.
+                let model = MIR4DModelDocument.from(tree: appState.treeData, projectName: manifest.name)
+                try MIR4DProjectStore.shared.saveModel(model, to: url)
+            }
+
             startAutoSave(for: appState)
             notifyActivation(url: url, appState: appState, message: "Проект открыт: \(manifest.name)")
         } catch {
@@ -58,9 +66,7 @@ final class MIR4DProjectSession {
     }
 
     func save(appState: CADAppState) throws {
-        guard let projectURL else {
-            throw ProjectError.noActiveProject
-        }
+        guard let projectURL else { throw ProjectError.noActiveProject }
 
         let manifest = MIR4DProjectManifest(
             name: appState.documentName,
@@ -75,7 +81,10 @@ final class MIR4DProjectSession {
             currentTime: appState.currentTime
         )
 
+        let model = MIR4DModelDocument.from(tree: appState.treeData, projectName: appState.documentName)
         try MIR4DProjectStore.shared.save(manifest: manifest, to: projectURL)
+        try MIR4DProjectStore.shared.saveModel(model, to: projectURL)
+
         appState.documentDirty = false
         UserDefaults.standard.set(projectURL.path, forKey: lastProjectDefaultsKey)
         NotificationCenter.default.post(name: .mir4DProjectSaved, object: projectURL)
@@ -178,27 +187,12 @@ final class MIR4DProjectSession {
 }
 
 extension CADAppState {
-    func createMIR4DProject(name: String, parentURL: URL) {
-        MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL)
-    }
-
-    func openMIR4DProject(url: URL) {
-        MIR4DProjectSession.shared.openProject(appState: self, url: url)
-    }
-
+    func createMIR4DProject(name: String, parentURL: URL) { MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL) }
+    func openMIR4DProject(url: URL) { MIR4DProjectSession.shared.openProject(appState: self, url: url) }
     func saveMIR4DProject() {
-        do {
-            try MIR4DProjectSession.shared.save(appState: self)
-        } catch {
-            showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error)
-        }
+        do { try MIR4DProjectSession.shared.save(appState: self) }
+        catch { showNotification("Не удалось сохранить проект: \(error.localizedDescription)", type: .error) }
     }
-
-    func saveMIR4DProjectAs(parentURL: URL, name: String) {
-        MIR4DProjectSession.shared.saveAs(appState: self, name: name, parentURL: parentURL)
-    }
-
-    func closeMIR4DProject(confirm: @escaping (Bool) -> Void = { _ in }) {
-        MIR4DProjectSession.shared.requestClose(appState: self, confirm: confirm)
-    }
+    func saveMIR4DProjectAs(parentURL: URL, name: String) { MIR4DProjectSession.shared.saveAs(appState: self, name: name, parentURL: parentURL) }
+    func closeMIR4DProject(confirm: @escaping (Bool) -> Void = { _ in }) { MIR4DProjectSession.shared.requestClose(appState: self, confirm: confirm) }
 }
