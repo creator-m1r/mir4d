@@ -37,9 +37,7 @@ final class MIR4DProjectSession {
         set { UserDefaults.standard.set(newValue, forKey: autoOpenLastKey) }
     }
 
-    var recentProjects: [MIR4DRecentProject] {
-        loadRecentProjects()
-    }
+    var recentProjects: [MIR4DRecentProject] { loadRecentProjects() }
 
     func createProject(appState: CADAppState, name: String, parentURL: URL) {
         do {
@@ -105,6 +103,7 @@ final class MIR4DProjectSession {
     }
 
     func close(appState: CADAppState) {
+        autoSave?.flush()
         autoSave?.stop()
         autoSave = nil
         projectURL = nil
@@ -122,7 +121,6 @@ final class MIR4DProjectSession {
 
         let url = URL(fileURLWithPath: path, isDirectory: true)
         let manifestURL = url.appendingPathComponent("project.mir4d.json")
-
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             clearLastProject()
             return false
@@ -144,14 +142,12 @@ final class MIR4DProjectSession {
         var list = loadRecentProjects()
         list.removeAll { $0.path == project.path }
         saveRecentProjects(list)
-        if UserDefaults.standard.string(forKey: lastProjectDefaultsKey) == project.path {
-            clearLastProject()
-        }
+        if UserDefaults.standard.string(forKey: lastProjectDefaultsKey) == project.path { clearLastProject() }
     }
 
-    func clearLastProject() {
-        UserDefaults.standard.removeObject(forKey: lastProjectDefaultsKey)
-    }
+    func clearLastProject() { UserDefaults.standard.removeObject(forKey: lastProjectDefaultsKey) }
+
+    func scheduleAutoSave() { autoSave?.scheduleSave() }
 
     func requestClose(appState: CADAppState, confirm: @escaping (Bool) -> Void) {
         guard appState.documentDirty else { close(appState: appState); confirm(true); return }
@@ -162,8 +158,13 @@ final class MIR4DProjectSession {
         alert.addButton(withTitle: "Не сохранять")
         alert.addButton(withTitle: "Отмена")
         switch alert.runModal() {
-        case .alertFirstButtonReturn: appState.saveMIR4DProject(); close(appState: appState); confirm(true)
-        case .alertSecondButtonReturn: close(appState: appState); confirm(true)
+        case .alertFirstButtonReturn:
+            autoSave?.flush()
+            close(appState: appState)
+            confirm(true)
+        case .alertSecondButtonReturn:
+            close(appState: appState)
+            confirm(true)
         default: confirm(false)
         }
     }
@@ -218,9 +219,7 @@ final class MIR4DProjectSession {
     }
 
     private func saveRecentProjects(_ list: [MIR4DRecentProject]) {
-        if let data = try? JSONEncoder().encode(list) {
-            UserDefaults.standard.set(data, forKey: recentProjectsKey)
-        }
+        if let data = try? JSONEncoder().encode(list) { UserDefaults.standard.set(data, forKey: recentProjectsKey) }
     }
 
     enum ProjectError: LocalizedError {
