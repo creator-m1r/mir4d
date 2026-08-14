@@ -15,9 +15,7 @@ struct TopBarView: View {
         }
         .background(MirTheme.Colors.surface)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(MirTheme.Colors.borderStrong)
-                .frame(height: 1)
+            Rectangle().fill(MirTheme.Colors.borderStrong).frame(height: 1)
         }
         .sheet(isPresented: $interfaceCustomizationPresented) {
             InterfaceCustomizationView(appState: appState)
@@ -28,31 +26,40 @@ struct TopBarView: View {
         }
     }
 
-    /// The application header is an in-window view, not an overlay on top of
-    /// the macOS title area. It is deliberately separated from the toolbar.
+    /// Собственная полоса приложения находится внутри SwiftUI-окна и не перекрывает
+    /// системную область заголовка macOS.
     private var applicationHeader: some View {
         HStack(spacing: 0) {
             brand
                 .padding(.trailing, MirTheme.Spacing.lg)
 
-            Divider()
-                .frame(height: 22)
-                .foregroundStyle(MirTheme.Colors.border)
+            Divider().frame(height: 22).foregroundStyle(MirTheme.Colors.border)
 
-            menuButton("Проект", icon: "folder") {
-                execute("document.new")
+            applicationMenu("Проект", icon: "folder") {
+                Button("Новый проект", action: { execute("document.new") })
+                Divider()
+                Button("Открыть проект…", action: { execute("document.open") })
+                Button("Сохранить", action: { execute("document.save") })
             }
-            menuButton("Правка", icon: "pencil") {
-                commandPalettePresented = true
+            applicationMenu("Правка", icon: "pencil") {
+                Button("Отменить", action: { execute("history.undo") })
+                Button("Повторить", action: { execute("history.redo") })
+                Divider()
+                Button("Палитра команд…", action: { commandPalettePresented = true })
             }
-            menuButton("Вид", icon: "eye") {
-                appState.toggleGrid()
+            applicationMenu("Вид", icon: "eye") {
+                Button("Сетка") { appState.toggleGrid() }
+                Button("Оси") { appState.toggleAxes() }
+                Divider()
+                Button("Настроить интерфейс…") { interfaceCustomizationPresented = true }
             }
-            menuButton("Создание", icon: "plus.circle") {
-                _ = registry.execute(id: "create.body", context: appState.activeContext)
+            applicationMenu("Создание", icon: "plus.circle") {
+                Button("Эскиз") { execute("create.sketch") }
+                Button("Тело") { execute("create.body") }
             }
-            menuButton("Инструменты", icon: "wrench.and.screwdriver") {
-                commandPalettePresented = true
+            applicationMenu("Инструменты", icon: "wrench.and.screwdriver") {
+                Button("Измерить") { execute("inspect.measure") }
+                Button("Палитра команд…") { commandPalettePresented = true }
             }
 
             Spacer(minLength: MirTheme.Spacing.lg)
@@ -70,40 +77,47 @@ struct TopBarView: View {
                 .padding(.leading, 7)
                 .padding(.trailing, MirTheme.Spacing.md)
 
-            Button {
-                interfaceCustomizationPresented = true
-            } label: {
-                Label(
-                    appState.ui.language == .russian ? "Настроить интерфейс" : "Customize Interface",
-                    systemImage: "rectangle.3.group"
-                )
+            Button { interfaceCustomizationPresented = true } label: {
+                Image(systemName: "rectangle.3.group")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help(appState.ui.language == .russian ? "Открыть отдельный режим настройки панелей" : "Open the dedicated panel customization mode")
-            .padding(.trailing, MirTheme.Spacing.lg)
+            .buttonStyle(.borderless)
+            .help(appState.ui.language == .russian ? "Настроить панели интерфейса" : "Customize interface panels")
+            .padding(.trailing, MirTheme.Spacing.md)
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
-        .frame(height: 38)
+        .frame(height: 40)
         .background(MirTheme.Colors.background)
     }
 
+    private func applicationMenu(_ title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
+        Menu {
+            content()
+        } label: {
+            Label(title, systemImage: icon)
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textSecondary)
+                .padding(.horizontal, 9)
+                .frame(height: 30)
+        }
+        .menuStyle(.borderlessButton)
+        .contentShape(Rectangle())
+    }
+
     private var mainToolbar: some View {
-        HStack(spacing: MirTheme.Spacing.md) {
+        HStack(spacing: MirTheme.Spacing.sm) {
             WorkbenchSwitcher(appState: appState)
 
-            Text(subModeTitle)
-                .font(MirTheme.Typography.caption)
-                .foregroundStyle(MirTheme.Colors.textTertiary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(MirTheme.Colors.surfaceRaised, in: Capsule())
-
-            Divider().frame(height: 24)
+            Divider().frame(height: 26)
 
             commandPaletteButton
             historyButtons
-            utilityButtons
+
+            Divider().frame(height: 26)
+
+            toolbarAction("doc.badge.plus", "Новый", "document.new")
+            toolbarAction("pencil.and.ruler", "Эскиз", "create.sketch")
+            toolbarAction("cube.transparent", "Тело", "create.body")
+            toolbarAction("ruler", "Измерить", "inspect.measure")
 
             Spacer(minLength: MirTheme.Spacing.md)
 
@@ -123,13 +137,11 @@ struct TopBarView: View {
                 .fill(LinearGradient(colors: [MirTheme.Colors.accent, MirTheme.Colors.accentBright], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 30, height: 30)
                 .overlay {
-                    Text("M1R")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
+                    Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                 }
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
-        .frame(height: 48)
+        .frame(height: 46)
         .background(MirTheme.Colors.surface)
     }
 
@@ -138,16 +150,12 @@ struct TopBarView: View {
             Image(systemName: "sun.max.fill")
                 .foregroundStyle(MirTheme.Colors.keyframe)
                 .font(.system(size: 17))
-
             VStack(alignment: .leading, spacing: 1) {
                 Text("МИР 4D")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(MirTheme.Colors.textPrimary)
-
                 HStack(spacing: 5) {
-                    Circle()
-                        .fill(MirTheme.Colors.success)
-                        .frame(width: 6, height: 6)
+                    Circle().fill(MirTheme.Colors.success).frame(width: 6, height: 6)
                     Text(appState.documentName + (appState.documentDirty ? " •" : ""))
                         .font(MirTheme.Typography.status)
                         .foregroundStyle(MirTheme.Colors.textTertiary)
@@ -155,18 +163,6 @@ struct TopBarView: View {
                 }
             }
         }
-    }
-
-    private func menuButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(MirTheme.Typography.caption)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.horizontal, 9)
-                .frame(height: 28)
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
     }
 
     private var commandPaletteButton: some View {
@@ -184,30 +180,35 @@ struct TopBarView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("k", modifiers: [.command])
+        .help("Палитра команд")
     }
 
     private var historyButtons: some View {
         HStack(spacing: 2) {
-            topButton("arrow.uturn.backward", "⌘Z") { execute("history.undo") }
-            topButton("arrow.uturn.forward", "⇧⌘Z") { execute("history.redo") }
+            topButton("arrow.uturn.backward", "Отменить") { execute("history.undo") }
+            topButton("arrow.uturn.forward", "Повторить") { execute("history.redo") }
         }
     }
 
-    private var utilityButtons: some View {
-        HStack(spacing: 4) {
-            topButton("doc.badge.plus", appState.ui.language == .russian ? "Новый" : "New") { execute("document.new") }
-            topButton("square.grid.2x2", appState.ui.language == .russian ? "Панели" : "Panels") {
-                interfaceCustomizationPresented = true
+    private func toolbarAction(_ icon: String, _ label: String, _ command: String) -> some View {
+        Button { execute(command) } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                Text(label)
             }
-            topButton("sparkles", "AI") { appState.togglePanel(.aiInspector) }
+            .font(MirTheme.Typography.caption)
+            .foregroundStyle(MirTheme.Colors.textSecondary)
+            .padding(.horizontal, 9)
+            .frame(height: 30)
+            .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         }
+        .buttonStyle(.plain)
+        .help(label)
     }
 
     private func topButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 30, height: 28)
+            Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 30, height: 28)
         }
         .buttonStyle(.plain)
         .foregroundStyle(MirTheme.Colors.textSecondary)
@@ -225,9 +226,5 @@ struct TopBarView: View {
         MirEventBus.shared.publish(.commandStarted(id))
         command.execute()
         MirEventBus.shared.publish(.commandFinished(id))
-    }
-
-    private var subModeTitle: String {
-        appState.ui.language == .russian ? appState.subMode.titleRU : appState.subMode.titleEN
     }
 }
