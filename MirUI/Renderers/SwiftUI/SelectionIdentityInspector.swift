@@ -5,72 +5,68 @@ struct SelectionIdentityInspector: View {
     @ObservedObject private var runtime = MIR4DModelRuntime.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 7) {
-                Image(systemName: "scope")
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: appState.selection.hasSelection ? "scope" : "scope.dashed")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(appState.selection.hasSelection ? MirTheme.Colors.selection : MirTheme.Colors.textTertiary)
 
-                Text(appState.ui.language == .russian ? "Идентичность объекта" : "Object Identity")
-                    .font(.system(size: 10, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(appState.ui.language == .russian ? "Инспектор" : "Inspector")
+                        .font(MirTheme.Typography.bodySemibold)
+                        .foregroundStyle(MirTheme.Colors.textPrimary)
+                    Text(appState.selection.hasSelection ? selectionKindTitle : (appState.ui.language == .russian ? "Ничего не выбрано" : "Nothing selected"))
+                        .font(MirTheme.Typography.status)
+                        .foregroundStyle(MirTheme.Colors.textTertiary)
+                }
 
                 Spacer()
 
-                Text(appState.selection.hasSelection ? "LIVE" : "—")
+                Text(appState.selection.hasSelection ? "LIVE" : "IDLE")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(appState.selection.hasSelection ? MirTheme.Colors.success : MirTheme.Colors.textTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(MirTheme.Colors.surfaceRaised, in: Capsule())
             }
 
-            identityRow(
-                "ObjectId",
-                resolvedSelectionID
-            )
+            Divider()
 
-            identityRow(
-                appState.ui.language == .russian ? "Тип" : "Kind",
-                selectionKindTitle
-            )
-
-            identityRow(
-                appState.ui.language == .russian ? "Количество" : "Count",
-                String(appState.selection.count)
-            )
+            identityRow("ObjectId", resolvedSelectionID)
+            identityRow(appState.ui.language == .russian ? "Тип" : "Kind", selectionKindTitle)
+            identityRow(appState.ui.language == .russian ? "Количество" : "Count", String(appState.selection.count))
 
             if let body = resolvedBody {
-                identityRow(
-                    appState.ui.language == .russian ? "Тело" : "Body",
-                    body.name
-                )
+                identityRow(appState.ui.language == .russian ? "Тело" : "Body", body.name)
             }
         }
-        .padding(10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(MirTheme.Spacing.md)
+        .background(MirTheme.Colors.surfaceRaised.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(MirTheme.Colors.panelBorder.opacity(0.65), lineWidth: 1)
+            RoundedRectangle(cornerRadius: MirTheme.Radius.medium)
+                .stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1)
         }
-        .padding(.horizontal, MirTheme.Spacing.lg)
+        .padding(.horizontal, MirTheme.Spacing.md)
         .padding(.top, MirTheme.Spacing.md)
         .animation(MirTheme.Animation.fast, value: appState.selection)
-        .onChange(of: appState.selection.ids) { _, _ in
-            normalizeEngineSelection()
-        }
-        .onAppear {
-            normalizeEngineSelection()
-        }
+        .onChange(of: appState.selection.ids) { _, _ in normalizeEngineSelection() }
+        .onAppear { normalizeEngineSelection() }
     }
 
     private func identityRow(_ label: String, _ value: String) -> some View {
         HStack(spacing: 8) {
             Text(label)
-                .font(.system(size: 9))
+                .font(MirTheme.Typography.status)
                 .foregroundStyle(MirTheme.Colors.textTertiary)
-            Spacer()
+            Spacer(minLength: 10)
             Text(value)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(MirTheme.Colors.textPrimary)
                 .lineLimit(1)
+                .truncationMode(.middle)
         }
+        .frame(minHeight: 20)
     }
 
     private var resolvedSelectionID: String {
@@ -92,9 +88,7 @@ struct SelectionIdentityInspector: View {
               let rawID = appState.selection.ids.first,
               let engineID = UInt64(rawID),
               let persistedID = runtime.persistedSelectionID(forEngineObjectID: engineID),
-              persistedID != rawID else {
-            return
-        }
+              persistedID != rawID else { return }
         appState.setSelection(ids: [persistedID], kind: .body)
     }
 
