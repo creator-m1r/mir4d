@@ -20,6 +20,30 @@ target_compile_definitions(MirEngine INTERFACE MIR_ENABLE_OCCT=$<BOOL:${MIR_ENAB
 
 if(APPLE)
     target_compile_definitions(MirEngine INTERFACE MIR_PLATFORM_MACOS=1)
+
+    # The native macOS OpenGL bridge is compiled only on Apple platforms.
+    # SwiftUI talks to this library through the stable C ABI in
+    # MirEngine/Exports/MirEngineExports.h.
+    enable_language(OBJCXX)
+
+    find_library(MIR4D_OPENGL_FRAMEWORK OpenGL REQUIRED)
+    find_library(MIR4D_COCOA_FRAMEWORK Cocoa REQUIRED)
+
+    add_library(MirEngineMacOpenGL STATIC
+        MirEngine/Exports/MirEngineExports.cpp
+        MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
+        MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
+    )
+
+    target_include_directories(MirEngineMacOpenGL PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    target_link_libraries(MirEngineMacOpenGL PUBLIC
+        MirEngine
+        ${MIR4D_OPENGL_FRAMEWORK}
+        ${MIR4D_COCOA_FRAMEWORK}
+    )
+    target_compile_features(MirEngineMacOpenGL PUBLIC cxx_std_23)
 endif()
 
 add_library(MirEngineBRep INTERFACE)
@@ -97,6 +121,13 @@ if(MIR_ENABLE_ASSIMP)
 endif()
 
 add_subdirectory(MirUI)
+
+if(APPLE)
+    # MirUI is the C++ presentation/interop library consumed by SwiftUI.
+    # Link the native OpenGL implementation into the same dependency graph so
+    # Xcode cannot accidentally build the UI without the real renderer.
+    target_link_libraries(MirUI PUBLIC MirEngineMacOpenGL)
+endif()
 
 add_executable(MIR4D_BuildCheck MirEngine/Tests/Core/BuildCheck.cpp)
 target_link_libraries(MIR4D_BuildCheck PRIVATE MirEngine)
