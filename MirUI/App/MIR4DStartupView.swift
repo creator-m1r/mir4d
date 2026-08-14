@@ -39,6 +39,10 @@ struct MIR4DStartupView: View {
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
             enterWorkspace()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DExternalProjectURL)) { notification in
+            guard let url = notification.object as? URL else { return }
+            openExternalProject(url)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { notification in
             if let rawValue = notification.userInfo?["workbench"] as? String,
                let workbench = CADWorkbench(rawValue: rawValue) {
@@ -59,6 +63,18 @@ struct MIR4DStartupView: View {
             showWorkspace = true
             showStartMenu = false
         }
+    }
+
+    private func openExternalProject(_ url: URL) {
+        guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
+            appState.showNotification(
+                "Не удалось открыть проект: пакет .mir4d недействителен.",
+                type: .warning
+            )
+            return
+        }
+
+        MIR4DProjectCommands.shared.open(appState: appState, url: url)
     }
 
     private var startupBackground: some View {
@@ -189,18 +205,10 @@ struct MIR4DStartupView: View {
 
         switch intent {
         case .externalProject(let url):
-            guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
-                appState.showNotification(
-                    "Не удалось открыть проект: пакет .mir4d недействителен.",
-                    type: .warning
-                )
-                showStartMenuAnimated()
-                return
-            }
-            appState.openMIR4DProject(url: url)
+            openExternalProject(url)
 
         case .restoreLast:
-            if MIR4DProjectCommands.shared.restoreLastProject(appState: appState) {
+            if MIR4DProjectCommands.shared.restoreLastProjectOnLaunch(appState: appState) {
                 return
             }
             showStartMenuAnimated()
