@@ -1,0 +1,23 @@
+{
+  "id": "viewport",
+  "title": "4D Визор",
+  "visible": true,
+  "x": 0,
+  "y": 0,
+  "width": 0,
+  "height": 0,
+  "minWidth": 500,
+  "minHeight": 400,
+  "scale": 1.0,
+  "opacity": 1.0,
+  "padding": 14,
+  "spacing": 22,
+  "cornerRadius": 0,
+  "background": "#070B12",
+  "foreground": "#FFFFFF",
+  "accent": "#42D9FF",
+  "dock": "center",
+  "resizable": true,
+  "movable": true,
+  "scalable": true
+}
