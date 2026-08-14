@@ -273,6 +273,7 @@ enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
     case left
     case right
     case bottom
+    case floating
 
     var id: String { rawValue }
 
@@ -281,6 +282,7 @@ enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
         case .left: return "Слева"
         case .right: return "Справа"
         case .bottom: return "Снизу"
+        case .floating: return "Плавающее окно"
         }
     }
 
@@ -289,6 +291,7 @@ enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
         case .left: return "Left"
         case .right: return "Right"
         case .bottom: return "Bottom"
+        case .floating: return "Floating"
         }
     }
 
@@ -297,6 +300,7 @@ enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
         case .left: return "sidebar.left"
         case .right: return "sidebar.right"
         case .bottom: return "rectangle.split.3x1"
+        case .floating: return "macwindow"
         }
     }
 }

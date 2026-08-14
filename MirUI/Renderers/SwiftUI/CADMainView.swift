@@ -81,7 +81,11 @@ struct CADMainView: View {
         .onAppear {
             commandRegistry.registerDefaults(appState: appState)
             commandRegistry.registerExtendedScenarioCommands(appState: appState)
+            FloatingPanelManager.shared.sync(appState: appState)
             appState.showNotification(appState.ui.language == .russian ? "МИР 4D готов · интерфейсный слой активирован" : "MIR 4D ready · interface layer activated", type: .success)
+        }
+        .onChange(of: appState.panelState) {
+            FloatingPanelManager.shared.sync(appState: appState)
         }
     }
 
@@ -132,12 +136,7 @@ struct CADMainView: View {
     }
 
     @ViewBuilder private func panelView(_ panel: CADPanel) -> some View {
-        switch panel {
-        case .project: SidebarView(appState: appState)
-        case .properties: inspector
-        case .timeline: timeline
-        default: EmptyView()
-        }
+        CADPanelView(panel: panel, appState: appState)
     }
 
     private func panelContainer<Content: View>(_ panel: CADPanel, @ViewBuilder content: () -> Content) -> some View {
@@ -170,7 +169,8 @@ struct CADMainView: View {
                 let zones: [(PanelPlacement, CGRect)] = [
                     (.left, CGRect(x: 0, y: 0, width: 170, height: geometry.size.height)),
                     (.right, CGRect(x: geometry.size.width - 170, y: 0, width: 170, height: geometry.size.height)),
-                    (.bottom, CGRect(x: 0, y: geometry.size.height - 130, width: geometry.size.width, height: 130))
+                    (.bottom, CGRect(x: 0, y: geometry.size.height - 130, width: geometry.size.width, height: 130)),
+                    (.floating, CGRect(x: geometry.size.width / 2 - 110, y: geometry.size.height / 2 - 70, width: 220, height: 140))
                 ]
                 ZStack {
                     ForEach(zones, id: \.0) { zone in
@@ -190,14 +190,6 @@ struct CADMainView: View {
                 }
             }
         }
-    }
-
-    private var inspector: some View {
-        VStack(spacing: 0) {
-            SelectionIdentityInspector(appState: appState)
-            InspectorTabsView(appState: appState)
-        }
-        .frame(minWidth: 300, idealWidth: 340, maxWidth: 440)
     }
 
     private var viewport: some View {
@@ -446,14 +438,6 @@ struct CADMainView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         NotificationCenter.default.post(name: .mir4DExportStl, object: ["path": url.path, "selectionOnly": selectionOnly])
         appState.showNotification(appState.ui.language == .russian ? "Экспорт STL: \(url.lastPathComponent)" : "Export STL: \(url.lastPathComponent)", type: .info)
-    }
-
-    @ViewBuilder private var timeline: some View {
-        switch appState.workbench {
-        case .fourD, .simulation: FourDTimelineView(appState: appState).frame(minHeight: 170, idealHeight: 230, maxHeight: 300)
-        case .assembly: TimelinePanelView(appState: appState).frame(minHeight: 170, idealHeight: 220, maxHeight: 280)
-        default: TimelinePanelView(appState: appState).frame(minHeight: 190, idealHeight: 250, maxHeight: 320)
-        }
     }
 
     private var statusBar: some View {
