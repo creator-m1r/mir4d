@@ -2,8 +2,8 @@ import Foundation
 
 /// Debounced autosave for the active MIR 4D project.
 ///
-/// A save is scheduled only after the model has been quiet for `debounceInterval`.
-/// `minSaveInterval` prevents repeated writes when changes arrive in bursts.
+/// Autosave waits for a quiet period, skips unchanged model revisions, and never
+/// starts a second save while the previous save is still encoding/writing.
 @MainActor
 final class MIR4DProjectAutoSave {
     private weak var appState: CADAppState?
@@ -13,6 +13,8 @@ final class MIR4DProjectAutoSave {
     private let debounceInterval: TimeInterval
     private let minSaveInterval: TimeInterval
     private var lastSaveDate: Date?
+    private var isSaving = false
+    private var needsResave = false
 
     init(
         appState: CADAppState,
@@ -47,8 +49,13 @@ final class MIR4DProjectAutoSave {
     func scheduleSave() {
         guard let appState, appState.documentDirty else { return }
 
-        saveWorkItem?.cancel()
+        if isSaving {
+            // The current save owns an older snapshot. Preserve the fact that another save is required.
+            needsResave = true
+            return
+        }
 
+        saveWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.performSaveIfNeeded()
@@ -65,9 +72,11 @@ final class MIR4DProjectAutoSave {
     func stop() {
         saveWorkItem?.cancel()
         saveWorkItem = nil
+        needsResave = false
     }
 
-    /// Save immediately when the project is being closed or otherwise needs a flush.
+    /// Explicit close/quit path: persist the current model immediately.
+    /// The actual JSON encoding and disk write happen off the main actor.
     func flush() {
         saveWorkItem?.cancel()
         saveWorkItem = nil
@@ -77,14 +86,15 @@ final class MIR4DProjectAutoSave {
     private func performSaveIfNeeded(force: Bool = false) {
         guard let appState, appState.documentDirty else { return }
 
+        if isSaving {
+            needsResave = true
+            return
+        }
+
         if !force,
            let lastSaveDate,
            Date().timeIntervalSince(lastSaveDate) < minSaveInterval {
-            // Keep the dirty state and try again after the remaining cooldown.
-            let remaining = max(
-                0.05,
-                minSaveInterval - Date().timeIntervalSince(lastSaveDate)
-            )
+            let remaining = max(0.05, minSaveInterval - Date().timeIntervalSince(lastSaveDate))
             saveWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 self?.performSaveIfNeeded()
@@ -94,8 +104,29 @@ final class MIR4DProjectAutoSave {
             return
         }
 
-        appState.saveMIR4DProject()
-        lastSaveDate = Date()
+        isSaving = true
+        needsResave = false
         saveWorkItem = nil
+
+        Task { @MainActor [weak self, weak appState] in
+            guard let self, let appState else { return }
+            do {
+                // Model-only autosave avoids rewriting UI/workbench state on every geometry change.
+                try await MIR4DProjectSession.shared.saveAsync(appState: appState, scope: .modelOnly)
+                self.lastSaveDate = Date()
+            } catch {
+                appState.showNotification(
+                    "Автосохранение не удалось: \(error.localizedDescription)",
+                    type: .warning
+                )
+            }
+
+            self.isSaving = false
+
+            if self.needsResave || appState.documentDirty {
+                self.needsResave = false
+                self.scheduleSave()
+            }
+        }
     }
 }
