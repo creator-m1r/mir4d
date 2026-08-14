@@ -36,7 +36,6 @@ struct SidebarView: View {
             Image(systemName: "list.bullet.indent")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(MirTheme.Colors.accentBright)
-
             VStack(alignment: .leading, spacing: 1) {
                 Text(localized("Навигатор", "Navigator"))
                     .font(MirTheme.Typography.bodySemibold)
@@ -45,42 +44,38 @@ struct SidebarView: View {
                     .font(MirTheme.Typography.status)
                     .foregroundStyle(MirTheme.Colors.textTertiary)
             }
-
             Spacer()
-
-            Button {
-                activeSection = 0
-                search = ""
-            } label: {
+            Button { activeSection = 0; search = "" } label: {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: 11, weight: .medium))
+                    .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
             .foregroundStyle(MirTheme.Colors.textTertiary)
+            .background(MirTheme.Colors.surfaceRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             .help(localized("Сбросить навигатор", "Reset navigator"))
         }
         .padding(.horizontal, MirTheme.Spacing.md)
-        .padding(.vertical, 10)
-        .background(MirTheme.Colors.surface.opacity(0.55))
+        .padding(.vertical, 9)
+        .background(MirTheme.Colors.panel)
     }
 
     private var searchField: some View {
         HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Image(systemName: "magnifyingglass").foregroundStyle(MirTheme.Colors.textTertiary)
             TextField(localized("Поиск по модели…", "Search model…"), text: $search)
                 .textFieldStyle(.plain)
                 .font(MirTheme.Typography.caption)
                 .foregroundStyle(MirTheme.Colors.textPrimary)
             if !search.isEmpty {
                 Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                    .buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textTertiary)
             }
         }
         .padding(9)
-        .background(MirTheme.Colors.surfaceRaised.opacity(0.72))
+        .background(MirTheme.Colors.surfaceRaised)
         .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.border, lineWidth: 1))
         .padding(.horizontal, MirTheme.Spacing.md)
         .padding(.vertical, 8)
     }
@@ -99,8 +94,9 @@ struct SidebarView: View {
             }
         }
         .padding(4)
-        .background(MirTheme.Colors.surface.opacity(0.72))
+        .background(MirTheme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.border, lineWidth: 1))
         .padding(.horizontal, MirTheme.Spacing.md)
         .padding(.bottom, 6)
     }
@@ -111,16 +107,12 @@ struct SidebarView: View {
                 ForEach(treeSections) { section in
                     VStack(alignment: .leading, spacing: 2) {
                         sectionHeader(section)
-                        ForEach(section.nodes) { node in
-                            TreeItemView(node: node, appState: appState, level: 0)
-                        }
+                        ForEach(section.nodes) { node in TreeItemView(node: node, appState: appState, level: 0) }
                     }
                 }
                 if treeSections.isEmpty { emptyTreeState }
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 6)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10)
         }
         .animation(MirTheme.Animation.normal, value: modelRuntime.revision)
     }
@@ -128,20 +120,16 @@ struct SidebarView: View {
     private var emptyTreeState: some View {
         VStack(spacing: 8) {
             Image(systemName: search.isEmpty ? "cube.transparent" : "magnifyingglass")
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(MirTheme.Colors.textTertiary)
+                .font(.system(size: 22, weight: .light)).foregroundStyle(MirTheme.Colors.textTertiary)
             Text(search.isEmpty ? localized("Проект пуст", "Project is empty") : localized("Ничего не найдено", "Nothing found"))
-                .font(MirTheme.Typography.caption)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
+                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
             if search.isEmpty {
                 Text(localized("Создайте тело или эскиз, чтобы начать работу", "Create a body or sketch to begin"))
-                    .font(MirTheme.Typography.status)
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                    .font(MirTheme.Typography.status).foregroundStyle(MirTheme.Colors.textTertiary)
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 34)
+        .frame(maxWidth: .infinity).padding(.vertical, 34)
     }
 
     private struct TreeSection: Identifiable {
@@ -155,11 +143,9 @@ struct SidebarView: View {
         let children = modelRuntime.document.root.children
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let visible = query.isEmpty ? children : children.filter { contains($0, query: query) }
-
         func section(_ id: String, _ title: String, _ icon: String, _ predicate: (MIR4DModelNode.Kind) -> Bool) -> TreeSection {
             TreeSection(id: id, title: title, icon: icon, nodes: visible.filter { predicate($0.kind) }.map(convert))
         }
-
         return [
             section("bodies", localized("Тела", "Bodies"), "cube.transparent", { $0 == .body }),
             section("sketches", localized("Эскизы", "Sketches"), "pencil.and.ruler", { $0 == .sketch }),
@@ -176,8 +162,7 @@ struct SidebarView: View {
             Text("\(section.nodes.count)").font(.system(size: 9, weight: .semibold, design: .monospaced)).foregroundStyle(MirTheme.Colors.textTertiary)
             Spacer()
         }
-        .padding(.horizontal, 6)
-        .padding(.top, 5)
+        .padding(.horizontal, 6).padding(.top, 5)
     }
 
     private func contains(_ node: MIR4DModelNode, query: String) -> Bool {
@@ -217,8 +202,7 @@ struct SidebarView: View {
                 Text(localized("Фильтры модели", "Model Filters")).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
                 Text(localized("Фильтрация дерева модели", "Model tree filtering")).font(MirTheme.Typography.body).foregroundStyle(MirTheme.Colors.textPrimary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(MirTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(MirTheme.Spacing.md)
         }
     }
 
@@ -229,8 +213,7 @@ struct SidebarView: View {
             Spacer()
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(MirTheme.Colors.surface.opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+        .background(MirTheme.Colors.surface).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
     }
 
     private var footer: some View {
@@ -241,7 +224,7 @@ struct SidebarView: View {
             Text("v\(modelRuntime.revision)").font(.system(size: 10, design: .monospaced)).foregroundStyle(MirTheme.Colors.textTertiary)
         }
         .padding(.horizontal, MirTheme.Spacing.md).padding(.vertical, 9)
-        .background(MirTheme.Colors.surface.opacity(0.35))
+        .background(MirTheme.Colors.panel)
     }
 
     private func localized(_ russian: String, _ english: String) -> String { appState.ui.language == .russian ? russian : english }
