@@ -22,10 +22,22 @@ final class MIR4DLaunchCoordinator: ObservableObject {
     private init() {}
 
     /// Called by SwiftUI when macOS gives the application a document URL.
-    /// We only remember it until boot has completed; startup owns execution.
+    /// Before boot completes the URL remains pending and participates in the
+    /// normal external > restore > menu launch decision. After boot completes
+    /// it is delivered immediately so a second double-click/Open With action is
+    /// never stranded on the already-visible Project Hub.
     func handleOpenURL(_ url: URL) {
         let normalized = normalize(url)
-        pendingIntent = .externalProject(normalized)
+
+        guard bootFinished else {
+            pendingIntent = .externalProject(normalized)
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .mir4DExternalProjectURL,
+            object: normalized
+        )
     }
 
     /// Marks diagnostics complete. An external URL always wins, even if it
