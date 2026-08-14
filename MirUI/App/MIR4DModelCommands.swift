@@ -32,15 +32,13 @@ final class MIR4DModelCommands {
         appState.documentDirty = true
         session.scheduleAutoSave()
 
-        // The viewport is a renderer of evaluated MirEngine geometry. The
-        // command above changes the document/runtime first; this notification
-        // only asks the renderer to display the resulting box.
         NotificationCenter.default.post(
             name: .mir4DCreateBox,
             object: [
                 "width": width,
                 "depth": depth,
-                "height": height
+                "height": height,
+                "bodyID": bodyID.uuidString
             ]
         )
 
