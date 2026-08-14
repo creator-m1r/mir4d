@@ -66,11 +66,17 @@ struct MIR4DStartupView: View {
     }
 
     private func openExternalProject(_ url: URL) {
+        // An external URL has absolute priority. Mark launch resolution here as
+        // well as in resolveLaunch() so a URL received just after bootFinished
+        // cannot be followed by a second restore/menu resolution.
+        didResolveLaunch = true
+
         guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
             appState.showNotification(
                 "Не удалось открыть проект: пакет .mir4d недействителен.",
                 type: .warning
             )
+            showStartMenuAnimated()
             return
         }
 
