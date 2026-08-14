@@ -25,7 +25,9 @@ final class MIR4DProjectCommands {
         appState.saveMIR4DProjectAs(parentURL: url.deletingLastPathComponent(), name: name)
     }
 
-    func open() {
+    /// Opens a project selected by the user from an Open panel.
+    /// The Hub uses this same command path instead of touching the Store directly.
+    func open(appState: CADAppState) {
         let panel = NSOpenPanel()
         panel.title = "Открыть проект MIR 4D"
         panel.message = "Выберите проект .mir4d"
@@ -35,7 +37,13 @@ final class MIR4DProjectCommands {
         panel.allowsMultipleSelection = false
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        NotificationCenter.default.post(name: .mir4DExternalProjectURL, object: url)
+        open(appState: appState, url: url)
+    }
+
+    /// Opens a known recent-project URL through the same Session path.
+    /// LaunchCoordinator remains responsible for external macOS launch URLs.
+    func open(appState: CADAppState, url: URL) {
+        appState.openMIR4DProject(url: url)
     }
 
     func close(appState: CADAppState) {
