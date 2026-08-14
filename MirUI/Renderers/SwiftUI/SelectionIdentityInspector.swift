@@ -2,11 +2,12 @@ import SwiftUI
 
 struct SelectionIdentityInspector: View {
     @ObservedObject var appState: CADAppState
+    @ObservedObject private var runtime = MIR4DModelRuntime.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
-                Image(systemName: appState.selection.hasSelection ? "scope" : "scope")
+                Image(systemName: "scope")
                     .foregroundStyle(appState.selection.hasSelection ? MirTheme.Colors.selection : MirTheme.Colors.textTertiary)
 
                 Text(appState.ui.language == .russian ? "Идентичность объекта" : "Object Identity")
@@ -20,8 +21,8 @@ struct SelectionIdentityInspector: View {
             }
 
             identityRow(
-                appState.ui.language == .russian ? "ObjectId" : "ObjectId",
-                appState.selection.ids.first ?? "—"
+                "ObjectId",
+                resolvedSelectionID
             )
 
             identityRow(
@@ -33,6 +34,13 @@ struct SelectionIdentityInspector: View {
                 appState.ui.language == .russian ? "Количество" : "Count",
                 String(appState.selection.count)
             )
+
+            if let body = resolvedBody {
+                identityRow(
+                    appState.ui.language == .russian ? "Тело" : "Body",
+                    body.name
+                )
+            }
         }
         .padding(10)
         .background(.ultraThinMaterial)
@@ -44,6 +52,12 @@ struct SelectionIdentityInspector: View {
         .padding(.horizontal, MirTheme.Spacing.lg)
         .padding(.top, MirTheme.Spacing.md)
         .animation(MirTheme.Animation.fast, value: appState.selection)
+        .onChange(of: appState.selection.ids) { _, _ in
+            normalizeEngineSelection()
+        }
+        .onAppear {
+            normalizeEngineSelection()
+        }
     }
 
     private func identityRow(_ label: String, _ value: String) -> some View {
@@ -57,6 +71,31 @@ struct SelectionIdentityInspector: View {
                 .foregroundStyle(MirTheme.Colors.textPrimary)
                 .lineLimit(1)
         }
+    }
+
+    private var resolvedSelectionID: String {
+        guard let rawID = appState.selection.ids.first,
+              let engineID = UInt64(rawID),
+              let persistedID = runtime.persistedSelectionID(forEngineObjectID: engineID) else {
+            return appState.selection.ids.first ?? "—"
+        }
+        return persistedID
+    }
+
+    private var resolvedBody: MIR4DBody? {
+        guard let id = UUID(uuidString: resolvedSelectionID) else { return nil }
+        return runtime.document.body(id: id)
+    }
+
+    private func normalizeEngineSelection() {
+        guard appState.selection.primaryKind == .body,
+              let rawID = appState.selection.ids.first,
+              let engineID = UInt64(rawID),
+              let persistedID = runtime.persistedSelectionID(forEngineObjectID: engineID),
+              persistedID != rawID else {
+            return
+        }
+        appState.setSelection(ids: [persistedID], kind: .body)
     }
 
     private var selectionKindTitle: String {
