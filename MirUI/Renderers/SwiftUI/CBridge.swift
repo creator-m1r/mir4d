@@ -1,6 +1,39 @@
 import Foundation
 import SwiftUI
 
+// MARK: - MIR 4D UI C ABI
+// These declarations are required by both the Xcode/macOS target and the
+// SwiftPM target. They must not disappear when MIR4D_SWIFTPM is defined.
+@_silgen_name("MirUI_RenderFrame") public func MirUI_RenderFrame()
+@_silgen_name("MirUI_NewProject") public func MirUI_NewProject()
+@_silgen_name("MirUI_ResizeWidget") public func MirUI_ResizeWidget(_ widgetId: Int64, _ newWidth: Double, _ newHeight: Double, _ newX: Double, _ newY: Double)
+@_silgen_name("MirUI_MoveWidget") public func MirUI_MoveWidget(_ widgetId: Int64, _ dx: Double, _ dy: Double)
+@_silgen_name("MirUI_DeleteWidget") public func MirUI_DeleteWidget(_ widgetId: Int64)
+@_silgen_name("MirUI_CopyWidget") public func MirUI_CopyWidget(_ widgetId: Int64)
+@_silgen_name("MirUI_PasteWidget") public func MirUI_PasteWidget(_ parentId: Int64)
+@_silgen_name("MirUI_CutWidget") public func MirUI_CutWidget(_ widgetId: Int64)
+@_silgen_name("MirUI_Undo") public func MirUI_Undo()
+@_silgen_name("MirUI_Redo") public func MirUI_Redo()
+@_silgen_name("MirUI_AlignWidgets") public func MirUI_AlignWidgets(_ widgetIds: UnsafeRawPointer, _ count: Int32, _ strategy: UnsafePointer<CChar>)
+@_silgen_name("MirUI_SetPropertyString") public func MirUI_SetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?)
+@_silgen_name("MirUI_GetPropertyString") public func MirUI_GetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
+@_silgen_name("MirUI_SetPropertyDouble") public func MirUI_SetPropertyDouble(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Double)
+@_silgen_name("MirUI_SetPropertyBool") public func MirUI_SetPropertyBool(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Bool)
+@_silgen_name("MirUI_GetThemeColor") public func MirUI_GetThemeColor(_ colorToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
+@_silgen_name("MirUI_SetThemeColor") public func MirUI_SetThemeColor(_ colorToken: UnsafePointer<CChar>?, _ hexColor: UnsafePointer<CChar>?)
+@_silgen_name("MirUI_GetThemeMetric") public func MirUI_GetThemeMetric(_ metricToken: UnsafePointer<CChar>?) -> Double
+@_silgen_name("MirUI_SetThemeMetric") public func MirUI_SetThemeMetric(_ metricToken: UnsafePointer<CChar>?, _ value: Double)
+@_silgen_name("MirUI_GetThemeFont") public func MirUI_GetThemeFont(_ fontToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
+@_silgen_name("MirUI_SetThemeFont") public func MirUI_SetThemeFont(_ fontToken: UnsafePointer<CChar>?, _ fontString: UnsafePointer<CChar>?)
+@_silgen_name("MirUI_GetThemeAnimationDuration") public func MirUI_GetThemeAnimationDuration() -> Double
+@_silgen_name("MirUI_SetThemeAnimationDuration") public func MirUI_SetThemeAnimationDuration(_ duration: Double)
+@_silgen_name("MirUI_SwitchTheme") public func MirUI_SwitchTheme(_ themeId: UnsafePointer<CChar>?)
+@_silgen_name("MirUI_CurrentThemeName") public func MirUI_CurrentThemeName() -> UnsafePointer<CChar>?
+@_silgen_name("MirUI_GetWidgetStyleField") public func MirUI_GetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
+@_silgen_name("MirUI_SetWidgetStyleField") public func MirUI_SetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?)
+@_silgen_name("MirUI_ExecuteCommand") public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: Int64)
+
+// MARK: - MirEngine OpenGL ABI
 #if MIR4D_SWIFTPM
 public struct MirEngineSize2D {
     public var width: UInt32
@@ -29,34 +62,6 @@ public func MirEngineViewportMouseMove(_ viewport: UnsafeMutableRawPointer?, _ x
 public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float) {}
 public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool) {}
 #else
-@_silgen_name("MirUI_RenderFrame") public func MirUI_RenderFrame()
-@_silgen_name("MirUI_NewProject") public func MirUI_NewProject()
-@_silgen_name("MirUI_ResizeWidget") public func MirUI_ResizeWidget(_ widgetId: Int64, _ newWidth: Double, _ newHeight: Double, _ newX: Double, _ newY: Double)
-@_silgen_name("MirUI_MoveWidget") public func MirUI_MoveWidget(_ widgetId: Int64, _ dx: Double, _ dy: Double)
-@_silgen_name("MirUI_DeleteWidget") public func MirUI_DeleteWidget(_ widgetId: Int64)
-@_silgen_name("MirUI_CopyWidget") public func MirUI_CopyWidget(_ widgetId: Int64)
-@_silgen_name("MirUI_PasteWidget") public func MirUI_PasteWidget(_ parentId: Int64)
-@_silgen_name("MirUI_CutWidget") public func MirUI_CutWidget(_ widgetId: Int64)
-@_silgen_name("MirUI_Undo") public func MirUI_Undo()
-@_silgen_name("MirUI_Redo") public func MirUI_Redo()
-@_silgen_name("MirUI_AlignWidgets") public func MirUI_AlignWidgets(_ widgetIds: UnsafeRawPointer, _ count: Int32, _ strategy: UnsafePointer<CChar>)
-@_silgen_name("MirUI_SetPropertyString") public func MirUI_SetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?)
-@_silgen_name("MirUI_GetPropertyString") public func MirUI_GetPropertyString(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
-@_silgen_name("MirUI_SetPropertyDouble") public func MirUI_SetPropertyDouble(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Double)
-@_silgen_name("MirUI_SetPropertyBool") public func MirUI_SetPropertyBool(_ widgetId: Int64, _ propertyName: UnsafePointer<CChar>?, _ value: Bool)
-@_silgen_name("MirUI_GetThemeColor") public func MirUI_GetThemeColor(_ colorToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
-@_silgen_name("MirUI_SetThemeColor") public func MirUI_SetThemeColor(_ colorToken: UnsafePointer<CChar>?, _ hexColor: UnsafePointer<CChar>?)
-@_silgen_name("MirUI_GetThemeMetric") public func MirUI_GetThemeMetric(_ metricToken: UnsafePointer<CChar>?) -> Double
-@_silgen_name("MirUI_SetThemeMetric") public func MirUI_SetThemeMetric(_ metricToken: UnsafePointer<CChar>?, _ value: Double)
-@_silgen_name("MirUI_GetThemeFont") public func MirUI_GetThemeFont(_ fontToken: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
-@_silgen_name("MirUI_SetThemeFont") public func MirUI_SetThemeFont(_ fontToken: UnsafePointer<CChar>?, _ fontString: UnsafePointer<CChar>?)
-@_silgen_name("MirUI_GetThemeAnimationDuration") public func MirUI_GetThemeAnimationDuration() -> Double
-@_silgen_name("MirUI_SetThemeAnimationDuration") public func MirUI_SetThemeAnimationDuration(_ duration: Double)
-@_silgen_name("MirUI_SwitchTheme") public func MirUI_SwitchTheme(_ themeId: UnsafePointer<CChar>?)
-@_silgen_name("MirUI_CurrentThemeName") public func MirUI_CurrentThemeName() -> UnsafePointer<CChar>?
-@_silgen_name("MirUI_GetWidgetStyleField") public func MirUI_GetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?) -> UnsafePointer<CChar>?
-@_silgen_name("MirUI_SetWidgetStyleField") public func MirUI_SetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?) {}
-@_silgen_name("MirUI_ExecuteCommand") public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: Int64)
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyOpenGLContext") public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineCreateOpenGLRenderer") public func MirEngineCreateOpenGLRenderer(_ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer?
@@ -76,12 +81,11 @@ public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Fl
 @_silgen_name("MirEngineViewportMouseDown") public func MirEngineViewportMouseDown(_ viewport: UnsafeMutableRawPointer?, _ button: Int32, _ x: Float, _ y: Float)
 @_silgen_name("MirEngineViewportMouseUp") public func MirEngineViewportMouseUp(_ viewport: UnsafeMutableRawPointer?, _ button: Int32, _ x: Float, _ y: Float)
 @_silgen_name("MirEngineViewportMouseMove") public func MirEngineViewportMouseMove(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float)
-@_silgen_name("MirEngineViewportScroll") public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float)
+@_silgen_name("MirEngineViewportScroll") public func MirEngineViewportScroll(_ viewport: UnsafeMutableRawPointer?, _ delta: Float) {}
 @_silgen_name("MirEngineViewportClick") public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool)
 #endif
 
-// Live document bridge. These declarations intentionally mirror the C ABI
-// from MIR4DEngineDocumentBridge.hpp and are unavailable in the SwiftPM stub.
+// MARK: - Live document bridge
 #if !MIR4D_SWIFTPM
 @_silgen_name("MIR4DDocumentCreate") public func MIR4DDocumentCreate() -> UnsafeMutableRawPointer?
 @_silgen_name("MIR4DDocumentDestroy") public func MIR4DDocumentDestroy(_ handle: UnsafeMutableRawPointer?)
