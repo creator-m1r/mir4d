@@ -266,11 +266,68 @@ enum CADPanel: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Panel placement
+
+/// Dock zone of a user-movable panel.
+enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
+    case left
+    case right
+    case bottom
+
+    var id: String { rawValue }
+
+    var titleRU: String {
+        switch self {
+        case .left: return "Слева"
+        case .right: return "Справа"
+        case .bottom: return "Снизу"
+        }
+    }
+
+    var titleEN: String {
+        switch self {
+        case .left: return "Left"
+        case .right: return "Right"
+        case .bottom: return "Bottom"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .left: return "sidebar.left"
+        case .right: return "sidebar.right"
+        case .bottom: return "rectangle.split.3x1"
+        }
+    }
+}
+
 struct CADPanelState: Equatable {
     var visible: Set<CADPanel>
+    var placements: [CADPanel: PanelPlacement]
+
+    static func defaultPlacement(for panel: CADPanel) -> PanelPlacement {
+        switch panel {
+        case .project: return .left
+        case .properties: return .right
+        case .timeline, .simulation, .history: return .bottom
+        case .aiInspector: return .right
+        }
+    }
+
+    static func defaultPlacements() -> [CADPanel: PanelPlacement] {
+        Dictionary(uniqueKeysWithValues: CADPanel.allCases.map { ($0, defaultPlacement(for: $0)) })
+    }
+
+    func placement(for panel: CADPanel) -> PanelPlacement {
+        placements[panel] ?? Self.defaultPlacement(for: panel)
+    }
+
+    mutating func setPlacement(_ placement: PanelPlacement, for panel: CADPanel) {
+        placements[panel] = placement
+    }
 
     static func forWorkbench(_ workbench: CADWorkbench) -> Self {
-        Self(visible: CADPanel.defaults(for: workbench))
+        Self(visible: CADPanel.defaults(for: workbench), placements: defaultPlacements())
     }
 
     mutating func toggle(_ panel: CADPanel) {

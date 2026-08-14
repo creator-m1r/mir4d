@@ -36,17 +36,20 @@ struct CADMainView: View {
     @State private var cameraTheta = 0.8
     @State private var cameraPhi = 1.2
     @State private var cameraDistance = 12.0
+    @State private var draggingPanel: CADPanel?
+    @State private var dropTarget: PanelPlacement?
 
     var body: some View {
         ZStack {
             appearance.theme.windowBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 TopBarView(appState: appState, registry: commandRegistry, commandPalettePresented: $commandPalettePresented)
-                sidePanels
+                mainLayout
                     .animation(MirTheme.Animation.normal, value: appState.visiblePanels)
-                if appState.visiblePanels.contains(.timeline) { timeline }
+                    .animation(MirTheme.Animation.normal, value: appState.panelState)
             }
             notificationsOverlay
+            dropZones
         }
         .environment(\.locale, appearance.language.locale)
         .preferredColorScheme(appearance.theme.colorScheme)
@@ -82,14 +85,109 @@ struct CADMainView: View {
         }
     }
 
-    private var sidePanels: some View {
-        HStack(spacing: 0) {
-            if appState.visiblePanels.contains(.project) {
-                SidebarView(appState: appState).frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
+    private var leftPanels: [CADPanel] {
+        appState.visiblePanels.filter { appState.panelPlacement(for: $0) == .left }.sorted { $0.rawValue < $1.rawValue }
+    }
+
+    private var rightPanels: [CADPanel] {
+        appState.visiblePanels.filter { appState.panelPlacement(for: $0) == .right }.sorted { $0.rawValue < $1.rawValue }
+    }
+
+    private var bottomPanels: [CADPanel] {
+        appState.visiblePanels.filter { appState.panelPlacement(for: $0) == .bottom }.sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// Dockable layout: left / center / right columns are resizable,
+    /// bottom panels share the center column vertically.
+    private var mainLayout: some View {
+        HSplitView {
+            if !leftPanels.isEmpty {
+                sideColumn(leftPanels)
+                    .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
             }
-            viewport.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if appState.visiblePanels.contains(.properties) {
-                inspector
+            centerColumn
+            if !rightPanels.isEmpty {
+                sideColumn(rightPanels)
+                    .frame(minWidth: 300, idealWidth: 340, maxWidth: 440)
+            }
+        }
+    }
+
+    private func sideColumn(_ panels: [CADPanel]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(panels) { panel in
+                panelContainer(panel) { panelView(panel) }
+            }
+        }
+    }
+
+    private var centerColumn: some View {
+        VSplitView {
+            viewport.frame(minWidth: 320, idealHeight: 520, maxHeight: .infinity)
+            if !bottomPanels.isEmpty {
+                sideColumn(bottomPanels)
+                    .frame(minWidth: 640, idealHeight: 230, maxHeight: 320)
+            }
+        }
+    }
+
+    @ViewBuilder private func panelView(_ panel: CADPanel) -> some View {
+        switch panel {
+        case .project: SidebarView(appState: appState)
+        case .properties: inspector
+        case .timeline: timeline
+        default: EmptyView()
+        }
+    }
+
+    private func panelContainer<Content: View>(_ panel: CADPanel, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .overlay(alignment: .topTrailing) { panelDragHandle(panel) }
+    }
+
+    private func panelDragHandle(_ panel: CADPanel) -> some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(MirTheme.Colors.textTertiary)
+            .padding(5)
+            .background(MirTheme.Colors.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            .overlay {
+                RoundedRectangle(cornerRadius: MirTheme.Radius.small)
+                    .stroke(MirTheme.Colors.border, lineWidth: 1)
+            }
+            .padding(6)
+            .help(appState.ui.language == .russian ? "Перетащите, чтобы переместить панель" : "Drag to move panel")
+            .onDrag {
+                draggingPanel = panel
+                dropTarget = nil
+                return NSItemProvider(object: panel.rawValue as NSString)
+            }
+    }
+
+    private var dropZones: some View {
+        GeometryReader { geometry in
+            if draggingPanel != nil {
+                let zones: [(PanelPlacement, CGRect)] = [
+                    (.left, CGRect(x: 0, y: 0, width: 170, height: geometry.size.height)),
+                    (.right, CGRect(x: geometry.size.width - 170, y: 0, width: 170, height: geometry.size.height)),
+                    (.bottom, CGRect(x: 0, y: geometry.size.height - 130, width: geometry.size.width, height: 130))
+                ]
+                ZStack {
+                    ForEach(zones, id: \.0) { zone in
+                        PanelDropZone(
+                            placement: zone.0,
+                            target: dropTarget,
+                            onTargetChange: { isTargeted in dropTarget = isTargeted ? zone.0 : nil },
+                            onDropPanel: { placement in
+                                if let panel = draggingPanel { appState.setPanelPlacement(placement, for: panel) }
+                                draggingPanel = nil
+                                dropTarget = nil
+                            }
+                        )
+                        .frame(width: zone.1.width, height: zone.1.height)
+                        .position(x: zone.1.midX, y: zone.1.midY)
+                    }
+                }
             }
         }
     }
@@ -380,4 +478,37 @@ struct CADMainView: View {
     private var localizedSubMode: String { appState.ui.language == .russian ? appState.subMode.titleRU : appState.subMode.titleEN }
     private var selectionStatus: String { appState.ui.language == .russian ? "Выбрано: \(appState.selectionCount)" : "Selected: \(appState.selectionCount)" }
     private var simulationStatus: String { appState.simulation.solverStatus }
+}
+
+private struct PanelDropZone: View {
+    let placement: PanelPlacement
+    let target: PanelPlacement?
+    let onTargetChange: @MainActor @Sendable (Bool) -> Void
+    let onDropPanel: @MainActor @Sendable (PanelPlacement) -> Void
+
+    var body: some View {
+        let isTargeted = target == placement
+        RoundedRectangle(cornerRadius: 10)
+            .fill(isTargeted ? MirTheme.Colors.accent.opacity(0.14) : MirTheme.Colors.surface.opacity(0.55))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isTargeted ? MirTheme.Colors.accentBright : MirTheme.Colors.borderStrong, lineWidth: isTargeted ? 2 : 1)
+            }
+            .overlay {
+                VStack(spacing: 6) {
+                    Image(systemName: placement.icon).font(.system(size: 14))
+                    Text(placement.titleRU).font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(isTargeted ? MirTheme.Colors.accentBright : MirTheme.Colors.textSecondary)
+            }
+            .contentShape(Rectangle())
+            .onDrop(of: [UTType.text], isTargeted: Binding(get: { target == placement }, set: { isTargeted in Task { @MainActor in onTargetChange(isTargeted) } })) { providers in
+                guard let provider = providers.first else { return false }
+                provider.loadObject(ofClass: NSString.self) { object, _ in
+                    guard let raw = object as? String, CADPanel(rawValue: raw) != nil else { return }
+                    Task { @MainActor in onDropPanel(placement) }
+                }
+                return true
+            }
+    }
 }

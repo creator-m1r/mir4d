@@ -207,6 +207,15 @@ final class CADAppState: ObservableObject {
 
     func togglePanel(_ panel: CADPanel) { panelState.toggle(panel) }
 
+    func panelPlacement(for panel: CADPanel) -> PanelPlacement { panelState.placement(for: panel) }
+
+    func setPanelPlacement(_ placement: PanelPlacement, for panel: CADPanel) {
+        panelState.setPlacement(placement, for: panel)
+        let title = ui.language == .russian ? panel.titleRU : panel.titleEN
+        let zone = ui.language == .russian ? placement.titleRU : placement.titleEN
+        showNotification("\(title): \(zone)", type: .info)
+    }
+
     // MARK: UI
 
     func toggleLanguage() { ui.language = ui.language == .russian ? .english : .russian }
