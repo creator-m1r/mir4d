@@ -18,6 +18,24 @@ target_include_directories(MirEngine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(MirEngine INTERFACE cxx_std_23)
 target_compile_definitions(MirEngine INTERFACE MIR_ENABLE_OCCT=$<BOOL:${MIR_ENABLE_OCCT}>)
 
+add_library(MirEngineBRep INTERFACE)
+target_link_libraries(MirEngineBRep INTERFACE MirEngine)
+target_include_directories(MirEngineBRep INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Topology
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Geometry
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Builders
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Tessellator
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Boolean
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Converters
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Commands
+    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Validator
+)
+
+after=""
+
 if(APPLE)
     target_compile_definitions(MirEngine INTERFACE MIR_PLATFORM_MACOS=1)
 
@@ -38,29 +56,16 @@ if(APPLE)
     target_include_directories(MirEngineMacOpenGL PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
+    # The native C ABI creates B-Rep-backed scene content, so the OpenGL
+    # bridge must inherit the complete B-Rep include graph, not only the
+    # base MirEngine include root.
     target_link_libraries(MirEngineMacOpenGL PUBLIC
-        MirEngine
+        MirEngineBRep
         ${MIR4D_OPENGL_FRAMEWORK}
         ${MIR4D_COCOA_FRAMEWORK}
     )
     target_compile_features(MirEngineMacOpenGL PUBLIC cxx_std_23)
 endif()
-
-add_library(MirEngineBRep INTERFACE)
-target_link_libraries(MirEngineBRep INTERFACE MirEngine)
-target_include_directories(MirEngineBRep INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Core
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Topology
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Geometry
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Builders
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Tessellator
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Boolean
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Converters
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Commands
-    ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Validator
-)
 
 add_library(MirEngineRuntime INTERFACE)
 target_link_libraries(MirEngineRuntime INTERFACE MirEngineBRep)
@@ -144,7 +149,8 @@ target_link_libraries(MIR4D_StepImporter PRIVATE MirEngineIO)
 add_executable(MIR4D_DocumentRenderBridge MirEngine/Tests/Render/DocumentRenderBridge.cpp)
 target_link_libraries(MIR4D_DocumentRenderBridge PRIVATE MirEngineIO)
 
-add_executable(MIR4D_RenderCamera MirEngine/Tests/Render/RenderCameraTest.cpp)
+add_executable(MIR4D_RenderCamera MirEngineRender PRIVATE MirEngineRender)
+
 target_link_libraries(MIR4D_RenderCamera PRIVATE MirEngineRender)
 
 add_executable(MIR4D_CreateBox MirEngine/Tests/Document/CreateBox.cpp)
