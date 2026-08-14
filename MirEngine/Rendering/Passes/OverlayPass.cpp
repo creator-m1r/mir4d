@@ -7,11 +7,11 @@
 #include "../Resources/VertexArray.h"
 #include "../Resources/VertexBuffer.h"
 #include "../Resources/Vertex.h"
-#include "../Rendering/Core/RenderContext.h"
-#include "../Scene/Scene.h"
-#include "../Scene/Camera.h"
+#include "../Core/RenderContext.h"
+#include "../Core/RenderDevice.h"
+#include "../Resources/Vertex.h"
 
-#include <spdlog/spdlog.h>
+#include <iostream>
 
 namespace MirEngine {
 namespace Rendering {
@@ -46,7 +46,7 @@ bool OverlayPass::initialize(RenderDevice& device) {
                                                kSolidColorVert,
                                                kSolidColorFrag);
     if (handle.empty()) {
-        spdlog::error("[OverlayPass] Failed to load shader.");
+        std::cerr << "[OverlayPass] Failed to load shader.\n";
         return false;
     }
     m_materialHandle = 5000;
@@ -60,13 +60,12 @@ bool OverlayPass::initialize(RenderDevice& device) {
     m_meshHandle = 5000;
     device.registerMesh(m_meshHandle, m_vao);
 
-    spdlog::info("[OverlayPass] Initialized.");
+    std::cout << "[OverlayPass] Initialized.\n";
     return true;
 }
 
 void OverlayPass::execute(RenderContext& /*context*/,
-                          Scene& /*scene*/,
-                          Camera& /*camera*/,
+                          mir::Scene& /*scene*/,
                           RenderDevice& device) {
     auto shader = m_shaderLibrary.get("SolidColor");
     if (shader) shader->bind();

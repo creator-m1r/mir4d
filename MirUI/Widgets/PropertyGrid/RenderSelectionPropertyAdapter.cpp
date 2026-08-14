@@ -6,11 +6,11 @@ namespace MirUI
 {
 
 std::vector<Property> RenderSelectionPropertyAdapter::makeProperties(
-    const mir::RenderSelectionProperties& selectionProperties)
+    const MirEngine::Rendering::RenderSelectionProperties& selectionProperties)
 {
     std::vector<Property> properties;
 
-    const auto rows = mir::RenderSelectionPropertiesFormatter::format(selectionProperties);
+    const auto rows = MirEngine::Rendering::RenderSelectionPropertiesFormatter::format(selectionProperties);
     properties.reserve(rows.size());
 
     for (const auto& row : rows)

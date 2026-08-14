@@ -15,7 +15,7 @@ public:
         grid_.clear();
     }
 
-    void update(const mir::RenderSelectionProperties& selectionProperties)
+    void update(const MirEngine::Rendering::RenderSelectionProperties& selectionProperties)
     {
         model_.update(selectionProperties);
         grid_.setProperties(model_.properties());

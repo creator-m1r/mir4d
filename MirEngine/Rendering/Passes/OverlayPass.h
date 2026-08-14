@@ -21,6 +21,7 @@
 #include "RenderPass.h"
 #include "../Core/RenderCommand.h"
 #include "../Resources/ShaderLibrary.h"
+#include "../Resources/Vertex.h"
 #include <memory>
 #include <vector>
 
@@ -42,8 +43,7 @@ public:
     bool initialize(RenderDevice& device);
 
     void execute(RenderContext& context,
-                 Scene& scene,
-                 Camera& camera,
+                 mir::Scene& scene,
                  RenderDevice& device) override;
 
 private:
@@ -54,6 +54,8 @@ private:
 
     std::shared_ptr<VertexArray>  m_vao;
     std::shared_ptr<VertexBuffer> m_vb;
+
+    std::vector<Vertex> m_vertices;
 
     // Вспомогательный метод для добавления сегмента линии в список вершин
     void addLine(std::vector<Vertex>& verts,

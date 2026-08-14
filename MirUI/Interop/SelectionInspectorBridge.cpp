@@ -1,7 +1,7 @@
 #include "SelectionInspectorBridge.hpp"
 
 #include "../Widgets/PropertyGrid/SelectionPropertiesPanel.hpp"
-#include "../../MirEngine/Render/Selection/RenderSelectionProperties.hpp"
+#include "../../MirEngine/Rendering/Selection/RenderSelectionProperties.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -102,8 +102,8 @@ mirui_selection_inspector_update_face(
     if (handle == nullptr || id == 0)
         return;
 
-    mir::RenderSelectionProperties properties;
-    properties.selection.type = mir::RenderSelectionType::Face;
+    MirEngine::Rendering::RenderSelectionProperties properties;
+    properties.selection.type = MirEngine::Rendering::RenderSelectionType::Face;
     properties.selection.id = id;
     properties.triangleCount = static_cast<std::size_t>(triangleCount);
     properties.area = area;

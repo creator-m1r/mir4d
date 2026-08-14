@@ -16,7 +16,7 @@ public:
         properties_.clear();
     }
 
-    void update(const mir::RenderSelectionProperties& selectionProperties)
+    void update(const MirEngine::Rendering::RenderSelectionProperties& selectionProperties)
     {
         properties_ = RenderSelectionPropertyAdapter::makeProperties(selectionProperties);
     }

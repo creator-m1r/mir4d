@@ -7,11 +7,11 @@
 #include "../Resources/VertexArray.h"
 #include "../Resources/VertexBuffer.h"
 #include "../Resources/Vertex.h"
-#include "../Rendering/Core/RenderContext.h"
-#include "../Scene/Scene.h"
-#include "../Scene/Camera.h"
+#include "../Core/RenderContext.h"
+#include "../Core/RenderDevice.h"
+#include "../Resources/Vertex.h"
 
-#include <spdlog/spdlog.h>
+#include <iostream>
 
 namespace MirEngine {
 namespace Rendering {
@@ -48,7 +48,7 @@ bool GizmoPass::initialize(RenderDevice& device) {
                                                      kSolidColorVert,
                                                      kSolidColorFrag);
     if (shaderHandle.empty()) {
-        spdlog::error("[GizmoPass] Failed to load shader.");
+        std::cerr << "[GizmoPass] Failed to load shader.\n";
         return false;
     }
     m_materialHandle = 4000; // дескриптор для гизмо
@@ -63,13 +63,12 @@ bool GizmoPass::initialize(RenderDevice& device) {
     m_meshHandle = 4000;
     device.registerMesh(m_meshHandle, m_vao);
 
-    spdlog::info("[GizmoPass] Initialized.");
+    std::cout << "[GizmoPass] Initialized.\n";
     return true;
 }
 
 void GizmoPass::execute(RenderContext& /*context*/,
-                        Scene& /*scene*/,
-                        Camera& /*camera*/,
+                        mir::Scene& /*scene*/,
                         RenderDevice& device) {
     auto shader = m_shaderLibrary.get("SolidColor");
     if (shader) shader->bind();

@@ -1,6 +1,6 @@
 #include "SelectionEventBridge.hpp"
 
-#include "../../MirEngine/Render/Selection/RenderSelection.hpp"
+#include "../../MirEngine/Rendering/Selection/RenderSelection.hpp"
 
 #include <cstdint>
 
@@ -9,19 +9,19 @@ namespace MirUI
 namespace
 {
 
-[[nodiscard]] SelectionKind toSelectionKind(mir::RenderSelectionType type) noexcept
+[[nodiscard]] SelectionKind toSelectionKind(MirEngine::Rendering::RenderSelectionType type) noexcept
 {
     switch (type)
     {
-    case mir::RenderSelectionType::Vertex:
+    case MirEngine::Rendering::RenderSelectionType::Vertex:
         return SelectionKind::Vertex;
-    case mir::RenderSelectionType::Edge:
+    case MirEngine::Rendering::RenderSelectionType::Edge:
         return SelectionKind::Edge;
-    case mir::RenderSelectionType::Face:
+    case MirEngine::Rendering::RenderSelectionType::Face:
         return SelectionKind::Face;
-    case mir::RenderSelectionType::Solid:
+    case MirEngine::Rendering::RenderSelectionType::Solid:
         return SelectionKind::Solid;
-    case mir::RenderSelectionType::None:
+    case MirEngine::Rendering::RenderSelectionType::None:
     default:
         return SelectionKind::None;
     }
@@ -29,22 +29,22 @@ namespace
 
 } // namespace
 
-void SelectionEventBridge::attach(mir::RenderViewport& viewport) noexcept
+void SelectionEventBridge::attach(MirEngine::Rendering::RenderViewport& viewport) noexcept
 {
     viewport.setSelectionChangedCallback(
-        [this](const mir::RenderSelection& selection,
-               const mir::RenderSelectionProperties&) noexcept
+        [this](const MirEngine::Rendering::RenderSelection& selection,
+               const MirEngine::Rendering::RenderSelectionProperties&) noexcept
         {
             publish(selection);
         });
 }
 
-void SelectionEventBridge::detach(mir::RenderViewport& viewport) noexcept
+void SelectionEventBridge::detach(MirEngine::Rendering::RenderViewport& viewport) noexcept
 {
     viewport.setSelectionChangedCallback({});
 }
 
-void SelectionEventBridge::publish(const mir::RenderSelection& selection) noexcept
+void SelectionEventBridge::publish(const MirEngine::Rendering::RenderSelection& selection) noexcept
 {
     Event event = SelectionChangedEvent::make(
         toSelectionKind(selection.type),

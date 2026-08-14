@@ -7,11 +7,11 @@
 #include "../Resources/VertexArray.h"
 #include "../Resources/VertexBuffer.h"
 #include "../Resources/Vertex.h"
-#include "../Rendering/Core/RenderContext.h"
-#include "../Scene/Scene.h"
-#include "../Scene/Camera.h"
+#include "../Core/RenderContext.h"
+#include "../Core/RenderDevice.h"
+#include "../Resources/Vertex.h"
 
-#include <spdlog/spdlog.h>
+#include <iostream>
 
 namespace MirEngine {
 namespace Rendering {
@@ -48,7 +48,7 @@ bool SelectionPass::initialize(RenderDevice& device) {
                                                      kSelectionVert,
                                                      kSelectionFrag);
     if (shaderHandle.empty()) {
-        spdlog::error("[SelectionPass] Failed to load shader.");
+        std::cerr << "[SelectionPass] Failed to load shader.\n";
         return false;
     }
     m_materialHandle = 3000; // фиксированный дескриптор
@@ -71,13 +71,12 @@ bool SelectionPass::initialize(RenderDevice& device) {
     m_meshHandle = 3000;
     device.registerMesh(m_meshHandle, m_vao);
 
-    spdlog::info("[SelectionPass] Initialized with test contour.");
+    std::cout << "[SelectionPass] Initialized with test contour.\n";
     return true;
 }
 
 void SelectionPass::execute(RenderContext& context,
-                            Scene& /*scene*/,
-                            Camera& /*camera*/,
+                            mir::Scene& /*scene*/,
                             RenderDevice& device) {
     // Устанавливаем ярко-жёлтый цвет
     auto shader = m_shaderLibrary.get("SelectionColor");

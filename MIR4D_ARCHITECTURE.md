@@ -571,20 +571,23 @@ MirEngine/Interaction/
 
 ## 20. Render
 
-TARGET:
+Единый контур рендеринга:
 
 ```text
-MirEngine/Render/
-├── RenderContext.hpp
-├── RenderCommand.hpp
-├── RenderSnapshot.hpp
-├── GeometryPass.hpp
-├── SelectionPass.hpp
-├── PickingPass.hpp
-└── Backend/
+MirEngine/Rendering/
+├── Core/            RenderCommand, RenderContext, RenderDevice, RenderPass
+├── Resources/       Shader, ShaderLibrary, Texture, Framebuffer, Vertex, Buffer
+├── Passes/          GridPass, GeometryPass, GizmoPass, OverlayPass, SelectionPass
+├── OpenGL/          OpenGLRenderer, OpenGLFrameRenderer, OpenGLShader, OpenGLTexture,
+│                    OpenGLFrameBuffer, OpenGLMeshRenderer, OpenGLShaderProgram
+├── Camera/          RenderCamera, RenderTypes
+├── Selection/       выделение объектов (RenderSelection, picking, hit-testing)
+├── Viewport/        RenderViewport, ViewportController
+├── Geometry/        контуры и преобразования
+└── Material/        материалы
 ```
 
-`MirEngine/Rendering` — legacy boundary. Сначала перенос API, затем удаление legacy.
+Legacy `MirEngine/Render/` перенесён в `MirEngine/Rendering/` (namespace `MirEngine::Rendering`).
 
 Render никогда не изменяет Document.
 

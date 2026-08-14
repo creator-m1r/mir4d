@@ -76,6 +76,8 @@ ShaderHandle ShaderLibrary::load(const std::string& name,
 
 // ---------------------------------------------------------------------------------
 // Получение шейдера по дескриптору.
+// Если шейдер не найден, возвращает зарегистрированный шейдер с именем "default"
+// (fallback), чтобы рендерер продолжал работать вместо nullptr-разыменования.
 // ---------------------------------------------------------------------------------
 std::shared_ptr<Shader> ShaderLibrary::get(const ShaderHandle& handle) const
 {
@@ -83,7 +85,14 @@ std::shared_ptr<Shader> ShaderLibrary::get(const ShaderHandle& handle) const
     if (it != m_shaders.end()) {
         return it->second;
     }
-    std::cerr << "[ShaderLibrary] Shader '" << handle << "' not found.\n";
+
+    auto fallback = m_shaders.find("default");
+    if (fallback != m_shaders.end()) {
+        std::cerr << "[ShaderLibrary] Shader '" << handle << "' not found; using 'default' fallback.\n";
+        return fallback->second;
+    }
+
+    std::cerr << "[ShaderLibrary] Shader '" << handle << "' not found and no 'default' fallback registered.\n";
     return nullptr;
 }
 

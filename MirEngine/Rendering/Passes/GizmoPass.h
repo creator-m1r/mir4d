@@ -22,6 +22,7 @@
 #include "RenderPass.h"
 #include "../Core/RenderCommand.h"
 #include "../Resources/ShaderLibrary.h"
+#include "../Resources/Vertex.h"
 #include <memory>
 #include <vector>
 
@@ -40,8 +41,7 @@ public:
     bool initialize(RenderDevice& device);
 
     void execute(RenderContext& context,
-                 Scene& scene,
-                 Camera& camera,
+                 mir::Scene& scene,
                  RenderDevice& device) override;
 
     // Позиция гизмо (в будущем будет задаваться выделенным объектом)
@@ -55,6 +55,8 @@ private:
 
     std::shared_ptr<VertexArray>  m_vao;
     std::shared_ptr<VertexBuffer> m_vb;
+
+    std::vector<Vertex> m_vertices;
 
     Vector3 m_position = {0.0f, 0.0f, 0.0f};
 

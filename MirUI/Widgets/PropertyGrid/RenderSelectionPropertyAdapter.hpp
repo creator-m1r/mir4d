@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Property.hpp"
-#include "../../../MirEngine/Render/Selection/RenderSelectionProperties.hpp"
-#include "../../../MirEngine/Render/Selection/RenderSelectionPropertiesFormatter.hpp"
+#include "../../../MirEngine/Rendering/Selection/RenderSelectionProperties.hpp"
+#include "../../../MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.hpp"
 
 #include <vector>
 
@@ -13,7 +13,7 @@ class RenderSelectionPropertyAdapter
 {
 public:
     [[nodiscard]] static std::vector<Property> makeProperties(
-        const mir::RenderSelectionProperties& selectionProperties);
+        const MirEngine::Rendering::RenderSelectionProperties& selectionProperties);
 };
 
 } // namespace MirUI

@@ -29,6 +29,33 @@ if(APPLE)
     add_library(MirEngineMacOpenGL STATIC
         MirEngine/Core/Exports/MirEngineExports.cpp
         MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
+        MirEngine/Rendering/OpenGL/OpenGLCapabilities.cpp
+        MirEngine/Rendering/OpenGL/OpenGLDebug.cpp
+        MirEngine/Rendering/OpenGL/OpenGLDevice.cpp
+        MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
+        MirEngine/Rendering/OpenGL/OpenGLShader.cpp
+        MirEngine/Rendering/OpenGL/OpenGLState.cpp
+        MirEngine/Rendering/OpenGL/OpenGLTexture.cpp
+        MirEngine/Rendering/OpenGL/OpenGLFrameBuffer.cpp
+        MirEngine/Rendering/OpenGL/OpenGLVertexArray.cpp
+        MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
+        MirEngine/Rendering/Passes/GeometryPass.cpp
+        MirEngine/Rendering/Passes/GizmoPass.cpp
+        MirEngine/Rendering/Passes/GridPass.cpp
+        MirEngine/Rendering/Passes/OverlayPass.cpp
+        MirEngine/Rendering/Passes/SelectionPass.cpp
+        MirEngine/Rendering/Resources/ShaderLibrary.cpp
+        MirEngine/Rendering/Camera/RenderCamera.cpp
+        MirEngine/Rendering/OpenGL/OpenGLShaderProgram.cpp
+        MirEngine/Rendering/OpenGL/OpenGLFrameRenderer.cpp
+        MirEngine/Rendering/OpenGL/OpenGLMeshRenderer.cpp
+        MirEngine/Rendering/OpenGL/OpenGLRenderMeshUploader.cpp
+        MirEngine/Rendering/Selection/OpenGLSelectionRenderer.cpp
+        MirEngine/Rendering/Selection/RenderScreenRay.cpp
+        MirEngine/Rendering/Selection/RenderSelectionController.cpp
+        MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
+        MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
+        MirEngine/Rendering/Viewport/RenderViewport.cpp
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
 
@@ -59,6 +86,10 @@ if(APPLE)
         ${MIR4D_COCOA_FRAMEWORK}
     )
     target_compile_features(MirEngineMacOpenGL PUBLIC cxx_std_23)
+
+    add_library(MirEngineRender INTERFACE)
+    target_link_libraries(MirEngineRender INTERFACE MirEngineMacOpenGL)
+    target_include_directories(MirEngineRender INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
 add_library(MirEngineBRep INTERFACE)
@@ -98,13 +129,6 @@ target_include_directories(MirEngineSimulation INTERFACE ${CMAKE_CURRENT_SOURCE_
 add_library(MirEngineDomains INTERFACE)
 target_link_libraries(MirEngineDomains INTERFACE MirEngine)
 target_include_directories(MirEngineDomains INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_library(MirEngineRender STATIC
-    MirEngine/Render/RenderCamera.cpp
-)
-target_link_libraries(MirEngineRender PUBLIC MirEngine)
-target_include_directories(MirEngineRender PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_features(MirEngineRender PUBLIC cxx_std_23)
 
 add_library(MirEngineIO STATIC
     MirEngine/IO/Mesh/StlImporter.cpp

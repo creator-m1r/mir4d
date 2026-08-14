@@ -21,6 +21,7 @@
 #include "RenderPass.h"
 #include "../Core/RenderCommand.h"
 #include "../Resources/ShaderLibrary.h"
+#include "../Resources/Vertex.h"
 #include <memory>
 #include <vector>
 
@@ -46,8 +47,7 @@ public:
     // Пока просто рисует тестовый контур.
     // --------------------------------------------------------------------------
     void execute(RenderContext& context,
-                 Scene& scene,
-                 Camera& camera,
+                 mir::Scene& scene,
                  RenderDevice& device) override;
 
 private:

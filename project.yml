@@ -59,14 +59,25 @@ targets:
       - path: MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLShader.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLState.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLTexture.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLFrameBuffer.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLVertexArray.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
       - path: MirEngine/Rendering/Passes/GridPass.cpp
       - path: MirEngine/Rendering/Passes/GeometryPass.cpp
       - path: MirEngine/Rendering/Resources/ShaderLibrary.cpp
+      - path: MirEngine/Rendering/Camera/RenderCamera.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLShaderProgram.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLFrameRenderer.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLMeshRenderer.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLRenderMeshUploader.cpp
+      - path: MirEngine/Rendering/Selection/OpenGLSelectionRenderer.cpp
+      - path: MirEngine/Rendering/Selection/RenderScreenRay.cpp
+      - path: MirEngine/Rendering/Selection/RenderSelectionController.cpp
+      - path: MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
+      - path: MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
+      - path: MirEngine/Rendering/Viewport/RenderViewport.cpp
       - path: MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
-      - path: MirEngine/Render/RenderCamera.cpp
-      - path: MirEngine/Render/Selection/RenderSelectionPropertiesFormatter.cpp
       - path: MirEngine/IO/ImportService.cpp
       - path: MirEngine/IO/ExportService.cpp
       - path: MirEngine/IO/Mesh/StlImporter.cpp

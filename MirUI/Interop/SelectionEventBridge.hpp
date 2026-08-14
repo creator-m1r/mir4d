@@ -2,7 +2,7 @@
 
 #include "../Core/Events/EventBus.hpp"
 #include "../Core/Events/SelectionChangedEvent.hpp"
-#include "../../MirEngine/Render/Viewport/RenderViewport.hpp"
+#include "../../MirEngine/Rendering/Viewport/RenderViewport.hpp"
 
 namespace MirUI
 {
@@ -15,11 +15,11 @@ public:
     {
     }
 
-    void attach(mir::RenderViewport& viewport) noexcept;
-    void detach(mir::RenderViewport& viewport) noexcept;
+    void attach(MirEngine::Rendering::RenderViewport& viewport) noexcept;
+    void detach(MirEngine::Rendering::RenderViewport& viewport) noexcept;
 
 private:
-    void publish(const mir::RenderSelection& selection) noexcept;
+    void publish(const MirEngine::Rendering::RenderSelection& selection) noexcept;
 
     EventBus& eventBus_;
 };

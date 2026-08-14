@@ -1,4 +1,4 @@
-#include "MirEngine/Render/RenderCamera.hpp"
+#include "MirEngine/Rendering/Camera/RenderCamera.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -6,7 +6,7 @@
 namespace
 {
 
-bool finiteMatrix(const mir::RenderMat4& matrix)
+bool finiteMatrix(const MirEngine::Rendering::RenderMat4& matrix)
 {
     for (double value : matrix.m)
         if (!std::isfinite(value))
@@ -18,7 +18,7 @@ bool finiteMatrix(const mir::RenderMat4& matrix)
 
 int main()
 {
-    mir::RenderCamera camera;
+    MirEngine::Rendering::RenderCamera camera;
     camera.setTarget({1.0, 2.0, 3.0});
     camera.setDistance(8.0);
     camera.setYaw(0.4);
