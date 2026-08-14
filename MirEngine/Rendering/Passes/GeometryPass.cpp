@@ -117,7 +117,7 @@ void GeometryPass::execute(RenderContext& context,
     {
         if (!node || !node->model() || !node->model()->hasMesh())
             continue;
-        if (node->id() == mir::InvalidObjectId)
+        if (node->id() == mir4d::InvalidObjectId)
             continue;
 
         processNode(*node, device, shader.get());
@@ -180,51 +180,65 @@ void GeometryPass::processNode(const mir::ModelNode& node,
         {
             const auto& p = mesh.vertices[i];
             const auto& n = normals[i];
-            vertices.emplace_back(
-                Rendering::Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)},
-                Rendering::Vector3{static_cast<float>(n.x), static_cast<float>(n.y), static_cast<float>(n.z)},
-                Rendering::Vector2{});
+            vertices.push_back(Vertex{
+                static_cast<float>(p.x),
+                static_cast<float>(p.y),
+                static_cast<float>(p.z),
+                static_cast<float>(n.x),
+                static_cast<float>(n.y),
+                static_cast<float>(n.z)});
         }
 
         for (const auto& triangle : mesh.triangles)
         {
-            indices.push_back(static_cast<std::uint32_t>(triangle.a));
-            indices.push_back(static_cast<std::uint32_t>(triangle.b));
-            indices.push_back(static_cast<std::uint32_t>(triangle.c));
+            indices.push_back(triangle.a);
+            indices.push_back(triangle.b);
+            indices.push_back(triangle.c);
         }
 
-        auto vb = device.createVertexBuffer();
-        vb->uploadVertices(vertices, BufferUsage::Static);
-        auto ib = device.createIndexBuffer();
-        ib->uploadIndices(indices, BufferUsage::Static);
-        auto vao = device.createVertexArray();
-        vao->setVertexBuffer(vb);
-        vao->setIndexBuffer(ib);
+        auto vao = std::make_shared<VertexArray>();
+        if (!vao->create())
+            return;
+
+        auto vbo = std::make_shared<VertexBuffer>();
+        if (!vbo->create(vertices.data(), vertices.size() * sizeof(Vertex)))
+            return;
+
+        auto ibo = std::make_shared<IndexBuffer>();
+        if (!ibo->create(indices.data(), indices.size() * sizeof(std::uint32_t)))
+            return;
+
+        vao->bind();
+        vbo->bind();
+        ibo->bind();
+        vao->setAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+        vao->setAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 3 * sizeof(float));
+        vao->unbind();
 
         handle = m_nextMeshHandle++;
-        device.registerMesh(handle, vao);
-        m_objectToHandle[node.id()] = handle;
-        m_vaos[handle] = vao;
+        m_objectToHandle.emplace(node.id(), handle);
+        m_vaos.emplace(handle, std::move(vao));
     }
 
-    RenderCommand command;
-    command.mesh = handle;
-    command.material = m_defaultMaterial;
-    command.modelMatrix = makeModelMatrix(node.transform());
-    command.primitive = PrimitiveType::Triangles;
-    device.draw(command);
+    const auto vao = m_vaos.find(handle);
+    if (vao == m_vaos.end())
+        return;
 
-    (void)shader;
+    shader->setMatrix("u_model", makeModelMatrix(node.transform()));
+    shader->setVec3("u_color", 0.72f, 0.76f, 0.82f);
+    vao->second->bind();
+    vao->second->drawElements(GL_TRIANGLES,
+                              static_cast<std::uint32_t>(node.model()->mesh().triangles.size() * 3));
+    vao->second->unbind();
 }
 
 Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform) noexcept
 {
-    const mir::Matrix4 matrix = transform.matrix();
-    Matrix4Raw result{};
-    for (std::size_t row = 0; row < 4; ++row)
-        for (std::size_t column = 0; column < 4; ++column)
-            result[row + column * 4] = static_cast<float>(matrix(row, column));
-    return result;
+    Matrix4Raw matrix{};
+    const auto& values = transform.matrix().values;
+    for (std::size_t i = 0; i < values.size(); ++i)
+        matrix.values[i] = static_cast<float>(values[i]);
+    return matrix;
 }
 
 } // namespace MirEngine::Rendering
