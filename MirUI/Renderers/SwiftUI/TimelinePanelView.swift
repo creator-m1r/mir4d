@@ -76,11 +76,15 @@ struct TimelinePanelView: View {
                 }
             }
             .padding(2)
-            .background(MirTheme.Colors.surfaceRaised.opacity(0.65), in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+            .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+            .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.border, lineWidth: 1))
         }
         .padding(.horizontal, MirTheme.Spacing.md)
         .frame(height: 48)
-        .background(MirTheme.Colors.surface.opacity(0.72))
+        .background(MirTheme.Colors.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
+        }
     }
 
     private func playbackButton(_ image: String, active: Bool = false, help: String, action: @escaping () -> Void) -> some View {
@@ -88,9 +92,10 @@ struct TimelinePanelView: View {
             Image(systemName: image)
                 .font(.system(size: 10, weight: .semibold))
                 .frame(width: 28, height: 28)
-                .background(active ? MirTheme.Colors.accentSoft : MirTheme.Colors.surface.opacity(0.45))
+                .background(active ? MirTheme.Colors.accentSoft : MirTheme.Colors.surfaceRaised)
                 .foregroundStyle(active ? MirTheme.Colors.accentBright : MirTheme.Colors.textSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .help(help)
@@ -112,7 +117,7 @@ struct TimelinePanelView: View {
         }
         .padding(.horizontal, MirTheme.Spacing.md)
         .padding(.vertical, 7)
-        .background(MirTheme.Colors.surface.opacity(0.55))
+        .background(MirTheme.Colors.surface)
     }
 
     private var legend: some View {
@@ -127,6 +132,7 @@ struct TimelinePanelView: View {
         .foregroundStyle(MirTheme.Colors.textTertiary)
         .padding(.horizontal, MirTheme.Spacing.md)
         .padding(.vertical, 5)
+        .background(MirTheme.Colors.surface)
     }
 
     private var gantt: some View {
@@ -161,6 +167,7 @@ struct TimelinePanelView: View {
                         }
                         .padding(.horizontal, 8)
                         .frame(height: 28)
+                        .background(MirTheme.Colors.surfaceRaised)
 
                         ForEach(tasks, id: \.wbs) { task in
                             ZStack(alignment: .leading) {
@@ -191,7 +198,7 @@ struct TimelinePanelView: View {
                 }
             }
         }
-        .background(MirTheme.Colors.surface.opacity(0.35))
+        .background(MirTheme.Colors.surface)
     }
 
     private var ganttHeaderRow: some View {
@@ -206,7 +213,7 @@ struct TimelinePanelView: View {
         .foregroundStyle(MirTheme.Colors.textTertiary)
         .padding(.horizontal, 10)
         .frame(height: 28)
-        .background(MirTheme.Colors.surfaceRaised.opacity(0.45))
+        .background(MirTheme.Colors.surfaceRaised)
     }
 
     private func legendItem(color: Color, text: String) -> some View {
