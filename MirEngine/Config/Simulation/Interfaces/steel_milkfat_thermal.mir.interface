@@ -1,0 +1,7 @@
+# МИР 4D — теплопередача между сталью и молочным жиром
+
+firstRegionId=1
+secondRegionId=2
+process=thermalTransfer
+coefficient=250.0
+enabled=true

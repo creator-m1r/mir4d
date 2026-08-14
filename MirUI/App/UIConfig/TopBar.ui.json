@@ -1,0 +1,23 @@
+{
+  "id": "topBar",
+  "title": "Верхняя панель",
+  "visible": true,
+  "x": 0,
+  "y": 0,
+  "width": 0,
+  "height": 58,
+  "minWidth": 900,
+  "minHeight": 48,
+  "scale": 1.0,
+  "opacity": 1.0,
+  "padding": 18,
+  "spacing": 18,
+  "cornerRadius": 0,
+  "background": "#14181F",
+  "foreground": "#FFFFFF",
+  "accent": "#42D9FF",
+  "dock": "top",
+  "resizable": true,
+  "movable": true,
+  "scalable": true
+}
