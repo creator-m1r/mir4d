@@ -35,7 +35,7 @@ struct SidebarView: View {
 
     private var sectionPicker: some View {
         HStack(spacing: 4) {
-            ForEach(sections.indices, id: \.self) { index in
+            ForEach(sections.indices, id: \\.self) { index in
                 Button(sections[index]) { withAnimation(MirTheme.Animation.fast) { activeSection = index } }
                     .buttonStyle(.plain).font(MirTheme.Typography.caption).padding(.vertical, 6).frame(maxWidth: .infinity)
                     .background(activeSection == index ? MirTheme.Colors.accentSoft : Color.clear)
@@ -74,7 +74,15 @@ struct SidebarView: View {
         case .operation: icon = "arrow.up.right"
         case .result: icon = "square.3d.up"
         }
-        return TreeNodeData(name: node.title, icon: icon, children: node.children.map(convert))
+
+        // Preserve the persisted model UUID. Tree rows must not invent a
+        // second identity layer for CAD objects.
+        return TreeNodeData(
+            id: node.id,
+            name: node.title,
+            icon: icon,
+            children: node.children.map(convert)
+        )
     }
 
     private func contains(_ node: TreeNodeData, query: String) -> Bool {
