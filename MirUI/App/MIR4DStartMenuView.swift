@@ -122,19 +122,45 @@ struct MIR4DStartMenuView: View {
 
     private func activate(_ mode: MIR4DStartMode) {
         selectedMode = mode
+
         switch mode {
-        case .openProject: present(.openProject)
-        case .newProject: present(.newProject)
+        case .openProject:
+            // Единственная карточка, которая остаётся в стартовом меню:
+            // пользователь сначала выбирает существующий .mir4d проект.
+            present(.openProject)
+
+        case .newProject:
+            // После успешного создания MIR4DProjectSession отправит
+            // .mir4DProjectActivated, и StartupView плавно покажет CADMainView.
+            present(.newProject)
+
         case .laboratory4D:
-            appState.selectWorkbench(.fourD)
-            appState.showNotification("4D лаборатория активирована", type: .success)
+            enterWorkspace(workbench: .fourD, message: "4D лаборатория активирована")
+
         case .mathematicalUniverse:
-            NotificationCenter.default.post(name: .mir4DStartMathUniverse, object: nil)
+            enterWorkspace(workbench: .simulation, message: "Математическая вселенная активирована")
+
         case .programmingWorld:
-            NotificationCenter.default.post(name: .mir4DStartProgrammingWorld, object: nil)
+            enterWorkspace(workbench: .model, message: "Мир программирования открыт в рабочем пространстве")
+
         case .knowledgeWorld:
-            NotificationCenter.default.post(name: .mir4DStartKnowledgeWorld, object: nil)
+            enterWorkspace(workbench: .model, message: "МИР Знаний открыт в рабочем пространстве")
         }
+    }
+
+    private func enterWorkspace(workbench: CADWorkbench, message: String) {
+        appState.selectWorkbench(workbench)
+        appState.documentName = "Новый проект"
+        appState.documentDirty = false
+        appState.showNotification(message, type: .success)
+
+        // Не создаём отдельное окно/экран для каждого режима.
+        // Все режимы входят в одно и то же главное рабочее пространство MIR 4D.
+        NotificationCenter.default.post(
+            name: .mir4DStartWorkspace,
+            object: nil,
+            userInfo: ["workbench": workbench.rawValue]
+        )
     }
 }
 
@@ -184,6 +210,7 @@ enum MIR4DStartMode: String, CaseIterable, Identifiable {
 
 extension Notification.Name {
     static let mir4DOpenProject = Notification.Name("MIR4D.OpenProject")
+    static let mir4DStartWorkspace = Notification.Name("MIR4D.StartWorkspace")
     static let mir4DStart4DLaboratory = Notification.Name("MIR4D.Start4DLaboratory")
     static let mir4DStartMathUniverse = Notification.Name("MIR4D.StartMathUniverse")
     static let mir4DStartProgrammingWorld = Notification.Name("MIR4D.StartProgrammingWorld")
