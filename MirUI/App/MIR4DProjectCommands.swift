@@ -40,7 +40,7 @@ final class MIR4DProjectCommands {
         open(appState: appState, url: url)
     }
 
-    /// Opens a known recent-project URL through the same Session path.
+    /// Opens a known project URL through the same Session path.
     /// LaunchCoordinator remains responsible for external macOS launch URLs.
     func open(appState: CADAppState, url: URL) {
         appState.openMIR4DProject(url: url)
@@ -50,7 +50,30 @@ final class MIR4DProjectCommands {
         appState.closeMIR4DProject()
     }
 
+    /// User-initiated Hub action. Unlike cold-start restore, this action is
+    /// always allowed and therefore intentionally ignores the auto-open setting.
+    /// This keeps the Hub's "Продолжить" button independent from launch preferences.
     func restoreLastProject(appState: CADAppState) -> Bool {
+        let session = MIR4DProjectSession.shared
+        guard let url = session.lastProjectURL() else {
+            return false
+        }
+
+        guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
+            appState.showNotification(
+                "Последний проект недоступен. Выберите проект из списка недавних.",
+                type: .warning
+            )
+            return false
+        }
+
+        session.openProject(appState: appState, url: url)
+        return true
+    }
+
+    /// Cold-start action. This is the only command path that respects the
+    /// user's "Открывать последний проект при запуске" preference.
+    func restoreLastProjectOnLaunch(appState: CADAppState) -> Bool {
         MIR4DProjectSession.shared.restoreLastProject(appState: appState)
     }
 }
