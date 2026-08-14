@@ -135,6 +135,12 @@ void MirEngineViewportScroll(
     float delta
 );
 
+void MirEngineViewportPan(
+    void* viewport,
+    float dx,
+    float dy
+);
+
 void MirEngineViewportClick(
     void* viewport,
     float x,

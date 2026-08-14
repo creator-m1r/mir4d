@@ -33,6 +33,7 @@ struct RadialMenuSettings: Codable {
     var hapticEnabled = true
     var keyboardTriggerEnabled = true
     var middleMouseTriggerEnabled = true
+    var leftMouseHoldTriggerEnabled = true
     var panels: [RadialMenuPanel] = RadialMenuSettings.defaultPanels
 
     static let defaultPanels: [RadialMenuPanel] = [
@@ -295,6 +296,7 @@ struct RadialMenuSettingsView: View {
                 Section("Управление") {
                     Toggle("Радиальное меню включено", isOn: binding(\.enabled))
                     Toggle("Средняя кнопка мыши", isOn: binding(\.middleMouseTriggerEnabled))
+                    Toggle("Удержание левой кнопки", isOn: binding(\.leftMouseHoldTriggerEnabled))
                     Toggle("Клавиша `", isOn: binding(\.keyboardTriggerEnabled))
                     Toggle("Тактическая обратная связь", isOn: binding(\.hapticEnabled))
                 }

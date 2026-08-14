@@ -6,19 +6,17 @@ public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset) {
     _ = preset
 }
 #else
-@_silgen_name("MirEngineSetActiveCameraPreset") private func MirEngineSetActiveCameraPresetNative(_ preset: Int32)
-
+/// Requests a camera preset on the active viewport.
+///
+/// The C entry point `MirEngineSetActiveCameraPreset(void* viewport, int preset)`
+/// requires the viewport handle, which lives in MirGLView. The sphere has no
+/// viewport, so it publishes a notification; MirGLView observes it and forwards
+/// the request to MirEngine with the correct handle.
 public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset) {
-    let value: Int32
-    switch preset {
-    case .front: value = 0
-    case .back: value = 1
-    case .left: value = 2
-    case .right: value = 3
-    case .top: value = 4
-    case .bottom: value = 5
-    case .isometric: value = 6
-    }
-    MirEngineSetActiveCameraPresetNative(value)
+    NotificationCenter.default.post(
+        name: .mir4DCameraPresetRequested,
+        object: nil,
+        userInfo: ["preset": preset.rawValue]
+    )
 }
 #endif

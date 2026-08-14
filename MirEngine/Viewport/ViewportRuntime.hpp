@@ -49,6 +49,7 @@ public:
     void endInteraction() noexcept { state_.controller.end(); }
     void move(Scalar x, Scalar y) noexcept { state_.controller.move(x, y); }
     void zoom(Scalar delta) noexcept { state_.controller.zoom(delta); }
+    void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
 
     [[nodiscard]] PickResult pick(Scalar x, Scalar y) const noexcept
     {

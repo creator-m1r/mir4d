@@ -333,8 +333,8 @@ void MirEngineSetActiveCameraPreset(
 
     constexpr double kThetaFront = 0.0;
     constexpr double kThetaBack = 3.14159265358979323846;
-    constexpr double kThetaLeft = 3.14159265358979323846 * 0.5;
-    constexpr double kThetaRight = -3.14159265358979323846 * 0.5;
+    constexpr double kThetaLeft = -3.14159265358979323846 * 0.5;
+    constexpr double kThetaRight = 3.14159265358979323846 * 0.5;
     constexpr double kThetaTop = 0.0;
     constexpr double kThetaBottom = 3.14159265358979323846 * 0.0;
     constexpr double kThetaIsometric = 0.78539816339744830962;
@@ -536,6 +536,22 @@ void MirEngineViewportScroll(
         return;
 
     native->runtime->zoom(delta);
+}
+
+
+void MirEngineViewportPan(
+    void* viewport,
+    float dx,
+    float dy
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->panBy(dx, dy);
 }
 
 

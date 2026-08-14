@@ -71,11 +71,17 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
 
     if (!m_impl->context) return false;
 
+    // OpenGL is deprecated on macOS 10.14+, but remains the active renderer
+    // backend of MirEngine (Metal is a future backend). Suppress the
+    // deprecation diagnostics for the intentional legacy API usage below.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [m_impl->context setView:m_impl->view];
     [m_impl->context makeCurrentContext];
 
     GLint swap = 1;
     [m_impl->context setValues:&swap forParameter:NSOpenGLCPSwapInterval];
+#pragma clang diagnostic pop
 
     glViewport(0, 0,
                static_cast<GLsizei>(size.width),

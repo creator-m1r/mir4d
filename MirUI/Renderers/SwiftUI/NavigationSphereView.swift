@@ -88,7 +88,7 @@ struct NavigationSphereView: View {
     private var orientationMarker: some View {
         let normalizedTheta = theta.truncatingRemainder(dividingBy: Double.pi * 2)
         let normalizedPhi = max(0.25, min(Double.pi - 0.25, phi))
-        let x = CGFloat(cos(normalizedTheta) * sin(normalizedPhi))
+        let x = CGFloat(sin(normalizedTheta) * sin(normalizedPhi))
         let y = CGFloat(-cos(normalizedPhi))
 
         return GeometryReader { proxy in
@@ -113,36 +113,43 @@ struct NavigationSphereView: View {
             Text("L").position(x: 10, y: 60)
             Text("R").position(x: 110, y: 60)
             Text("ISO").position(x: 92, y: 25)
+            Text("BOTTOM").font(.system(size: 6)).position(x: 20, y: 112)
         }
         .font(.system(size: 8, weight: .semibold, design: .rounded))
         .foregroundStyle(Color.white.opacity(0.62))
         .allowsHitTesting(false)
     }
 
+    /// Hit zones cover the whole sphere so clicks never fall through to the
+    /// viewport (which would trigger the radial menu). Layout mirrors a
+    /// classic navigation cube: top band, bottom band, side bands, corners.
     private var navigationHitZones: some View {
         GeometryReader { proxy in
             ZStack {
-                presetButton(.top, at: CGPoint(x: proxy.size.width / 2, y: 10), size: CGSize(width: 56, height: 20))
-                presetButton(.front, at: CGPoint(x: proxy.size.width / 2, y: proxy.size.height - 10), size: CGSize(width: 60, height: 20))
-                presetButton(.left, at: CGPoint(x: 11, y: proxy.size.height / 2), size: CGSize(width: 24, height: 32))
-                presetButton(.right, at: CGPoint(x: proxy.size.width - 11, y: proxy.size.height / 2), size: CGSize(width: 24, height: 32))
-                presetButton(.isometric, at: CGPoint(x: proxy.size.width - 29, y: 24), size: CGSize(width: 40, height: 22))
+                let w = proxy.size.width
+                let h = proxy.size.height
+                let cellW = w / 3
+                let cellH = h / 3
+                presetZone(.top, rect: CGRect(x: 0, y: 0, width: cellW * 2, height: cellH))
+                presetZone(.isometric, rect: CGRect(x: cellW * 2, y: 0, width: cellW, height: cellH))
+                presetZone(.left, rect: CGRect(x: 0, y: cellH, width: cellW, height: cellH))
+                presetZone(.front, rect: CGRect(x: cellW, y: cellH, width: cellW, height: cellH))
+                presetZone(.right, rect: CGRect(x: cellW * 2, y: cellH, width: cellW, height: cellH))
+                presetZone(.bottom, rect: CGRect(x: 0, y: cellH * 2, width: cellW, height: cellH))
+                presetZone(.front, rect: CGRect(x: cellW, y: cellH * 2, width: cellW, height: cellH))
+                presetZone(.isometric, rect: CGRect(x: cellW * 2, y: cellH * 2, width: cellW, height: cellH))
             }
         }
+        .clipShape(Circle())
     }
 
-    private func presetButton(_ preset: MirCameraPreset, at point: CGPoint, size: CGSize) -> some View {
+    private func presetZone(_ preset: MirCameraPreset, rect: CGRect) -> some View {
         Color.clear
-            .frame(width: size.width, height: size.height)
+            .frame(width: rect.width, height: rect.height)
             .contentShape(Rectangle())
-            .position(point)
+            .position(x: rect.midX, y: rect.midY)
             .onTapGesture {
                 Mir4DSetActiveCameraPreset(preset)
-                NotificationCenter.default.post(
-                    name: .mir4DCameraPresetRequested,
-                    object: nil,
-                    userInfo: ["preset": preset.rawValue]
-                )
             }
             .accessibilityLabel(preset.titleRU)
     }

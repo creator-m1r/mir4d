@@ -110,13 +110,13 @@ public:
         const Vector3 correctedUp = Vector3::cross(right, forward).normalized();
 
         return Matrix4{
-            right.x, correctedUp.x, -forward.x, 0.0,
-            right.y, correctedUp.y, -forward.y, 0.0,
-            right.z, correctedUp.z, -forward.z, 0.0,
+            right.x, right.y, right.z,
             -Vector3::dot(right, Vector3{eye.x, eye.y, eye.z}),
+            correctedUp.x, correctedUp.y, correctedUp.z,
             -Vector3::dot(correctedUp, Vector3{eye.x, eye.y, eye.z}),
+            -forward.x, -forward.y, -forward.z,
             Vector3::dot(forward, Vector3{eye.x, eye.y, eye.z}),
-            1.0};
+            0.0, 0.0, 0.0, 1.0};
     }
 
     [[nodiscard]] Matrix4 projectionMatrix() const noexcept
@@ -128,21 +128,19 @@ public:
             return Matrix4{
                 f / aspect_, 0.0, 0.0, 0.0,
                 0.0, f, 0.0, 0.0,
-                0.0, 0.0, (farPlane_ + nearPlane_) * nf, -1.0,
-                0.0, 0.0, Scalar(2.0) * farPlane_ * nearPlane_ * nf, 0.0};
+                0.0, 0.0, (farPlane_ + nearPlane_) * nf,
+                Scalar(2.0) * farPlane_ * nearPlane_ * nf,
+                0.0, 0.0, -1.0, 0.0};
         }
 
         const Scalar rl = orthoRight_ - orthoLeft_;
         const Scalar tb = orthoTop_ - orthoBottom_;
         const Scalar fn = farPlane_ - nearPlane_;
         return Matrix4{
-            Scalar(2.0) / rl, 0.0, 0.0, 0.0,
-            0.0, Scalar(2.0) / tb, 0.0, 0.0,
-            0.0, 0.0, -Scalar(2.0) / fn, 0.0,
-            -(orthoRight_ + orthoLeft_) / rl,
-            -(orthoTop_ + orthoBottom_) / tb,
-            -(farPlane_ + nearPlane_) / fn,
-            1.0};
+            Scalar(2.0) / rl, 0.0, 0.0, -(orthoRight_ + orthoLeft_) / rl,
+            0.0, Scalar(2.0) / tb, 0.0, -(orthoTop_ + orthoBottom_) / tb,
+            0.0, 0.0, -Scalar(2.0) / fn, -(farPlane_ + nearPlane_) / fn,
+            0.0, 0.0, 0.0, 1.0};
     }
 
 private:

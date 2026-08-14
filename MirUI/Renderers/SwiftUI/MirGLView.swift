@@ -42,7 +42,7 @@ final class MirGLCustomView: NSView {
     // link runs on its own CoreVideo thread and must take this lock without a
     // MainActor check (which would trap via dispatch_assert_queue). NSLock is
     // thread-safe by design, so the marker is sound.
-    nonisolated(unsafe) private static let engineLock = NSLock()
+    nonisolated private static let engineLock = NSLock()
 
     // Pure C render callback for CVDisplayLink.
     //
@@ -76,6 +76,7 @@ final class MirGLCustomView: NSView {
     private var exportObserver: NSObjectProtocol?
     private var createBoxObserver: NSObjectProtocol?
     private var fitViewportObserver: NSObjectProtocol?
+    private var cameraPresetObserver: NSObjectProtocol?
 
     // MARK: Mouse interaction
 
@@ -83,6 +84,12 @@ final class MirGLCustomView: NSView {
     private var leftMouseDidDrag = false
 
     // MARK: Radial menu
+
+    private enum RadialTrigger {
+        case keyboard
+        case middleMouse
+        case leftMouseHold
+    }
 
     private var radialMouseDownPoint: NSPoint?
     private var radialMenuActive = false
@@ -119,6 +126,7 @@ final class MirGLCustomView: NSView {
             observeExportRequests()
             observeCreateBoxRequests()
             observeFitViewportRequests()
+            observeCameraPresetRequests()
 
             setupEngine()
             startDisplayLink()
@@ -581,6 +589,58 @@ final class MirGLCustomView: NSView {
             }
     }
 
+    private func observeCameraPresetRequests() {
+
+        guard cameraPresetObserver == nil else {
+            return
+        }
+
+        cameraPresetObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DCameraPresetRequested,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+
+                guard
+                    let payload =
+                        notification.userInfo,
+                    let raw =
+                        payload["preset"] as? String,
+                    let preset =
+                        Int32(raw)
+                else {
+                    return
+                }
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.applyCameraPreset(preset)
+                }
+            }
+    }
+
+    private func applyCameraPreset(_ preset: Int32) {
+
+        NSLog("MIR4D camera preset requested: %d", preset)
+
+        MirGLCustomView.engineLock.lock()
+        let activeViewport = viewport
+        if let activeViewport {
+            MirEngineSetActiveCameraPreset(
+                activeViewport,
+                preset
+            )
+        }
+        MirGLCustomView.engineLock.unlock()
+
+        // publishCameraOrientation() takes engineLock itself, so it must be
+        // called outside the critical section above: NSLock is not
+        // reentrant, and locking it twice from the same thread deadlocks.
+        if activeViewport != nil {
+            publishCameraOrientation()
+        }
+    }
+
     private func removeObservers() {
 
         if let observer = importObserver {
@@ -609,6 +669,13 @@ final class MirGLCustomView: NSView {
                 observer
             )
             fitViewportObserver = nil
+        }
+
+        if let observer = cameraPresetObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            cameraPresetObserver = nil
         }
     }
 
@@ -828,17 +895,19 @@ final class MirGLCustomView: NSView {
     private func fitViewport() {
 
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
+        let viewportAvailable = viewport != nil
+        if let viewport {
+            MirEngineFitViewport(viewport)
         }
+        MirGLCustomView.engineLock.unlock()
 
-        guard let viewport else {
-            return
+        // publishCameraOrientation() takes engineLock itself, so it must be
+        // called outside the critical section above: NSLock is not
+        // reentrant, and locking it twice from the same thread deadlocks
+        // the main thread (and starves the CVDisplayLink render thread).
+        if viewportAvailable {
+            publishCameraOrientation()
         }
-
-        MirEngineFitViewport(viewport)
-
-        publishCameraOrientation()
     }
 
     // MARK: Selection
@@ -864,7 +933,7 @@ final class MirGLCustomView: NSView {
 
     private func scheduleRadialMenu(
         at point: NSPoint,
-        keyboard: Bool
+        trigger: RadialTrigger
     ) {
 
         radialActivationWorkItem?.cancel()
@@ -873,14 +942,19 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        if keyboard &&
-            !radialSettings.settings.keyboardTriggerEnabled {
-            return
-        }
-
-        if !keyboard &&
-            !radialSettings.settings.middleMouseTriggerEnabled {
-            return
+        switch trigger {
+        case .keyboard:
+            if !radialSettings.settings.keyboardTriggerEnabled {
+                return
+            }
+        case .middleMouse:
+            if !radialSettings.settings.middleMouseTriggerEnabled {
+                return
+            }
+        case .leftMouseHold:
+            if !radialSettings.settings.leftMouseHoldTriggerEnabled {
+                return
+            }
         }
 
         let delay =
@@ -893,7 +967,7 @@ final class MirGLCustomView: NSView {
 
             beginRadialMenu(
                 at: point,
-                keyboard: keyboard
+                trigger: trigger
             )
 
             return
@@ -904,7 +978,7 @@ final class MirGLCustomView: NSView {
 
                 self?.beginRadialMenu(
                     at: point,
-                    keyboard: keyboard
+                    trigger: trigger
                 )
             }
 
@@ -918,7 +992,7 @@ final class MirGLCustomView: NSView {
 
     private func beginRadialMenu(
         at point: NSPoint,
-        keyboard: Bool
+        trigger: RadialTrigger
     ) {
 
         guard !radialMenuActive else {
@@ -928,7 +1002,8 @@ final class MirGLCustomView: NSView {
         radialActivationWorkItem = nil
         radialMouseDownPoint = point
         radialMenuActive = true
-        radialKeyboardActive = keyboard
+        radialKeyboardActive =
+            trigger == .keyboard
 
         let x =
             bounds.width > 0
@@ -1057,7 +1132,7 @@ final class MirGLCustomView: NSView {
                         x: bounds.midX,
                         y: bounds.midY
                     ),
-                keyboard: true
+                trigger: .keyboard
             )
 
             return
@@ -1113,15 +1188,22 @@ final class MirGLCustomView: NSView {
 
         window?.makeFirstResponder(self)
 
-        leftMouseDownPoint =
+        let localPoint =
             convert(
                 event.locationInWindow,
                 from: nil
             )
 
+        leftMouseDownPoint = localPoint
+
         leftMouseDidDrag = false
 
         forwardMouseDown(event)
+
+        scheduleRadialMenu(
+            at: localPoint,
+            trigger: .leftMouseHold
+        )
     }
 
     override func mouseUp(
@@ -1133,6 +1215,19 @@ final class MirGLCustomView: NSView {
                 event.locationInWindow,
                 from: nil
             )
+
+        if radialMenuActive {
+
+            endRadialMenu(
+                commit: true,
+                at: localPoint
+            )
+
+            leftMouseDownPoint = nil
+            leftMouseDidDrag = false
+
+            return
+        }
 
         if let start = leftMouseDownPoint {
 
@@ -1209,6 +1304,9 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        radialActivationWorkItem?.cancel()
+        radialActivationWorkItem = nil
+
         leftMouseDidDrag = true
 
         forwardMouseMove(event)
@@ -1249,7 +1347,7 @@ final class MirGLCustomView: NSView {
                         event.locationInWindow,
                         from: nil
                     ),
-                keyboard: false
+                trigger: .middleMouse
             )
 
             return
@@ -1316,9 +1414,44 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        if event.hasPreciseScrollingDeltas {
+
+            // Trackpad two-finger drag pans the scene.
+            // Precise (pixel) deltas arrive only from trackpads, never from
+            // a mouse wheel, so the wheel keeps its zoom behavior below.
+            MirEngineViewportPan(
+                viewport,
+                Float(event.scrollingDeltaX),
+                Float(-event.scrollingDeltaY)
+            )
+
+            return
+        }
+
         MirEngineViewportScroll(
             viewport,
             Float(event.scrollingDeltaY)
+        )
+    }
+
+    override func magnify(
+        with event: NSEvent
+    ) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        // Trackpad pinch: spreading the fingers zooms in,
+        // pinching them together zooms out.
+        MirEngineViewportScroll(
+            viewport,
+            Float(event.magnification)
         )
     }
 

@@ -63,6 +63,8 @@ void OpenGLRenderer::render(mir::Scene& scene,
     m_context->makeCurrent();
     m_device->beginFrame();
     m_device->clear(ColorRGBA{0.055f, 0.065f, 0.085f, 1.0f});
+    m_device->setViewMatrix(context.viewMatrix);
+    m_device->setProjectionMatrix(context.projectionMatrix);
 
     if (m_gridPass && m_gridPass->isInitialized())
         m_gridPass->execute(context, scene, *m_device);

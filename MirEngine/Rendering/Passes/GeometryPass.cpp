@@ -17,6 +17,12 @@
 #include <cstdint>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <OpenGL/gl3.h>
+#else
+#include <glad/gl.h>
+#endif
+
 namespace MirEngine::Rendering
 {
 

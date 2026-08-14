@@ -72,6 +72,19 @@ public:
         camera_->setOrbit(camera_->theta(), camera_->phi(), camera_->distance() * factor);
     }
 
+    /// Continuous two-finger / gesture panning.
+    /// Deltas follow the touchpad gesture direction, independent of Mode,
+    /// so trackpad panning never conflicts with mouse button state.
+    void panBy(Scalar dx, Scalar dy) noexcept
+    {
+        if (!camera_)
+            return;
+
+        const Point3 target = camera_->target();
+        const Scalar scale = camera_->distance() * panSpeed_;
+        camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
+    }
+
 private:
     enum class Mode { None, Orbit, Pan };
 
