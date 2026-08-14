@@ -24,8 +24,8 @@
 
 #pragma once
 
-#include "../../Core/Types/Scalar.hpp"   // mir::Scalar = double
-#include "../Vector/Vector2.hpp"         // mir::Vector2 (предполагается, что есть)
+#include "../Core/Types/Scalar.hpp"      // mir::Scalar = double
+#include "Vector/PlanarVector.hpp"      // mir::Vector2
 #include <array>                         // std::array для хранения 4 чисел
 #include <cmath>                         // std::abs для проверки на ноль
 #include <algorithm>                     // std::swap (хотя не нужен, но на всякий случай)

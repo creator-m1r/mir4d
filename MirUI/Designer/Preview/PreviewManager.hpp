@@ -25,12 +25,12 @@
 #include <memory>
 #include <vector>
 
+#include "../Canvas/GridManager.hpp"
+#include "../Canvas/GuideManager.hpp"
+
 namespace MirUI {
 
-// Вперёд объявим классы, которыми мы управляем, чтобы избежать циклических зависимостей.
-class GridManager;
-class GuideManager;
-
+// GridManager и GuideManager объявлены выше (см. includes).
 class PreviewManager {
 public:
     // ── Конструктор ──────────────────────────────────────────

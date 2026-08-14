@@ -4,9 +4,13 @@
 //
 // Построение прямоугольного параллелепипеда как полноценного BRep solid:
 // 8 vertices, 12 edges, 6 planar faces, 1 closed shell, 1 solid.
+//
+// buildOriented — тот же box в произвольном ортонормированном базисе
+// (повёрнутый box). Фундамент обобщения булева kernel на произвольные
+// грани (P2.4): оси-параллельный box — частный случай единичного базиса.
 
 #include "BRepBuilderAPI.hpp"
-#include "BRepValidator.hpp"
+#include "../Validator/BRepValidator.hpp"
 
 #include <array>
 #include <cmath>
@@ -24,7 +28,7 @@ struct BRepMakeBoxResult
 class BRepPrimAPI_MakeBox
 {
 public:
-    // Box от origin с размерами dx, dy, dz (все > 0).
+    // Box от origin с размерами dx, dy, dz (все > 0) в осях X/Y/Z.
     [[nodiscard]] static BRepMakeBoxResult build(
         BRepModel& model,
         Scalar dx,
@@ -33,19 +37,58 @@ public:
         const Vector3& origin = Vector3::zero(),
         BRepTolerance tolerance = DefaultBRepTolerance)
     {
+        return buildOriented(
+            model, dx, dy, dz, origin,
+            Vector3::unitX(), Vector3::unitY(),
+            tolerance);
+    }
+
+    // Box в произвольном ортонормированном базисе: рёбра длиной dx вдоль
+    // axisX, dy вдоль axisY, dz вдоль axisZ = cross(axisX, axisY).
+    // axisX и axisY должны быть единичными и ортогональными.
+    [[nodiscard]] static BRepMakeBoxResult buildOriented(
+        BRepModel& model,
+        Scalar dx,
+        Scalar dy,
+        Scalar dz,
+        const Vector3& origin,
+        const Vector3& axisX,
+        const Vector3& axisY,
+        BRepTolerance tolerance = DefaultBRepTolerance)
+    {
         BRepMakeBoxResult result{};
 
         if (!(dx > 0.0) || !(dy > 0.0) || !(dz > 0.0) ||
             !std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz) ||
-            !origin.isFinite())
+            !origin.isFinite() || !axisX.isFinite() || !axisY.isFinite())
         {
             result.report.add(
                 BRepValidationSeverity::Error,
                 BRepShapeType::Solid,
                 InvalidBRepIndex,
-                "MakeBox requires finite positive dimensions and finite origin");
+                "MakeBox requires finite positive dimensions, finite origin and finite basis");
             return result;
         }
+
+        const Scalar axisXEpsilon = std::abs(axisX.length() - 1.0);
+        const Scalar axisYEpsilon = std::abs(axisY.length() - 1.0);
+        const Scalar axisOrthogonality = std::abs(Vector3::dot(axisX, axisY));
+
+        constexpr Scalar basisTolerance = Scalar(1e-6);
+
+        if (axisXEpsilon > basisTolerance ||
+            axisYEpsilon > basisTolerance ||
+            axisOrthogonality > basisTolerance)
+        {
+            result.report.add(
+                BRepValidationSeverity::Error,
+                BRepShapeType::Solid,
+                InvalidBRepIndex,
+                "MakeBoxOriented requires an orthonormal basis (unit, orthogonal axes)");
+            return result;
+        }
+
+        const Vector3 axisZ = Vector3::cross(axisX, axisY);
 
         BRepBuilderAPI builder(model);
 
@@ -57,16 +100,16 @@ public:
         // |/     |/
         // 3------2
         //
-        // z up, y depth, x width
+        // axisZ up, axisY depth, axisX width
 
         const Vector3 p0 = origin;
-        const Vector3 p1 = origin + Vector3{dx, 0.0, 0.0};
-        const Vector3 p2 = origin + Vector3{dx, dy, 0.0};
-        const Vector3 p3 = origin + Vector3{0.0, dy, 0.0};
-        const Vector3 p4 = origin + Vector3{0.0, 0.0, dz};
-        const Vector3 p5 = origin + Vector3{dx, 0.0, dz};
-        const Vector3 p6 = origin + Vector3{dx, dy, dz};
-        const Vector3 p7 = origin + Vector3{0.0, dy, dz};
+        const Vector3 p1 = origin + axisX * dx;
+        const Vector3 p2 = origin + axisX * dx + axisY * dy;
+        const Vector3 p3 = origin + axisY * dy;
+        const Vector3 p4 = origin + axisZ * dz;
+        const Vector3 p5 = origin + axisX * dx + axisZ * dz;
+        const Vector3 p6 = origin + axisX * dx + axisY * dy + axisZ * dz;
+        const Vector3 p7 = origin + axisY * dy + axisZ * dz;
 
         const std::array<Vector3, 8> points{p0, p1, p2, p3, p4, p5, p6, p7};
         std::array<BRepVertexHandle, 8> vertices{};
@@ -129,7 +172,7 @@ public:
 
         // Wires are oriented CCW when viewed against face normal (outward).
 
-        // Bottom face normal -Z
+        // Bottom face normal -axisZ
         const BRepWireHandle bottomWire = builder.makeWire(
             {
                 oriented(e01, BRepOrientation::Reversed),
@@ -139,7 +182,7 @@ public:
             },
             true);
 
-        // Top face normal +Z
+        // Top face normal +axisZ
         const BRepWireHandle topWire = builder.makeWire(
             {
                 oriented(e45, BRepOrientation::Forward),
@@ -149,7 +192,7 @@ public:
             },
             true);
 
-        // Front face (y=0) normal -Y
+        // Front face (v=0) normal -axisY
         const BRepWireHandle frontWire = builder.makeWire(
             {
                 oriented(e01, BRepOrientation::Forward),
@@ -159,7 +202,7 @@ public:
             },
             true);
 
-        // Back face (y=dy) normal +Y
+        // Back face (v=dy) normal +axisY
         const BRepWireHandle backWire = builder.makeWire(
             {
                 oriented(e23, BRepOrientation::Forward),
@@ -169,7 +212,7 @@ public:
             },
             true);
 
-        // Left face (x=0) normal -X
+        // Left face (u=0) normal -axisX
         const BRepWireHandle leftWire = builder.makeWire(
             {
                 oriented(e30, BRepOrientation::Forward),
@@ -179,7 +222,7 @@ public:
             },
             true);
 
-        // Right face (x=dx) normal +X
+        // Right face (u=dx) normal +axisX
         const BRepWireHandle rightWire = builder.makeWire(
             {
                 oriented(e12, BRepOrientation::Forward),
@@ -205,53 +248,54 @@ public:
             }
         }
 
-        const Vector3 center = origin + Vector3{dx * 0.5, dy * 0.5, dz * 0.5};
+        const Vector3 center = origin +
+            axisX * (dx * 0.5) + axisY * (dy * 0.5) + axisZ * (dz * 0.5);
 
         const BRepFaceHandle bottomFace = builder.makePlanarFace(
             bottomWire,
             origin,
-            Vector3{0.0, 0.0, -1.0},
-            Vector3{1.0, 0.0, 0.0},
+            -axisZ,
+            axisX,
             {},
             tolerance.linear);
 
         const BRepFaceHandle topFace = builder.makePlanarFace(
             topWire,
-            origin + Vector3{0.0, 0.0, dz},
-            Vector3{0.0, 0.0, 1.0},
-            Vector3{1.0, 0.0, 0.0},
+            origin + axisZ * dz,
+            axisZ,
+            axisX,
             {},
             tolerance.linear);
 
         const BRepFaceHandle frontFace = builder.makePlanarFace(
             frontWire,
             origin,
-            Vector3{0.0, -1.0, 0.0},
-            Vector3{1.0, 0.0, 0.0},
+            -axisY,
+            axisX,
             {},
             tolerance.linear);
 
         const BRepFaceHandle backFace = builder.makePlanarFace(
             backWire,
-            origin + Vector3{0.0, dy, 0.0},
-            Vector3{0.0, 1.0, 0.0},
-            Vector3{1.0, 0.0, 0.0},
+            origin + axisY * dy,
+            axisY,
+            axisX,
             {},
             tolerance.linear);
 
         const BRepFaceHandle leftFace = builder.makePlanarFace(
             leftWire,
             origin,
-            Vector3{-1.0, 0.0, 0.0},
-            Vector3{0.0, 1.0, 0.0},
+            -axisX,
+            axisY,
             {},
             tolerance.linear);
 
         const BRepFaceHandle rightFace = builder.makePlanarFace(
             rightWire,
-            origin + Vector3{dx, 0.0, 0.0},
-            Vector3{1.0, 0.0, 0.0},
-            Vector3{0.0, 1.0, 0.0},
+            origin + axisX * dx,
+            axisX,
+            axisY,
             {},
             tolerance.linear);
 
@@ -298,7 +342,6 @@ public:
             return result;
         }
 
-        // Suppress unused-variable warning if center is not used later.
         (void)center;
 
         const BRepValidator validator(tolerance);

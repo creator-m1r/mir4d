@@ -9,7 +9,7 @@
 //   width/height → profile wire → extrude → solid
 
 #include "BRepBuilderAPI.hpp"
-#include "BRepValidator.hpp"
+#include "../Validator/BRepValidator.hpp"
 
 #include <array>
 #include <cmath>

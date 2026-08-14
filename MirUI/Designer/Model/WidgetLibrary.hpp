@@ -20,9 +20,9 @@ namespace MirUI {
 class WidgetLibrary {
 public:
     // ── Регистрация виджета ──────────────────────────────────
-    void registerWidget(const WidgetDescriptor& descriptor) {
+    void registerWidget(const WidgetCatalogDescriptor& descriptor) {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
-            [&](const WidgetDescriptor& d) { return d.type == descriptor.type; });
+            [&](const WidgetCatalogDescriptor& d) { return d.type == descriptor.type; });
         if (it != m_widgets.end()) {
             *it = descriptor;
         } else {
@@ -33,7 +33,7 @@ public:
     // ── Создание экземпляра ──────────────────────────────────
     [[nodiscard]] std::unique_ptr<Widget> create(WidgetType type) const {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
-            [type](const WidgetDescriptor& d) { return d.type == type; });
+            [type](const WidgetCatalogDescriptor& d) { return d.type == type; });
         if (it != m_widgets.end() && it->factory) {
             return it->factory();
         }
@@ -41,25 +41,25 @@ public:
     }
 
     // ── Поиск дескриптора ────────────────────────────────────
-    [[nodiscard]] const WidgetDescriptor* findByType(WidgetType type) const {
+    [[nodiscard]] const WidgetCatalogDescriptor* findByType(WidgetType type) const {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
-            [type](const WidgetDescriptor& d) { return d.type == type; });
+            [type](const WidgetCatalogDescriptor& d) { return d.type == type; });
         return (it != m_widgets.end()) ? &(*it) : nullptr;
     }
 
-    [[nodiscard]] const WidgetDescriptor* findByName(const std::string& name) const {
+    [[nodiscard]] const WidgetCatalogDescriptor* findByName(const std::string& name) const {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
-            [&name](const WidgetDescriptor& d) { return d.name == name; });
+            [&name](const WidgetCatalogDescriptor& d) { return d.name == name; });
         return (it != m_widgets.end()) ? &(*it) : nullptr;
     }
 
-    [[nodiscard]] const std::vector<WidgetDescriptor>& widgets() const {
+    [[nodiscard]] const std::vector<WidgetCatalogDescriptor>& widgets() const {
         return m_widgets;
     }
 
     void unregisterWidget(WidgetType type) {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
-            [type](const WidgetDescriptor& d) { return d.type == type; });
+            [type](const WidgetCatalogDescriptor& d) { return d.type == type; });
         if (it != m_widgets.end()) {
             m_widgets.erase(it);
         }
@@ -72,7 +72,7 @@ public:
     // ── Заполнение стандартным набором (с новыми виджетами) ──
     void populateDefaults() {
         // Кнопка
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Button,
             "Кнопка",
             "button",
@@ -83,19 +83,19 @@ public:
                 return btn;
             },
             {
-                PropertyDescriptor("text", "Текст", PropertyType::String, StateValue(std::string("Кнопка"))),
-                PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(120.0)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(36.0)),
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("cornerRadius", "Радиус скругления", PropertyType::Float, StateValue(8.0)),
-                PropertyDescriptor("alignment", "Выравнивание", PropertyType::Enum, StateValue(std::string("Center")),
+                PropertyDescriptor("text", "Текст", PropertyType::String, PropertyValue(std::string("Кнопка"))),
+                PropertyDescriptor("width", "Ширина", PropertyType::Number, PropertyValue(120.0)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(36.0)),
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("cornerRadius", "Радиус скругления", PropertyType::Number, PropertyValue(8.0)),
+                PropertyDescriptor("alignment", "Выравнивание", PropertyType::Enum, PropertyValue(std::string("Center")),
                                    std::vector<std::string>{"Left", "Center", "Right"})
             }
         ));
 
         // Надпись
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Label,
             "Надпись",
             "label",
@@ -106,15 +106,15 @@ public:
                 return lbl;
             },
             {
-                PropertyDescriptor("text", "Текст", PropertyType::String, StateValue(std::string("Надпись"))),
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("alignment", "Выравнивание", PropertyType::Enum, StateValue(std::string("Left")),
+                PropertyDescriptor("text", "Текст", PropertyType::String, PropertyValue(std::string("Надпись"))),
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("alignment", "Выравнивание", PropertyType::Enum, PropertyValue(std::string("Left")),
                                    std::vector<std::string>{"Left", "Center", "Right"})
             }
         ));
 
         // Контейнер (Panel)
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Panel,
             "Контейнер",
             "panel",
@@ -124,16 +124,16 @@ public:
                 return panel;
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(200.0)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(200.0))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("width", "Ширина", PropertyType::Number, PropertyValue(200.0)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(200.0))
             },
             true, // контейнер
             {}
         ));
 
         // Панель инструментов (Toolbar)
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Toolbar,
             "Панель инструментов",
             "toolbar",
@@ -143,15 +143,15 @@ public:
                 return tb;
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(44.0))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(44.0))
             },
             true,
             {WidgetType::Button, WidgetType::Label, WidgetType::CheckBox, WidgetType::TextField, WidgetType::ComboBox}
         ));
 
         // Дерево
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Tree,
             "Дерево",
             "tree",
@@ -159,14 +159,14 @@ public:
                 return std::make_unique<Tree>();
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(250.0)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(400.0))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("width", "Ширина", PropertyType::Number, PropertyValue(250.0)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(400.0))
             }
         ));
 
         // Инспектор свойств
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::PropertyGrid,
             "Инспектор свойств",
             "propertygrid",
@@ -174,14 +174,14 @@ public:
                 return std::make_unique<PropertyGrid>();
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(280.0)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(500.0))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("width", "Ширина", PropertyType::Number, PropertyValue(280.0)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(500.0))
             }
         ));
 
         // Вьюпорт
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::Viewport,
             "Вьюпорт",
             "viewport",
@@ -189,15 +189,15 @@ public:
                 return std::make_unique<Viewport>();
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("gridVisible", "Сетка", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("axesVisible", "Оси", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("gizmoVisible", "Гизмо", PropertyType::Boolean, StateValue(true))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("gridVisible", "Сетка", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("axesVisible", "Оси", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("gizmoVisible", "Гизмо", PropertyType::Boolean, PropertyValue(true))
             }
         ));
 
         // Стыкуемая панель
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::DockPanel,
             "Стыкуемая панель",
             "dockpanel",
@@ -205,9 +205,9 @@ public:
                 return std::make_unique<Widget>(WidgetType::DockPanel);
             },
             {
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(250.0)),
-                PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(400.0))
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("width", "Ширина", PropertyType::Number, PropertyValue(250.0)),
+                PropertyDescriptor("height", "Высота", PropertyType::Number, PropertyValue(400.0))
             },
             true,
             {}
@@ -216,7 +216,7 @@ public:
         // ── НОВЫЕ ВИДЖЕТЫ ─────────────────────────────────────
 
         // Флажок (CheckBox)
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::CheckBox,
             "Флажок",
             "checkbox",
@@ -227,15 +227,15 @@ public:
                 return cb;
             },
             {
-                PropertyDescriptor("text", "Текст", PropertyType::String, StateValue(std::string("Флажок"))),
-                PropertyDescriptor("checked", "Галочка", PropertyType::Boolean, StateValue(false)),
-                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true))
+                PropertyDescriptor("text", "Текст", PropertyType::String, PropertyValue(std::string("Флажок"))),
+                PropertyDescriptor("checked", "Галочка", PropertyType::Boolean, PropertyValue(false)),
+                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true))
             }
         ));
 
         // Текстовое поле (TextField)
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::TextField,
             "Текстовое поле",
             "textfield",
@@ -245,19 +245,19 @@ public:
                 return tf;
             },
             {
-                PropertyDescriptor("text", "Текст", PropertyType::String, StateValue(std::string(""))),
-                PropertyDescriptor("placeholder", "Подсказка", PropertyType::String, StateValue(std::string("Введите текст..."))),
-                PropertyDescriptor("readOnly", "Только чтение", PropertyType::Boolean, StateValue(false)),
-                PropertyDescriptor("maxLength", "Макс. длина", PropertyType::Integer, StateValue(static_cast<int64_t>(0))),
-                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("textAlignment", "Выравнивание текста", PropertyType::Enum, StateValue(std::string("Left")),
+                PropertyDescriptor("text", "Текст", PropertyType::String, PropertyValue(std::string(""))),
+                PropertyDescriptor("placeholder", "Подсказка", PropertyType::String, PropertyValue(std::string("Введите текст..."))),
+                PropertyDescriptor("readOnly", "Только чтение", PropertyType::Boolean, PropertyValue(false)),
+                PropertyDescriptor("maxLength", "Макс. длина", PropertyType::Integer, PropertyValue(static_cast<int64_t>(0))),
+                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("textAlignment", "Выравнивание текста", PropertyType::Enum, PropertyValue(std::string("Left")),
                                    std::vector<std::string>{"Left", "Center", "Right"})
             }
         ));
 
         // Выпадающий список (ComboBox)
-        registerWidget(WidgetDescriptor(
+        registerWidget(WidgetCatalogDescriptor(
             WidgetType::ComboBox,
             "Выпадающий список",
             "combobox",
@@ -268,16 +268,16 @@ public:
             },
             {
                 PropertyDescriptor("items", "Элементы (через |)", PropertyType::String,
-                                   StateValue(std::string("Вариант 1|Вариант 2|Вариант 3"))),
-                PropertyDescriptor("selectedIndex", "Выбранный индекс", PropertyType::Integer, StateValue(static_cast<int64_t>(0))),
-                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, StateValue(true)),
-                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, StateValue(true))
+                                   PropertyValue(std::string("Вариант 1|Вариант 2|Вариант 3"))),
+                PropertyDescriptor("selectedIndex", "Выбранный индекс", PropertyType::Integer, PropertyValue(static_cast<int64_t>(0))),
+                PropertyDescriptor("enabled", "Доступность", PropertyType::Boolean, PropertyValue(true)),
+                PropertyDescriptor("visible", "Видимость", PropertyType::Boolean, PropertyValue(true))
             }
         ));
     }
 
 private:
-    std::vector<WidgetDescriptor> m_widgets;
+    std::vector<WidgetCatalogDescriptor> m_widgets;
 };
 
 } // namespace MirUI

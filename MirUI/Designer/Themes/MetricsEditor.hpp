@@ -93,7 +93,7 @@ private:
 
     // ── Применить значение к теме ────────────────────────────
     void applyValue(double value) {
-        Theme& theme = m_doc.themeManager().theme();
+        Theme theme = m_doc.themeManager().current();
         Metrics& metrics = theme.metrics;
 
         // Таблица указателей на члены Metrics для двойных значений.
@@ -118,11 +118,15 @@ private:
         if (it != tokenMap.end()) {
             metrics.*(it->second) = value;
         }
+
+        // Сохраняем изменённую тему обратно в менеджер.
+        m_doc.themeManager().registerTheme(theme);
+        m_doc.themeManager().setTheme(theme.id);
     }
 
     // ── Получить текущее значение из темы ────────────────────
     [[nodiscard]] double getTokenValue() const {
-        const Theme& theme = m_doc.themeManager().theme();
+        const Theme theme = m_doc.themeManager().current();
         const Metrics& metrics = theme.metrics;
 
         using MetricMemberPtr = double Metrics::*;

@@ -13,7 +13,7 @@
 //     (это ответственность вызывающего / Sketch profile validator)
 
 #include "BRepBuilderAPI.hpp"
-#include "BRepValidator.hpp"
+#include "../Validator/BRepValidator.hpp"
 
 #include <cmath>
 #include <vector>

@@ -25,7 +25,7 @@
 
 #include "../../Core/Types/Scalar.hpp"   // mir::Scalar = double
 #include "../Vector/Vector3.hpp"          // mir::Vector3
-#include "../Matrix4.hpp"          // mir::Matrix4 (для transform)
+#include "../TransformMatrix.hpp"         // mir::Matrix4 (для transform)
 #include <algorithm>                      // std::min, std::max
 
 namespace mir {

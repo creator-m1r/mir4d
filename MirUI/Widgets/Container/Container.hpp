@@ -23,6 +23,8 @@
 
 #include "../../Core/Widget/Widget.hpp"
 #include "../../Core/Widget/WidgetType.hpp"
+#include "../../Core/Layout/LayoutNode.hpp"   // LayoutDirection
+#include "../../Core/Layout/Insets.hpp"       // Insets
 #include "../../Schema/WidgetSchema.hpp"  // чтобы проверять allowedChildren
 #include <vector>
 #include <algorithm>

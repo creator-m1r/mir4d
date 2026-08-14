@@ -1,7 +1,7 @@
 # МИР 4D — каноническая карта проекта
 
-Версия: 1.1
-Дата: 2026-08-13
+Версия: 1.9
+Дата: 2026-08-14
 
 Этот файл является единой картой архитектуры репозитория. Перед структурными изменениями сначала читается эта карта; новые файлы создаются только в соответствующем слое, а старые имена сохраняются лишь как совместимые фасады, если это необходимо для переходного периода.
 
@@ -12,6 +12,8 @@ MirEngine/Math
     ↓
 MirEngine/Geometry
     ↓
+MirEngine/Sketch
+    ↓
 MirEngine/BRep/Core
     ↓
 MirEngine/BRep/Topology + Geometry
@@ -20,7 +22,9 @@ MirEngine/BRep/Builders / Boolean / Converters / Validator
     ↓
 MirEngine/Document / Scene / Commands
     ↓
-MirEngine/Rendering
+MirEngine/Features
+    ↓
+MirEngine/Rendering + Viewport
     ↓
 MirEngine/IO
     ↓
@@ -34,21 +38,26 @@ SwiftUI
 ## 2. Канонические области MirEngine
 
 - `Math/` — Vector/Matrix/Quaternion, скаляры, численная база. Вторые реализации математических типов запрещены.
-- `Geometry/` — независимая математическая геометрия и базовые геометрические сущности.
+- `Geometry/` — независимая математическая геометрия и базовые геометрические сущности; legacy-топология (Vertex/Edge/Face/Shell/Loop/Body/Assembly/Solid) и примитивы (Line/Ray/Segment/Direction) удалены; остались Curve (Curve/CurveLoop/Circle/Arc), Model (Profile/FacetedSolid/TriangleMesh3), Query (Line3/Ray3/Segment3 + GeometryQuery: пересечения, расстояния, проекции — P3, тест MIR4D_GeometryQuery), Scene, Tessellation.
+- `Sketch/` — эскизы и профили (namespace mir, header-only, ~46 файлов).
 - `BRep/Core/` — владельцы модели, транзакционные checkpoints и стабильные handle-типы.
 - `BRep/Topology/` — топологические записи, их связи и редактор.
 - `BRep/Geometry/` — геометрические носители и связи topology → geometry.
-- `BRep/Builders/` — построители параметрической геометрии и топологии; составные операции обязаны быть транзакционными.
-- `BRep/Boolean/` — операции над B-Rep.
+- `BRep/Builders/` — построители параметрической геометрии и топологии; составные операции обязаны быть транзакционными. MakeBox: build (оси X/Y/Z) и buildOriented (произвольный ортонормированный базис — повёрнутый box, P2.4a).
+- `BRep/Boolean/` — операции над B-Rep. Fuse (непересекающиеся тела; пересекающиеся axis-aligned box'ы — точное объединение замощением граней по общей сетке), Cut (копия / замкнутая полость / сквозной проход-туннель с отверстиями на торцах / частичное перекрытие box'ов — вырез со стенками единой оболочкой), Common (пересечение axis-aligned box'ов) реализованы (BRepBooleanAPI, тест MIR4D_BRepBoolean, 15 сценариев); обобщение на произвольные грани — следующий проход.
 - `BRep/Converters/` — преобразования между Sketch/Model/B-Rep.
 - `BRep/Tessellator/` — дискретизация B-Rep в render mesh.
 - `BRep/Validator/` — проверки геометрии и топологии.
 - `BRep/Commands/` — адаптеры командного слоя; здесь не размещается UI.
 - `Document/` — документ, история, объекты и жизненный цикл проектных данных.
+- `Features/` — параметрические операции моделирования (эскиз → операция → B-Rep).
 - `Scene/` — представление объектов для пространственной сцены.
 - `Rendering/` — CPU/GPU render bridge и render cache.
+- `Viewport/` — viewport-слой и камера.
 - `IO/` — STL/STEP и прочие внешние форматы. OCCT остаётся только здесь.
-- `MirUI/` — presentation/interoperability layer.
+- `Time/` — модель времени и 4D-данные.
+- Научные модули: `Simulation/`, `Physics/`, `Mechanics/`, `Materials/`, `Chemistry/`, `Acoustics/`, `World/`, `Interaction/`, `Platform/`, `Config/` — развиваются отдельно от геометрического ядра.
+- `MirUI/` — presentation/interoperability layer: `Foundation/` (без зависимостей), `Core/` (виджеты, состояние, темы, команды), `Schema/`, `Widgets/`, `Workspace/`, `Designer/` (визуальный редактор), `Interop/` (CBridge), `Renderers/`, `Swift/`, `App/`, `Viewport/`.
 
 ## 3. Канон B-Rep
 

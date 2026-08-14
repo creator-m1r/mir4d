@@ -42,6 +42,7 @@
 #include "../Model/UIProject.hpp"
 #include "../../Core/Widget/WidgetFactory.hpp"
 #include "../../Core/Layout/LayoutEngine.hpp"
+#include <iomanip>
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -165,7 +166,7 @@ public:
                 std::string propName, propValue;
                 if (iss >> widgetId >> std::quoted(propName)) {
                     // Читаем значение: может быть строка в кавычках или число
-                    char nextChar;
+                    int nextChar;
                     iss >> std::ws;
                     nextChar = iss.peek();
                     if (nextChar == '"') {
@@ -223,7 +224,7 @@ private:
     // ── Запись темы ───────────────────────────────────────────
     void writeTheme(std::ofstream& file, UIProject& project) {
         file << "# Theme\n";
-        const Theme& theme = project.themeManager().theme();
+        const Theme theme = project.themeManager().current();
 
         // Записываем все цвета
         writeThemeColor(file, "colors.background", theme.colors.background);
@@ -323,7 +324,7 @@ private:
 
     // ── Применение свойства темы из строки ────────────────────
     void applyThemeProperty(UIProject& project, const std::string& property, const std::string& value) {
-        Theme& theme = project.themeManager().theme();
+        Theme theme = project.themeManager().current();
 
         // Проверяем, цвет это или метрика.
         if (value[0] == '#') {
@@ -343,6 +344,10 @@ private:
             double val = std::stod(value);
             setThemeMetric(theme.metrics, property, val);
         }
+
+        // Сохраняем изменённую тему обратно в менеджер.
+        project.themeManager().registerTheme(theme);
+        project.themeManager().setTheme(theme.id);
     }
 
     void setThemeColor(ColorPalette& palette, const std::string& name, const Color& color) {

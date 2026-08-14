@@ -1,4 +1,4 @@
-// MirUI/Designer/Model/WidgetDescriptor.hpp
+// MirUI/Designer/Model/WidgetCatalogDescriptor.hpp
 // 🏷️ Дескриптор виджета — "паспорт" типа виджета для каталога (WidgetLibrary).
 //
 // Чтобы панель инструментов (Toolbox) могла показать список доступных виджетов
@@ -8,9 +8,9 @@
 //   • Как создать экземпляр (фабрика).
 //   • Какие свойства у него есть (чтобы инспектор мог их редактировать).
 //
-// WidgetDescriptor хранит всю эту информацию в одном месте.
+// WidgetCatalogDescriptor хранит всю эту информацию в одном месте.
 // Благодаря ему добавление нового типа виджета в MirUI Designer
-// сводится к созданию одного объекта WidgetDescriptor и регистрации
+// сводится к созданию одного объекта WidgetCatalogDescriptor и регистрации
 // его в WidgetLibrary. Вся остальная логика (отображение в тулбоксе,
 // создание через фабрику, настройка инспектора) работает автоматически.
 //
@@ -35,12 +35,12 @@
 
 #include "../../Core/Widget/WidgetType.hpp"
 #include "../../Core/Widget/Widget.hpp"
+#include "../../Core/Widget/PropertyDescriptor.hpp" // наш универсальный дескриптор свойства
 #include "../../Foundation/Icons/IconID.hpp"
-#include "../Inspector/PropertyDescriptor.hpp" // наш универсальный дескриптор свойства
 
 namespace MirUI {
 
-struct WidgetDescriptor {
+struct WidgetCatalogDescriptor {
     WidgetType type;                              // тип виджета (Button, Label, Tree…)
     std::string name;                             // человекочитаемое имя ("Кнопка", "Надпись")
     std::string icon;                             // идентификатор иконки (например, "button")
@@ -54,10 +54,10 @@ struct WidgetDescriptor {
     std::vector<WidgetType> allowedChildren;      // разрешённые типы детей (если isContainer)
 
     // ── Конструкторы для удобства ────────────────────────────
-    WidgetDescriptor() = default;
+    WidgetCatalogDescriptor() = default;
 
     // Упрощённый конструктор без свойств (свойства можно добавить потом).
-    WidgetDescriptor(WidgetType type,
+    WidgetCatalogDescriptor(WidgetType type,
                      std::string name,
                      std::string icon,
                      std::function<std::unique_ptr<Widget>()> factory)
@@ -68,7 +68,7 @@ struct WidgetDescriptor {
     {}
 
     // Полный конструктор.
-    WidgetDescriptor(WidgetType type,
+    WidgetCatalogDescriptor(WidgetType type,
                      std::string name,
                      std::string icon,
                      std::function<std::unique_ptr<Widget>()> factory,

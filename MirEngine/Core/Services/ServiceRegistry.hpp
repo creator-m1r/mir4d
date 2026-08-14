@@ -33,7 +33,7 @@
 #pragma once
 
 #include "IService.hpp"                // IService — базовый интерфейс сервиса
-#include "../Result/Result.hpp"        // Result<void>, ErrorCode
+#include "../Result.hpp"               // mir4d::Result, mir4d::ErrorCode
 #include <memory>                      // std::unique_ptr
 #include <vector>                      // хранение списка сервисов
 #include <string>                      // для сообщений об ошибках
@@ -42,6 +42,9 @@
 #include <stdexcept>                   // std::runtime_error
 
 namespace mir {
+
+using mir4d::Result;
+using mir4d::ErrorCode;
 
 class ServiceRegistry {
 public:
@@ -148,7 +151,9 @@ public:
     // (их можно выключить через shutdownAll()).
     Result<void> initializeAll() {
         if (m_initialized) {
-            return ErrorCode::InvalidState;  // уже инициализированы
+            return std::unexpected(
+                mir4d::Error{ErrorCode::InvalidState,
+                             "ServiceRegistry already initialized"});
         }
 
         for (auto& service : m_services) {

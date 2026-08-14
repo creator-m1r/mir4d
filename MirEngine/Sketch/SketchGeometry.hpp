@@ -87,6 +87,64 @@ public:
         return geometries_;
     }
 
+    /// Inserts an already built geometry variant. A zero id is replaced by a
+    /// fresh store id so command payloads can carry unassigned entities.
+    std::uint32_t add(SketchGeometry geometry)
+    {
+        const auto existingId = std::visit(
+            [](const auto& item) { return item.id; },
+            geometry);
+
+        if (existingId == 0)
+        {
+            const auto id = nextId_++;
+            std::visit(
+                [id](auto& item) { item.id = id; },
+                geometry);
+            geometries_.push_back(std::move(geometry));
+            return id;
+        }
+
+        geometries_.push_back(std::move(geometry));
+        return existingId;
+    }
+
+    [[nodiscard]] const SketchGeometry* find(std::uint32_t id) const noexcept
+    {
+        const auto it = std::find_if(
+            geometries_.begin(),
+            geometries_.end(),
+            [id](const SketchGeometry& geometry)
+            {
+                return std::visit(
+                    [id](const auto& value) { return value.id == id; },
+                    geometry);
+            });
+
+        if (it == geometries_.end())
+            return nullptr;
+
+        return &*it;
+    }
+
+    [[nodiscard]] SketchGeometry* findMutable(std::uint32_t id) noexcept
+    {
+        const auto it = std::find_if(
+            geometries_.begin(),
+            geometries_.end(),
+            [id](const SketchGeometry& geometry)
+            {
+                return std::visit(
+                    [id](const auto& value) { return value.id == id; },
+                    geometry);
+            });
+
+        if (it == geometries_.end())
+            return nullptr;
+
+        return &*it;
+    }
+
     bool remove(std::uint32_t id) noexcept
     {
         const auto it = std::find_if(

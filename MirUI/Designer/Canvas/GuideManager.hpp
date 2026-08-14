@@ -62,6 +62,11 @@ public:
     void setEnabled(bool enabled) { m_enabled = enabled; }
     [[nodiscard]] bool isEnabled() const { return m_enabled; }
 
+    // Видимость направляющих (синоним включённой привязки) — используется
+    // PreviewManager для скрытия направляющих в режиме предпросмотра.
+    void setVisible(bool visible) { m_enabled = visible; }
+    [[nodiscard]] bool isVisible() const { return m_enabled; }
+
     void setSnapThreshold(double threshold) { m_snapThreshold = threshold; }
     [[nodiscard]] double snapThreshold() const { return m_snapThreshold; }
 

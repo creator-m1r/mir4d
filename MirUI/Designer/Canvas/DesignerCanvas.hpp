@@ -56,6 +56,13 @@ public:
     void setMode(Mode mode);
     Mode mode() const;
 
+    // ── Зоны изменения размера ───────────────────────────────
+    // Попал ли курсор в зону изменения размера (край или угол виджета)
+    // и какой именно операции соответствует эта зона.
+    // Используется DragController (см. DesignerCanvas::detectHitZone).
+    enum class HitZone { None, Move, ResizeLeft, ResizeRight, ResizeTop, ResizeBottom,
+                         ResizeTopLeft, ResizeTopRight, ResizeBottomLeft, ResizeBottomRight };
+
     // ── Выделение ────────────────────────────────────────────
     // Выделить все виджеты, попавшие в прямоугольную область.
     void selectInRect(const Rect& rect);
@@ -99,8 +106,6 @@ private:
 
     // Проверить, попал ли курсор в зону изменения размера
     // (край или угол виджета) и вернуть тип операции.
-    enum class HitZone { None, Move, ResizeLeft, ResizeRight, ResizeTop, ResizeBottom,
-                         ResizeTopLeft, ResizeTopRight, ResizeBottomLeft, ResizeBottomRight };
     HitZone detectHitZone(Widget* widget, const Point& position) const;
 
     // Создать и выполнить команду для изменения размера.

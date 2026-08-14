@@ -122,7 +122,7 @@ private:
 
     // ── Применить цвет к теме ────────────────────────────────
     void applyColor(const Color& color) {
-        Theme& theme = m_doc.themeManager().theme();
+        Theme theme = m_doc.themeManager().current();
         ColorPalette& palette = theme.colors;
 
         // Сопоставляем имя токена с полем структуры ColorPalette.
@@ -153,11 +153,15 @@ private:
             palette.*(it->second) = color;
         }
         // Если имя не найдено, ничего не делаем (можно добавить вывод ошибки).
+
+        // Сохраняем изменённую тему обратно в менеджер.
+        m_doc.themeManager().registerTheme(theme);
+        m_doc.themeManager().setTheme(theme.id);
     }
 
     // ── Получить текущий цвет токена из темы ─────────────────
     Color getTokenColor() const {
-        const Theme& theme = m_doc.themeManager().theme();
+        const Theme theme = m_doc.themeManager().current();
         const ColorPalette& palette = theme.colors;
 
         using ColorMemberPtr = Color ColorPalette::*;

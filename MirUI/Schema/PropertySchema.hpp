@@ -18,7 +18,7 @@
 //   • Дизайнер (Designer) может показывать осмысленные названия на русском языке
 //     вместо технических идентификаторов.
 //
-// Каждая запись (PropertyDescriptor) содержит:
+// Каждая запись (SchemaPropertyDescriptor) содержит:
 //   • id          — строковый идентификатор свойства (например, "text", "width")
 //   • type        — ожидаемый тип значения (String, Integer, Float, Boolean, Color, Font, Enum…)
 //   • category    — категория для группировки в инспекторе ("Основные", "Геометрия", "Стиль")
@@ -53,7 +53,7 @@ enum class PropertyValueType {
 };
 
 // ── Дескриптор одного стандартного свойства ────────────────
-struct PropertyDescriptor {
+struct SchemaPropertyDescriptor {
     std::string id;              // уникальный идентификатор (например, "text", "width")
     PropertyValueType type;      // ожидаемый тип значения
     std::string category;        // категория ("Основные", "Геометрия", "Стиль", "Поведение")
@@ -67,22 +67,22 @@ struct PropertyDescriptor {
 class PropertySchema {
 public:
     // Получить полный список всех зарегистрированных свойств.
-    [[nodiscard]] static const std::vector<PropertyDescriptor>& allProperties() {
+    [[nodiscard]] static const std::vector<SchemaPropertyDescriptor>& allProperties() {
         return properties();
     }
 
     // Найти дескриптор свойства по его идентификатору.
     // Возвращает указатель на дескриптор или nullptr, если свойство не найдено.
-    [[nodiscard]] static const PropertyDescriptor* find(const std::string& id) {
+    [[nodiscard]] static const SchemaPropertyDescriptor* find(const std::string& id) {
         auto& props = properties();
         auto it = std::find_if(props.begin(), props.end(),
-            [&id](const PropertyDescriptor& desc) { return desc.id == id; });
+            [&id](const SchemaPropertyDescriptor& desc) { return desc.id == id; });
         return (it != props.end()) ? &(*it) : nullptr;
     }
 
     // Найти все свойства из заданной категории.
-    [[nodiscard]] static std::vector<const PropertyDescriptor*> findByCategory(const std::string& category) {
-        std::vector<const PropertyDescriptor*> result;
+    [[nodiscard]] static std::vector<const SchemaPropertyDescriptor*> findByCategory(const std::string& category) {
+        std::vector<const SchemaPropertyDescriptor*> result;
         for (const auto& desc : properties()) {
             if (desc.category == category) {
                 result.push_back(&desc);
@@ -113,8 +113,8 @@ public:
 
 private:
     // Статический реестр всех встроенных свойств.
-    static std::vector<PropertyDescriptor>& properties() {
-        static std::vector<PropertyDescriptor> s_properties = {
+    static std::vector<SchemaPropertyDescriptor>& properties() {
+        static std::vector<SchemaPropertyDescriptor> s_properties = {
             // ── Основные ──────────────────────────────────────
             {
                 "name",

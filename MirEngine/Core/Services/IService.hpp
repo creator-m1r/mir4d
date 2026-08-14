@@ -31,10 +31,12 @@
 
 #pragma once
 
-#include "../Result/Result.hpp"   // Result<void>, ErrorCode
+#include "../Result.hpp"          // mir4d::Result, mir4d::ErrorCode
 #include <string>                 // std::string
 
 namespace mir {
+
+using mir4d::Result;
 
 class IService {
 public:

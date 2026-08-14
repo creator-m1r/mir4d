@@ -27,6 +27,7 @@
 #pragma once
 
 #include "../Core/Types/Scalar.hpp"   // mir::Scalar = double
+#include "Vector/Vector3.hpp"          // mir::Vector3
 #include <cmath>                       // std::abs
 
 namespace mir {
@@ -54,6 +55,17 @@ public:
     // Число практически ноль?
     [[nodiscard]] bool isZero(Scalar value) const noexcept {
         return std::abs(value) <= linearTolerance;
+    }
+
+    // ── Сравнение векторов (наследие Tolerance) ──────────────
+    // Два вектора равны покомпонентно с учётом линейного допуска?
+    [[nodiscard]] bool areEqual(const Vector3& a, const Vector3& b) const noexcept {
+        return areEqual(a.x, b.x) && areEqual(a.y, b.y) && areEqual(a.z, b.z);
+    }
+
+    // Вектор практически нулевой (все компоненты близки к 0)?
+    [[nodiscard]] bool isZero(const Vector3& v) const noexcept {
+        return isZero(v.x) && isZero(v.y) && isZero(v.z);
     }
 
     // Два угла равны с учётом углового допуска?

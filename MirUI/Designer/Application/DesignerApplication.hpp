@@ -28,6 +28,8 @@
 #pragma once
 
 #include "../Document/UIDocument.hpp"
+#include "../Document/UIReader.hpp"
+#include "../Document/UIWriter.hpp"
 #include "../Canvas/DesignerCanvas.hpp"
 #include "../Toolbox/Toolbox.hpp"
 #include "../Inspector/InspectorModel.hpp"

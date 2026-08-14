@@ -20,6 +20,7 @@
 #pragma once
 
 #include "../Document/UIDocument.hpp"
+#include "../Commands/ChangePropertyCommand.hpp"
 #include "../../Core/State/StateValue.hpp"
 #include "../../Core/Widget/WidgetID.hpp"
 #include "../../Foundation/Color/Color.hpp"

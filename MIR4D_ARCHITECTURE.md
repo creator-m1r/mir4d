@@ -322,32 +322,59 @@ MirEngine/Math/
 ├── Ray.hpp
 ├── Plane.hpp
 ├── Bounds.hpp
-└── Tolerance.hpp
+└── Precision.hpp
 ```
 
 Существующую хорошую математическую реализацию переносим в canonical-файл, а не дублируем.
 
 ## 11. Geometry
 
-Фактически существующие направления, которые переписываются:
+Фактическое состояние после чистки legacy-среза (проход «битые include»):
 
 ```text
-Curve
-Direction
-Line
-Model
-Operations
-Plane
-Point
-Primitives
-Profile
-Ray
-Scene
-Segment
-Solid
-Tessellation
-Vector
+MirEngine/Geometry/
+├── Curve/           Curve.hpp, CurveLoop.hpp, Circle.hpp, Arc.hpp (живые: Profile3)
+├── Model/           Model.hpp (Profile + FacetedSolid + TriangleMesh3)
+├── Profile/         Profile.hpp (Profile3 — конструкционный источник Model3)
+├── Scene/           Scene.hpp (render-oriented scene nodes)
+├── Solid/           FacetedSolid.hpp
+├── Tessellation/    Tessellator.hpp, TriangleMesh.hpp
+├── Geometry.hpp
 ```
+
+Удалено в этом проходе (некомпилируемый / мёртвый legacy-код):
+
+```text
+Solid/    Solid, Box, Cone, Cylinder, Pyramid, Sphere, Torus, Wedge
+Surface/  Surface, PlaneSurface, CylindricalSurface, NurbsSurface
+Plane/    Plane
+Curve/    ParametricCurve, LineCurve, BezierCurve, NurbsCurve, ArcCurve
+Operations/  Boolean, Chamfer, Draft, Extrude, Fillet, Loft, Mirror,
+             Offset, Pattern, Revolve, Shell, Split, Sweep
+Primitives/  Box
+Bounding/    BoundingBox, BoundingSphere
+Coordinate/  CoordinateSystem
+Profile/     RectangleProfileBuilder
+```
+
+Позднее (P0 — чистка мёртвых дублей) удалено дополнительно:
+
+```text
+Topology/    Vertex, Edge, Face, Shell, Loop, Body, Assembly, Solid,
+             TopologyStore, TopologyFwd (legacy; держались только тестами
+             EdgeTest/ExtendedDomains, переведены на BRep-покрытие)
+Line/        Line
+Ray/         Ray
+Segment/     Segment
+Direction/   Direction
+GeometryFwd.hpp   (forward-объявления удалённых типов)
+Math/Tolerance.hpp       (дубль Precision)
+Math/Transform/Transform.hpp  (compat-заглушка #include ../Transform.hpp)
+```
+
+Геометрические операции живут в `MirEngine/BRep` (Builders, Boolean, Converters)
+и `MirEngine/Geometry/Model`. Дублирующие Solid/Surface/Operations-системы
+создавать нельзя.
 
 TARGET:
 
@@ -754,6 +781,15 @@ legacy Scene boundary
 - `TimeMachine` переведён в `mir4d`;
 - тесты `BuildCheck`, `CreateBox`, `SelectionState`, `Integration4D` синхронизированы с canonical API.
 
+Проход «битые include + чистка Geometry legacy» (следующий за миграцией Identity):
+
+- починены include: `Math/Bounds/AABB.hpp` → `TransformMatrix.hpp`; `Math/PlanarMatrix.hpp` → `Vector/PlanarVector.hpp` и `Core/Types/Scalar.hpp`; `Geometry/Topology/Vertex.hpp` → `Math/Point.hpp`; `MirUI/Designer/Core/DesignerCore.hpp` → `Foundation/Animation/AnimationManager.hpp`; `Core/Services/IService.hpp` и `ServiceRegistry.hpp` → canonical `Core/Result.hpp` + `using mir4d::Result/ErrorCode`;
+- `ServiceRegistry::initializeAll` возвращает `std::unexpected(Error{...})` через canonical `mir4d::Error`;
+- удалены некомпилируемые/мёртвые файлы: `Core/Engine/Engine.{hpp,cpp}` (битый include, `IDGenerator` не существует), `Document/BasicCommandHandler.hpp`, `MirUI/Exports/MirUIExports.{cpp,h}` (включал несуществующий `Application/CADApplication.hpp`);
+- удалён legacy-срез Geometry (см. §11): Solid (кроме FacetedSolid), Surface, Plane, сломанные Curve, Operations, Primitives, Bounding, Coordinate, RectangleProfileBuilder;
+- `Geometry.hpp` больше не включает `Bounding/BoundingBox.hpp`;
+- `SketchGeometryStore` получил `add(SketchGeometry)`, `find(id)`, `findMutable(id)` — Sketch-команды (Create/Parameter/Drag/Resolver) снова компилируются.
+
 ## 28. Проверка CI
 
 Последний известный старый CI-запуск до этого исправляющего прохода завершился ошибкой из-за массового несоответствия namespace после миграции Identity и нескольких отсутствующих include/constructor initialization.
@@ -796,6 +832,142 @@ BRep
 ```
 
 Цель следующего прохода — убрать `Document → mir::Scene` и сделать `ObjectStore` настоящим canonical storage, не создавая ещё одну параллельную модель.
+
+Перед этим закрыть остатки предыдущего прохода:
+
+```text
+[v] MirUI Designer: WidgetDescriptor.hpp (битый include ../Inspector/PropertyDescriptor.hpp),
+                   Container.hpp (LayoutDirection/Insets не включены), UIProject.hpp (WidgetFactory сигнатура)
+[v] BRep: BRepExtrudeBuilder.hpp (include "BRepValidator.hpp" без пути → Validator/BRepValidator.hpp)
+[x] Geometry Topology legacy: Vertex/Edge/Face/Shell/Loop/Body/Assembly/Solid/
+                   TopologyStore удалены (P0); тесты переведены: EdgeTest удалён
+                   (покрыт MIR4D_BRepTopology), ExtendedDomains избавлен от Assembly
+[x] Geometry Query: Intersections/Distance/Projection (P3, см. §29.4)
+[ ] Geometry TARGET: Curves/Surfaces/Primitives/Algorithms — дальнейшее развитие
+```
+
+### 29.1. MirUI Designer — доведение до компиляции
+
+Ядро Designer (DesignerCore, DesignerApplication, InspectorModel, PreviewManager,
+UIProjectSerializer, WidgetLibrary, WidgetFactory) переведено в компилируемое состояние:
+
+```text
+[v] WidgetFactory::create(WidgetType, name) → std::unique_ptr<Widget> (убраны m_owned/clearOwned)
+[v] WidgetDescriptor (Schema) и WidgetDescriptor (Designer) — конфликт имён: Designer → WidgetCatalogDescriptor
+[v] PropertyDescriptor: StateValue → PropertyValue; PropertyType::Float → PropertyType::Number
+[v] ThemeManager: поле theme → current(); UIProjectSerializer сохраняет тему через registerTheme/setTheme
+[v] AnimationManager: пустой Foundation/Animation/AnimationManager.hpp дополнен контрактом
+    (setWidgetTree/update/animate/stopWidget); анимационный движок — отдельная веха
+[v] Отсутствующие include: WidgetClipboard, ChangePropertyCommand, UIReader/UIWriter,
+    GridManager/GuideManager (включены над namespace — иначе классы попадали в вложенный namespace)
+[v] GuideManager: setVisible/isVisible (синоним setEnabled/isEnabled)
+```
+
+### 29.2. Зонтик MirUI.hpp — закрыт
+
+Обзорная TU (все includes MirUI.hpp) вскрыла никогда не компилировавшийся пласт
+(Themes/Schema/Workspace/Inspector editors). Все пункты исправлены:
+
+```text
+[v] Core/Layout: Unit.hpp и LayoutData.hpp объявляли enum Unit дважды —
+    LayoutData.hpp теперь включает Unit.hpp (канонический Unit остаётся один)
+[v] Schema/PropertySchema.hpp: свой struct PropertyDescriptor — конфликт
+    с Core/Widget/PropertyDescriptor.hpp; переименован в SchemaPropertyDescriptor
+[v] Designer/Inspector: ColorEditor/PropertyEditor — Color::fromHex/toHex добавлены
+    в Foundation/Color/Color.hpp (форматы "#RRGGBB" и "#RRGGBBAA")
+[v] Designer/Canvas: DragController — DesignerCanvas::HitZone перенесён в public
+[v] Designer/Themes: ThemeEditor/ColorTokenEditor/MetricsEditor/TypographyEditor —
+    ThemeManager::theme → current() + сохранение изменённой темы
+    через registerTheme/setTheme (7 мест)
+[v] Workspace/LayoutManager: добавлено недостающее определение DockPosition
+[v] PropertyEditor: break вне switch (удалён)
+```
+
+Остаются только предупреждения C4100/C4101/C4189 в pre-existing коде
+(LayoutManager, RenderCommandBuffer, UIFormatVersion, UIWriter) — не ошибки.
+
+### 29.3. BRep Boolean API — P1/P2/P2.1/P2.2/P2.3
+
+```text
+[v] BRepBooleanAPI::fuse — объединение:
+    • непересекающиеся тела        → копия обоих (makeSolid из оболочек);
+    • пересекающиеся box'ы         → точное объединение: общая сетка
+      координат (границы обоих тел), замощение 12 граней клетками,
+      клетки, полностью поглощённые другим телом, не строятся;
+      вершины и рёбра дедуплицируются по сетке (gridVertex/gridEdge),
+      контуры клеток CCW снаружи (по cross(axisA, axisB)), общая
+      топология соседних клеток и граней;
+    • прочие тела                  → NotImplemented (kernel пересечений)
+[v] BRepBooleanAPI::cut — разность:
+    • tool не пересекает A            → копия A (математически A \ B = A);
+    • tool строго внутри A            → полость: внешняя оболочка A +
+      внутренняя оболочка B с обратной ориентацией (замкнутая полость);
+    • сквозной проход (tool протыкает → туннель: отверстия (inner wires)
+      на торцах A + внутренняя оболочка «короб» из 4 граней вдоль оси
+      прохода; требует axis-aligned box'ы, tool без inner wires;
+      passThroughAxis: протыкание по одной оси и строгое попадание
+      по двум другим);
+    • частичное перекрытие box'ов    → вырез W = A ∩ B: клетки граней A
+      вне W (нестрогое поглощение — дыры открываются и на гранях,
+      совпадающих с W) + стенки сторон W, не совпадающих с границами A;
+      кольца клеток сшиваются со стенками по рёбрам общей сетки —
+      единая замкнутая оболочка без inner wires (колодец / угловой
+      вырез / вырез с касанием грани);
+    • прочие тела                     → NotImplemented (обобщённый kernel)
+[v] BRepBooleanAPI::common — пересечение:
+    • не пересекаются                 → EmptyResult;
+    • оба — axis-aligned box'ы        → новый box по пересечению AABB;
+    • прочие тела                     → NotImplemented
+[v] copyModel: опция копирования без оболочек (copyShells=false) для
+    пересборки оболочек; remap пустой карты → InvalidBRepIndex
+[v] Отверстия: BRepTopologyEditor::addInnerWire — inner wires на гранях
+    торцов (cut-through)
+[v] Тест MIR4D_BRepBoolean (таргет + add_test): 15 сценариев (fuse ×6,
+    cut ×9, common ×2, execute ×1)
+[v] P2.4a: BRepPrimAPI_MakeBox::buildOriented — box в произвольном
+    ортонормированном базисе (повёрнутый box): 8 вершин в базисных
+    координатах, грани с базисными нормалями; build() — обёртка над
+    buildOriented с единичным базисом; невалидный базис отклоняется;
+    булевы операции для повёрнутых box'ов честно возвращают
+    NotImplemented; тест MIR4D_BRepBox расширен (проверка вершин
+    повёрнутого box'а + честные отказы)
+[ ] Обобщение замощения на произвольные (не плоскостные, не
+    параллельные осям) грани — следующий проход (P2.4b: разбиение
+    рёбер через GeometryQuery + сшивка граней для повёрнутых box'ов)
+```
+
+Ограничения честно задокументированы в коде: каждый нереализованный
+случай возвращает NotImplemented (или EmptyResult), а не невалидный результат.
+
+### 29.4. Geometry Query — P3 (Intersections / Distance / Projection)
+
+Канонический аналитический слой CAD-запросов — фундамент для булева ядра
+(разбиение рёбер/граней), измерений, привязок и предварительных выборов.
+Не зависит от рендера, B-Rep и UI.
+
+```text
+[v] Примитивы: Line3 (P(t) = origin + direction·t), Ray3 (t ≥ 0),
+    Segment3 (t ∈ [0,1]); направления не обязаны быть единичными
+    (MirEngine/Geometry/Query/Query.hpp)
+[v] Projection: точка → прямая / луч / отрезок (projectPointOnLine/Ray/Segment);
+    точка → плоскость — MathPlane::project (не дублируется)
+[v] Distance: точка → прямая/луч/отрезок; прямая → прямая
+    (скрещивающиеся и параллельные); отрезок → отрезок
+    (Ericson, Real-Time Collision Detection, 5.1.9 — кратчайший отрезок
+    с ограничением параметров)
+[v] Intersections: прямая/луч/отрезок → плоскость (параметр за пределами
+    → nullopt); прямая → прямая (параллельные/скрещивающиеся → nullopt);
+    отрезок → отрезок (общий случай, коллинеарное перекрытие — точка
+    начала общей части); луч → треугольник (Мёллер–Трумбор)
+[v] MathPlane: добавлены перегрузки signedDistance/distance/project/
+    isOnPositiveSide для Point3 (аддитивно, Vector3-версии сохранены)
+[v] Зонтик Geometry.hpp включает Query/Query.hpp; все функции noexcept,
+    дегенеративные входы дают nullopt
+[v] Тест MIR4D_GeometryQuery (таргет + add_test): 48 проверок —
+    примитивы, проекции, расстояния, пересечения, треугольник
+[ ] Примитивы → CAD: использование Line3/Segment3 в булевом kernel
+    (разбиение рёбер) и в скетч-привязках — следующий проход
+```
 
 ## 30. Правило обновления этого файла
 

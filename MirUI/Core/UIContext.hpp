@@ -31,7 +31,7 @@
 #include "Commands/CommandHistory.hpp"
 #include "Selection/SelectionManager.hpp"
 #include "Layout/LayoutEngine.hpp"
-#include "Animation/AnimationManager.hpp"
+#include "../Foundation/Animation/AnimationManager.hpp"
 #include <memory>
 
 namespace MirUI {

@@ -113,7 +113,7 @@ private:
 
     // ── Применить шрифт к теме ───────────────────────────────
     void applyFont(const Font& font) {
-        Theme& theme = m_doc.themeManager().theme();
+        Theme theme = m_doc.themeManager().current();
         Typography& typography = theme.typography;
 
         // Таблица указателей на члены Typography для шрифтов.
@@ -131,11 +131,15 @@ private:
         if (it != tokenMap.end()) {
             typography.*(it->second) = font;
         }
+
+        // Сохраняем изменённую тему обратно в менеджер.
+        m_doc.themeManager().registerTheme(theme);
+        m_doc.themeManager().setTheme(theme.id);
     }
 
     // ── Получить текущий шрифт токена из темы ────────────────
     [[nodiscard]] Font getTokenFont() const {
-        const Theme& theme = m_doc.themeManager().theme();
+        const Theme theme = m_doc.themeManager().current();
         const Typography& typography = theme.typography;
 
         using TypographyMemberPtr = Font Typography::*;

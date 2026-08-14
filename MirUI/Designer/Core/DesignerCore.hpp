@@ -36,10 +36,11 @@
 #include "../../Core/Selection/SelectionManager.hpp"
 #include "../../Core/Commands/CommandHistory.hpp"
 #include "../../Core/Rendering/Renderer.hpp"
-#include "../../Core/Animation/AnimationManager.hpp"
+#include "../../Foundation/Animation/AnimationManager.hpp"
 #include "../../Core/Theme/ThemeManager.hpp"
 #include "../../Core/Theme/ThemeID.hpp"
 #include "../../Foundation/Animation/AnimationSpec.hpp"
+#include "../Commands/WidgetClipboard.hpp"
 #include <memory>
 #include <string>
 #include <vector>

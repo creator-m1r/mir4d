@@ -129,8 +129,7 @@ public:
             // FontEditor::setFont принимает Font, но у нас есть статический десериализатор?
             // Проще: FontEditor внутри сам вызовет ChangePropertyCommand, если передать Font.
             // Здесь мы не можем создать Font из строки без парсинга, поэтому
-            // для простоты пока просто создаём команду напрямую.
-            break; // идём к универсальному созданию команды ниже
+            // для простоты пока просто создаём команду напрямую (переходим ниже).
         }
         if (m_enumEditor && std::holds_alternative<std::string>(newValue)) {
             m_enumEditor->setValue(std::get<std::string>(newValue));

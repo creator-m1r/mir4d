@@ -17,6 +17,15 @@
 
 namespace MirUI {
 
+// Позиция пристыковки панели (dock) внутри окна.
+enum class DockPosition {
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Fill
+};
+
 class LayoutManager {
 public:
     // ── Конструктор ──────────────────────────────────────────

@@ -136,7 +136,7 @@ public:
     // чтобы можно было отменить сброс через Ctrl+Z.
     void resetToDefault() {
         // Сохраняем текущую тему для возможности Undo.
-        Theme oldTheme = m_doc.themeManager().theme();
+        Theme oldTheme = m_doc.themeManager().current();
 
         // Создаём и выполняем команду сброса темы.
         auto cmd = std::make_unique<ResetThemeCommand>(m_doc, oldTheme);

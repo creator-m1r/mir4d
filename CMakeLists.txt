@@ -214,6 +214,12 @@ target_link_libraries(MIR4D_BRepProfileExtrude PRIVATE MirEngineBRep)
 add_executable(MIR4D_BRepHeaderCheck MirEngine/Tests/BRep/BRepHeaderCheck.cpp)
 target_link_libraries(MIR4D_BRepHeaderCheck PRIVATE MirEngineBRep)
 
+add_executable(MIR4D_BRepBoolean MirEngine/Tests/BRep/BRepBoolean.cpp)
+target_link_libraries(MIR4D_BRepBoolean PRIVATE MirEngineBRep)
+
+add_executable(MIR4D_GeometryQuery MirEngine/Tests/Geometry/GeometryQueryTest.cpp)
+target_link_libraries(MIR4D_GeometryQuery PRIVATE MirEngineGeometry)
+
 add_executable(MIR4D_SketchRectangleProfile MirEngine/Tests/Sketch/SketchRectangleProfileTest.cpp)
 target_link_libraries(MIR4D_SketchRectangleProfile PRIVATE MirEngine)
 
@@ -228,9 +234,6 @@ target_link_libraries(MIR4D_ViewportRuntime PRIVATE MirEngineViewport)
 
 add_executable(MIR4D_ViewportController MirEngine/Tests/Viewport/ViewportControllerTest.cpp)
 target_link_libraries(MIR4D_ViewportController PRIVATE MirEngineViewport)
-
-add_executable(MIR4D_Edge MirEngine/Tests/Geometry/EdgeTest.cpp)
-target_link_libraries(MIR4D_Edge PRIVATE MirEngineGeometry)
 
 add_executable(MIR4D_Count MirEngine/Tests/Core/CountTest.cpp)
 target_link_libraries(MIR4D_Count PRIVATE MirEngine)
@@ -259,12 +262,13 @@ add_test(NAME MIR4D_BRepBox COMMAND MIR4D_BRepBox)
 add_test(NAME MIR4D_BRepTopology COMMAND MIR4D_BRepTopology)
 add_test(NAME MIR4D_BRepProfileExtrude COMMAND MIR4D_BRepProfileExtrude)
 add_test(NAME MIR4D_BRepHeaderCheck COMMAND MIR4D_BRepHeaderCheck)
+add_test(NAME MIR4D_BRepBoolean COMMAND MIR4D_BRepBoolean)
+add_test(NAME MIR4D_GeometryQuery COMMAND MIR4D_GeometryQuery)
 add_test(NAME MIR4D_SketchRectangleProfile COMMAND MIR4D_SketchRectangleProfile)
 add_test(NAME MIR4D_SketchRectangleSolver COMMAND MIR4D_SketchRectangleSolver)
 add_test(NAME MIR4D_ViewportFoundation COMMAND MIR4D_ViewportFoundation)
 add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)
-add_test(NAME MIR4D_Edge COMMAND MIR4D_Edge)
 add_test(NAME MIR4D_Count COMMAND MIR4D_Count)
 add_test(NAME MIR4D_Simulation COMMAND MIR4D_Simulation)
 add_test(NAME MIR4D_ExtendedDomains COMMAND MIR4D_ExtendedDomains)
