@@ -8,8 +8,9 @@
 namespace mir
 {
 
-/// Platform-neutral camera interaction controller.
-/// Middle-button orbit/pan/zoom policies are intentionally configurable by the UI.
+/// Platform-neutral CAD camera controller.
+/// Pan follows the camera screen axes instead of world X/Y, while orbit and
+/// zoom remain stable across very small and very large engineering scenes.
 class ViewportController
 {
 public:
@@ -58,9 +59,7 @@ public:
             return;
         }
 
-        const Point3 target = camera_->target();
-        const Scalar scale = camera_->distance() * panSpeed_;
-        camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
+        panCameraAxes(dx, dy);
     }
 
     void zoom(Scalar delta) noexcept
@@ -68,26 +67,22 @@ public:
         if (!camera_)
             return;
 
+        // Exponential zoom gives the same feel at any scene scale.
         const Scalar factor = std::exp(-delta * zoomSpeed_);
-        camera_->setOrbit(camera_->theta(), camera_->phi(), camera_->distance() * factor);
+        const Scalar distance = std::clamp(
+            camera_->distance() * factor,
+            kMinDistance,
+            kMaxDistance);
+        camera_->setOrbit(camera_->theta(), camera_->phi(), distance);
     }
 
-    /// Continuous two-finger / gesture panning.
-    /// Deltas follow the touchpad gesture direction, independent of Mode,
-    /// so trackpad panning never conflicts with mouse button state.
     void panBy(Scalar dx, Scalar dy) noexcept
     {
         if (!camera_)
             return;
-
-        const Point3 target = camera_->target();
-        const Scalar scale = camera_->distance() * panSpeed_;
-        camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
+        panCameraAxes(dx, dy);
     }
 
-    /// Continuous two-finger / gesture orbiting.
-    /// Deltas follow the touchpad gesture direction, independent of Mode,
-    /// so trackpad orbiting never conflicts with mouse button state.
     void orbitBy(Scalar dx, Scalar dy) noexcept
     {
         if (!camera_)
@@ -108,6 +103,34 @@ private:
         lastY_ = y;
     }
 
+    void panCameraAxes(Scalar dx, Scalar dy) noexcept
+    {
+        const Point3 target = camera_->target();
+        const Scalar distance = std::max(camera_->distance(), Scalar(1e-6));
+        const Scalar scale = distance * panSpeed_;
+
+        // Camera position uses:
+        // x = sin(phi) sin(theta), y = cos(phi), z = sin(phi) cos(theta).
+        // The screen-right vector is perpendicular to the horizontal view
+        // direction; screen-up is the camera's corrected up vector.
+        const Scalar theta = camera_->theta();
+        const Scalar phi = camera_->phi();
+        const Scalar sinTheta = std::sin(theta);
+        const Scalar cosTheta = std::cos(theta);
+        const Scalar sinPhi = std::sin(phi);
+        const Scalar cosPhi = std::cos(phi);
+
+        const Vector3 right{cosTheta, 0.0, -sinTheta};
+        const Vector3 up{-cosPhi * sinTheta, sinPhi, -cosPhi * cosTheta};
+
+        const Scalar tx = -dx * scale;
+        const Scalar ty = dy * scale;
+        camera_->setTarget({
+            target.x + right.x * tx + up.x * ty,
+            target.y + right.y * tx + up.y * ty,
+            target.z + right.z * tx + up.z * ty});
+    }
+
     static Scalar clampPhi(Scalar phi) noexcept
     {
         return std::clamp(phi, kMinPhi, kMaxPhi);
@@ -123,6 +146,8 @@ private:
 
     static constexpr Scalar kMinPhi = Scalar(0.05);
     static constexpr Scalar kMaxPhi = Scalar(3.14159265358979) - Scalar(0.05);
+    static constexpr Scalar kMinDistance = Scalar(1e-6);
+    static constexpr Scalar kMaxDistance = Scalar(1e12);
 };
 
 } // namespace mir
