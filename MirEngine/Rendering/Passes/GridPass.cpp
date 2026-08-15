@@ -5,6 +5,7 @@
 #include "../OpenGL/OpenGLIndexBuffer.h"
 #include "../Core/RenderContext.h"
 #include "../Core/RenderDevice.h"
+#include "MirEngine/Math/TransformMatrix.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -73,7 +74,11 @@ void main() {
     vec3 dir = normalize(farPoint.xyz / farPoint.w);
 
     float denom = dot(uPlaneNormalView, dir);
-    if (denom < 1e-6) discard;               // plane behind camera or edge-on
+    if (abs(denom) < 1e-6) discard;           // plane edge-on to the camera
+    // Note: for an orbit camera above the plane the normal points away from
+    // the viewer, so denom is negative while planeConst is negative too and
+    // t = planeConst / denom is positive (the plane is in front). Only the
+    // signed ray-plane test below decides visibility.
 
     float t = uPlaneConstView / denom;
     if (t < 0.0) discard;
@@ -339,25 +344,20 @@ void GridPass::execute(RenderContext& context,
         : context.farPlane * 0.85f;
 
     // Invert projection for view-space ray reconstruction.
+    // Matrix4::inverse() (Gauss-Jordan with partial pivoting) is the canonical
+    // implementation used by RayPicker; the hand-rolled 4x4 cofactor formula
+    // previously used here produced a wrong inverse (P * inv != I).
     Matrix4Raw invProjection = IdentityMatrix4();
     {
+        mir::Matrix4 projection;
         const float* m = context.projectionMatrix.data();
-        const double det =
-            static_cast<double>(m[0]) * (static_cast<double>(m[5]) * m[10] - m[6] * static_cast<double>(m[9])) -
-            static_cast<double>(m[1]) * (m[4] * static_cast<double>(m[10]) - m[6] * static_cast<double>(m[8])) +
-            static_cast<double>(m[2]) * (m[4] * static_cast<double>(m[9]) - m[5] * static_cast<double>(m[8]));
-        if (std::abs(det) > 1e-12)
-        {
-            const double invDet = 1.0 / det;
-            auto minor = [&](int r, int c) -> double {
-                const int a = (c + 1) % 4, b = (c + 2) % 4, d = (r + 1) % 4, e = (r + 2) % 4;
-                return (static_cast<double>(m[a * 4 + d]) * m[b * 4 + e] -
-                        static_cast<double>(m[a * 4 + e]) * m[b * 4 + d]);
-            };
-            for (int col = 0; col < 4; ++col)
-                for (int row = 0; row < 4; ++row)
-                    invProjection[row * 4 + col] = static_cast<float>(minor(col, row) * invDet);
-        }
+        for (int row = 0; row < 4; ++row)
+            for (int column = 0; column < 4; ++column)
+                projection(row, column) = static_cast<mir::Scalar>(m[row + column * 4]);
+        const mir::Matrix4 inverse = projection.inverse();
+        for (int row = 0; row < 4; ++row)
+            for (int column = 0; column < 4; ++column)
+                invProjection[row + column * 4] = static_cast<float>(inverse(row, column));
     }
 
     // Plane in view space: n_v . p = const_v
