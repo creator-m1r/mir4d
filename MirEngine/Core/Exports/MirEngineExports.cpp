@@ -308,6 +308,57 @@ void MirEngineSetCameraOrientation(
 }
 
 
+void MirEngineSetCameraProjection(
+    void* viewport,
+    int projection
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->setProjection(
+        projection == 0
+            ? mir::CameraProjection::Perspective
+            : mir::CameraProjection::Orthographic
+    );
+}
+
+
+int MirEngineGetCameraProjection(void* viewport)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return 0;
+
+    return native->runtime->state().camera.projection() ==
+            mir::CameraProjection::Orthographic
+        ? 1
+        : 0;
+}
+
+
+void MirEngineSetCameraFov(
+    void* viewport,
+    float fovYRadians
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->state().camera.setFovY(
+        mir::Scalar(fovYRadians)
+    );
+}
+
+
 // ------------------------------------------------------------
 // Camera presets (navigation sphere)
 // ------------------------------------------------------------
@@ -432,16 +483,23 @@ void MirEngineFitViewport(void* viewport)
         mir::Scalar(1e-6)
     });
 
-    constexpr mir::Scalar kFovY =
-        mir::Scalar(0.7853981633974483);
-
-    const mir::Scalar distance =
-        (extent * mir::Scalar(0.5)) /
-        std::tan(kFovY * mir::Scalar(0.5)) *
-        mir::Scalar(1.35);
-
     auto& camera =
         native->runtime->state().camera;
+
+    mir::Scalar distance;
+    if (camera.projection() == mir::CameraProjection::Orthographic)
+    {
+        // In orthographic mode the visible half-height equals the distance,
+        // so fit the whole extent with a 35% margin.
+        distance = extent * mir::Scalar(0.5) * mir::Scalar(1.35);
+    }
+    else
+    {
+        const mir::Scalar fov = camera.fovY();
+        distance = (extent * mir::Scalar(0.5)) /
+                   std::tan(fov * mir::Scalar(0.5)) *
+                   mir::Scalar(1.35);
+    }
 
     camera.setTarget(center);
     camera.setOrbit(
@@ -537,6 +595,23 @@ void MirEngineViewportScroll(
         return;
 
     native->runtime->zoom(delta);
+}
+
+
+void MirEngineViewportZoomAt(
+    void* viewport,
+    float delta,
+    float x,
+    float y
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->zoomAt(delta, x, y);
 }
 
 

@@ -9,6 +9,7 @@ extension Notification.Name {
     static let mir4DExportStl = Notification.Name("MIR4D.ExportSTL")
     static let mir4DCreateBox = Notification.Name("MIR4D.CreateBox")
     static let mir4DFitViewport = Notification.Name("MIR4D.FitViewport")
+    static let mir4DCameraProjectionRequested = Notification.Name("MIR4D.CameraProjectionRequested")
 }
 
 // MARK: - OpenGL / MirEngine View
@@ -64,6 +65,7 @@ final class MirGLCustomView: NSView {
     private var createBoxObserver: NSObjectProtocol?
     private var fitViewportObserver: NSObjectProtocol?
     private var cameraPresetObserver: NSObjectProtocol?
+    private var cameraProjectionObserver: NSObjectProtocol?
 
     // MARK: Mouse interaction
 
@@ -114,6 +116,7 @@ final class MirGLCustomView: NSView {
             observeCreateBoxRequests()
             observeFitViewportRequests()
             observeCameraPresetRequests()
+            observeCameraProjectionRequests()
 
             setupEngine()
             startDisplayLink()
@@ -576,6 +579,48 @@ final class MirGLCustomView: NSView {
         }
     }
 
+    private func observeCameraProjectionRequests() {
+
+        guard cameraProjectionObserver == nil else {
+            return
+        }
+
+        cameraProjectionObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DCameraProjectionRequested,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+
+                guard
+                    let payload =
+                        notification.userInfo,
+                    let raw =
+                        payload["projection"] as? Int,
+                    raw == 0 || raw == 1
+                else {
+                    return
+                }
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.applyCameraProjection(Int32(raw))
+                }
+            }
+    }
+
+    private func applyCameraProjection(_ projection: Int32) {
+
+        MirGLCustomView.engineLock.lock()
+        let activeViewport = viewport
+        if let activeViewport {
+            MirEngineSetCameraProjection(
+                activeViewport,
+                projection
+            )
+        }
+        MirGLCustomView.engineLock.unlock()
+    }
+
     private func removeObservers() {
 
         if let observer = importObserver {
@@ -611,6 +656,13 @@ final class MirGLCustomView: NSView {
                 observer
             )
             cameraPresetObserver = nil
+        }
+
+        if let observer = cameraProjectionObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            cameraProjectionObserver = nil
         }
     }
 
@@ -1359,10 +1411,22 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // Mouse wheel keeps its zoom behavior.
-        MirEngineViewportScroll(
+        // Mouse wheel keeps its zoom behavior, anchored at the cursor pixel
+        // (industrial zoom-to-cursor).
+        let localPoint =
+            convert(
+                event.locationInWindow,
+                from: nil
+            )
+
+        let point =
+            enginePoint(localPoint)
+
+        MirEngineViewportZoomAt(
             viewport,
-            Float(event.scrollingDeltaY)
+            Float(event.scrollingDeltaY),
+            point.0,
+            point.1
         )
     }
 
@@ -1387,16 +1451,27 @@ final class MirGLCustomView: NSView {
         let rawDY =
             Float(event.scrollingDeltaY)
 
+        let localPoint =
+            convert(
+                event.locationInWindow,
+                from: nil
+            )
+
+        let cursor =
+            enginePoint(localPoint)
+
         if flags.contains(.control) {
 
-            // Control + two fingers — zoom, wheel-like.
+            // Control + two fingers — zoom, wheel-like, anchored at the cursor.
             let zoom =
                 rawDY * Float(settings.zoomSensitivity)
                 * (settings.invertZoom ? -1 : 1)
 
-            MirEngineViewportScroll(
+            MirEngineViewportZoomAt(
                 viewport,
-                zoom
+                zoom,
+                cursor.0,
+                cursor.1
             )
 
             return
@@ -1446,9 +1521,11 @@ final class MirGLCustomView: NSView {
                 rawDY * Float(settings.zoomSensitivity)
                 * (settings.invertZoom ? -1 : 1)
 
-            MirEngineViewportScroll(
+            MirEngineViewportZoomAt(
                 viewport,
-                zoom
+                zoom,
+                cursor.0,
+                cursor.1
             )
         }
     }
@@ -1467,10 +1544,21 @@ final class MirGLCustomView: NSView {
         }
 
         // Trackpad pinch: spreading the fingers zooms in,
-        // pinching them together zooms out.
-        MirEngineViewportScroll(
+        // pinching them together zooms out. Anchored at the cursor pixel.
+        let localPoint =
+            convert(
+                event.locationInWindow,
+                from: nil
+            )
+
+        let point =
+            enginePoint(localPoint)
+
+        MirEngineViewportZoomAt(
             viewport,
-            Float(event.magnification)
+            Float(event.magnification),
+            point.0,
+            point.1
         )
     }
 

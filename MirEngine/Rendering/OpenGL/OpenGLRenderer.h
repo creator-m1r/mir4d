@@ -15,6 +15,15 @@
 namespace MirEngine::Rendering
 {
 
+/// OpenGL implementation of the Renderer contract.
+///
+/// Owns the device, the shader library and the pass pipeline:
+///
+///   background (GridPass) -> grid/axes (GridPass) -> scene geometry
+///   (GeometryPass, camera-relative with selection highlight)
+///
+/// The class does not own the OpenGLContext; the C ABI layer (MirEngineExports)
+/// owns the context and the renderer lifetime.
 class OpenGLRenderer final : public Renderer
 {
 public:
@@ -26,14 +35,14 @@ public:
 
     bool initialize() override;
     void render(mir::Scene& scene, RenderContext& context) override;
-    void resize(uint32_t width, uint32_t height) override;
+    void resize(std::uint32_t width, std::uint32_t height) override;
     void setObjectMaterial(std::uint64_t objectId,
                            std::int32_t materialId) noexcept override;
 
     void setGridPlane(GridPlane plane) noexcept { if (m_gridPass) m_gridPass->setPlane(plane); }
 
-    /// Текстовый отчёт о контексте OpenGL (требует текущего контекста;
-    /// выполняет makeCurrent сам).
+    /// Text report about the OpenGL context (requires the current context;
+    /// performs makeCurrent itself).
     std::string diagnosticsReport();
 
     [[nodiscard]] OpenGLDevice* device() noexcept { return m_device.get(); }

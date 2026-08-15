@@ -95,6 +95,23 @@ void MirEngineSetCameraOrientation(
     float distance
 );
 
+// Projection mode: 0 = perspective, 1 = orthographic.
+void MirEngineSetCameraProjection(
+    void* viewport,
+    int projection
+);
+
+// Returns the active projection mode: 0 = perspective, 1 = orthographic.
+int MirEngineGetCameraProjection(
+    void* viewport
+);
+
+// Vertical field of view in radians (perspective mode only).
+void MirEngineSetCameraFov(
+    void* viewport,
+    float fovYRadians
+);
+
 // Camera presets for the navigation sphere:
 // 0 front, 1 back, 2 left, 3 right, 4 top, 5 bottom, 6 isometric.
 void MirEngineSetActiveCameraPreset(
@@ -134,6 +151,15 @@ void MirEngineViewportMouseMove(
 void MirEngineViewportScroll(
     void* viewport,
     float delta
+);
+
+// Zoom anchored at the cursor pixel (industrial zoom-to-cursor).
+// Falls back to plain zoom when the picking ray is degenerate.
+void MirEngineViewportZoomAt(
+    void* viewport,
+    float delta,
+    float x,
+    float y
 );
 
 void MirEngineViewportPan(

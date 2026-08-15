@@ -1,152 +1,200 @@
 // MirEngine/Rendering/Core/RenderContext.h
 // =================================================================================
-// Контекст текущего кадра рендеринга.
+// Per-frame rendering context.
 //
-// Содержит все данные, которые передаются от сцены / камеры в рендерер
-// и используются RenderPass'ами.
+// Carries everything that flows from the scene / camera into the renderer and
+// is consumed by RenderPass implementations:
 //
-// Ключевое правило:
-//   RenderContext НЕ зависит от OpenGL, Metal, Vulkan.
-//   Он хранит только математические и геометрические величины.
-//   Рендерер читает эти значения и транслирует их в вызовы GPU.
+//   - camera matrices (view, projection, view-projection);
+//   - camera parameters (position, clipping planes, FOV);
+//   - viewport dimensions;
+//   - frame timing (delta time, total time, frame number);
+//   - current selection set (object ids to highlight).
 //
-// Жизненный цикл:
-//   1. beginFrame() в начале кадра
-//   2. updateMatrices() / setCameraPosition() из камеры
-//   3. Использование всеми RenderPass'ами
-//   4. endFrame() в конце кадра
+// Key rule:
+//   RenderContext is backend-neutral. It stores only mathematical and
+//   geometric quantities. The renderer translates them into GPU calls.
+//
+// Life cycle:
+//   1. beginFrame() at the start of the frame;
+//   2. updateMatrices() / setCameraPosition() from the camera;
+//   3. read by all RenderPass implementations;
+//   4. endFrame() at the end of the frame.
 // =================================================================================
 
 #pragma once
 
 #include <cstdint>
-#include <array>
-#include "RenderCommand.h"   // Matrix4Raw и IdentityMatrix4
+#include <vector>
 
-namespace MirEngine {
-namespace Rendering {
+#include "RenderCommand.h"
 
-// ---------------------------------------------------------------------------------
-// Основной класс RenderContext
-// ---------------------------------------------------------------------------------
+namespace MirEngine::Rendering {
+
+// -----------------------------------------------------------------------------
+// Per-frame rendering context.
+// -----------------------------------------------------------------------------
 class RenderContext {
 public:
     // ==========================================================================
-    // Матрицы
+    // Matrices
     // ==========================================================================
 
-    // Матрица вида (World → Camera)
-    Matrix4Raw viewMatrix = IdentityMatrix4();
+    // World -> camera
+    Matrix4Raw viewMatrix{IdentityMatrix4()};
 
-    // Матрица проекции (Camera → Clip)
-    Matrix4Raw projectionMatrix = IdentityMatrix4();
+    // Camera -> clip
+    Matrix4Raw projectionMatrix{IdentityMatrix4()};
 
-    // Предвычисленное произведение projection * view
-    Matrix4Raw viewProjectionMatrix = IdentityMatrix4();
-
-    // ==========================================================================
-    // Параметры камеры
-    // ==========================================================================
-
-    // Позиция наблюдателя в мировых координатах
-    float cameraPosition[3] = { 0.0f, 0.0f, 0.0f };
-
-    // Плоскости отсечения
-    float nearPlane = 0.1f;
-    float farPlane  = 1000.0f;
-
-    // Вертикальный угол обзора камеры (рад)
-    float fovY = 0.7853981633974483f;
+    // Precomputed projection * view
+    Matrix4Raw viewProjectionMatrix{IdentityMatrix4()};
 
     // ==========================================================================
-    // Размеры вьюпорта
+    // Camera parameters
     // ==========================================================================
 
-    uint32_t viewportWidth  = 0;
-    uint32_t viewportHeight = 0;
-    float    aspectRatio    = 1.0f;
+    // Camera position in world coordinates
+    float cameraPosition[3]{0.0f, 0.0f, 0.0f};
+
+    // Clipping planes.
+    // CAD scenes are arbitrarily large: defaults cover millimeter parts and
+    // kilometer assemblies. ViewportRuntime recomputes these every frame from
+    // the scene bounds.
+    float nearPlane{0.01f};
+    float farPlane{1000000.0f};
+
+    // Vertical field of view (radians)
+    float fovY{0.7853981633974483f};
 
     // ==========================================================================
-    // Временные параметры кадра
+    // Viewport
     // ==========================================================================
 
-    float    deltaTime   = 0.0f;   // время с предыдущего кадра (сек)
-    float    totalTime   = 0.0f;   // общее время работы (сек)
-    uint64_t frameNumber = 0;      // номер текущего кадра
+    std::uint32_t viewportWidth{0};
+    std::uint32_t viewportHeight{0};
+    float aspectRatio{1.0f};
 
     // ==========================================================================
-    // Методы
+    // Frame timing
     // ==========================================================================
 
-    // Подготавливает контекст к новому кадру.
-    // Обновляет размеры, deltaTime, totalTime и инкрементирует frameNumber.
-    void beginFrame(float dt, uint32_t width, uint32_t height) {
-        deltaTime      = dt;
-        totalTime     += dt;
-        viewportWidth  = width;
+    float deltaTime{0.0f};    // seconds since the previous frame
+    float totalTime{0.0f};    // total elapsed time (seconds)
+    std::uint64_t frameNumber{0};
+
+    // ==========================================================================
+    // Selection
+    // ==========================================================================
+
+    // Object ids of the current selection set. The geometry pass uses this
+    // set to highlight selected objects; empty set means no selection.
+    const std::vector<std::uint64_t>* selectionIds{nullptr};
+
+    // Face-level selection: when selectionObjectId is valid and
+    // selectionFaceId is non-zero, only the triangles of that source B-Rep
+    // face are highlighted (see TriangleMesh3::Triangle::sourceFaceId).
+    std::uint64_t selectionObjectId{0};
+    std::uint64_t selectionFaceId{0};
+
+    // ==========================================================================
+    // Methods
+    // ==========================================================================
+
+    // Prepares the context for a new frame: updates sizes, timing and the
+    // frame counter.
+    void beginFrame(float dt, std::uint32_t width, std::uint32_t height) noexcept
+    {
+        deltaTime = dt;
+        totalTime += dt;
+        viewportWidth = width;
         viewportHeight = height;
-        aspectRatio    = (height > 0) ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+        aspectRatio = (height > 0)
+            ? static_cast<float>(width) / static_cast<float>(height)
+            : 1.0f;
         ++frameNumber;
     }
 
-    // Завершает кадр (пока пусто, место для будущей синхронизации).
-    void endFrame() noexcept {
-        // В будущем: fence, query, очистка временных данных
+    // Finishes the frame (reserved for fences, queries, temporary data).
+    void endFrame() noexcept
+    {
     }
 
-    // Обновляет матрицы и автоматически пересчитывает viewProjectionMatrix.
-    void updateMatrices(const Matrix4Raw& view, const Matrix4Raw& proj) {
-        viewMatrix           = view;
-        projectionMatrix     = proj;
-        viewProjectionMatrix = multiplyMatrices(proj, view);
+    // Updates the matrices and recomputes viewProjectionMatrix.
+    void updateMatrices(const Matrix4Raw& view, const Matrix4Raw& projection) noexcept
+    {
+        viewMatrix = view;
+        projectionMatrix = projection;
+        viewProjectionMatrix = multiplyMatrices(projection, view);
     }
 
-    // Устанавливает позицию камеры.
-    void setCameraPosition(float x, float y, float z) noexcept {
+    // Sets the camera position.
+    void setCameraPosition(float x, float y, float z) noexcept
+    {
         cameraPosition[0] = x;
         cameraPosition[1] = y;
         cameraPosition[2] = z;
     }
 
-    // Устанавливает плоскости отсечения.
-    void setClippingPlanes(float nearVal, float farVal) noexcept {
+    // Sets the clipping planes.
+    void setClippingPlanes(float nearVal, float farVal) noexcept
+    {
         nearPlane = nearVal;
-        farPlane  = farVal;
+        farPlane = farVal;
     }
 
-    // Сбрасывает все значения к начальным.
-    void reset() noexcept {
-        viewMatrix           = IdentityMatrix4();
-        projectionMatrix     = IdentityMatrix4();
+    // Points the context at the current selection set (borrowed pointer).
+    void setSelection(const std::vector<std::uint64_t>* ids) noexcept
+    {
+        selectionIds = ids;
+    }
+
+    // Selects a single source face of an object for highlight.
+    void setSelectionFace(std::uint64_t objectId, std::uint64_t faceId) noexcept
+    {
+        selectionObjectId = objectId;
+        selectionFaceId = faceId;
+    }
+
+    // Resets every value to its default.
+    void reset() noexcept
+    {
+        viewMatrix = IdentityMatrix4();
+        projectionMatrix = IdentityMatrix4();
         viewProjectionMatrix = IdentityMatrix4();
         cameraPosition[0] = cameraPosition[1] = cameraPosition[2] = 0.0f;
-        nearPlane       = 0.1f;
-        farPlane        = 1000.0f;
-        viewportWidth   = 0;
-        viewportHeight  = 0;
-        aspectRatio     = 1.0f;
-        deltaTime       = 0.0f;
-        totalTime       = 0.0f;
-        frameNumber     = 0;
+        nearPlane = 0.01f;
+        farPlane = 1000000.0f;
+        viewportWidth = 0;
+        viewportHeight = 0;
+        aspectRatio = 1.0f;
+        deltaTime = 0.0f;
+        totalTime = 0.0f;
+        frameNumber = 0;
+        selectionIds = nullptr;
+        selectionObjectId = 0;
+        selectionFaceId = 0;
     }
 
 private:
-    // Умножение двух матриц 4×4 (column-major).
-    // В будущем заменится на Matrix4 из Math.
-    static Matrix4Raw multiplyMatrices(const Matrix4Raw& a, const Matrix4Raw& b) noexcept {
+    // Column-major 4x4 matrix multiplication.
+    static Matrix4Raw multiplyMatrices(const Matrix4Raw& a,
+                                       const Matrix4Raw& b) noexcept
+    {
         Matrix4Raw result{};
-        for (int col = 0; col < 4; ++col) {
-            for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 4; ++column)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
                 float sum = 0.0f;
-                for (int k = 0; k < 4; ++k) {
-                    sum += a[row + k * 4] * b[k + col * 4];
+                for (int k = 0; k < 4; ++k)
+                {
+                    sum += a[row + k * 4] * b[k + column * 4];
                 }
-                result[row + col * 4] = sum;
+                result[row + column * 4] = sum;
             }
         }
         return result;
     }
 };
 
-} // namespace Rendering
-} // namespace MirEngine
+} // namespace MirEngine::Rendering

@@ -1,12 +1,13 @@
 #include "GridPass.h"
 #include "../OpenGL/OpenGLShader.h"
-#include "../OpenGL/OpenGLVertexArray.h"
-#include "../OpenGL/OpenGLVertexBuffer.h"
-#include "../OpenGL/OpenGLIndexBuffer.h"
+#include "../Resources/VertexArray.h"
+#include "../Resources/VertexBuffer.h"
+#include "../Resources/IndexBuffer.h"
+#include "../Resources/Vertex.h"
 #include "../Core/RenderContext.h"
 #include "../Core/RenderDevice.h"
-#include "MirEngine/Math/TransformMatrix.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -23,129 +24,72 @@ namespace MirEngine::Rendering
 namespace
 {
 
-// Full-screen quad in NDC. The fragment shader reconstructs the view-space
-// ray from the inverse projection, so the grid is truly infinite.
-constexpr float kQuadVertices[] = {
+// Full-screen background quad in NDC.
+constexpr float kBgQuadVertices[] = {
     -1.0f, -1.0f, 1.0f,
      1.0f, -1.0f, 1.0f,
     -1.0f,  1.0f, 1.0f,
      1.0f,  1.0f, 1.0f,
 };
 
-constexpr unsigned int kQuadIndices[] = {0, 1, 2, 1, 3, 2};
+constexpr unsigned int kBgQuadIndices[] = {0, 1, 2, 1, 3, 2};
+
+// One grid segment (world space, double precision).
+struct GridSegment
+{
+    double p0[3]{0.0, 0.0, 0.0};
+    double p1[3]{0.0, 0.0, 0.0};
+    float color[3]{0.22f, 0.25f, 0.30f};
+    float alpha0{0.5f};
+    float alpha1{0.5f};
+    float widthPx{1.0f};
+};
 
 } // namespace
 
-static const char* kGridVS = R"(
+// Line vertex shader. Vertices arrive camera-relative (world - camera
+// position, computed in double on the CPU), u_viewProj is the full projection
+// times the rotation-only view matrix, so all GPU numbers stay small.
+static const char* kLineVS = R"(
 #version 410 core
-layout(location = 0) in vec3 aPos;
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+layout (location = 2) in vec2 aParams; // x = alpha, y = side profile (-1..1)
+
+uniform mat4 u_viewProj;
+
+out vec3 v_color;
+out float v_alpha;
+out float v_side;
+
 void main() {
-    gl_Position = vec4(aPos, 1.0);
+    v_color = aColor;
+    v_alpha = aParams.x;
+    v_side = aParams.y;
+    gl_Position = u_viewProj * vec4(aPos, 1.0);
 }
 )";
 
-// Infinite procedural grid:
-//   ray (view space) -> plane intersection -> camera-relative local coords
-//   -> minor/major lines, workspace axes, origin marker, distance fade.
-static const char* kGridFS = R"(
+// Soft alpha edge across the line width: the quad is ~1-2 px wide, the side
+// profile grades the alpha, so lines stay smooth without MSAA.
+static const char* kLineFS = R"(
 #version 410 core
-uniform mat4 uInvProjection;
-uniform vec2 uScreenSize;
-uniform vec3 uCamPos;          // camera position (world)
-uniform vec3 uAnchor;          // grid anchor (world, snapped CPU-side)
-uniform vec3 uPlaneNormalView; // plane normal expressed in view space
-uniform vec3 uPlaneNormalWorld; // plane normal expressed in world space
-uniform float uPlaneConstView; // n_v . p_v = uPlaneConstView
-uniform mat3 uWorldFromView;   // view-space -> world-space rotation (R^T)
-uniform float uMinorStep;
-uniform float uMajorStep;
-uniform float uFadeDistance;
-uniform vec3 uMinorColor;
-uniform vec3 uMajorColor;
-uniform vec3 uAxisAColor;
-uniform vec3 uAxisBColor;
-uniform vec3 uVerticalColor;
-
+in vec3 v_color;
+in float v_alpha;
+in float v_side;
 out vec4 FragColor;
 
 void main() {
-    vec2 ndc = gl_FragCoord.xy / uScreenSize * 2.0 - 1.0;
-    vec4 farPoint = uInvProjection * vec4(ndc, 1.0, 1.0);
-    vec3 dir = normalize(farPoint.xyz / farPoint.w);
-
-    float denom = dot(uPlaneNormalView, dir);
-    if (abs(denom) < 1e-6) discard;           // plane edge-on to the camera
-    // Note: for an orbit camera above the plane the normal points away from
-    // the viewer, so denom is negative while planeConst is negative too and
-    // t = planeConst / denom is positive (the plane is in front). Only the
-    // signed ray-plane test below decides visibility.
-
-    float t = uPlaneConstView / denom;
-    if (t < 0.0) discard;
-
-    vec3 pView = dir * t;
-    vec3 local = uWorldFromView * pView + (uCamPos - uAnchor);
-    float dist = length(pView);
-
-    vec2 c1 = (uPlaneNormalWorld.z > 0.5) ? local.xz
-           : ((uPlaneNormalWorld.y > 0.5) ? local.xy : local.yz);
-
-    float fade = 1.0 - smoothstep(uFadeDistance * 0.55, uFadeDistance, dist);
-    if (fade <= 0.0) discard;
-
-    // Minor lines
-    vec2 gMinor = c1 / uMinorStep;
-    vec2 dMinor = abs(fract(gMinor - 0.5) - 0.5) / fwidth(gMinor);
-    float minorLine = 1.0 - smoothstep(0.5, 1.0, min(dMinor.x, dMinor.y));
-
-    // Major lines
-    vec2 gMajor = c1 / uMajorStep;
-    vec2 dMajor = abs(fract(gMajor - 0.5) - 0.5) / fwidth(gMajor);
-    float majorLine = 1.0 - smoothstep(0.5, 1.0, min(dMajor.x, dMajor.y));
-
-    // Workspace axes on the plane: first component == 0, second component == 0
-    float fwA = fwidth(local.x) + fwidth(local.y) + fwidth(local.z);
-    float axisA = 1.0 - smoothstep(0.5, 1.5, abs(c1.y) / max(fwA, 1e-6));
-    float axisB = 1.0 - smoothstep(0.5, 1.5, abs(c1.x) / max(fwA, 1e-6));
-    float axisAExtent = smoothstep(0.0, 1.0, 1.0 - abs(c1.x) / (uFadeDistance * 0.85));
-    float axisBExtent = smoothstep(0.0, 1.0, 1.0 - abs(c1.y) / (uFadeDistance * 0.85));
-
-    // Origin marker (small cross)
-    float origin = 1.0 - smoothstep(0.5, 2.0, max(abs(c1.x), abs(c1.y)) / max(fwA, 1e-6));
-
-    vec3 color = mix(uMinorColor, uMajorColor, majorLine);
-    float alpha = max(minorLine * 0.45, majorLine * 0.9);
-
-    color = mix(color, uAxisAColor, axisA * axisAExtent);
-    alpha = max(alpha, axisA * axisAExtent * 0.95);
-    color = mix(color, uAxisBColor, axisB * axisBExtent);
-    alpha = max(alpha, axisB * axisBExtent * 0.95);
-
-    color = mix(color, uVerticalColor, origin);
-    alpha = max(alpha, origin * 0.95);
-
-    FragColor = vec4(color, alpha * fade);
+    float edge = 1.0 - smoothstep(0.45, 1.0, abs(v_side));
+    float alpha = v_alpha * edge;
+    if (alpha <= 0.004) discard;
+    FragColor = vec4(v_color, alpha);
 }
 )";
 
-static const char* kAxisVS = R"(
-#version 410 core
-layout(location = 0) in vec3 aPos;
-uniform mat4 uVP;
-uniform vec3 uAxisDirection;
-uniform float uAxisLength;
-out vec3 vLocal;
-void main() {
-    vec3 p = aPos * uAxisDirection * uAxisLength;
-    vLocal = p;
-    gl_Position = uVP * vec4(p, 1.0);
-}
-)";
-
-// Studio-style vertical gradient background, drawn first as an opaque layer.
 static const char* kBgVS = R"(
 #version 410 core
-layout(location = 0) in vec3 aPos;
+layout (location = 0) in vec3 aPos;
 out vec2 vUv;
 void main() {
     vUv = aPos.xy * 0.5 + 0.5;
@@ -161,58 +105,35 @@ uniform vec3 uTopColor;
 uniform vec3 uBottomColor;
 void main() {
     float t = clamp(vUv.y, 0.0, 1.0);
-    // Slightly eased so the lighter band sits near the horizon (CAD look).
     float k = pow(t, 0.85);
-    vec3 c = mix(uBottomColor, uTopColor, k);
-    FragColor = vec4(c, 1.0);
-}
-)";
-
-static const char* kAxisFS = R"(
-#version 410 core
-in vec3 vLocal;
-uniform vec3 uColor;
-uniform float uFadeDistance;
-out vec4 FragColor;
-void main() {
-    float dist = length(vLocal);
-    float fade = 1.0 - smoothstep(uFadeDistance * 0.55, uFadeDistance, dist);
-    if (fade <= 0.0) discard;
-    FragColor = vec4(uColor, fade);
+    FragColor = vec4(mix(uBottomColor, uTopColor, k), 1.0);
 }
 )";
 
 GridPass::GridPass() = default;
 GridPass::~GridPass() = default;
 
-bool GridPass::initialize()
+bool GridPass::initialize(RenderDevice& device)
 {
     if (m_initialized)
         return true;
+
     if (!createShaders())
     {
         std::cerr << "[GridPass] Failed to create shaders\n";
         return false;
     }
-    buildQuad();
-    buildAxis();
+    buildBackground(device);
     m_initialized = true;
     return true;
 }
 
 bool GridPass::createShaders()
 {
-    m_gridShader = std::make_unique<OpenGLShader>();
-    if (!m_gridShader->compile(kGridVS, kGridFS))
+    m_lineShader = std::make_unique<OpenGLShader>();
+    if (!m_lineShader->compile(kLineVS, kLineFS))
     {
-        m_gridShader.reset();
-        return false;
-    }
-
-    m_axisShader = std::make_unique<OpenGLShader>();
-    if (!m_axisShader->compile(kAxisVS, kAxisFS))
-    {
-        m_axisShader.reset();
+        m_lineShader.reset();
         return false;
     }
 
@@ -225,42 +146,28 @@ bool GridPass::createShaders()
     return true;
 }
 
-void GridPass::buildQuad()
+void GridPass::buildBackground(RenderDevice& device)
 {
     std::vector<Vertex> vertices;
     for (int i = 0; i < 4; ++i)
     {
-        vertices.push_back({{kQuadVertices[i * 3], kQuadVertices[i * 3 + 1], kQuadVertices[i * 3 + 2]},
-                            {0, 1, 0}, {0, 0}});
+        vertices.push_back({{kBgQuadVertices[i * 3],
+                             kBgQuadVertices[i * 3 + 1],
+                             kBgQuadVertices[i * 3 + 2]},
+                            {0.0f, 1.0f, 0.0f},
+                            {0.0f, 0.0f}});
     }
-    std::vector<std::uint32_t> indices = {kQuadIndices[0], kQuadIndices[1], kQuadIndices[2],
-                                          kQuadIndices[3], kQuadIndices[4], kQuadIndices[5]};
+    std::vector<std::uint32_t> indices = {
+        kBgQuadIndices[0], kBgQuadIndices[1], kBgQuadIndices[2],
+        kBgQuadIndices[3], kBgQuadIndices[4], kBgQuadIndices[5]};
 
-    auto vbo = std::make_shared<OpenGLVertexBuffer>();
-    vbo->uploadVertices(vertices, BufferUsage::Static);
-    auto ibo = std::make_shared<OpenGLIndexBuffer>();
-    ibo->uploadIndices(indices, BufferUsage::Static);
-    auto vao = std::make_shared<OpenGLVertexArray>();
-    vao->setVertexBuffer(vbo);
-    vao->setIndexBuffer(ibo);
-    m_quadVBO = std::move(vbo);
-    m_quadVAO = std::move(vao);
-}
-
-void GridPass::buildAxis()
-{
-    // Unit-direction axis line; direction and length are applied in the shader.
-    std::vector<Vertex> vertices = {
-        {{0, 0, 0}, {0, 1, 0}, {0, 0}},
-        {{1, 0, 0}, {0, 1, 0}, {0, 0}},
-    };
-
-    auto vbo = std::make_shared<OpenGLVertexBuffer>();
-    vbo->uploadVertices(vertices, BufferUsage::Dynamic);
-    auto vao = std::make_shared<OpenGLVertexArray>();
-    vao->setVertexBuffer(vbo);
-    m_axisVBO = std::move(vbo);
-    m_axisVAO = std::move(vao);
+    m_bgVBO = device.createVertexBuffer();
+    m_bgVBO->uploadVertices(vertices, BufferUsage::Static);
+    m_bgIBO = device.createIndexBuffer();
+    m_bgIBO->uploadIndices(indices, BufferUsage::Static);
+    m_bgVAO = device.createVertexArray();
+    m_bgVAO->setVertexBuffer(m_bgVBO);
+    m_bgVAO->setIndexBuffer(m_bgIBO);
 }
 
 double GridPass::niceStep(double target) noexcept
@@ -278,237 +185,378 @@ double GridPass::niceStep(double target) noexcept
 
 void GridPass::planeBasis(GridPlane plane,
                           float normal[3],
-                          float origin[3],
-                          float axisAColor[3],
-                          float axisBColor[3],
-                          float verticalColor[3]) noexcept
+                          float uDir[3],
+                          float vDir[3],
+                          double anchor[3],
+                          const double eye[3],
+                          double majorStep) noexcept
 {
+    anchor[0] = anchor[1] = anchor[2] = 0.0;
     switch (plane)
     {
     case GridPlane::XY:
         normal[0] = 0.0f; normal[1] = 0.0f; normal[2] = 1.0f;
-        origin[0] = 0.0f; origin[1] = 0.0f; origin[2] = 0.0f;
-        axisAColor[0] = 0.92f; axisAColor[1] = 0.30f; axisAColor[2] = 0.30f; // X red
-        axisBColor[0] = 0.30f; axisBColor[1] = 0.85f; axisBColor[2] = 0.35f; // Y green
-        verticalColor[0] = 0.28f; verticalColor[1] = 0.48f; verticalColor[2] = 0.95f; // Z blue
+        uDir[0] = 1.0f; uDir[1] = 0.0f; uDir[2] = 0.0f;
+        vDir[0] = 0.0f; vDir[1] = 1.0f; vDir[2] = 0.0f;
+        anchor[0] = std::floor(eye[0] / majorStep) * majorStep;
+        anchor[1] = std::floor(eye[1] / majorStep) * majorStep;
         break;
     case GridPlane::XZ:
         normal[0] = 0.0f; normal[1] = 1.0f; normal[2] = 0.0f;
-        origin[0] = 0.0f; origin[1] = 0.0f; origin[2] = 0.0f;
-        axisAColor[0] = 0.92f; axisAColor[1] = 0.30f; axisAColor[2] = 0.30f; // X red
-        axisBColor[0] = 0.28f; axisBColor[1] = 0.48f; axisBColor[2] = 0.95f; // Z blue
-        verticalColor[0] = 0.30f; verticalColor[1] = 0.85f; verticalColor[2] = 0.35f; // Y green
+        uDir[0] = 1.0f; uDir[1] = 0.0f; uDir[2] = 0.0f;
+        vDir[0] = 0.0f; vDir[1] = 0.0f; vDir[2] = 1.0f;
+        anchor[0] = std::floor(eye[0] / majorStep) * majorStep;
+        anchor[2] = std::floor(eye[2] / majorStep) * majorStep;
         break;
     case GridPlane::YZ:
     default:
         normal[0] = 1.0f; normal[1] = 0.0f; normal[2] = 0.0f;
-        origin[0] = 0.0f; origin[1] = 0.0f; origin[2] = 0.0f;
-        axisAColor[0] = 0.30f; axisAColor[1] = 0.85f; axisAColor[2] = 0.35f; // Y green
-        axisBColor[0] = 0.28f; axisBColor[1] = 0.48f; axisBColor[2] = 0.95f; // Z blue
-        verticalColor[0] = 0.92f; verticalColor[1] = 0.30f; verticalColor[2] = 0.30f; // X red
+        uDir[0] = 0.0f; uDir[1] = 1.0f; uDir[2] = 0.0f;
+        vDir[0] = 0.0f; vDir[1] = 0.0f; vDir[2] = 1.0f;
+        anchor[1] = std::floor(eye[1] / majorStep) * majorStep;
+        anchor[2] = std::floor(eye[2] / majorStep) * majorStep;
         break;
     }
 }
 
 void GridPass::execute(RenderContext& context,
                        mir::Scene&,
-                       RenderDevice&)
+                       RenderDevice& device)
 {
-    if (!m_initialized || !m_gridShader || !m_axisShader)
+    if (!m_initialized || !m_lineShader)
         return;
 
-    float planeNormal[3] = {0, 0, 1};
-    float planeOrigin[3] = {0, 0, 0};
-    float axisAColor[3] = {0.92f, 0.30f, 0.30f};
-    float axisBColor[3] = {0.30f, 0.85f, 0.35f};
-    float verticalColor[3] = {0.28f, 0.48f, 0.95f};
-    planeBasis(m_plane, planeNormal, planeOrigin, axisAColor, axisBColor, verticalColor);
-
-    const double eyeX = static_cast<double>(context.cameraPosition[0]);
-    const double eyeY = static_cast<double>(context.cameraPosition[1]);
-    const double eyeZ = static_cast<double>(context.cameraPosition[2]);
-
-    const double fov = static_cast<double>(context.fovY);
-    const double viewportHeight = std::max(static_cast<double>(context.viewportHeight), 1.0);
-
-    // Distance from the camera to the plane (perpendicular).
-    double distPlane = std::abs(planeNormal[0] * (eyeX - planeOrigin[0]) +
-                                planeNormal[1] * (eyeY - planeOrigin[1]) +
-                                planeNormal[2] * (eyeZ - planeOrigin[2]));
-    if (distPlane < 1e-6)
-        distPlane = 1e-6;
-
-    // Visible world height at the plane -> adaptive step (target ~16 px per
-    // minor line; niceStep rounds up to 1/2/5 x 10^n, so we aim at half).
-    const double worldHeight = 2.0 * distPlane * std::tan(fov * 0.5);
-    double step = niceStep(worldHeight * 8.0 / viewportHeight);
-
-    // Guarantee a minimum on-screen density of ~3 px.
-    while (step / std::max(worldHeight, 1e-9) * viewportHeight < 3.0)
-        step *= 2.0;
-
-    const double majorStep = step * 5.0;
-    const float minorStepF = static_cast<float>(step);
-    const float majorStepF = static_cast<float>(majorStep);
-
-    // Camera-relative anchor, snapped to the major step in double precision.
-    double anchor[3] = {0.0, 0.0, 0.0};
-    if (m_plane == GridPlane::XY)
+    // ------------------------------------------------------------------
+    // 1. Opaque studio gradient background.
+    // ------------------------------------------------------------------
+    if (m_bgShader && m_bgVAO)
     {
-        anchor[0] = std::floor(eyeX / majorStep) * majorStep;
-        anchor[1] = 0.0;
-        anchor[2] = std::floor(eyeZ / majorStep) * majorStep;
-    }
-    else if (m_plane == GridPlane::XZ)
-    {
-        anchor[0] = std::floor(eyeX / majorStep) * majorStep;
-        anchor[1] = std::floor(eyeY / majorStep) * majorStep;
-        anchor[2] = 0.0;
-    }
-    else
-    {
-        anchor[0] = 0.0;
-        anchor[1] = std::floor(eyeY / majorStep) * majorStep;
-        anchor[2] = std::floor(eyeZ / majorStep) * majorStep;
-    }
-
-    const float fade = m_fadeDistanceOverride > 0.0f
-        ? m_fadeDistanceOverride
-        : context.farPlane * 0.85f;
-
-    // Invert projection for view-space ray reconstruction.
-    // Matrix4::inverse() (Gauss-Jordan with partial pivoting) is the canonical
-    // implementation used by RayPicker; the hand-rolled 4x4 cofactor formula
-    // previously used here produced a wrong inverse (P * inv != I).
-    Matrix4Raw invProjection = IdentityMatrix4();
-    {
-        mir::Matrix4 projection;
-        const float* m = context.projectionMatrix.data();
-        for (int row = 0; row < 4; ++row)
-            for (int column = 0; column < 4; ++column)
-                projection(row, column) = static_cast<mir::Scalar>(m[row + column * 4]);
-        const mir::Matrix4 inverse = projection.inverse();
-        for (int row = 0; row < 4; ++row)
-            for (int column = 0; column < 4; ++column)
-                invProjection[row + column * 4] = static_cast<float>(inverse(row, column));
-    }
-
-    // Plane in view space: n_v . p = const_v
-    // n_v = R * n_w ; const_v = n_w . (origin - eye)
-    const float* v = context.viewMatrix.data();
-    const float nv[3] = {
-        v[0] * planeNormal[0] + v[4] * planeNormal[1] + v[8] * planeNormal[2],
-        v[1] * planeNormal[0] + v[5] * planeNormal[1] + v[9] * planeNormal[2],
-        v[2] * planeNormal[0] + v[6] * planeNormal[1] + v[10] * planeNormal[2]};
-    const double planeConst = planeNormal[0] * (planeOrigin[0] - eyeX) +
-                              planeNormal[1] * (planeOrigin[1] - eyeY) +
-                              planeNormal[2] * (planeOrigin[2] - eyeZ);
-
-    // World-from-view rotation (R^T) as a mat3.
-    float worldFromView[9] = {
-        v[0], v[1], v[2],
-        v[4], v[5], v[6],
-        v[8], v[9], v[10]};
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDepthMask(GL_FALSE);
-    glDisable(GL_CULL_FACE);
-
-    // Opaque studio gradient background, painted over the cleared color before
-    // the grid and geometry. No depth test, no blend — it is the back layer.
-    if (m_bgShader && m_quadVAO)
-    {
-        glDisable(GL_DEPTH_TEST);
-        glDepthMask(GL_FALSE);
-        glDisable(GL_BLEND);
+        device.setDepthTest(false);
+        device.setBlend(false);
         m_bgShader->bind();
         m_bgShader->setVec3("uTopColor", 0.16f, 0.19f, 0.24f);
         m_bgShader->setVec3("uBottomColor", 0.03f, 0.04f, 0.06f);
-        m_quadVAO->bind();
+        m_bgVAO->bind();
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-        m_quadVAO->unbind();
+        m_bgVAO->unbind();
         m_bgShader->unbind();
-        glEnable(GL_BLEND);
     }
 
-    // The full-screen quad lives at NDC z = 1.0 (depth = 1.0), so the depth
-    // test (GL_LESS) would reject every fragment against the cleared depth.
-    // The grid is a background layer: draw it without the depth test.
-    glDisable(GL_DEPTH_TEST);
+    // ------------------------------------------------------------------
+    // 2. Grid and axis lines (CPU-generated quads).
+    // ------------------------------------------------------------------
+    device.setDepthTest(false);
+    device.setBlend(true);
 
-    if (m_showGrid && m_quadVAO)
+    rebuildLines(context, device);
+
+    if (m_gridVAO && m_gridVBO && m_gridIBO && m_gridVBO->getVertexCount() > 0)
     {
-        m_gridShader->bind();
-        m_gridShader->setMatrix("uInvProjection", invProjection);
-        m_gridShader->setVec2("uScreenSize",
-                              static_cast<float>(context.viewportWidth),
-                              static_cast<float>(context.viewportHeight));
-        m_gridShader->setVec3("uCamPos",
-                              context.cameraPosition[0],
-                              context.cameraPosition[1],
-                              context.cameraPosition[2]);
-        m_gridShader->setVec3("uAnchor",
-                              static_cast<float>(anchor[0]),
-                              static_cast<float>(anchor[1]),
-                              static_cast<float>(anchor[2]));
-        m_gridShader->setVec3("uPlaneNormalView", nv[0], nv[1], nv[2]);
-        m_gridShader->setVec3("uPlaneNormalWorld", planeNormal[0], planeNormal[1], planeNormal[2]);
-        m_gridShader->setFloat("uPlaneConstView", static_cast<float>(planeConst));
-        m_gridShader->setMatrix3("uWorldFromView", worldFromView);
-        m_gridShader->setFloat("uMinorStep", minorStepF);
-        m_gridShader->setFloat("uMajorStep", majorStepF);
-        m_gridShader->setFloat("uFadeDistance", fade);
-        m_gridShader->setVec3("uMinorColor", 0.20f, 0.23f, 0.28f);
-        m_gridShader->setVec3("uMajorColor", 0.36f, 0.40f, 0.48f);
-        m_gridShader->setVec3("uAxisAColor", axisAColor[0], axisAColor[1], axisAColor[2]);
-        m_gridShader->setVec3("uAxisBColor", axisBColor[0], axisBColor[1], axisBColor[2]);
-        m_gridShader->setVec3("uVerticalColor", verticalColor[0], verticalColor[1], verticalColor[2]);
+        Matrix4Raw viewRelative = context.viewMatrix;
+        viewRelative[12] = 0.0f;
+        viewRelative[13] = 0.0f;
+        viewRelative[14] = 0.0f;
 
-        m_quadVAO->bind();
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-        m_quadVAO->unbind();
-        m_gridShader->unbind();
-    }
-
-    if (m_showAxes && m_axisVAO)
-    {
-        const float axisLength = fade * 0.75f;
-        const float nx = (m_plane == GridPlane::YZ) ? 1.0f : 0.0f;
-        const float ny = (m_plane == GridPlane::XZ) ? 1.0f : 0.0f;
-        const float nz = (m_plane == GridPlane::XY) ? 1.0f : 0.0f;
-
-        // Camera-relative view matrix (rotation only, no translation).
-        Matrix4Raw viewRel = context.viewMatrix;
-        viewRel[3] = 0.0f; viewRel[7] = 0.0f; viewRel[11] = 0.0f;
-        Matrix4Raw vpRel = IdentityMatrix4();
-        const float* p = context.projectionMatrix.data();
+        Matrix4Raw viewProj{};
+        const float* proj = context.projectionMatrix.data();
+        const float* view = viewRelative.data();
         for (int row = 0; row < 4; ++row)
-            for (int col = 0; col < 4; ++col)
+            for (int column = 0; column < 4; ++column)
             {
                 float sum = 0.0f;
                 for (int k = 0; k < 4; ++k)
-                    sum += p[row * 4 + k] * viewRel[k * 4 + col];
-                vpRel[row * 4 + col] = sum;
+                    sum += proj[row * 4 + k] * view[k * 4 + column];
+                viewProj[row * 4 + column] = sum;
             }
 
-        m_axisShader->bind();
-        m_axisShader->setMatrix("uVP", vpRel);
-        m_axisShader->setVec3("uAxisDirection", nx, ny, nz);
-        m_axisShader->setFloat("uAxisLength", axisLength);
-        m_axisShader->setVec3("uColor", verticalColor[0], verticalColor[1], verticalColor[2]);
-        m_axisShader->setFloat("uFadeDistance", fade);
-        m_axisVAO->bind();
-        glLineWidth(1.0f);
-        glDrawArrays(GL_LINES, 0, 2);
-        m_axisVAO->unbind();
-        m_axisShader->unbind();
-        glLineWidth(1.0f);
+        m_lineShader->bind();
+        m_lineShader->setMatrix("u_viewProj", viewProj);
+        m_gridVAO->bind();
+        glDrawElements(GL_TRIANGLES,
+                       static_cast<GLsizei>(m_gridIBO->getIndexCount()),
+                       GL_UNSIGNED_INT,
+                       nullptr);
+        m_gridVAO->unbind();
+        m_lineShader->unbind();
     }
 
-    glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
+    // Restore defaults for the geometry pass.
+    device.setDepthTest(true);
+    device.setBlend(false);
+}
+
+void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
+{
+    if (!m_showGrid && !m_showAxes)
+    {
+        m_gridVBO.reset();
+        m_gridIBO.reset();
+        m_gridVAO.reset();
+        return;
+    }
+
+    const double eye[3] = {
+        static_cast<double>(context.cameraPosition[0]),
+        static_cast<double>(context.cameraPosition[1]),
+        static_cast<double>(context.cameraPosition[2])};
+
+    const double fov = static_cast<double>(context.fovY);
+    const double viewportHeight = std::max(static_cast<double>(context.viewportHeight), 1.0);
+    const double aspect = viewportHeight > 0
+        ? static_cast<double>(context.viewportWidth) / viewportHeight
+        : 1.0;
+
+    float normal[3] = {0.0f, 0.0f, 1.0f};
+    float uDir[3] = {1.0f, 0.0f, 0.0f};
+    float vDir[3] = {0.0f, 1.0f, 0.0f};
+
+    const double fade = m_fadeDistanceOverride > 0.0
+        ? static_cast<double>(m_fadeDistanceOverride)
+        : static_cast<double>(context.farPlane) * 0.85;
+
+    // Distance to the plane (the plane passes through the world origin).
+    const double distPlane = std::abs(normal[0] * eye[0] +
+                                      normal[1] * eye[1] +
+                                      normal[2] * eye[2]);
+    if (distPlane < 1e-6)
+    {
+        m_gridVBO.reset();
+        m_gridIBO.reset();
+        m_gridVAO.reset();
+        return;
+    }
+
+    // Visible half-extents of the plane.
+    const double halfH = distPlane * std::tan(fov * 0.5);
+    const double halfW = halfH * aspect;
+
+    // Adaptive step: ~18 px per cell, 1/2/5 x 10^n, capped line count.
+    double step = niceStep(2.0 * halfH * 18.0 / viewportHeight);
+    while ((2.0 * halfH / step) > kMaxLinesPerAxis)
+        step *= 2.0;
+    const double majorStep = step * 5.0;
+
+    double anchor[3] = {0.0, 0.0, 0.0};
+    planeBasis(m_plane, normal, uDir, vDir, anchor, eye, majorStep);
+
+    std::vector<GridSegment> segments;
+    segments.reserve(600);
+
+    if (m_showGrid)
+    {
+        // Coordinates along the plane axes, anchored at the camera.
+        const int countU = static_cast<int>(std::floor(halfW * kExtendFactor / step));
+        const int countV = static_cast<int>(std::floor(halfH * kExtendFactor / step));
+
+        const double extendU = halfW * kExtendFactor;
+        const double extendV = halfH * kExtendFactor;
+
+        // Lines of constant u (running along v).
+        for (int k = -countU; k <= countU; ++k)
+        {
+            const double u = anchor[0] * uDir[0] + anchor[1] * uDir[1] + anchor[2] * uDir[2] +
+                             static_cast<double>(k) * step;
+            const bool major = (std::abs(k) % 5 == 0);
+
+            GridSegment segment;
+            for (int i = 0; i < 3; ++i)
+            {
+                segment.p0[i] = anchor[i] + uDir[i] * u - vDir[i] * extendV;
+                segment.p1[i] = anchor[i] + uDir[i] * u + vDir[i] * extendV;
+            }
+            if (major)
+            {
+                segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
+                segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
+                segment.widthPx = 1.4f;
+            }
+            else
+            {
+                segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
+                segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
+                segment.widthPx = 1.0f;
+            }
+            segments.push_back(segment);
+        }
+
+        // Lines of constant v (running along u).
+        for (int k = -countV; k <= countV; ++k)
+        {
+            const double v = anchor[0] * vDir[0] + anchor[1] * vDir[1] + anchor[2] * vDir[2] +
+                             static_cast<double>(k) * step;
+            const bool major = (std::abs(k) % 5 == 0);
+
+            GridSegment segment;
+            for (int i = 0; i < 3; ++i)
+            {
+                segment.p0[i] = anchor[i] + vDir[i] * v - uDir[i] * extendU;
+                segment.p1[i] = anchor[i] + vDir[i] * v + uDir[i] * extendU;
+            }
+            if (major)
+            {
+                segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
+                segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
+                segment.widthPx = 1.4f;
+            }
+            else
+            {
+                segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
+                segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
+                segment.widthPx = 1.0f;
+            }
+            segments.push_back(segment);
+        }
+    }
+
+    // Workspace axes from the world origin (X red, Y green, Z blue).
+    if (m_showAxes)
+    {
+        const double axisLength = fade * 0.75;
+        const float axisColors[3][3] = {
+            {0.92f, 0.30f, 0.30f},
+            {0.30f, 0.85f, 0.35f},
+            {0.28f, 0.48f, 0.95f}};
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            GridSegment segment;
+            for (int i = 0; i < 3; ++i)
+            {
+                segment.p0[i] = 0.0;
+                segment.p1[i] = (axis == i) ? axisLength : 0.0;
+                segment.color[i] = axisColors[axis][i];
+            }
+            segment.alpha0 = 0.95f;
+            segment.alpha1 = 0.0f;
+            segment.widthPx = 2.0f;
+            segments.push_back(segment);
+        }
+    }
+
+    if (segments.empty())
+    {
+        m_gridVBO.reset();
+        m_gridIBO.reset();
+        m_gridVAO.reset();
+        return;
+    }
+
+    // Per-segment: distance fade, screen-space width and quad expansion.
+    std::vector<Vertex> vertices;
+    std::vector<std::uint32_t> indices;
+    vertices.reserve(segments.size() * 4);
+    indices.reserve(segments.size() * 6);
+
+    for (const GridSegment& segment : segments)
+    {
+        const double d0 = std::sqrt((segment.p0[0] - eye[0]) * (segment.p0[0] - eye[0]) +
+                                    (segment.p0[1] - eye[1]) * (segment.p0[1] - eye[1]) +
+                                    (segment.p0[2] - eye[2]) * (segment.p0[2] - eye[2]));
+        const double d1 = std::sqrt((segment.p1[0] - eye[0]) * (segment.p1[0] - eye[0]) +
+                                    (segment.p1[1] - eye[1]) * (segment.p1[1] - eye[1]) +
+                                    (segment.p1[2] - eye[2]) * (segment.p1[2] - eye[2]));
+        const double fadeStart = fade * 0.55;
+        const double range = std::max(fade - fadeStart, 1e-9);
+        const float a0 = segment.alpha0 * static_cast<float>(1.0 - std::clamp((d0 - fadeStart) / range, 0.0, 1.0));
+        const float a1 = segment.alpha1 * static_cast<float>(1.0 - std::clamp((d1 - fadeStart) / range, 0.0, 1.0));
+        if (a0 <= 0.004f && a1 <= 0.004f)
+            continue;
+
+        // Screen-space width: ~widthPx pixels at the segment distance.
+        const double mid[3] = {
+            (segment.p0[0] + segment.p1[0]) * 0.5,
+            (segment.p0[1] + segment.p1[1]) * 0.5,
+            (segment.p0[2] + segment.p1[2]) * 0.5};
+        const double dMid = std::sqrt(mid[0] * mid[0] + mid[1] * mid[1] + mid[2] * mid[2]);
+        const double pxToWorld = 2.0 * dMid * std::tan(fov * 0.5) / viewportHeight;
+        const double halfWidth = pxToWorld * static_cast<double>(segment.widthPx) * 0.5;
+
+        // Perpendicular in screen space: perpendicular to the line direction
+        // and the view ray.
+        double segDir[3] = {
+            segment.p1[0] - segment.p0[0],
+            segment.p1[1] - segment.p0[1],
+            segment.p1[2] - segment.p0[2]};
+        double segLen = std::sqrt(segDir[0] * segDir[0] + segDir[1] * segDir[1] + segDir[2] * segDir[2]);
+        if (segLen < 1e-9)
+            continue;
+        segDir[0] /= segLen; segDir[1] /= segLen; segDir[2] /= segLen;
+
+        double viewDir[3] = {-mid[0], -mid[1], -mid[2]};
+        double viewLen = std::sqrt(viewDir[0] * viewDir[0] + viewDir[1] * viewDir[1] + viewDir[2] * viewDir[2]);
+        if (viewLen < 1e-9)
+            continue;
+        viewDir[0] /= viewLen; viewDir[1] /= viewLen; viewDir[2] /= viewLen;
+
+        double perp[3] = {
+            segDir[1] * viewDir[2] - segDir[2] * viewDir[1],
+            segDir[2] * viewDir[0] - segDir[0] * viewDir[2],
+            segDir[0] * viewDir[1] - segDir[1] * viewDir[0]};
+        double perpLen = std::sqrt(perp[0] * perp[0] + perp[1] * perp[1] + perp[2] * perp[2]);
+        if (perpLen < 1e-6)
+        {
+            // Line nearly parallel to the view ray: pick any perpendicular.
+            perp[0] = (std::abs(segDir[1]) < 0.5) ? 1.0 : 0.0;
+            perp[1] = (std::abs(segDir[0]) < 0.5) ? 1.0 : 0.0;
+            perp[2] = (std::abs(segDir[0]) < 0.5 && std::abs(segDir[1]) < 0.5) ? 1.0 : 0.0;
+            perpLen = std::sqrt(perp[0] * perp[0] + perp[1] * perp[1] + perp[2] * perp[2]);
+            if (perpLen < 1e-6)
+                continue;
+        }
+        perp[0] /= perpLen; perp[1] /= perpLen; perp[2] /= perpLen;
+
+        const auto pack = [&](Vertex& vertex, double px, double py, double pz,
+                              float alpha, float side)
+        {
+            vertex.position = {
+                static_cast<float>(px - eye[0]),
+                static_cast<float>(py - eye[1]),
+                static_cast<float>(pz - eye[2])};
+            vertex.normal = {segment.color[0], segment.color[1], segment.color[2]};
+            vertex.uv = {alpha, side};
+        };
+
+        Vertex quad[4];
+        pack(quad[0], segment.p0[0] - perp[0] * halfWidth,
+                      segment.p0[1] - perp[1] * halfWidth,
+                      segment.p0[2] - perp[2] * halfWidth, a0, -1.0f);
+        pack(quad[1], segment.p0[0] + perp[0] * halfWidth,
+                      segment.p0[1] + perp[1] * halfWidth,
+                      segment.p0[2] + perp[2] * halfWidth, a0, 1.0f);
+        pack(quad[2], segment.p1[0] - perp[0] * halfWidth,
+                      segment.p1[1] - perp[1] * halfWidth,
+                      segment.p1[2] - perp[2] * halfWidth, a1, -1.0f);
+        pack(quad[3], segment.p1[0] + perp[0] * halfWidth,
+                      segment.p1[1] + perp[1] * halfWidth,
+                      segment.p1[2] + perp[2] * halfWidth, a1, 1.0f);
+
+        const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
+        vertices.insert(vertices.end(), std::begin(quad), std::end(quad));
+        indices.push_back(base);
+        indices.push_back(base + 1);
+        indices.push_back(base + 2);
+        indices.push_back(base + 1);
+        indices.push_back(base + 3);
+        indices.push_back(base + 2);
+    }
+
+    if (vertices.empty() || indices.empty())
+    {
+        m_gridVBO.reset();
+        m_gridIBO.reset();
+        m_gridVAO.reset();
+        return;
+    }
+
+    if (!m_gridVBO)
+    {
+        m_gridVBO = device.createVertexBuffer();
+        m_gridIBO = device.createIndexBuffer();
+        m_gridVAO = device.createVertexArray();
+        m_gridVAO->setVertexBuffer(m_gridVBO);
+        m_gridVAO->setIndexBuffer(m_gridIBO);
+    }
+    m_gridVBO->uploadVertices(vertices, BufferUsage::Dynamic);
+    m_gridIBO->uploadIndices(indices, BufferUsage::Dynamic);
 }
 
 } // namespace MirEngine::Rendering

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Camera.hpp"
+#include "MirEngine/Math/Point.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,6 +11,14 @@ namespace mir
 
 /// Platform-neutral camera interaction controller.
 /// Middle-button orbit/pan/zoom policies are intentionally configurable by the UI.
+///
+/// Industrial CAD navigation semantics:
+///   - orbit: turntable around the target (yaw/pitch clamped);
+///   - pan:   moves the target inside the camera view plane (screen X/Y),
+///            so panning never "drifts" relative to the view orientation;
+///   - zoom:  exponential dolly, optionally anchored to the point under the
+///            cursor (perspective keeps the cursor point fixed on the screen;
+///            orthographic rescales the visible volume around it).
 class ViewportController
 {
 public:
@@ -58,9 +67,7 @@ public:
             return;
         }
 
-        const Point3 target = camera_->target();
-        const Scalar scale = camera_->distance() * panSpeed_;
-        camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
+        panBy(dx, dy);
     }
 
     void zoom(Scalar delta) noexcept
@@ -75,14 +82,22 @@ public:
     /// Continuous two-finger / gesture panning.
     /// Deltas follow the touchpad gesture direction, independent of Mode,
     /// so trackpad panning never conflicts with mouse button state.
+    /// Pan is performed in the camera view plane (right/up vectors), so the
+    /// scene follows the pointer regardless of the orbit orientation.
     void panBy(Scalar dx, Scalar dy) noexcept
     {
         if (!camera_)
             return;
 
         const Point3 target = camera_->target();
+        const Vector3 right = camera_->rightVector();
+        const Vector3 up = camera_->upVector();
         const Scalar scale = camera_->distance() * panSpeed_;
-        camera_->setTarget({target.x - dx * scale, target.y + dy * scale, target.z});
+
+        camera_->setTarget({
+            target.x + (-right.x * dx + up.x * dy) * scale,
+            target.y + (-right.y * dx + up.y * dy) * scale,
+            target.z + (-right.z * dx + up.z * dy) * scale});
     }
 
     /// Continuous two-finger / gesture orbiting.
@@ -97,6 +112,63 @@ public:
             camera_->theta() - dx * orbitSpeed_,
             clampPhi(camera_->phi() - dy * orbitSpeed_),
             camera_->distance());
+    }
+
+    /// Exponential zoom anchored at the world point hit by the picking ray.
+    ///
+    /// rayOrigin/rayDirection describe the ray from the eye through the cursor
+    /// pixel (see RayPicker::buildRay). The cursor point stays under the
+    /// pointer: perspective adjusts the target along the ray; orthographic
+    /// rescales the visible volume around the cursor point.
+    void zoomAt(Scalar delta,
+                const Point3& rayOrigin,
+                const Vector3& rayDirection) noexcept
+    {
+        if (!camera_)
+            return;
+
+        const Scalar d0 = camera_->distance();
+        const Scalar d1 = std::max(d0 * std::exp(-delta * zoomSpeed_), Scalar(1e-6));
+        if (std::abs(d1 - d0) <= Scalar(1e-12))
+            return;
+
+        const Vector3 forward = camera_->forward();
+        const Scalar cosAngle = std::max(Vector3::dot(rayDirection, forward), Scalar(1e-6));
+
+        // P: intersection of the picking ray with the plane through the
+        // target perpendicular to the view direction. rayOrigin lies on the
+        // near clip plane (not at the eye), so the parameterization uses the
+        // target-relative distance along the ray.
+        const Point3 target = camera_->target();
+        const Scalar t0 = (Vector3{target.x - rayOrigin.x,
+                                   target.y - rayOrigin.y,
+                                   target.z - rayOrigin.z}.dot(forward)) /
+                          cosAngle;
+        const Point3 pivot{
+            rayOrigin.x + rayDirection.x * t0,
+            rayOrigin.y + rayDirection.y * t0,
+            rayOrigin.z + rayDirection.z * t0};
+
+        Point3 newTarget;
+        if (camera_->projection() == CameraProjection::Perspective)
+        {
+            const Scalar t1 = d1 / cosAngle;
+            newTarget = {
+                pivot.x - rayDirection.x * t1 + forward.x * d1,
+                pivot.y - rayDirection.y * t1 + forward.y * d1,
+                pivot.z - rayDirection.z * t1 + forward.z * d1};
+        }
+        else
+        {
+            const Scalar ratio = d1 / d0;
+            newTarget = {
+                pivot.x + (target.x - pivot.x) * ratio,
+                pivot.y + (target.y - pivot.y) * ratio,
+                pivot.z + (target.z - pivot.z) * ratio};
+        }
+
+        camera_->setOrbit(camera_->theta(), camera_->phi(), d1);
+        camera_->setTarget(newTarget);
     }
 
 private:

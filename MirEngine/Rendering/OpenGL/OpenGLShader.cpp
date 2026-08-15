@@ -1,82 +1,77 @@
 // MirEngine/Rendering/OpenGL/OpenGLShader.cpp
 // =================================================================================
-// Реализация OpenGLShader без внешних зависимостей (spdlog / glbinding).
+// OpenGLShader implementation without external dependencies.
+//
+// Compile/link failures are reported with the offending source snippet so a
+// broken GLSL program is diagnosable without a debugger.
 // =================================================================================
 
 #include "OpenGLShader.h"
 
 #include <iostream>
-#include <vector>
 #include <string>
+#include <vector>
 
-namespace MirEngine {
-namespace Rendering {
+namespace MirEngine::Rendering {
 
-// --------------------------------------------------------------------------
-// Конструктор
-// --------------------------------------------------------------------------
 OpenGLShader::OpenGLShader()
 {
     m_program = glCreateProgram();
-    if (m_program == 0) {
+    if (m_program == 0)
+    {
         std::cerr << "[OpenGLShader] Failed to create program\n";
     }
 }
 
-// --------------------------------------------------------------------------
-// Деструктор
-// --------------------------------------------------------------------------
 OpenGLShader::~OpenGLShader()
 {
-    if (m_program != 0) {
+    if (m_program != 0)
+    {
         glDeleteProgram(m_program);
         m_program = 0;
     }
     m_uniformCache.clear();
 }
 
-// --------------------------------------------------------------------------
-// Компиляция
-// --------------------------------------------------------------------------
 bool OpenGLShader::compile(const std::string& vertexSource,
                            const std::string& fragmentSource)
 {
-    // Если программа уже существует — пересоздаём
-    if (m_program != 0) {
+    if (m_program != 0)
+    {
         glDeleteProgram(m_program);
         m_program = glCreateProgram();
         m_uniformCache.clear();
     }
 
-    GLuint vs = compileShader(GL_VERTEX_SHADER, vertexSource);
-    if (vs == 0) return false;
-
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-    if (fs == 0) {
-        glDeleteShader(vs);
+    const GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+    if (vertexShader == 0)
+    {
         return false;
     }
 
-    glAttachShader(m_program, vs);
-    glAttachShader(m_program, fs);
+    const GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+    if (fragmentShader == 0)
+    {
+        glDeleteShader(vertexShader);
+        return false;
+    }
+
+    glAttachShader(m_program, vertexShader);
+    glAttachShader(m_program, fragmentShader);
     glLinkProgram(m_program);
 
-    // Промежуточные шейдеры больше не нужны
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
 
-    if (!checkLinkStatus()) {
+    if (!checkLinkStatus())
+    {
         glDeleteProgram(m_program);
         m_program = 0;
         return false;
     }
-
     return true;
 }
 
-// --------------------------------------------------------------------------
-// bind / unbind
-// --------------------------------------------------------------------------
 void OpenGLShader::bind()
 {
     glUseProgram(m_program);
@@ -87,98 +82,111 @@ void OpenGLShader::unbind()
     glUseProgram(0);
 }
 
-// --------------------------------------------------------------------------
-// Uniforms
-// --------------------------------------------------------------------------
 void OpenGLShader::setInt(std::string_view name, int value)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) glUniform1i(loc, value);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+        glUniform1i(location, value);
 }
 
 void OpenGLShader::setFloat(std::string_view name, float value)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) glUniform1f(loc, value);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+        glUniform1f(location, value);
 }
 
 void OpenGLShader::setVec2(std::string_view name, float x, float y)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) glUniform2f(loc, x, y);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+        glUniform2f(location, x, y);
 }
 
 void OpenGLShader::setVec3(std::string_view name, float x, float y, float z)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) glUniform3f(loc, x, y, z);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+        glUniform3f(location, x, y, z);
 }
 
 void OpenGLShader::setVec4(std::string_view name, float x, float y, float z, float w)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) glUniform4f(loc, x, y, z, w);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+        glUniform4f(location, x, y, z, w);
 }
 
 void OpenGLShader::setMatrix(std::string_view name, const Matrix4Raw& matrix)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) {
-        glUniformMatrix4fv(loc, 1, GL_FALSE, matrix.data());
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+    {
+        glUniformMatrix4fv(location, 1, GL_FALSE, matrix.data());
     }
 }
 
 void OpenGLShader::setMatrix3(std::string_view name, const float* values)
 {
-    GLint loc = getUniformLocation(name);
-    if (loc != -1) {
-        glUniformMatrix3fv(loc, 1, GL_FALSE, values);
+    const GLint location = getUniformLocation(name);
+    if (location != -1)
+    {
+        glUniformMatrix3fv(location, 1, GL_FALSE, values);
     }
 }
 
-// --------------------------------------------------------------------------
-// Внутренние методы
-// --------------------------------------------------------------------------
 GLint OpenGLShader::getUniformLocation(std::string_view name)
 {
-    std::string key(name);
-    auto it = m_uniformCache.find(key);
-    if (it != m_uniformCache.end()) {
+    const std::string key(name);
+    const auto it = m_uniformCache.find(key);
+    if (it != m_uniformCache.end())
+    {
         return it->second;
     }
 
-    GLint loc = glGetUniformLocation(m_program, key.c_str());
-    m_uniformCache[key] = loc;
-    return loc;
+    const GLint location = glGetUniformLocation(m_program, key.c_str());
+    m_uniformCache.emplace(key, location);
+    return location;
 }
 
 GLuint OpenGLShader::compileShader(GLenum type, const std::string& source)
 {
-    GLuint shader = glCreateShader(type);
-    const char* src = source.c_str();
-    glShaderSource(shader, 1, &src, nullptr);
+    const GLuint shader = glCreateShader(type);
+    const char* sourcePtr = source.c_str();
+    glShaderSource(shader, 1, &sourcePtr, nullptr);
     glCompileShader(shader);
 
-    if (!checkCompileStatus(shader, type == GL_VERTEX_SHADER ? "Vertex" : "Fragment")) {
+    if (!checkCompileStatus(shader,
+                            type == GL_VERTEX_SHADER ? "Vertex" : "Fragment",
+                            source))
+    {
         glDeleteShader(shader);
         return 0;
     }
     return shader;
 }
 
-bool OpenGLShader::checkCompileStatus(GLuint shader, const char* typeName)
+bool OpenGLShader::checkCompileStatus(GLuint shader,
+                                      const char* typeName,
+                                      const std::string& source)
 {
     GLint status = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    if (status == GL_TRUE) return true;
+    if (status == GL_TRUE)
+    {
+        return true;
+    }
 
     GLint logLength = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
-    if (logLength > 0) {
-        std::vector<char> log(static_cast<size_t>(logLength));
+    if (logLength > 0)
+    {
+        std::vector<char> log(static_cast<std::size_t>(logLength));
         glGetShaderInfoLog(shader, logLength, nullptr, log.data());
         std::cerr << "[OpenGLShader] " << typeName << " shader compile error:\n"
                   << log.data() << "\n";
+        std::cerr << "[OpenGLShader] Source (" << source.size() << " bytes):\n"
+                  << source << "\n";
     }
     return false;
 }
@@ -187,17 +195,21 @@ bool OpenGLShader::checkLinkStatus()
 {
     GLint status = 0;
     glGetProgramiv(m_program, GL_LINK_STATUS, &status);
-    if (status == GL_TRUE) return true;
+    if (status == GL_TRUE)
+    {
+        return true;
+    }
 
     GLint logLength = 0;
     glGetProgramiv(m_program, GL_INFO_LOG_LENGTH, &logLength);
-    if (logLength > 0) {
-        std::vector<char> log(static_cast<size_t>(logLength));
+    if (logLength > 0)
+    {
+        std::vector<char> log(static_cast<std::size_t>(logLength));
         glGetProgramInfoLog(m_program, logLength, nullptr, log.data());
-        std::cerr << "[OpenGLShader] Program link error:\n" << log.data() << "\n";
+        std::cerr << "[OpenGLShader] Program link error:\n"
+                  << log.data() << "\n";
     }
     return false;
 }
 
-} // namespace Rendering
-} // namespace MirEngine
+} // namespace MirEngine::Rendering

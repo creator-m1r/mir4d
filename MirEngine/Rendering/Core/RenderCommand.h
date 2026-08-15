@@ -1,37 +1,38 @@
 // MirEngine/Rendering/Core/RenderCommand.h
 // =================================================================================
-// Описание одной команды рендеринга.
+// Command-based draw contract of the MirEngine rendering pipeline.
 //
-// Архитектурный принцип:
-//   MirEngine формирует RenderCommand на основе сцены и CAD-логики.
-//   Рендерер (OpenGL / Metal / Vulkan) интерпретирует команду и выполняет её на GPU.
-//   Верхний уровень не знает о GL-функциях, нижний — о CAD.
+// Architecture:
+//   - MirEngine forms RenderCommand objects from the engineering scene and
+//     CAD logic. The renderer backend (OpenGL / Metal / Vulkan) interprets
+//     each command and executes it on the GPU.
+//   - The upper layer never touches GL/Metal calls; the lower layer never
+//     depends on CAD types.
 //
-// Команда содержит:
-//   - Дескриптор геометрии (меш / буферы)
-//   - Дескриптор материала (шейдер + параметры)
-//   - Матрицу трансформации (model matrix)
-//   - Тип примитивов
-//   - Флаги визуализации (wireframe и т.д.)
+// A command carries:
+//   - geometry descriptor (mesh / GPU buffers);
+//   - material descriptor (shader + parameters);
+//   - per-instance transform (model matrix);
+//   - primitive type;
+//   - pipeline state overrides (wireframe, blending, line width, depth test).
 //
-// MeshHandle и MaterialHandle — легковесные идентификаторы,
-// по которым рендерер быстро находит ресурсы в своих кешах.
+// MeshHandle and MaterialHandle are lightweight ids resolved by the renderer
+// inside its resource caches.
 // =================================================================================
 
 #pragma once
 
-#include <cstdint>
 #include <array>
+#include <cstdint>
 
-namespace MirEngine {
-namespace Rendering {
+namespace MirEngine::Rendering {
 
-// ---------------------------------------------------------------------------------
-// Типы примитивов, поддерживаемые рендерером.
-// Транслируются в константы OpenGL / Metal / Vulkan.
-// ---------------------------------------------------------------------------------
-enum class PrimitiveType : uint8_t {
-    Points        = 0,  // GL_POINTS
+// -----------------------------------------------------------------------------
+// Primitive types supported by the renderer.
+// They map to OpenGL / Metal / Vulkan primitive constants.
+// -----------------------------------------------------------------------------
+enum class PrimitiveType : std::uint8_t {
+    Points        = 0,  // point cloud
     Lines         = 1,  // GL_LINES
     LineStrip     = 2,  // GL_LINE_STRIP
     LineLoop      = 3,  // GL_LINE_LOOP
@@ -40,51 +41,61 @@ enum class PrimitiveType : uint8_t {
     TriangleFan   = 6   // GL_TRIANGLE_FAN
 };
 
-// ---------------------------------------------------------------------------------
-// Дескриптор меша (геометрии).
-// Уникальный идентификатор VertexArray / VertexBuffer в кеше рендерера.
-// ---------------------------------------------------------------------------------
-using MeshHandle = uint32_t;
+// -----------------------------------------------------------------------------
+// Geometry handle: unique id of a VertexArray / buffer set in the renderer cache.
+// -----------------------------------------------------------------------------
+using MeshHandle = std::uint32_t;
 
-// ---------------------------------------------------------------------------------
-// Дескриптор материала.
-// Идентификатор Shader + состояний.
-// ---------------------------------------------------------------------------------
-using MaterialHandle = uint32_t;
+// -----------------------------------------------------------------------------
+// Material handle: id of a shader / material state in the renderer cache.
+// -----------------------------------------------------------------------------
+using MaterialHandle = std::uint32_t;
 
-// ---------------------------------------------------------------------------------
-// Матрица 4×4 в виде массива из 16 float (column-major).
-// Совместима с OpenGL и GLSL.
-// В будущем будет заменена на Matrix4 из MirEngine/Math.
-// ---------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// 4x4 matrix stored as a 16-float array in column-major order (OpenGL layout,
+// compatible with GLSL mat4). Will be replaced by the canonical Matrix4 from
+// MirEngine/Math once the rendering layer fully migrates to it.
+// -----------------------------------------------------------------------------
 using Matrix4Raw = std::array<float, 16>;
 
-// ---------------------------------------------------------------------------------
-// Единичная матрица 4×4 (constexpr).
-// ---------------------------------------------------------------------------------
-inline constexpr Matrix4Raw IdentityMatrix4() noexcept {
+// -----------------------------------------------------------------------------
+// Identity matrix (constexpr).
+// -----------------------------------------------------------------------------
+inline constexpr Matrix4Raw IdentityMatrix4() noexcept
+{
     return {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
+        0.0f, 0.0f, 0.0f, 1.0f};
 }
 
-// ---------------------------------------------------------------------------------
-// Одна команда рендеринга.
-// Минимально необходимая информация для отрисовки одного объекта.
-// Рендерер может сортировать, объединять и батчить команды.
-// ---------------------------------------------------------------------------------
-struct RenderCommand {
-    MeshHandle     mesh          = 0;               // Геометрия
-    MaterialHandle material      = 0;               // Материал / шейдер
-    Matrix4Raw     modelMatrix   = IdentityMatrix4(); // Model → World
-    PrimitiveType  primitive     = PrimitiveType::Triangles;
-    bool           wireframe     = false;           // Проволочный режим
-    uint32_t       firstIndex    = 0;               // Смещение в индексном буфере
-    uint32_t       indexCount    = 0;               // 0 = рисовать весь меш
+// -----------------------------------------------------------------------------
+// Per-command pipeline state overrides.
+// Defaults match the standard CAD look: depth test on, blending off.
+// -----------------------------------------------------------------------------
+struct RenderStateFlags {
+    bool depthTest{true};
+    bool blend{false};
+    bool cullBackFaces{true};
+    bool wireframe{false};
+    float lineWidth{1.0f};
+
+    constexpr RenderStateFlags() noexcept = default;
 };
 
-} // namespace Rendering
-} // namespace MirEngine
+// -----------------------------------------------------------------------------
+// A single draw command: minimal information needed to draw one object.
+// The renderer may sort, batch and merge commands.
+// -----------------------------------------------------------------------------
+struct RenderCommand {
+    MeshHandle mesh{0};                                  // geometry
+    MaterialHandle material{0};                          // shader / material
+    Matrix4Raw modelMatrix{IdentityMatrix4()};           // model -> world
+    PrimitiveType primitive{PrimitiveType::Triangles};
+    RenderStateFlags state{};
+    std::uint32_t firstIndex{0};                         // index buffer offset
+    std::uint32_t indexCount{0};                         // 0 = whole mesh
+};
+
+} // namespace MirEngine::Rendering

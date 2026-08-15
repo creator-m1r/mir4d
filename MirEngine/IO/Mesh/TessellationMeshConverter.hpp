@@ -39,7 +39,8 @@ namespace mir::io
         result.triangles.push_back({
             static_cast<std::size_t>(triangle.a),
             static_cast<std::size_t>(triangle.b),
-            static_cast<std::size_t>(triangle.c)});
+            static_cast<std::size_t>(triangle.c),
+            triangle.sourceFaceId});
     }
 
     if (!generateNormals)
@@ -78,7 +79,7 @@ namespace mir::io
             static_cast<std::uint32_t>(triangle.a),
             static_cast<std::uint32_t>(triangle.b),
             static_cast<std::uint32_t>(triangle.c),
-            0});
+            triangle.sourceFaceId});
     }
 
     return result;

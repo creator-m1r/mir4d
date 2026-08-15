@@ -36,27 +36,13 @@ if(APPLE)
         MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
         MirEngine/Rendering/OpenGL/OpenGLShader.cpp
         MirEngine/Rendering/OpenGL/OpenGLState.cpp
-        MirEngine/Rendering/OpenGL/OpenGLTexture.cpp
-        MirEngine/Rendering/OpenGL/OpenGLFrameBuffer.cpp
         MirEngine/Rendering/OpenGL/OpenGLVertexArray.cpp
         MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
         MirEngine/Rendering/Passes/GeometryPass.cpp
-        MirEngine/Rendering/Passes/GizmoPass.cpp
         MirEngine/Rendering/Passes/GridPass.cpp
-        MirEngine/Rendering/Passes/OverlayPass.cpp
-        MirEngine/Rendering/Passes/SelectionPass.cpp
         MirEngine/Rendering/Resources/ShaderLibrary.cpp
-        MirEngine/Rendering/Camera/RenderCamera.cpp
-        MirEngine/Rendering/OpenGL/OpenGLShaderProgram.cpp
-        MirEngine/Rendering/OpenGL/OpenGLFrameRenderer.cpp
-        MirEngine/Rendering/OpenGL/OpenGLMeshRenderer.cpp
-        MirEngine/Rendering/OpenGL/OpenGLRenderMeshUploader.cpp
-        MirEngine/Rendering/Selection/OpenGLSelectionRenderer.cpp
-        MirEngine/Rendering/Selection/RenderScreenRay.cpp
-        MirEngine/Rendering/Selection/RenderSelectionController.cpp
         MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
         MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
-        MirEngine/Rendering/Viewport/RenderViewport.cpp
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
 

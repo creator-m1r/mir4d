@@ -12,6 +12,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace mir
@@ -64,7 +65,8 @@ private:
         const std::size_t base = dst.vertices.size();
         dst.vertices.insert(dst.vertices.end(), src.vertices.begin(), src.vertices.end());
         for (const auto& tri : src.triangles)
-            dst.triangles.push_back({tri.a + base, tri.b + base, tri.c + base});
+            dst.triangles.push_back(
+                {tri.a + base, tri.b + base, tri.c + base, tri.sourceFaceId});
     }
 
     static void appendFace(const BRepModel& model,
@@ -140,8 +142,9 @@ private:
         const std::size_t base = mesh.vertices.size();
         for (const Vector3& p : combined3d)
             mesh.vertices.push_back(Point3{p.x, p.y, p.z});
+        const std::uint64_t faceId = static_cast<std::uint64_t>(faceHandle.index);
         for (const auto& tri : tris)
-            mesh.triangles.push_back({base + tri[0], base + tri[1], base + tri[2]});
+            mesh.triangles.push_back({base + tri[0], base + tri[1], base + tri[2], faceId});
     }
 
     [[nodiscard]] static std::vector<Vector3> sampleWirePoints(const BRepModel& model, BRepWireHandle wireHandle)

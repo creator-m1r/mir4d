@@ -53,6 +53,24 @@ public:
     void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
     void orbitBy(Scalar dx, Scalar dy) noexcept { state_.controller.orbitBy(dx, dy); }
 
+    void setProjection(CameraProjection projection) noexcept
+    {
+        state_.camera.setProjection(projection);
+    }
+
+    /// Zoom anchored at the cursor pixel (industrial CAD zoom-to-cursor).
+    void zoomAt(Scalar delta, Scalar x, Scalar y) noexcept
+    {
+        const PickRay ray = RayPicker::buildRay(
+            state_.camera, x, y, state_.width, state_.height);
+        if (ray.direction.isZero())
+        {
+            state_.controller.zoom(delta);
+            return;
+        }
+        state_.controller.zoomAt(delta, ray.origin, ray.direction);
+    }
+
     [[nodiscard]] PickResult pick(Scalar x, Scalar y) const noexcept
     {
         if (!scene_)
@@ -82,6 +100,8 @@ public:
 
         if (additive)
             state_.selection.toggle(result.objectId);
+        else if (result.faceId != 0)
+            state_.selection.selectFace(result.objectId, result.faceId);
         else
             state_.selection.select(result.objectId, false);
         return true;
@@ -180,7 +200,14 @@ public:
         const Scalar aspect = context.aspectRatio > 0
             ? Scalar(context.aspectRatio)
             : Scalar(1.0);
-        state_.camera.setPerspective(fov, aspect, nearPlane, farPlane);
+
+        // Keep the active projection mode: perspective updates the FOV-based
+        // matrix, orthographic only refreshes clip planes and aspect (extents
+        // are derived from the orbit distance inside the camera).
+        state_.camera.setAspect(aspect);
+        state_.camera.setNearFar(nearPlane, farPlane);
+        if (state_.camera.projection() == CameraProjection::Perspective)
+            state_.camera.setPerspective(fov, aspect, nearPlane, farPlane);
 
         context.fovY = static_cast<float>(fov);
         context.nearPlane = static_cast<float>(nearPlane);
@@ -194,6 +221,19 @@ public:
         context.setCameraPosition(static_cast<float>(position.x),
                                   static_cast<float>(position.y),
                                   static_cast<float>(position.z));
+
+        // Selection highlight set for the geometry pass. When the primary
+        // selection carries a source face id, only that face is highlighted
+        // instead of the whole object.
+        if (state_.selection.faceId() != 0)
+        {
+            context.setSelectionFace(static_cast<std::uint64_t>(state_.selection.primary()),
+                                     state_.selection.faceId());
+        }
+        else
+        {
+            context.setSelection(&state_.selection.ids());
+        }
 
         renderer_->render(*scene_, context);
     }

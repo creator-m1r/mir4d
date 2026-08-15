@@ -13,8 +13,8 @@
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
 #include "MirEngine/Math/Transform.hpp"
 
+#include <cmath>
 #include <iostream>
-#include <cstdint>
 #include <vector>
 
 #if defined(__APPLE__)
@@ -56,7 +56,8 @@ void main() {
 // PBR fragment shader:
 //   GGX specular + Lambert diffuse + Schlick Fresnel,
 //   Engineering Studio light rig (key + fill + ambient),
-//   fully procedural material parameters (no textures).
+//   procedural material parameters (no textures),
+//   selection tint for highlighted objects.
 static const char* kDefaultFrag = R"(
 #version 410 core
 in vec3 v_normal;
@@ -78,9 +79,10 @@ uniform vec3 u_baseColor;
 uniform float u_roughness;
 uniform float u_metallic;
 uniform float u_specular;
-uniform float u_ior;
 uniform vec3 u_emission;
 uniform float u_opacity;
+
+uniform int u_selected;
 
 const float PI = 3.14159265359;
 
@@ -147,6 +149,15 @@ void main() {
     color = color / (color + vec3(1.0)); // soft tone mapping
     color = pow(color, vec3(1.0 / 2.2)); // gamma
 
+    // Industrial CAD selection highlight: warm orange tint blended with the
+    // shaded surface, keeping geometry readable.
+    if (u_selected != 0)
+    {
+        const vec3 selectionColor = vec3(1.0, 0.62, 0.16);
+        color = mix(color, selectionColor, 0.42);
+        color = clamp(color, vec3(0.0), vec3(1.0));
+    }
+
     FragColor = vec4(color, u_opacity);
 }
 )";
@@ -172,13 +183,23 @@ struct EngineeringStudioLights
 
 void normalize3(float v[3]) noexcept
 {
-    const float len = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    if (len > 1e-9f)
+    const float length = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (length > 1e-9f)
     {
-        v[0] /= len;
-        v[1] /= len;
-        v[2] /= len;
+        v[0] /= length;
+        v[1] /= length;
+        v[2] /= length;
     }
+}
+
+void applyMaterialUniforms(Shader* shader, const MaterialData& material)
+{
+    shader->setVec3("u_baseColor", material.baseColor[0], material.baseColor[1], material.baseColor[2]);
+    shader->setFloat("u_roughness", material.roughness);
+    shader->setFloat("u_metallic", material.metallic);
+    shader->setFloat("u_specular", material.specular);
+    shader->setVec3("u_emission", material.emission[0], material.emission[1], material.emission[2]);
+    shader->setFloat("u_opacity", material.opacity);
 }
 
 } // namespace
@@ -190,15 +211,15 @@ GeometryPass::GeometryPass(ShaderLibrary& shaderLibrary)
 
 bool GeometryPass::initialize(RenderDevice& device)
 {
-    const ShaderHandle handle = m_shaderLibrary.load("DefaultLit", kDefaultVert, kDefaultFrag);
+    const ShaderHandle handle =
+        m_shaderLibrary.load("DefaultLit", kDefaultVert, kDefaultFrag);
     if (handle.empty())
     {
         std::cerr << "[GeometryPass] Failed to load default shader.\n";
         return false;
     }
 
-    m_defaultMaterial = 100;
-    device.registerMaterial(m_defaultMaterial, m_shaderLibrary.get(handle));
+    device.registerMaterial(kDefaultMaterialHandle, m_shaderLibrary.get(handle));
     return true;
 }
 
@@ -209,6 +230,9 @@ void GeometryPass::invalidateSceneCache() noexcept
     m_nextMeshHandle = 1;
     m_cachedScene = nullptr;
     m_cachedRevision = 0;
+    m_highlightVAO.reset();
+    m_highlightObject = mir4d::InvalidObjectId;
+    m_highlightFace = 0;
 }
 
 void GeometryPass::execute(RenderContext& context,
@@ -222,34 +246,36 @@ void GeometryPass::execute(RenderContext& context,
         return;
     }
 
+    // Rebuild the GPU cache only when the scene content actually changed.
     const std::uint64_t revision = scene.contentRevision();
     if (m_cachedScene != &scene || m_cachedRevision != revision)
     {
-        m_objectToHandle.clear();
-        m_vaos.clear();
-        m_nextMeshHandle = 1;
+        rebuildSceneCache(scene, device);
         m_cachedScene = &scene;
         m_cachedRevision = revision;
     }
 
     // Camera-relative view matrix: rotation only, no translation.
-    Matrix4Raw viewRel = context.viewMatrix;
-    viewRel[3] = 0.0f; viewRel[7] = 0.0f; viewRel[11] = 0.0f;
+    // Matrix4Raw is column-major (element (row, col) at row + col * 4), so
+    // the camera translation column occupies indices 12..14 and is zeroed.
+    Matrix4Raw viewRelative = context.viewMatrix;
+    viewRelative[12] = 0.0f;
+    viewRelative[13] = 0.0f;
+    viewRelative[14] = 0.0f;
 
     EngineeringStudioLights lights;
     normalize3(lights.keyDir);
     normalize3(lights.fillDir);
 
     // World-space light directions are passed to the shader; the fragment
-    // shader converts them to view space via u_worldToView. The light rig is
-    // camera-independent, so it must not be rotated on the CPU first.
-    float worldToView[9] = {
-        viewRel[0], viewRel[1], viewRel[2],
-        viewRel[4], viewRel[5], viewRel[6],
-        viewRel[8], viewRel[9], viewRel[10]};
+    // shader converts them to view space via u_worldToView.
+    const float worldToView[9] = {
+        viewRelative[0], viewRelative[1], viewRelative[2],
+        viewRelative[4], viewRelative[5], viewRelative[6],
+        viewRelative[8], viewRelative[9], viewRelative[10]};
 
     shader->bind();
-    shader->setMatrix("u_view", viewRel);
+    shader->setMatrix("u_view", viewRelative);
     shader->setMatrix("u_projection", context.projectionMatrix);
     shader->setVec3("u_keyDir", lights.keyDir[0], lights.keyDir[1], lights.keyDir[2]);
     shader->setVec3("u_keyColor", lights.keyColor[0], lights.keyColor[1], lights.keyColor[2]);
@@ -261,10 +287,9 @@ void GeometryPass::execute(RenderContext& context,
     shader->setFloat("u_ambientIntensity", lights.ambientIntensity);
     shader->setMatrix3("u_worldToView", worldToView);
 
-    const double cameraPosD[3] = {
-        static_cast<double>(context.cameraPosition[0]),
-        static_cast<double>(context.cameraPosition[1]),
-        static_cast<double>(context.cameraPosition[2])};
+    const auto* selection = context.selectionIds;
+    const bool faceSelectionActive =
+        context.selectionObjectId != 0 && context.selectionFaceId != 0;
 
     for (const auto& node : scene.nodes())
     {
@@ -273,94 +298,140 @@ void GeometryPass::execute(RenderContext& context,
         if (node->id() == mir4d::InvalidObjectId)
             continue;
 
-        processNode(*node, device, shader.get(), context.cameraPosition);
+        // A face-level selection highlights exactly the picked face; the
+        // owning object is drawn without the whole-object tint.
+        bool selected = false;
+        if (selection != nullptr && !(faceSelectionActive &&
+                                      node->id() == context.selectionObjectId))
+        {
+            for (const std::uint64_t id : *selection)
+            {
+                if (id == node->id())
+                {
+                    selected = true;
+                    break;
+                }
+            }
+        }
+
+        processNode(*node, context, device, shader.get(), selected);
     }
 
-    (void)cameraPosD;
+    // Face-level highlight overlay: drawn after the object geometry with the
+    // depth func relaxed to LessEqual, so the tinted triangles sit exactly on
+    // the already rasterized surface without z-fighting.
+    if (faceSelectionActive)
+        drawHighlightFace(scene, context, device, shader.get());
+
+    shader->unbind();
 }
 
-void GeometryPass::processNode(const mir::ModelNode& node,
-                               RenderDevice& device,
-                               Shader* shader,
-                               const float cameraPos[3])
+void GeometryPass::rebuildSceneCache(mir::Scene& scene, RenderDevice& device)
+{
+    m_objectToHandle.clear();
+    m_vaos.clear();
+    m_nextMeshHandle = 1;
+    m_highlightVAO.reset();
+    m_highlightObject = mir4d::InvalidObjectId;
+    m_highlightFace = 0;
+
+    for (const auto& node : scene.nodes())
+    {
+        if (!node || !node->model() || !node->model()->hasMesh())
+            continue;
+        if (node->id() == mir4d::InvalidObjectId)
+            continue;
+
+        uploadMesh(*node, device);
+    }
+}
+
+void GeometryPass::uploadMesh(const mir::ModelNode& node, RenderDevice& device)
 {
     const mir::TriangleMesh3& mesh = node.model()->mesh();
     if (!mesh.isValid())
         return;
 
-    MeshHandle handle = 0;
-    const auto cached = m_objectToHandle.find(node.id());
-    if (cached != m_objectToHandle.end())
+    std::vector<Vertex> vertices;
+    std::vector<std::uint32_t> indices;
+    vertices.reserve(mesh.vertices.size());
+    indices.reserve(mesh.triangles.size() * 3);
+
+    std::vector<mir::Vector3> normals;
+    if (mesh.hasVertexNormals())
     {
-        handle = cached->second;
+        normals = mesh.normals;
     }
     else
     {
-        std::vector<Vertex> vertices;
-        std::vector<std::uint32_t> indices;
-        vertices.reserve(mesh.vertices.size());
-        indices.reserve(mesh.triangles.size() * 3);
-
-        std::vector<mir::Vector3> normals;
-        if (mesh.hasVertexNormals())
-        {
-            normals = mesh.normals;
-        }
-        else
-        {
-            normals.assign(mesh.vertices.size(), mir::Vector3::zero());
-            for (const auto& triangle : mesh.triangles)
-            {
-                const mir::Vector3 a{
-                    mesh.vertices[triangle.a].x,
-                    mesh.vertices[triangle.a].y,
-                    mesh.vertices[triangle.a].z};
-                const mir::Vector3 b{
-                    mesh.vertices[triangle.b].x,
-                    mesh.vertices[triangle.b].y,
-                    mesh.vertices[triangle.b].z};
-                const mir::Vector3 c{
-                    mesh.vertices[triangle.c].x,
-                    mesh.vertices[triangle.c].y,
-                    mesh.vertices[triangle.c].z};
-                const mir::Vector3 n = mir::Vector3::cross(b - a, c - a).normalized();
-                normals[triangle.a] += n;
-                normals[triangle.b] += n;
-                normals[triangle.c] += n;
-            }
-            for (auto& normal : normals)
-                normal = normal.normalized();
-        }
-
-        for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
-        {
-            const auto& p = mesh.vertices[i];
-            const auto& n = normals[i];
-            vertices.emplace_back(
-                Rendering::Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)},
-                Rendering::Vector3{static_cast<float>(n.x), static_cast<float>(n.y), static_cast<float>(n.z)},
-                Rendering::Vector2{});
-        }
-
+        normals.assign(mesh.vertices.size(), mir::Vector3::zero());
         for (const auto& triangle : mesh.triangles)
         {
-            indices.push_back(static_cast<std::uint32_t>(triangle.a));
-            indices.push_back(static_cast<std::uint32_t>(triangle.b));
-            indices.push_back(static_cast<std::uint32_t>(triangle.c));
+            const mir::Vector3 a{
+                mesh.vertices[triangle.a].x,
+                mesh.vertices[triangle.a].y,
+                mesh.vertices[triangle.a].z};
+            const mir::Vector3 b{
+                mesh.vertices[triangle.b].x,
+                mesh.vertices[triangle.b].y,
+                mesh.vertices[triangle.b].z};
+            const mir::Vector3 c{
+                mesh.vertices[triangle.c].x,
+                mesh.vertices[triangle.c].y,
+                mesh.vertices[triangle.c].z};
+            const mir::Vector3 faceNormal =
+                mir::Vector3::cross(b - a, c - a).normalized();
+            normals[triangle.a] += faceNormal;
+            normals[triangle.b] += faceNormal;
+            normals[triangle.c] += faceNormal;
         }
+        for (auto& normal : normals)
+            normal = normal.normalized();
+    }
 
-        auto vb = device.createVertexBuffer();
-        vb->uploadVertices(vertices, BufferUsage::Static);
-        auto ib = device.createIndexBuffer();
-        ib->uploadIndices(indices, BufferUsage::Static);
-        auto vao = device.createVertexArray();
-        vao->setVertexBuffer(vb);
-        vao->setIndexBuffer(ib);
+    for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+    {
+        const auto& p = mesh.vertices[i];
+        const auto& n = normals[i];
+        vertices.emplace_back(
+            Rendering::Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)},
+            Rendering::Vector3{static_cast<float>(n.x), static_cast<float>(n.y), static_cast<float>(n.z)},
+            Rendering::Vector2{});
+    }
 
-        handle = m_nextMeshHandle++;
-        device.registerMesh(handle, vao);
-        m_objectToHandle[node.id()] = handle;
-        m_vaos[handle] = vao;
+    for (const auto& triangle : mesh.triangles)
+    {
+        indices.push_back(static_cast<std::uint32_t>(triangle.a));
+        indices.push_back(static_cast<std::uint32_t>(triangle.b));
+        indices.push_back(static_cast<std::uint32_t>(triangle.c));
+    }
+
+    auto vertexBuffer = device.createVertexBuffer();
+    vertexBuffer->uploadVertices(vertices, BufferUsage::Static);
+    auto indexBuffer = device.createIndexBuffer();
+    indexBuffer->uploadIndices(indices, BufferUsage::Static);
+    auto vao = device.createVertexArray();
+    vao->setVertexBuffer(vertexBuffer);
+    vao->setIndexBuffer(indexBuffer);
+
+    const MeshHandle handle = m_nextMeshHandle++;
+    device.registerMesh(handle, vao);
+    m_objectToHandle[node.id()] = handle;
+    m_vaos[handle] = std::move(vao);
+}
+
+void GeometryPass::processNode(const mir::ModelNode& node,
+                               RenderContext& context,
+                               RenderDevice& device,
+                               Shader* shader,
+                               bool selected)
+{
+    const auto cached = m_objectToHandle.find(node.id());
+    if (cached == m_objectToHandle.end())
+    {
+        std::cerr << "[GeometryPass] Mesh handle missing for object "
+                  << node.id() << ".\n";
+        return;
     }
 
     // Material resolution: object -> library material (default Engineering Steel).
@@ -370,26 +441,19 @@ void GeometryPass::processNode(const mir::ModelNode& node,
         materialId = materialIt->second;
     const MaterialData material = MaterialLibrary::material(materialId);
 
-    shader->setVec3("u_baseColor", material.baseColor[0], material.baseColor[1], material.baseColor[2]);
-    shader->setFloat("u_roughness", material.roughness);
-    shader->setFloat("u_metallic", material.metallic);
-    shader->setFloat("u_specular", material.specular);
-    shader->setFloat("u_ior", material.ior);
-    shader->setVec3("u_emission", material.emission[0], material.emission[1], material.emission[2]);
-    shader->setFloat("u_opacity", material.opacity);
+    applyMaterialUniforms(shader, material);
+    shader->setInt("u_selected", selected ? 1 : 0);
 
     RenderCommand command;
-    command.mesh = handle;
-    command.material = m_defaultMaterial;
-    const double cameraPosD[3] = {
-        static_cast<double>(cameraPos[0]),
-        static_cast<double>(cameraPos[1]),
-        static_cast<double>(cameraPos[2])};
-    command.modelMatrix = makeModelMatrix(node.transform(), cameraPosD);
+    command.mesh = cached->second;
+    command.material = kDefaultMaterialHandle;
+    const double cameraPos[3] = {
+        static_cast<double>(context.cameraPosition[0]),
+        static_cast<double>(context.cameraPosition[1]),
+        static_cast<double>(context.cameraPosition[2])};
+    command.modelMatrix = makeModelMatrix(node.transform(), cameraPos);
     command.primitive = PrimitiveType::Triangles;
     device.draw(command);
-
-    (void)shader;
 }
 
 Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
@@ -414,6 +478,161 @@ Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
             }
         }
     return result;
+}
+
+void GeometryPass::rebuildHighlightFace(mir::Scene& scene, RenderDevice& device)
+{
+    m_highlightVAO.reset();
+
+    const mir::ModelNode* target = nullptr;
+    for (const auto& node : scene.nodes())
+    {
+        if (node && node->id() == m_highlightObject)
+        {
+            target = node.get();
+            break;
+        }
+    }
+    if (!target || !target->model() || !target->model()->hasMesh())
+        return;
+
+    const mir::TriangleMesh3& mesh = target->model()->mesh();
+    if (!mesh.isValid())
+        return;
+
+    std::vector<mir::Vector3> normals = mesh.normals;
+    if (normals.size() != mesh.vertices.size())
+    {
+        normals.assign(mesh.vertices.size(), mir::Vector3::zero());
+        for (const auto& triangle : mesh.triangles)
+        {
+            if (triangle.sourceFaceId != m_highlightFace)
+                continue;
+            const mir::Vector3 a{mesh.vertices[triangle.a].x,
+                                 mesh.vertices[triangle.a].y,
+                                 mesh.vertices[triangle.a].z};
+            const mir::Vector3 b{mesh.vertices[triangle.b].x,
+                                 mesh.vertices[triangle.b].y,
+                                 mesh.vertices[triangle.b].z};
+            const mir::Vector3 c{mesh.vertices[triangle.c].x,
+                                 mesh.vertices[triangle.c].y,
+                                 mesh.vertices[triangle.c].z};
+            const mir::Vector3 faceNormal =
+                mir::Vector3::cross(b - a, c - a).normalized();
+            normals[triangle.a] += faceNormal;
+            normals[triangle.b] += faceNormal;
+            normals[triangle.c] += faceNormal;
+        }
+        for (auto& normal : normals)
+            normal = normal.normalized();
+    }
+
+    std::vector<Vertex> vertices;
+    std::vector<std::uint32_t> indices;
+    std::unordered_map<std::size_t, std::uint32_t> remap;
+
+    for (const auto& triangle : mesh.triangles)
+    {
+        if (triangle.sourceFaceId != m_highlightFace)
+            continue;
+
+        const std::size_t faceVertices[3] = {triangle.a, triangle.b, triangle.c};
+        for (const std::size_t index : faceVertices)
+        {
+            const auto cached = remap.find(index);
+            std::uint32_t newIndex = 0;
+            if (cached != remap.end())
+            {
+                newIndex = cached->second;
+            }
+            else
+            {
+                const auto& p = mesh.vertices[index];
+                const auto& n = normals[index];
+                vertices.emplace_back(
+                    Rendering::Vector3{static_cast<float>(p.x),
+                                       static_cast<float>(p.y),
+                                       static_cast<float>(p.z)},
+                    Rendering::Vector3{static_cast<float>(n.x),
+                                       static_cast<float>(n.y),
+                                       static_cast<float>(n.z)},
+                    Rendering::Vector2{});
+                newIndex = static_cast<std::uint32_t>(vertices.size() - 1);
+                remap.emplace(index, newIndex);
+            }
+            indices.push_back(newIndex);
+        }
+    }
+
+    if (vertices.empty() || indices.empty())
+        return;
+
+    auto vertexBuffer = device.createVertexBuffer();
+    vertexBuffer->uploadVertices(vertices, BufferUsage::Static);
+    auto indexBuffer = device.createIndexBuffer();
+    indexBuffer->uploadIndices(indices, BufferUsage::Static);
+    auto vao = device.createVertexArray();
+    vao->setVertexBuffer(vertexBuffer);
+    vao->setIndexBuffer(indexBuffer);
+    device.registerMesh(kHighlightMeshHandle, vao);
+    m_highlightVAO = std::move(vao);
+}
+
+void GeometryPass::drawHighlightFace(mir::Scene& scene,
+                                     RenderContext& context,
+                                     RenderDevice& device,
+                                     Shader* shader)
+{
+    if (context.selectionObjectId == 0 || context.selectionFaceId == 0)
+        return;
+
+    const mir4d::ObjectId objectId = static_cast<mir4d::ObjectId>(context.selectionObjectId);
+
+    if (m_highlightObject != objectId || m_highlightFace != context.selectionFaceId || !m_highlightVAO)
+    {
+        m_highlightObject = objectId;
+        m_highlightFace = context.selectionFaceId;
+        rebuildHighlightFace(scene, device);
+    }
+    if (!m_highlightVAO)
+        return;
+
+    const mir::ModelNode* target = nullptr;
+    for (const auto& node : scene.nodes())
+    {
+        if (node && node->id() == objectId)
+        {
+            target = node.get();
+            break;
+        }
+    }
+    if (!target)
+        return;
+
+    MaterialId materialId = MaterialLibrary::defaultMaterial();
+    const auto materialIt = m_objectMaterials.find(objectId);
+    if (materialIt != m_objectMaterials.end())
+        materialId = materialIt->second;
+    const MaterialData material = MaterialLibrary::material(materialId);
+
+    applyMaterialUniforms(shader, material);
+    shader->setInt("u_selected", 1);
+
+    RenderCommand command;
+    command.mesh = kHighlightMeshHandle;
+    command.material = kDefaultMaterialHandle;
+    const double cameraPos[3] = {
+        static_cast<double>(context.cameraPosition[0]),
+        static_cast<double>(context.cameraPosition[1]),
+        static_cast<double>(context.cameraPosition[2])};
+    command.modelMatrix = makeModelMatrix(target->transform(), cameraPos);
+    command.primitive = PrimitiveType::Triangles;
+
+    // The overlay triangles share the rasterized surface exactly; relax the
+    // depth func to LessEqual so the tint wins without z-fighting.
+    device.setDepthFunc(RenderDevice::DepthFunc::LessEqual);
+    device.draw(command);
+    device.setDepthFunc(RenderDevice::DepthFunc::Less);
 }
 
 } // namespace MirEngine::Rendering

@@ -144,14 +144,21 @@ void renderFrame()
 
 // Захват текущего кадра через glReadPixels и сохранение в PPM.
 // Требует текущего GL context (вызывается на главном потоке).
+// Контекст MirEngine — MSAA 4x + double-buffer: после flushBuffer resolved
+// изображение лежит в GL_FRONT, а GL_BACK — не-resolved MSAA буфер, поэтому
+// читаем GL_FRONT. Каналы читаем как BGRA (внутренний формат NSOpenGLContext)
+// и переставляем в RGB при записи.
 void saveFrameAsPPM(const char* path)
 {
     NSRect backing = [gView convertRectToBacking:gView.bounds];
     const int width = (int)std::max(backing.size.width, 1.0);
     const int height = (int)std::max(backing.size.height, 1.0);
 
-    std::vector<unsigned char> pixels(static_cast<size_t>(width) * height * 3);
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    std::vector<unsigned char> pixels(static_cast<size_t>(width) * height * 4);
+    glReadBuffer(GL_FRONT);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data());
+    glReadBuffer(GL_BACK);
 
     FILE* file = std::fopen(path, "wb");
     if (!file)
@@ -160,7 +167,17 @@ void saveFrameAsPPM(const char* path)
         return;
     }
     std::fprintf(file, "P6\n%d %d\n255\n", width, height);
-    std::fwrite(pixels.data(), 1, pixels.size(), file);
+    std::vector<unsigned char> rgb(static_cast<size_t>(width) * height * 3);
+    for (size_t i = 0; i < rgb.size(); i += 3)
+    {
+        const size_t j = (i / 3) * 4;
+        // Raw channel order from glReadPixels on this context; the PPM is
+        // written as-is so the actual GPU colors can be inspected.
+        rgb[i + 0] = pixels[j + 0];
+        rgb[i + 1] = pixels[j + 1];
+        rgb[i + 2] = pixels[j + 2];
+    }
+    std::fwrite(rgb.data(), 1, rgb.size(), file);
     std::fclose(file);
     printf("[capture] saved %dx%d frame to %s\n", width, height, path);
 }

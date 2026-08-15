@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace MirEngine::Rendering
 {
@@ -21,12 +22,21 @@ class VertexArray;
 class Shader;
 
 /// Canonical scene geometry pass.
-/// Consumes the canonical mir::Scene/model aliases and materializes GPU
-/// resources by the canonical mir4d::ObjectId.
 ///
-/// Rendering is camera-relative: the model translation is shifted by the
-/// camera position in double precision on the CPU and the view matrix keeps
-/// only its rotation, so huge world coordinates never reach the GPU.
+/// Consumes the canonical mir::Scene and materializes GPU resources keyed by
+/// the canonical mir4d::ObjectId. Mesh uploads are cached against the scene
+/// content revision, so unchanged scenes are drawn without re-upload.
+///
+/// Rendering is camera-relative: model translations are shifted by the camera
+/// position in double precision on the CPU and the view matrix keeps only its
+/// rotation, so huge world coordinates never reach the GPU.
+///
+/// Selection highlight:
+///   - objects present in the RenderContext selection set get a CAD-style
+///     selection tint;
+///   - when the context carries a source face id (selectionFaceId), only the
+///     triangles of that face are tinted instead of the whole object
+///     (drawn as an overlay pass with depth func LessEqual).
 class GeometryPass final : public RenderPass
 {
 public:
@@ -46,8 +56,10 @@ public:
     }
 
 private:
+    static constexpr std::uint32_t kDefaultMaterialHandle = 100;
+    static constexpr std::uint32_t kHighlightMeshHandle = 0xFFFFFFFE;
+
     ShaderLibrary& m_shaderLibrary;
-    MaterialHandle m_defaultMaterial{0};
     MeshHandle m_nextMeshHandle{1};
 
     std::unordered_map<mir4d::ObjectId, MeshHandle> m_objectToHandle;
@@ -56,10 +68,25 @@ private:
     const mir::Scene* m_cachedScene{nullptr};
     std::uint64_t m_cachedRevision{0};
 
+    // Face-level highlight cache (rebuilt when the selection face changes).
+    std::shared_ptr<VertexArray> m_highlightVAO;
+    mir4d::ObjectId m_highlightObject{mir4d::InvalidObjectId};
+    std::uint64_t m_highlightFace{0};
+
     void processNode(const mir::ModelNode& node,
+                     RenderContext& context,
                      RenderDevice& device,
                      Shader* shader,
-                     const float cameraPos[3]);
+                     bool selected);
+
+    void rebuildSceneCache(mir::Scene& scene, RenderDevice& device);
+    void uploadMesh(const mir::ModelNode& node,
+                    RenderDevice& device);
+    void rebuildHighlightFace(mir::Scene& scene, RenderDevice& device);
+    void drawHighlightFace(mir::Scene& scene,
+                           RenderContext& context,
+                           RenderDevice& device,
+                           Shader* shader);
 
     [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
                                                     const double cameraPos[3]) noexcept;

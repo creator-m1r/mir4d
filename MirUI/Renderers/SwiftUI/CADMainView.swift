@@ -356,6 +356,7 @@ struct CADViewportChrome: View {
     @Binding var cameraTheta: Double
     @Binding var cameraPhi: Double
     @Binding var cameraDistance: Double
+    @State private var isOrthographic: Bool = false
 
     var body: some View {
         ZStack {
@@ -392,6 +393,21 @@ struct CADViewportChrome: View {
             }
             viewportButton("viewfinder", "Центрировать") {
                 NotificationCenter.default.post(name: .mir4DFitViewport, object: nil)
+            }
+            viewportButton(
+                isOrthographic ? "perspective" : "rectangle.on.rectangle",
+                isOrthographic
+                    ? "Включить перспективу"
+                    : "Включить ортографическую проекцию"
+            ) {
+                isOrthographic.toggle()
+                NotificationCenter.default.post(
+                    name: .mir4DCameraProjectionRequested,
+                    object: nil,
+                    userInfo: [
+                        "projection": isOrthographic ? 1 : 0
+                    ]
+                )
             }
             viewportButton("cube.transparent", "Новое тело") {
                 _ = MIR4DModelCommands.shared.createBox(
@@ -431,7 +447,9 @@ struct CADViewportChrome: View {
                 Label("Y\(format(cameraPhi))", systemImage: "arrow.up.and.down")
                 Label("D\(format(cameraDistance))", systemImage: "ruler")
                 Spacer()
-                Text(appState.ui.language == .russian ? "Колесо — масштаб · ПКМ — панорама" : "Wheel — zoom · RMB — pan")
+                Text(appState.ui.language == .russian
+                    ? "\(isOrthographic ? "Ортографическая" : "Перспектива") · Колесо — масштаб · ПКМ — панорама"
+                    : "\(isOrthographic ? "Orthographic" : "Perspective") · Wheel — zoom · RMB — pan")
                     .font(.system(size: 9))
                     .foregroundStyle(MirTheme.Colors.textTertiary)
             }

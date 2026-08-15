@@ -1,8 +1,6 @@
 #pragma once
 
 #include "RenderPass.h"
-#include "../Core/RenderCommand.h"
-#include "../Resources/Vertex.h"
 
 #include <cstdint>
 #include <memory>
@@ -13,6 +11,8 @@ namespace MirEngine::Rendering
 class Shader;
 class VertexArray;
 class VertexBuffer;
+class IndexBuffer;
+class RenderDevice;
 class OpenGLShader;
 
 /// Grid plane selection (engineering workspace plane).
@@ -23,21 +23,28 @@ enum class GridPlane
     YZ      ///< normal +X
 };
 
-/// Procedural infinite grid pass.
+/// Procedural engineering grid pass.
 ///
-/// The grid is not a geometry object: a full-screen quad is shaded with a
-/// ray -> plane intersection computed per-pixel. The step adapts to the
-/// camera scale (1/2/5 x 10^n), major lines are emphasized every 5 minor
-/// steps, and the plane fades smoothly at the far distance. All grid math
-/// is camera-relative (anchor snapped in double precision on the CPU), so
-/// huge world coordinates never reach the GPU as giant floats.
+/// The grid is generated on the CPU every frame as screen-aligned line quads:
+///   - line positions are computed in double precision and shifted by the
+///     camera position, so GPU floats stay small (camera-relative rendering,
+///     same contract as GeometryPass);
+///   - the step adapts to the camera (1/2/5 x 10^n) with a target of ~18 px
+///     per cell; major lines are emphasized every 5 steps;
+///   - every line quad is ~1-2 px wide in screen space with a soft alpha edge,
+///     so lines stay smooth and 1 px crisp without MSAA;
+///   - per-vertex fade removes lines smoothly at the far distance;
+///   - the workspace axes (X red, Y green, Z blue) are drawn from the world
+///     origin; the studio gradient background is an opaque full-screen layer.
+///
+/// All state changes are routed through RenderDevice.
 class GridPass final : public RenderPass
 {
 public:
     GridPass();
     ~GridPass() override;
 
-    bool initialize();
+    bool initialize(RenderDevice& device);
 
     void execute(RenderContext& context,
                  mir::Scene& scene,
@@ -53,32 +60,40 @@ public:
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
 private:
+    static constexpr std::uint32_t kQuadIndexCount = 6;
+    static constexpr double kExtendFactor = 1.18;   // overscan for line fade
+    static constexpr double kMaxLinesPerAxis = 220.0;
+
     bool m_initialized{false};
     GridPlane m_plane{GridPlane::XY};
     float m_fadeDistanceOverride{0.0f};
     bool m_showGrid{true};
     bool m_showAxes{true};
 
-    std::shared_ptr<VertexArray> m_quadVAO;
-    std::shared_ptr<VertexBuffer> m_quadVBO;
-    std::shared_ptr<VertexArray> m_axisVAO;
-    std::shared_ptr<VertexBuffer> m_axisVBO;
-    std::unique_ptr<OpenGLShader> m_gridShader;
-    std::unique_ptr<OpenGLShader> m_axisShader;
+    std::unique_ptr<OpenGLShader> m_lineShader;
     std::unique_ptr<OpenGLShader> m_bgShader;
 
+    std::shared_ptr<VertexBuffer> m_gridVBO;
+    std::shared_ptr<IndexBuffer> m_gridIBO;
+    std::shared_ptr<VertexArray> m_gridVAO;
+
+    std::shared_ptr<VertexBuffer> m_bgVBO;
+    std::shared_ptr<IndexBuffer> m_bgIBO;
+    std::shared_ptr<VertexArray> m_bgVAO;
+
     bool createShaders();
-    void buildQuad();
-    void buildAxis();
+    void buildBackground(RenderDevice& device);
+    void rebuildLines(RenderContext& context, RenderDevice& device);
 
     /// 1/2/5 x 10^n rounding of a target step.
     [[nodiscard]] static double niceStep(double target) noexcept;
     static void planeBasis(GridPlane plane,
-                                         float normal[3],
-                                         float origin[3],
-                                         float axisAColor[3],
-                                         float axisBColor[3],
-                                         float verticalColor[3]) noexcept;
+                           float normal[3],
+                           float uDir[3],
+                           float vDir[3],
+                           double anchor[3],
+                           const double eye[3],
+                           double majorStep) noexcept;
 };
 
 } // namespace MirEngine::Rendering

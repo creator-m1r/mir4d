@@ -1,51 +1,58 @@
 // MirEngine/Rendering/OpenGL/OpenGLState.h
 // =================================================================================
-// Управление глобальным состоянием OpenGL.
+// OpenGL global state management.
 //
-// Инкапсулирует вызовы glEnable / glDisable / glViewport / glClear и т.д.
-// OpenGLDevice использует этот класс, чтобы не размазывать GL-вызовы по коду.
+// Encapsulates glEnable / glDisable / glViewport / glClear and the pipeline
+// state overrides used by the renderer (depth test, blending, wireframe,
+// line width). OpenGLDevice routes its backend-neutral state calls here so
+// GL calls never leak into the passes.
 // =================================================================================
 
 #pragma once
 
 #include <cstdint>
+
 #include "../Core/RenderDevice.h"   // ColorRGBA, ClearFlags
 
-namespace MirEngine {
-namespace Rendering {
+namespace MirEngine::Rendering {
 
 class OpenGLState {
 public:
-    // Инициализация начальных состояний (depth test, cull face и т.д.)
+    // Initializes the default state (depth test, culling, ...).
     void initialize();
 
-    // Установка viewport
-    void setViewport(uint32_t width, uint32_t height);
+    // Sets the viewport.
+    void setViewport(std::uint32_t width, std::uint32_t height);
 
-    // Очистка буферов с заданным цветом и флагами
+    // Clears buffers with the given color, depth and flags.
     void clear(const ColorRGBA& color,
                float depth,
                int stencil,
                RenderDevice::ClearFlags flags);
 
-    // Начало кадра (можно использовать для сброса состояний)
+    // Frame boundaries (state validation hooks).
     void beginFrame();
-
-    // Конец кадра
     void endFrame();
 
-    // Включение / выключение проволочного режима
+    // Pipeline state overrides.
     void setWireframe(bool enabled);
+    void setDepthTest(bool enabled);
+    void setBlend(bool enabled);
+    void setLineWidth(float width);
+    void setDepthFunc(RenderDevice::DepthFunc func);
 
-    // Текущие размеры viewport
-    [[nodiscard]] uint32_t width()  const noexcept { return m_width; }
-    [[nodiscard]] uint32_t height() const noexcept { return m_height; }
+    // Current viewport dimensions.
+    [[nodiscard]] std::uint32_t width() const noexcept { return m_width; }
+    [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
 
 private:
-    uint32_t m_width  = 0;
-    uint32_t m_height = 0;
-    bool     m_wireframe = false;
+    std::uint32_t m_width{0};
+    std::uint32_t m_height{0};
+    bool m_wireframe{false};
+    bool m_depthTest{true};
+    bool m_blend{false};
+    RenderDevice::DepthFunc m_depthFunc{RenderDevice::DepthFunc::Less};
+    bool m_initialized{false};
 };
 
-} // namespace Rendering
-} // namespace MirEngine
+} // namespace MirEngine::Rendering

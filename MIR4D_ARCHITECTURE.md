@@ -603,18 +603,19 @@ MirEngine/Interaction/
 ```text
 MirEngine/Rendering/
 ├── Core/            RenderCommand, RenderContext, RenderDevice, RenderPass
-├── Resources/       Shader, ShaderLibrary, Texture, Framebuffer, Vertex, Buffer
-├── Passes/          GridPass, GeometryPass, GizmoPass, OverlayPass, SelectionPass
-├── OpenGL/          OpenGLRenderer, OpenGLFrameRenderer, OpenGLShader, OpenGLTexture,
-│                    OpenGLFrameBuffer, OpenGLMeshRenderer, OpenGLShaderProgram
-├── Camera/          RenderCamera, RenderTypes
-├── Selection/       выделение объектов (RenderSelection, picking, hit-testing)
-├── Viewport/        RenderViewport, ViewportController
+├── Resources/       Shader, ShaderLibrary, Vertex, VertexBuffer, IndexBuffer, VertexArray
+├── Passes/          GridPass, GeometryPass
+├── OpenGL/          OpenGLRenderer, OpenGLShader, OpenGLDevice, OpenGLState,
+│                    OpenGLVertexArray, OpenGLVertexBuffer, OpenGLIndexBuffer,
+│                    OpenGLContext, OpenGLDebug, OpenGLCapabilities
+├── Selection/       RenderSelection, RenderSelectionProperties, форматирование свойств
 ├── Geometry/        контуры и преобразования
 └── Material/        материалы
 ```
 
-Legacy `MirEngine/Render/` перенесён в `MirEngine/Rendering/` (namespace `MirEngine::Rendering`).
+Проходы рендеринга: фон (студийный градиент), процедурная бесконечная сетка с осями (GridPass) и геометрия сцены (GeometryPass, camera-relative, с подсветкой выделения). Выделение объектов передаётся в контекст кадра через `RenderContext::selectionIds` (указатель на `SelectionState::ids()`).
+
+Legacy `MirEngine/Render/` перенесён в `MirEngine/Rendering/` (namespace `MirEngine::Rendering`). Каноническая камера и viewport runtime живут в `MirEngine/Viewport/` (`Camera.hpp`, `ViewportRuntime.hpp`).
 
 Render никогда не изменяет Document.
 

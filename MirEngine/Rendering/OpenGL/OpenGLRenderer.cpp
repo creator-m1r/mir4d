@@ -18,20 +18,24 @@ namespace MirEngine::Rendering
 
 namespace
 {
-// The geometry pass uses camera-relative model translations to keep large CAD
-// coordinates numerically stable on the GPU.  The device must therefore use
-// the rotation-only view matrix; applying the original translated view matrix
-// would subtract the camera position a second time and move every model out of
-// its expected position.
+// Camera-relative rendering contract (shared with GeometryPass):
+//   - u_model carries the world translation already shifted by -cameraPosition
+//     (computed in double precision on the CPU, so large CAD coordinates stay
+//     numerically stable on the GPU);
+//   - u_view must therefore be the rotation-only view matrix; passing the full
+//     translated view would subtract the camera position a second time and move
+//     every model out of its expected position.
+// Matrix4Raw is column-major (element (row, col) lives at row + col * 4), so
+// the camera translation column (rows 0..2, column 3) occupies indices 12..14.
 Matrix4Raw makeCameraRelativeView(const Matrix4Raw& view) noexcept
 {
     Matrix4Raw result = view;
-    result[3] = 0.0f;
-    result[7] = 0.0f;
-    result[11] = 0.0f;
+    result[12] = 0.0f;
+    result[13] = 0.0f;
+    result[14] = 0.0f;
     return result;
 }
-}
+} // namespace
 
 OpenGLRenderer::OpenGLRenderer(OpenGLContext* context)
     : m_context(context)
@@ -57,7 +61,7 @@ bool OpenGLRenderer::initialize()
     }
 
     m_gridPass = std::make_unique<GridPass>();
-    if (!m_gridPass->initialize())
+    if (!m_gridPass->initialize(*m_device))
     {
         std::cerr << "[OpenGLRenderer] GridPass initialization failed; continuing without grid.\n";
         m_gridPass.reset();
@@ -70,7 +74,7 @@ bool OpenGLRenderer::initialize()
         m_geometryPass.reset();
     }
 
-    // Диагностика OpenGL: контекст, лимиты, расширения.
+    // OpenGL diagnostics: context, limits, extensions.
     OpenGLDebug::resetErrors();
     OpenGLDebug::logReport();
     OpenGLDebug::enableDebugOutput();
@@ -118,12 +122,14 @@ void OpenGLRenderer::setObjectMaterial(std::uint64_t objectId,
                                        std::int32_t materialId) noexcept
 {
     if (m_geometryPass)
+    {
         m_geometryPass->setObjectMaterial(
             mir4d::ObjectId{objectId},
             static_cast<MaterialId>(materialId));
+    }
 }
 
-void OpenGLRenderer::resize(uint32_t width, uint32_t height)
+void OpenGLRenderer::resize(std::uint32_t width, std::uint32_t height)
 {
     if (!m_device || !m_context)
         return;

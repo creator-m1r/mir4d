@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace mir
@@ -19,6 +20,10 @@ struct TriangleMesh3
         std::size_t a{0};
         std::size_t b{0};
         std::size_t c{0};
+
+        // Stable source B-Rep face identifier (BRepFaceHandle::index).
+        // Zero means that provenance is not available.
+        std::uint64_t sourceFaceId{0};
     };
 
     std::vector<Point3> vertices;

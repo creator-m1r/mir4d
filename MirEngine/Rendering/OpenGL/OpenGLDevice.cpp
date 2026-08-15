@@ -1,12 +1,10 @@
 // MirEngine/Rendering/OpenGL/OpenGLDevice.cpp
 // =================================================================================
-// Реализация OpenGLDevice.
+// OpenGLDevice implementation.
 // =================================================================================
 
 #include "OpenGLDevice.h"
 #include "OpenGLContext.h"
-
-// Реализация draw через кеш мешей и материалов.
 #include "OpenGLShader.h"
 
 #if defined(__APPLE__)
@@ -17,23 +15,17 @@
 
 #include <iostream>
 
-namespace MirEngine {
-namespace Rendering {
+namespace MirEngine::Rendering {
 
-// --------------------------------------------------------------------------
-// Конструктор
-// --------------------------------------------------------------------------
 OpenGLDevice::OpenGLDevice(OpenGLContext* context)
     : m_context(context)
 {
 }
 
-// --------------------------------------------------------------------------
-// Инициализация
-// --------------------------------------------------------------------------
 bool OpenGLDevice::initialize()
 {
-    if (!m_context) {
+    if (!m_context)
+    {
         return false;
     }
 
@@ -46,51 +38,59 @@ bool OpenGLDevice::initialize()
     return true;
 }
 
-// --------------------------------------------------------------------------
-// Очистка
-// --------------------------------------------------------------------------
 void OpenGLDevice::clear(const ColorRGBA& color,
                          float depth,
                          int stencil,
                          ClearFlags flags)
 {
-    if (!m_context) return;
+    if (!m_context)
+        return;
 
     m_context->makeCurrent();
     m_state.clear(color, depth, stencil, flags);
 }
 
-// --------------------------------------------------------------------------
-// Рисование (через кеш мешей и материалов)
-// --------------------------------------------------------------------------
 void OpenGLDevice::draw(const RenderCommand& command)
 {
-    if (!m_context) return;
+    if (!m_context)
+        return;
 
     m_context->makeCurrent();
 
-    auto meshIt = m_meshes.find(command.mesh);
-    if (meshIt == m_meshes.end()) {
-        std::cerr << "[OpenGLDevice] Mesh handle not found: " << command.mesh << "\n";
+    const auto meshIt = m_meshes.find(command.mesh);
+    if (meshIt == m_meshes.end())
+    {
+        std::cerr << "[OpenGLDevice] Mesh handle not found: "
+                  << command.mesh << "\n";
         return;
     }
-    auto materialIt = m_materials.find(command.material);
-    if (materialIt == m_materials.end()) {
-        std::cerr << "[OpenGLDevice] Material handle not found: " << command.material << "\n";
+    const auto materialIt = m_materials.find(command.material);
+    if (materialIt == m_materials.end())
+    {
+        std::cerr << "[OpenGLDevice] Material handle not found: "
+                  << command.material << "\n";
         return;
     }
 
-    auto& mesh = meshIt->second;
-    auto& shader = materialIt->second;
+    const auto& mesh = meshIt->second;
+    const auto& shader = materialIt->second;
 
     shader->bind();
     shader->setMatrix("u_model", command.modelMatrix);
+    // Contract: m_viewMatrix is the rotation-only camera view (see
+    // OpenGLRenderer::render). GeometryPass shifts model translations by
+    // -cameraPosition in double precision, so the camera translation must
+    // never be re-applied here.
     shader->setMatrix("u_view", m_viewMatrix);
     shader->setMatrix("u_projection", m_projectionMatrix);
 
-    mesh->bind();
+    // Pipeline state from the command flags.
+    m_state.setDepthTest(command.state.depthTest);
+    m_state.setBlend(command.state.blend);
+    m_state.setWireframe(command.state.wireframe);
+    m_state.setLineWidth(command.state.lineWidth);
 
-    m_state.setWireframe(command.wireframe);
+    mesh->bind();
 
     const GLenum primitive = [](PrimitiveType type) -> GLenum
     {
@@ -107,19 +107,25 @@ void OpenGLDevice::draw(const RenderCommand& command)
         }
     }(command.primitive);
 
-    const GLsizei count = (command.indexCount != 0)
-        ? static_cast<GLsizei>(command.indexCount)
-        : static_cast<GLsizei>(mesh->getElementCount());
-
-    glDrawElements(primitive, count, GL_UNSIGNED_INT, nullptr);
+    if (mesh->hasIndexBuffer())
+    {
+        const GLsizei count = (command.indexCount != 0)
+            ? static_cast<GLsizei>(command.indexCount)
+            : static_cast<GLsizei>(mesh->getElementCount());
+        glDrawElements(primitive, count, GL_UNSIGNED_INT, nullptr);
+    }
+    else
+    {
+        const GLsizei count = (command.indexCount != 0)
+            ? static_cast<GLsizei>(command.indexCount)
+            : static_cast<GLsizei>(mesh->getElementCount());
+        glDrawArrays(primitive, static_cast<GLint>(command.firstIndex), count);
+    }
 
     mesh->unbind();
     shader->unbind();
 }
 
-// --------------------------------------------------------------------------
-// Создание GPU-ресурсов
-// --------------------------------------------------------------------------
 std::shared_ptr<VertexBuffer> OpenGLDevice::createVertexBuffer()
 {
     return std::make_shared<OpenGLVertexBuffer>();
@@ -137,61 +143,52 @@ std::shared_ptr<VertexArray> OpenGLDevice::createVertexArray()
 
 void OpenGLDevice::registerMesh(MeshHandle handle, std::shared_ptr<VertexArray> mesh)
 {
-    if (mesh) {
+    if (mesh)
+    {
         m_meshes[handle] = std::move(mesh);
     }
 }
 
 void OpenGLDevice::registerMaterial(MaterialHandle handle, std::shared_ptr<Shader> shader)
 {
-    if (shader) {
+    if (shader)
+    {
         m_materials[handle] = std::move(shader);
     }
 }
 
-// --------------------------------------------------------------------------
-// Present
-// --------------------------------------------------------------------------
 void OpenGLDevice::present()
 {
-    if (!m_context) return;
+    if (!m_context)
+        return;
 
     m_state.endFrame();
     m_context->swapBuffers();
 }
 
-// --------------------------------------------------------------------------
-// Viewport
-// --------------------------------------------------------------------------
-void OpenGLDevice::setViewportSize(uint32_t width, uint32_t height)
+void OpenGLDevice::setViewportSize(std::uint32_t width, std::uint32_t height)
 {
-    if (!m_context) return;
+    if (!m_context)
+        return;
 
     m_context->resize({width, height});
     m_state.setViewport(width, height);
 }
 
-// --------------------------------------------------------------------------
-// Матрицы
-// --------------------------------------------------------------------------
 void OpenGLDevice::setViewMatrix(const Matrix4Raw& viewMatrix)
 {
     m_viewMatrix = viewMatrix;
-    // TODO: загрузить в UBO / uniform
 }
 
 void OpenGLDevice::setProjectionMatrix(const Matrix4Raw& projMatrix)
 {
     m_projectionMatrix = projMatrix;
-    // TODO: загрузить в UBO / uniform
 }
 
-// --------------------------------------------------------------------------
-// Удобные обёртки begin/end frame
-// --------------------------------------------------------------------------
 void OpenGLDevice::beginFrame()
 {
-    if (!m_context) return;
+    if (!m_context)
+        return;
 
     m_context->makeCurrent();
     m_state.beginFrame();
@@ -202,21 +199,19 @@ void OpenGLDevice::endFrame()
     present();
 }
 
-// --------------------------------------------------------------------------
-// Фабрика (объявлена в RenderDevice.h)
-// --------------------------------------------------------------------------
 std::unique_ptr<RenderDevice> CreateRenderDevice(OpenGLContext* context)
 {
-    if (!context) {
+    if (!context)
+    {
         return nullptr;
     }
 
     auto device = std::make_unique<OpenGLDevice>(context);
-    if (!device->initialize()) {
+    if (!device->initialize())
+    {
         return nullptr;
     }
     return device;
 }
 
-} // namespace Rendering
-} // namespace MirEngine
+} // namespace MirEngine::Rendering
