@@ -80,6 +80,9 @@ public:
     [[nodiscard]] Scalar phi() const noexcept { return phi_; }
     [[nodiscard]] Scalar distance() const noexcept { return distance_; }
     [[nodiscard]] CameraProjection projection() const noexcept { return projection_; }
+    [[nodiscard]] Scalar fovY() const noexcept { return fovY_; }
+    [[nodiscard]] Scalar nearPlane() const noexcept { return nearPlane_; }
+    [[nodiscard]] Scalar farPlane() const noexcept { return farPlane_; }
 
     [[nodiscard]] Point3 position() const noexcept
     {

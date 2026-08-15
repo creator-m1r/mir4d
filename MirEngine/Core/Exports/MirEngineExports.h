@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -185,6 +186,36 @@ bool MirEngineExportStl(
     void* viewport,
     const char* path,
     bool selectionOnly
+);
+
+
+// ------------------------------------------------------------
+// Materials (procedural MaterialLibrary, no textures)
+// ------------------------------------------------------------
+
+int32_t MirEngineMaterialCount(void);
+
+bool MirEngineMaterialName(
+    int32_t materialId,
+    char* buffer,
+    size_t bufferSize
+);
+
+bool MirEngineSetObjectMaterial(
+    void* viewport,
+    uint64_t objectId,
+    int32_t materialId
+);
+
+
+// ------------------------------------------------------------
+// OpenGL diagnostics
+// ------------------------------------------------------------
+
+bool MirEngineGetOpenGLDiagnostics(
+    void* renderer,
+    char* buffer,
+    size_t bufferSize
 );
 
 

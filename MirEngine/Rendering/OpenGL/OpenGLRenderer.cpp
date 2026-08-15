@@ -1,6 +1,9 @@
 #include "OpenGLRenderer.h"
 #include "OpenGLContext.h"
+#include "OpenGLDebug.h"
 #include "OpenGLDevice.h"
+
+#include "MirEngine/Core/Identity/ObjectId.hpp"
 
 #include "../Core/RenderDevice.h"
 #include "../Core/RenderContext.h"
@@ -50,8 +53,21 @@ bool OpenGLRenderer::initialize()
         m_geometryPass.reset();
     }
 
+    // Диагностика OpenGL: контекст, лимиты, расширения.
+    OpenGLDebug::resetErrors();
+    OpenGLDebug::logReport();
+    OpenGLDebug::enableDebugOutput();
+
     m_initialized = true;
     return true;
+}
+
+std::string OpenGLRenderer::diagnosticsReport()
+{
+    if (!m_context)
+        return "[GL Diagnostics] No context";
+    m_context->makeCurrent();
+    return OpenGLDebug::buildReport();
 }
 
 void OpenGLRenderer::render(mir::Scene& scene,
@@ -73,6 +89,15 @@ void OpenGLRenderer::render(mir::Scene& scene,
         m_geometryPass->execute(context, scene, *m_device);
 
     m_device->endFrame();
+}
+
+void OpenGLRenderer::setObjectMaterial(std::uint64_t objectId,
+                                       std::int32_t materialId) noexcept
+{
+    if (m_geometryPass)
+        m_geometryPass->setObjectMaterial(
+            mir4d::ObjectId{objectId},
+            static_cast<MaterialId>(materialId));
 }
 
 void OpenGLRenderer::resize(uint32_t width, uint32_t height)

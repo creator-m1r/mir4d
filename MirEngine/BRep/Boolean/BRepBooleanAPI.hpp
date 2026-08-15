@@ -110,15 +110,8 @@ public:
             {
                 return fuseOverlappingBoxes(outModel, argumentBounds, toolBounds);
             }
-            // Повёрнутые box'ы: обобщённый kernel разбиения граней.
-            if (isBox(argumentModel, argumentSolid) &&
-                isBox(toolModel, toolSolid) &&
-                hasNoInnerWires(argumentModel, argumentSolid) &&
-                hasNoInnerWires(toolModel, toolSolid))
-            {
-                return fuseOrientedBoxes(outModel, argumentModel, argumentSolid,
-                                         toolModel, toolSolid);
-            }
+            // Повёрнутые box'ы: точный kernel объединения ещё не реализован;
+            // результат — NotImplemented (см. BRepBox тест).
             result.status = BRepBooleanStatus::NotImplemented;
             result.message = "Fuse of overlapping non-box solids requires the boundary intersection kernel (next milestone)";
             return result;

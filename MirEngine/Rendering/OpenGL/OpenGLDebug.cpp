@@ -1,17 +1,37 @@
 // MirEngine/Rendering/OpenGL/OpenGLDebug.cpp
 // =================================================================================
-// Реализация отладочных утилит OpenGL.
-// Использует glGetError и GL_KHR_debug для мониторинга состояния GPU.
+// Реализация диагностического модуля OpenGL.
+// Использует glGetError, glGetString/glGetStringi и GL_KHR_debug
+// для мониторинга состояния GPU и контекста.
 // =================================================================================
 
 #include "OpenGLDebug.h"
-#include <string>
+
+#include <cctype>
+#include <cstring>
 #include <sstream>
 
 #include "../../Core/Logging/Logger.hpp" // для ::mir::globalLogger()
 
 namespace MirEngine {
 namespace Rendering {
+
+namespace {
+
+std::string glString(GLenum name)
+{
+    const GLubyte* s = glGetString(name);
+    return s ? reinterpret_cast<const char*>(s) : std::string();
+}
+
+int parseMajorVersion(const std::string& version)
+{
+    if (version.empty() || !std::isdigit(static_cast<unsigned char>(version[0])))
+        return 0;
+    return version[0] - '0';
+}
+
+} // namespace
 
 bool OpenGLDebug::checkError(const std::string& context)
 {
@@ -30,39 +50,144 @@ bool OpenGLDebug::checkError(const std::string& context)
             msg = "GL_INVALID_FRAMEBUFFER_OPERATION"; break;
         default: {
             std::ostringstream ss;
-            ss << "Unknown error 0x" << std::hex << std::uppercase << static_cast<unsigned int>(err);
+            ss << "Unknown error 0x" << std::hex << std::uppercase
+               << static_cast<unsigned int>(err);
             msg = ss.str();
             break;
         }
     }
 
-    std::string full = std::string("[GL Debug] Error") + (context.empty() ? "" : (" (" + context + ")")) + ": " + msg;
+    std::string full = std::string("[GL Debug] Error")
+        + (context.empty() ? "" : (" (" + context + ")")) + ": " + msg;
     ::mir::globalLogger().error(full);
     return false;
+}
+
+void OpenGLDebug::resetErrors()
+{
+    while (glGetError() != GL_NO_ERROR) {
+    }
+}
+
+OpenGLDeviceInfo OpenGLDebug::getDeviceInfo()
+{
+    OpenGLDeviceInfo info;
+    info.vendor     = glString(GL_VENDOR);
+    info.renderer   = glString(GL_RENDERER);
+    info.version    = glString(GL_VERSION);
+    info.glslVersion = glString(GL_SHADING_LANGUAGE_VERSION);
+
+    const std::string& v = info.version;
+    if (v.find("Core Profile") != std::string::npos)
+        info.profile = "Core Profile";
+    else if (v.find("Compatibility Profile") != std::string::npos)
+        info.profile = "Compatibility Profile";
+    else
+    {
+        // macOS не добавляет суффикс в строку версии; определяем профиль
+        // через GL_CONTEXT_PROFILE_MASK (3.2+).
+        GLint mask = 0;
+        glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &mask);
+        if (mask & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT)
+            info.profile = "Compatibility";
+        else if (mask & GL_CONTEXT_CORE_PROFILE_BIT)
+            info.profile = "Core";
+        else
+            info.profile = "Legacy";
+    }
+
+    info.major = parseMajorVersion(v);
+
+    // minor: первая цифра после "major."
+    if (v.size() >= 3 && v[1] == '.' &&
+        std::isdigit(static_cast<unsigned char>(v[2]))) {
+        info.minor = v[2] - '0';
+    }
+    return info;
+}
+
+OpenGLLimits OpenGLDebug::getLimits()
+{
+    OpenGLLimits limits;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &limits.maxTextureSize);
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &limits.maxVertexAttribs);
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &limits.maxVertexUniformVectors);
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &limits.maxFragmentUniformVectors);
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &limits.maxCombinedTextureUnits);
+    glGetIntegerv(GL_MAX_SAMPLES, &limits.maxSamples);
+    glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, limits.lineWidthRange);
+    glGetIntegerv(GL_MAX_VIEWPORT_DIMS, limits.maxViewportDims);
+    return limits;
+}
+
+std::vector<std::string> OpenGLDebug::getExtensions()
+{
+    std::vector<std::string> result;
+    GLint numExt = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
+    if (numExt <= 0)
+        return result;
+    result.reserve(static_cast<std::size_t>(numExt));
+    for (GLint i = 0; i < numExt; ++i) {
+        const GLubyte* ext = glGetStringi(GL_EXTENSIONS, static_cast<GLuint>(i));
+        if (ext)
+            result.emplace_back(reinterpret_cast<const char*>(ext));
+    }
+    return result;
+}
+
+std::string OpenGLDebug::buildReport()
+{
+    const OpenGLDeviceInfo info = getDeviceInfo();
+    const OpenGLLimits limits = getLimits();
+    const std::vector<std::string> extensions = getExtensions();
+
+    std::ostringstream ss;
+    ss << "[GL Diagnostics] ---- OpenGL context report ----\n";
+    ss << "[GL Diagnostics] Vendor:   " << info.vendor << "\n";
+    ss << "[GL Diagnostics] Renderer: " << info.renderer << "\n";
+    ss << "[GL Diagnostics] Version:  " << info.version
+       << " (OpenGL " << info.major << "." << info.minor << ", " << info.profile << ")\n";
+    ss << "[GL Diagnostics] GLSL:     " << info.glslVersion << "\n";
+    ss << "[GL Diagnostics] Extensions: " << extensions.size() << "\n";
+    ss << "[GL Diagnostics] Limits:\n";
+    ss << "[GL Diagnostics]   MaxTextureSize            = " << limits.maxTextureSize << "\n";
+    ss << "[GL Diagnostics]   MaxVertexAttribs          = " << limits.maxVertexAttribs << "\n";
+    ss << "[GL Diagnostics]   MaxVertexUniformVectors   = " << limits.maxVertexUniformVectors << "\n";
+    ss << "[GL Diagnostics]   MaxFragmentUniformVectors = " << limits.maxFragmentUniformVectors << "\n";
+    ss << "[GL Diagnostics]   MaxCombinedTextureUnits   = " << limits.maxCombinedTextureUnits << "\n";
+    ss << "[GL Diagnostics]   MaxSamples                = " << limits.maxSamples << "\n";
+    ss << "[GL Diagnostics]   AliasedLineWidthRange     = ["
+       << limits.lineWidthRange[0] << ", " << limits.lineWidthRange[1] << "]\n";
+    ss << "[GL Diagnostics]   MaxViewportDims           = ["
+       << limits.maxViewportDims[0] << ", " << limits.maxViewportDims[1] << "]\n";
+    for (const auto& ext : extensions)
+        ss << "[GL Diagnostics]   Ext: " << ext << "\n";
+    ss << "[GL Diagnostics] ---- end of report ----";
+    return ss.str();
+}
+
+void OpenGLDebug::logReport()
+{
+    const std::string report = buildReport();
+    std::istringstream in(report);
+    std::string line;
+    while (std::getline(in, line))
+        ::mir::globalLogger().info(line);
 }
 
 bool OpenGLDebug::enableDebugOutput()
 {
 #ifdef GL_DEBUG_OUTPUT
-    // Важно: загрузчик GL (glad/glbinding) должен быть инициализирован до этого вызова.
-    // Попытка использовать функции GL до создания контекста/инициализации загрузчика — небезопасна.
-    // Проверим, есть ли GL-контекст и версия:
     const GLubyte* verStr = glGetString(GL_VERSION);
     if (!verStr) {
         ::mir::globalLogger().warning("[GL Debug] No GL context or glGetString returned null. Cannot enable debug output safely.");
         return false;
     }
 
-    // Попытка определить поддержку современного API для перечисления расширений.
-    // Если версия >= 3.0, используем glGetStringi / GL_NUM_EXTENSIONS, иначе fallback на glGetString(GL_EXTENSIONS).
     bool supported = false;
     {
-        // Парсим основной номер версии (формат, например, "4.6.0 NVIDIA 450.66")
-        int major = 0;
-        std::string vs = reinterpret_cast<const char*>(verStr);
-        if (!vs.empty() && std::isdigit(static_cast<unsigned char>(vs[0]))) {
-            major = vs[0] - '0';
-        }
+        const int major = parseMajorVersion(reinterpret_cast<const char*>(verStr));
 
         if (major >= 3) {
             GLint numExt = 0;
@@ -70,7 +195,7 @@ bool OpenGLDebug::enableDebugOutput()
             for (GLint i = 0; i < numExt; ++i) {
                 const GLubyte* ext = glGetStringi(GL_EXTENSIONS, static_cast<GLuint>(i));
                 if (ext) {
-                    std::string name = reinterpret_cast<const char*>(ext);
+                    const std::string name = reinterpret_cast<const char*>(ext);
                     if (name == "GL_KHR_debug" || name == "GL_ARB_debug_output") {
                         supported = true;
                         break;
@@ -78,14 +203,10 @@ bool OpenGLDebug::enableDebugOutput()
                 }
             }
         } else {
-            // fallback: одна строка с пробел-разделёнными расширениями
-            const GLubyte* exts = glGetString(GL_EXTENSIONS);
-            if (exts) {
-                std::string s = reinterpret_cast<const char*>(exts);
-                if (s.find("GL_KHR_debug") != std::string::npos ||
-                    s.find("GL_ARB_debug_output") != std::string::npos) {
-                    supported = true;
-                }
+            const std::string exts = glString(GL_EXTENSIONS);
+            if (exts.find("GL_KHR_debug") != std::string::npos ||
+                exts.find("GL_ARB_debug_output") != std::string::npos) {
+                supported = true;
             }
         }
     }
@@ -98,7 +219,6 @@ bool OpenGLDebug::enableDebugOutput()
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(debugCallback, nullptr);
-    // Включаем все сообщения
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 
     ::mir::globalLogger().info("[GL Debug] Debug output enabled");
@@ -118,7 +238,6 @@ void OpenGLDebug::debugCallback(GLenum /*source*/,
                                 const GLchar* message,
                                 const void* /*userParam*/)
 {
-    // Игнорируем уведомления
     if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) {
         return;
     }

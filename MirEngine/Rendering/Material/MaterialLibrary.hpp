@@ -85,10 +85,10 @@ constexpr MaterialData kMaterials[MaterialCount] = {
 
 [[nodiscard]] constexpr int count() noexcept { return MaterialCount; }
 
-[[nodiscard]] const char* name(MaterialId id) noexcept { return material(id).name; }
+[[nodiscard]] inline const char* name(MaterialId id) noexcept { return material(id).name; }
 
 /// Resolves a material id by case-insensitive name; returns default when absent.
-[[nodiscard]] MaterialId findByName(std::string_view name) noexcept
+[[nodiscard]] inline MaterialId findByName(std::string_view name) noexcept
 {
     for (int i = 0; i < MaterialCount; ++i)
     {

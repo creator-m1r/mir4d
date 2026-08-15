@@ -3,6 +3,7 @@
 #include "../../Platform/macOS/OpenGL/MacOpenGLContext.h"
 #include "../../Rendering/OpenGL/OpenGLRenderer.h"
 #include "../../Rendering/OpenGL/OpenGLContext.h"
+#include "../../Rendering/Material/MaterialLibrary.hpp"
 
 #include "../Viewport/ViewportRuntime.hpp"
 #include "../Geometry/Scene/Scene.hpp"
@@ -796,6 +797,91 @@ bool MirEngineExportStl(
     }
 
     setLastError(native, nullptr);
+    return true;
+}
+
+
+// ------------------------------------------------------------
+// Materials (procedural MaterialLibrary, no textures)
+// ------------------------------------------------------------
+
+int32_t MirEngineMaterialCount(void)
+{
+    return MirEngine::Rendering::MaterialLibrary::count();
+}
+
+
+bool MirEngineMaterialName(
+    int32_t materialId,
+    char* buffer,
+    size_t bufferSize
+)
+{
+    if (!buffer || bufferSize == 0)
+        return false;
+
+    const auto id =
+        static_cast<MirEngine::Rendering::MaterialId>(materialId);
+    const char* name =
+        MirEngine::Rendering::MaterialLibrary::name(id);
+
+    size_t index = 0;
+    while (name[index] != '\0' && index + 1 < bufferSize)
+    {
+        buffer[index] = name[index];
+        ++index;
+    }
+    buffer[index] = '\0';
+    return true;
+}
+
+
+bool MirEngineSetObjectMaterial(
+    void* viewport,
+    uint64_t objectId,
+    int32_t materialId
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+    {
+        setLastError(native, "MIR4D material: viewport is not ready");
+        return false;
+    }
+
+    const auto id =
+        static_cast<MirEngine::Rendering::MaterialId>(materialId);
+    native->runtime->setObjectMaterial(
+        mir4d::ObjectId{objectId},
+        id
+    );
+
+    setLastError(native, nullptr);
+    return true;
+}
+
+
+bool MirEngineGetOpenGLDiagnostics(
+    void* renderer,
+    char* buffer,
+    size_t bufferSize
+)
+{
+    if (!renderer || !buffer || bufferSize == 0)
+        return false;
+
+    auto* native = static_cast<OpenGLRenderer*>(renderer);
+    const std::string report = native->diagnosticsReport();
+
+    size_t index = 0;
+    while (index + 1 < bufferSize && index < report.size())
+    {
+        buffer[index] = report[index];
+        ++index;
+    }
+    buffer[index] = '\0';
     return true;
 }
 

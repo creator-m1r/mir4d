@@ -13,9 +13,24 @@ namespace MirEngine::Rendering
 class Shader;
 class VertexArray;
 class VertexBuffer;
-class IndexBuffer;
 class OpenGLShader;
 
+/// Grid plane selection (engineering workspace plane).
+enum class GridPlane
+{
+    XY = 0, ///< ground plane, normal +Z
+    XZ,     ///< normal +Y
+    YZ      ///< normal +X
+};
+
+/// Procedural infinite grid pass.
+///
+/// The grid is not a geometry object: a full-screen quad is shaded with a
+/// ray -> plane intersection computed per-pixel. The step adapts to the
+/// camera scale (1/2/5 x 10^n), major lines are emphasized every 5 minor
+/// steps, and the plane fades smoothly at the far distance. All grid math
+/// is camera-relative (anchor snapped in double precision on the CPU), so
+/// huge world coordinates never reach the GPU as giant floats.
 class GridPass final : public RenderPass
 {
 public:
@@ -28,10 +43,10 @@ public:
                  mir::Scene& scene,
                  RenderDevice& device) override;
 
-    void setGridSize(float size) noexcept { m_gridSize = size; }
-    void setMajorStep(float step) noexcept { m_majorStep = step; }
-    void setMinorDivisions(int divs) noexcept { m_minorDivisions = divs; }
-    void setFadeDistance(float dist) noexcept { m_fadeDistance = dist; }
+    void setPlane(GridPlane plane) noexcept { m_plane = plane; }
+    [[nodiscard]] GridPlane plane() const noexcept { return m_plane; }
+
+    void setFadeDistance(float dist) noexcept { m_fadeDistanceOverride = dist; }
     void setShowGrid(bool show) noexcept { m_showGrid = show; }
     void setShowAxes(bool show) noexcept { m_showAxes = show; }
 
@@ -39,24 +54,30 @@ public:
 
 private:
     bool m_initialized{false};
-    float m_gridSize{20.0f};
-    float m_majorStep{1.0f};
-    int m_minorDivisions{10};
-    float m_fadeDistance{25.0f};
+    GridPlane m_plane{GridPlane::XY};
+    float m_fadeDistanceOverride{0.0f};
     bool m_showGrid{true};
     bool m_showAxes{true};
 
-    std::shared_ptr<VertexArray> m_gridVAO;
-    std::shared_ptr<VertexBuffer> m_gridVBO;
-    uint32_t m_gridVertexCount{0};
-    std::shared_ptr<VertexArray> m_axesVAO;
-    std::shared_ptr<VertexBuffer> m_axesVBO;
-    uint32_t m_axesVertexCount{0};
-    std::unique_ptr<OpenGLShader> m_shader;
+    std::shared_ptr<VertexArray> m_quadVAO;
+    std::shared_ptr<VertexBuffer> m_quadVBO;
+    std::shared_ptr<VertexArray> m_axisVAO;
+    std::shared_ptr<VertexBuffer> m_axisVBO;
+    std::unique_ptr<OpenGLShader> m_gridShader;
+    std::unique_ptr<OpenGLShader> m_axisShader;
 
-    void buildGridGeometry();
-    void buildAxesGeometry();
-    bool createShader();
+    bool createShaders();
+    void buildQuad();
+    void buildAxis();
+
+    /// 1/2/5 x 10^n rounding of a target step.
+    [[nodiscard]] static double niceStep(double target) noexcept;
+    static void planeBasis(GridPlane plane,
+                                         float normal[3],
+                                         float origin[3],
+                                         float axisAColor[3],
+                                         float axisBColor[3],
+                                         float verticalColor[3]) noexcept;
 };
 
 } // namespace MirEngine::Rendering
