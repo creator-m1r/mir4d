@@ -1,18 +1,13 @@
 // MirEngine/Rendering/OpenGL/OpenGLState.cpp
 // =================================================================================
 // Реализация управления состоянием OpenGL.
-//
-// Примечание: используется <OpenGL/gl3.h> (macOS).
-// На Windows/Linux в будущем следует заменить на glad / glew / epoxy.
 // =================================================================================
 
 #include "OpenGLState.h"
 
-// macOS OpenGL
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else
-// Заглушка / будущий glad
 #include <glad/gl.h>
 #endif
 
@@ -21,22 +16,22 @@ namespace Rendering {
 
 void OpenGLState::initialize()
 {
-    // Глубина
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glClearDepth(1.0);
 
-    // Отсечение задних граней
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    // Смешивание (по умолчанию выключено, включается по необходимости)
     glDisable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Сглаживание линий (полезно для CAD)
     glEnable(GL_LINE_SMOOTH);
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+    m_wireframe = false;
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void OpenGLState::setViewport(uint32_t width, uint32_t height)
@@ -71,14 +66,31 @@ void OpenGLState::clear(const ColorRGBA& color,
         mask |= GL_STENCIL_BUFFER_BIT;
     }
 
-    if (mask != 0) {
+    if (mask != 0)
         glClear(mask);
-    }
 }
 
 void OpenGLState::beginFrame()
 {
-    // Можно сбрасывать временные состояния, если нужно
+    // Render passes are allowed to change temporary GL state. Restore the
+    // canonical CAD viewport state at the beginning of every frame so a grid,
+    // selection overlay or wireframe pass can never poison the next frame.
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
+    glDisable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if (m_wireframe)
+    {
+        m_wireframe = false;
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 }
 
 void OpenGLState::endFrame()
