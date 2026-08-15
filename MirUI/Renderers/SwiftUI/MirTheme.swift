@@ -1,17 +1,18 @@
 import SwiftUI
 
 /// Single visual language for MIR 4D.
+///
+/// The theme deliberately uses opaque application surfaces. CAD viewports and
+/// engineering panels must remain visually stable while overlays are animated.
 enum MirTheme {
     enum Colors {
-        // Application chrome: dark with a light 15% translucency over the window backdrop.
-        static let topBar = Color(red: 0.028, green: 0.034, blue: 0.044).opacity(0.85)
+        static let topBar = Color(red: 0.028, green: 0.034, blue: 0.044)
         static let background = Color(red: 0.035, green: 0.043, blue: 0.055)
         static let viewport = Color(red: 0.020, green: 0.027, blue: 0.035)
-        // Shared panel surfaces: 15% translucent treatment across the interface.
-        static let surface = Color(red: 0.055, green: 0.067, blue: 0.086).opacity(0.85)
-        static let surfaceRaised = Color(red: 0.075, green: 0.090, blue: 0.115).opacity(0.85)
-        static let panel = Color(red: 0.065, green: 0.078, blue: 0.098).opacity(0.85)
-        static let panelRaised = Color(red: 0.085, green: 0.102, blue: 0.128).opacity(0.85)
+        static let surface = Color(red: 0.055, green: 0.067, blue: 0.086)
+        static let surfaceRaised = Color(red: 0.075, green: 0.090, blue: 0.115)
+        static let panel = Color(red: 0.065, green: 0.078, blue: 0.098)
+        static let panelRaised = Color(red: 0.085, green: 0.102, blue: 0.128)
         static let border = Color.white.opacity(0.075)
         static let borderStrong = Color.white.opacity(0.13)
         static let panelBorder = borderStrong
@@ -46,8 +47,25 @@ enum MirTheme {
         static let error = Color(red: 1.0, green: 0.28, blue: 0.30)
         static let info = Color(red: 0.30, green: 0.65, blue: 1.0)
     }
-    enum Spacing { static let xxs: CGFloat = 2; static let xs: CGFloat = 4; static let sm: CGFloat = 8; static let md: CGFloat = 12; static let lg: CGFloat = 16; static let xl: CGFloat = 24; static let xxl: CGFloat = 32 }
-    enum Radius { static let small: CGFloat = 4; static let medium: CGFloat = 7; static let large: CGFloat = 10; static let panel: CGFloat = 12; static let floating: CGFloat = 14 }
+
+    enum Spacing {
+        static let xxs: CGFloat = 2
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+        static let xxl: CGFloat = 32
+    }
+
+    enum Radius {
+        static let small: CGFloat = 4
+        static let medium: CGFloat = 7
+        static let large: CGFloat = 10
+        static let panel: CGFloat = 12
+        static let floating: CGFloat = 14
+    }
+
     enum Typography {
         static let status = Font.system(size: 10, weight: .regular)
         static let caption = Font.system(size: 11, weight: .regular)
@@ -59,6 +77,7 @@ enum MirTheme {
         static let numeric = Font.system(size: 12, weight: .medium, design: .monospaced)
         static let coordinate = Font.system(size: 11, weight: .medium, design: .monospaced)
     }
+
     enum Animation {
         static let fast = SwiftUI.Animation.easeOut(duration: 0.12)
         static let normal = SwiftUI.Animation.easeInOut(duration: 0.18)
