@@ -18,17 +18,16 @@ namespace MirEngine::Rendering
 
 namespace
 {
-// The geometry pass uses camera-relative model translations to keep large CAD
-// coordinates numerically stable on the GPU.  The device must therefore use
-// the rotation-only view matrix; applying the original translated view matrix
-// would subtract the camera position a second time and move every model out of
-// its expected position.
+// Matrix4Raw is column-major. Translation therefore lives at 12, 13, 14.
+// GeometryPass already subtracts cameraPosition from every model translation,
+// so the renderer must provide rotation-only view to avoid applying camera
+// translation twice.
 Matrix4Raw makeCameraRelativeView(const Matrix4Raw& view) noexcept
 {
     Matrix4Raw result = view;
-    result[3] = 0.0f;
-    result[7] = 0.0f;
-    result[11] = 0.0f;
+    result[12] = 0.0f;
+    result[13] = 0.0f;
+    result[14] = 0.0f;
     return result;
 }
 }
@@ -70,7 +69,6 @@ bool OpenGLRenderer::initialize()
         m_geometryPass.reset();
     }
 
-    // Диагностика OpenGL: контекст, лимиты, расширения.
     OpenGLDebug::resetErrors();
     OpenGLDebug::logReport();
     OpenGLDebug::enableDebugOutput();
@@ -92,15 +90,13 @@ void OpenGLRenderer::render(mir::Scene& scene,
 {
     if (!m_initialized || !m_device || !m_context)
         return;
+    if (context.viewportWidth == 0 || context.viewportHeight == 0)
+        return;
 
     m_context->makeCurrent();
     m_device->beginFrame();
     m_device->clear(ColorRGBA{0.055f, 0.065f, 0.085f, 1.0f});
 
-    // GeometryPass performs camera-relative rendering: model translations are
-    // shifted by -cameraPosition in double precision.  Keep only the camera
-    // rotation in the device view matrix so the camera translation is applied
-    // exactly once.
     const Matrix4Raw cameraRelativeView = makeCameraRelativeView(context.viewMatrix);
     m_device->setViewMatrix(cameraRelativeView);
     m_device->setProjectionMatrix(context.projectionMatrix);
@@ -125,7 +121,7 @@ void OpenGLRenderer::setObjectMaterial(std::uint64_t objectId,
 
 void OpenGLRenderer::resize(uint32_t width, uint32_t height)
 {
-    if (!m_device || !m_context)
+    if (!m_device || !m_context || width == 0 || height == 0)
         return;
 
     m_context->makeCurrent();
