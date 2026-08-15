@@ -30,44 +30,31 @@ final class MirGLCustomView: NSView {
 
     // MARK: Rendering
 
-    private var displayLink: CVDisplayLink?
+    private var displayLink: CADisplayLink?
     private var isRunning = false
 
     // Protects MirEngine objects from display-link / UI races.
-    // Static so the CVDisplayLink callback can take it without touching any
+    // Static so the display-link callback can take it without touching any
     // MainActor-isolated instance state (NSView subclasses are @MainActor).
     //
     // nonisolated(unsafe): MirGLCustomView inherits from @MainActor NSView, so
-    // its static members are main-isolated by default in Swift 6. The display
-    // link runs on its own CoreVideo thread and must take this lock without a
-    // MainActor check (which would trap via dispatch_assert_queue). NSLock is
+    // its static members are main-isolated by default in Swift 6. NSLock is
     // thread-safe by design, so the marker is sound.
     nonisolated private static let engineLock = NSLock()
 
-    // Pure C render callback for CVDisplayLink.
-    //
-    // Must be nonisolated: it runs on the CoreVideo IO thread, never on the
-    // main actor. A closure defined inside an @MainActor-isolated method would
-    // inherit MainActor isolation and trap with dispatch_assert_queue when the
-    // Swift 6 executor check runs from the display-link thread.
-    //
-    // The only state touched is the raw MirEngine viewport pointer from
-    // userInfo plus the thread-safe engineLock; no Swift object state.
-    nonisolated private static let renderCallback: CVDisplayLinkOutputCallback = {
-        _, _, _, _, _, userInfo in
+    // Renders one frame. NSView.displayLink(target:selector:) fires on the
+    // main run loop, so this is MainActor-isolated; the lock still protects
+    // against any non-main MirEngine access.
+    @objc
+    private func renderTick(_ displayLink: CADisplayLink) {
 
-        guard let userInfo else {
-            return kCVReturnSuccess
+        guard viewport != nil else {
+            return
         }
 
-        let renderViewport =
-            UnsafeMutableRawPointer(userInfo)
-
         MirGLCustomView.engineLock.lock()
-        MirEngineRender(renderViewport)
+        MirEngineRender(viewport)
         MirGLCustomView.engineLock.unlock()
-
-        return kCVReturnSuccess
     }
 
     // MARK: Notifications
@@ -302,8 +289,8 @@ final class MirGLCustomView: NSView {
 
     // This method is intentionally NOT actor-isolated.
     //
-    // CVDisplayLink runs on its own realtime thread.
-    // Therefore it must not call any @MainActor / NSView method.
+    // The display link fires on the main run loop but it must not
+    // call any @MainActor / NSView method.
     //
     // The actual MirEngine rendering is protected by engineLock.
     //
@@ -342,65 +329,22 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        guard let viewport else {
+        guard viewport != nil else {
             return
         }
 
-        var link: CVDisplayLink?
-
-        let result =
-            CVDisplayLinkCreateWithActiveCGDisplays(
-                &link
-            )
-
-        guard result == kCVReturnSuccess,
-              let link else {
-
-            print(
-                "❌ MIR4D: failed to create CVDisplayLink"
-            )
-
-            return
-        }
-
-        displayLink = link
-
-        // The viewport pointer is stable while the display link runs:
-        // shutdownEngine() destroys it only after stopDisplayLink().
-        let viewportPointer =
-            UnsafeMutableRawPointer(viewport)
-
-        CVDisplayLinkSetOutputCallback(
-            link,
-            Self.renderCallback,
-            viewportPointer
+        let link = displayLink(
+            target: self,
+            selector: #selector(renderTick(_:))
         )
 
+        link.add(to: .main, forMode: .common)
+
+        displayLink = link
         isRunning = true
 
-        let startResult =
-            CVDisplayLinkStart(link)
-
-        guard startResult == kCVReturnSuccess else {
-
-            print(
-                "❌ MIR4D: failed to start CVDisplayLink"
-            )
-
-            CVDisplayLinkSetOutputCallback(
-                link,
-                nil,
-                nil
-            )
-
-            displayLink = nil
-            isRunning = false
-
-            return
-        }
-
         print(
-            "▶️ MIR4D: CVDisplayLink started"
+            "▶️ MIR4D: DisplayLink started"
         )
     }
 
@@ -415,21 +359,12 @@ final class MirGLCustomView: NSView {
 
         isRunning = false
 
-        if CVDisplayLinkIsRunning(displayLink) {
-
-            CVDisplayLinkStop(displayLink)
-        }
-
-        CVDisplayLinkSetOutputCallback(
-            displayLink,
-            nil,
-            nil
-        )
+        displayLink.invalidate()
 
         self.displayLink = nil
 
         print(
-            "⏹ MIR4D: CVDisplayLink stopped"
+            "⏹ MIR4D: DisplayLink stopped"
         )
     }
 
@@ -904,7 +839,7 @@ final class MirGLCustomView: NSView {
         // publishCameraOrientation() takes engineLock itself, so it must be
         // called outside the critical section above: NSLock is not
         // reentrant, and locking it twice from the same thread deadlocks
-        // the main thread (and starves the CVDisplayLink render thread).
+        // the main thread (and starves the display link render tick).
         if viewportAvailable {
             publishCameraOrientation()
         }

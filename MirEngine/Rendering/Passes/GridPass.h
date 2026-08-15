@@ -65,6 +65,7 @@ private:
     std::shared_ptr<VertexBuffer> m_axisVBO;
     std::unique_ptr<OpenGLShader> m_gridShader;
     std::unique_ptr<OpenGLShader> m_axisShader;
+    std::unique_ptr<OpenGLShader> m_bgShader;
 
     bool createShaders();
     void buildQuad();

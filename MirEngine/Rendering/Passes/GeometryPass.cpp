@@ -126,7 +126,9 @@ vec3 shadeDirectional(vec3 N, vec3 V, vec3 Ldir, vec3 lightColor, float lightInt
 }
 
 void main() {
-    vec3 N = normalize(v_normal);
+    // v_normal is a world-space normal (translation-free). Lighting is computed
+    // in view space, so bring the normal into the same space as V and L.
+    vec3 N = normalize(u_worldToView * v_normal);
     vec3 V = normalize(-v_viewPos);
     float NoV = clamp(dot(N, V), 0.0, 1.0);
 
@@ -238,16 +240,9 @@ void GeometryPass::execute(RenderContext& context,
     normalize3(lights.keyDir);
     normalize3(lights.fillDir);
 
-    // World directions -> view space (for consistent half vectors).
-    float keyDirView[3] = {
-        viewRel[0] * lights.keyDir[0] + viewRel[4] * lights.keyDir[1] + viewRel[8] * lights.keyDir[2],
-        viewRel[1] * lights.keyDir[0] + viewRel[5] * lights.keyDir[1] + viewRel[9] * lights.keyDir[2],
-        viewRel[2] * lights.keyDir[0] + viewRel[6] * lights.keyDir[1] + viewRel[10] * lights.keyDir[2]};
-    float fillDirView[3] = {
-        viewRel[0] * lights.fillDir[0] + viewRel[4] * lights.fillDir[1] + viewRel[8] * lights.fillDir[2],
-        viewRel[1] * lights.fillDir[0] + viewRel[5] * lights.fillDir[1] + viewRel[9] * lights.fillDir[2],
-        viewRel[2] * lights.fillDir[0] + viewRel[6] * lights.fillDir[1] + viewRel[10] * lights.fillDir[2]};
-
+    // World-space light directions are passed to the shader; the fragment
+    // shader converts them to view space via u_worldToView. The light rig is
+    // camera-independent, so it must not be rotated on the CPU first.
     float worldToView[9] = {
         viewRel[0], viewRel[1], viewRel[2],
         viewRel[4], viewRel[5], viewRel[6],
@@ -256,10 +251,10 @@ void GeometryPass::execute(RenderContext& context,
     shader->bind();
     shader->setMatrix("u_view", viewRel);
     shader->setMatrix("u_projection", context.projectionMatrix);
-    shader->setVec3("u_keyDir", keyDirView[0], keyDirView[1], keyDirView[2]);
+    shader->setVec3("u_keyDir", lights.keyDir[0], lights.keyDir[1], lights.keyDir[2]);
     shader->setVec3("u_keyColor", lights.keyColor[0], lights.keyColor[1], lights.keyColor[2]);
     shader->setFloat("u_keyIntensity", lights.keyIntensity);
-    shader->setVec3("u_fillDir", fillDirView[0], fillDirView[1], fillDirView[2]);
+    shader->setVec3("u_fillDir", lights.fillDir[0], lights.fillDir[1], lights.fillDir[2]);
     shader->setVec3("u_fillColor", lights.fillColor[0], lights.fillColor[1], lights.fillColor[2]);
     shader->setFloat("u_fillIntensity", lights.fillIntensity);
     shader->setVec3("u_ambientColor", lights.ambientColor[0], lights.ambientColor[1], lights.ambientColor[2]);

@@ -28,6 +28,7 @@ if(APPLE)
 
     add_library(MirEngineMacOpenGL STATIC
         MirEngine/Core/Exports/MirEngineExports.cpp
+        MirEngine/Core/Logging/Logger.cpp
         MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
         MirEngine/Rendering/OpenGL/OpenGLCapabilities.cpp
         MirEngine/Rendering/OpenGL/OpenGLDebug.cpp
@@ -192,6 +193,14 @@ target_link_libraries(MIR4D_DocumentRenderBridge PRIVATE MirEngineIO)
 
 add_executable(MIR4D_RenderCamera MirEngine/Tests/Render/RenderCameraTest.cpp)
 target_link_libraries(MIR4D_RenderCamera PRIVATE MirEngineRender)
+
+if(APPLE)
+    # Автономный отладочный стенд viewport'а (окно + мышь + клавиатура + диагностика),
+    # работает вне MirUI/SwiftUI через тот же C ABI.
+    add_executable(MIR4D_DebugViewport MirEngine/Tests/Render/DebugViewport.mm)
+    target_include_directories(MIR4D_DebugViewport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(MIR4D_DebugViewport PRIVATE MirEngineMacOpenGL)
+endif()
 
 add_executable(MIR4D_CreateBox MirEngine/Tests/Document/CreateBox.cpp)
 target_link_libraries(MIR4D_CreateBox PRIVATE MirEngineBRep)

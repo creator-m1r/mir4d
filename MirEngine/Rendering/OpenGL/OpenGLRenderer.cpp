@@ -16,6 +16,23 @@
 namespace MirEngine::Rendering
 {
 
+namespace
+{
+// The geometry pass uses camera-relative model translations to keep large CAD
+// coordinates numerically stable on the GPU.  The device must therefore use
+// the rotation-only view matrix; applying the original translated view matrix
+// would subtract the camera position a second time and move every model out of
+// its expected position.
+Matrix4Raw makeCameraRelativeView(const Matrix4Raw& view) noexcept
+{
+    Matrix4Raw result = view;
+    result[3] = 0.0f;
+    result[7] = 0.0f;
+    result[11] = 0.0f;
+    return result;
+}
+}
+
 OpenGLRenderer::OpenGLRenderer(OpenGLContext* context)
     : m_context(context)
     , m_shaderLibrary([] {
@@ -79,7 +96,13 @@ void OpenGLRenderer::render(mir::Scene& scene,
     m_context->makeCurrent();
     m_device->beginFrame();
     m_device->clear(ColorRGBA{0.055f, 0.065f, 0.085f, 1.0f});
-    m_device->setViewMatrix(context.viewMatrix);
+
+    // GeometryPass performs camera-relative rendering: model translations are
+    // shifted by -cameraPosition in double precision.  Keep only the camera
+    // rotation in the device view matrix so the camera translation is applied
+    // exactly once.
+    const Matrix4Raw cameraRelativeView = makeCameraRelativeView(context.viewMatrix);
+    m_device->setViewMatrix(cameraRelativeView);
     m_device->setProjectionMatrix(context.projectionMatrix);
 
     if (m_gridPass && m_gridPass->isInitialized())

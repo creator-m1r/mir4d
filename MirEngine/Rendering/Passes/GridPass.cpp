@@ -142,6 +142,32 @@ void main() {
 }
 )";
 
+// Studio-style vertical gradient background, drawn first as an opaque layer.
+static const char* kBgVS = R"(
+#version 410 core
+layout(location = 0) in vec3 aPos;
+out vec2 vUv;
+void main() {
+    vUv = aPos.xy * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 1.0);
+}
+)";
+
+static const char* kBgFS = R"(
+#version 410 core
+in vec2 vUv;
+out vec4 FragColor;
+uniform vec3 uTopColor;
+uniform vec3 uBottomColor;
+void main() {
+    float t = clamp(vUv.y, 0.0, 1.0);
+    // Slightly eased so the lighter band sits near the horizon (CAD look).
+    float k = pow(t, 0.85);
+    vec3 c = mix(uBottomColor, uTopColor, k);
+    FragColor = vec4(c, 1.0);
+}
+)";
+
 static const char* kAxisFS = R"(
 #version 410 core
 in vec3 vLocal;
@@ -187,6 +213,13 @@ bool GridPass::createShaders()
     if (!m_axisShader->compile(kAxisVS, kAxisFS))
     {
         m_axisShader.reset();
+        return false;
+    }
+
+    m_bgShader = std::make_unique<OpenGLShader>();
+    if (!m_bgShader->compile(kBgVS, kBgFS))
+    {
+        m_bgShader.reset();
         return false;
     }
     return true;
@@ -381,6 +414,24 @@ void GridPass::execute(RenderContext& context,
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(GL_FALSE);
     glDisable(GL_CULL_FACE);
+
+    // Opaque studio gradient background, painted over the cleared color before
+    // the grid and geometry. No depth test, no blend — it is the back layer.
+    if (m_bgShader && m_quadVAO)
+    {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_BLEND);
+        m_bgShader->bind();
+        m_bgShader->setVec3("uTopColor", 0.16f, 0.19f, 0.24f);
+        m_bgShader->setVec3("uBottomColor", 0.03f, 0.04f, 0.06f);
+        m_quadVAO->bind();
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        m_quadVAO->unbind();
+        m_bgShader->unbind();
+        glEnable(GL_BLEND);
+    }
+
     // The full-screen quad lives at NDC z = 1.0 (depth = 1.0), so the depth
     // test (GL_LESS) would reject every fragment against the cleared depth.
     // The grid is a background layer: draw it without the depth test.

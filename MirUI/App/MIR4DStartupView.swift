@@ -288,7 +288,15 @@ struct MIR4DStartupView: View {
     }
 
     private func revealWorkspace() {
-        guard phase == .projectHub, !hubLeaving else { return }
+        guard !hubLeaving else { return }
+
+        // When a project is opened externally (e.g. via Open With / double-click)
+        // the launch sequence may still be in the diagnostics phase and never
+        // showed the Project Hub. Reveal the workspace from any pre-workspace
+        // phase so the CAD scene is never stranded behind the darkness layer.
+        if phase == .diagnostics {
+            phase = .projectHub
+        }
 
         // Keep the right door mounted while it travels beyond the window edge.
         // Only after the motion finishes do we remove the darkness and reveal the CAD workspace.

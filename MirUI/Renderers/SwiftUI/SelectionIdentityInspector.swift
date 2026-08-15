@@ -7,7 +7,7 @@ struct SelectionIdentityInspector: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
-                Image(systemName: appState.selection.hasSelection ? "scope" : "scope.dashed")
+                Image(systemName: appState.selection.hasSelection ? "scope" : "circle.dashed")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(appState.selection.hasSelection ? MirTheme.Colors.selection : MirTheme.Colors.textTertiary)
 
