@@ -59,10 +59,6 @@ if(APPLE)
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
 
-    # MirEngineExports.cpp constructs B-Rep-backed scene objects. Keep the
-    # native OpenGL target independent from the declaration order of the
-    # MirEngineBRep interface target by publishing the required include roots
-    # directly on this target.
     target_include_directories(MirEngineMacOpenGL PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep
@@ -76,15 +72,8 @@ if(APPLE)
         ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Commands
         ${CMAKE_CURRENT_SOURCE_DIR}/MirEngine/BRep/Validator
     )
-    target_compile_definitions(MirEngineMacOpenGL PUBLIC
-        GL_SILENCE_DEPRECATION=1
-    )
-    target_link_libraries(MirEngineMacOpenGL PUBLIC
-        MirEngine
-        MirEngineIO
-        ${MIR4D_OPENGL_FRAMEWORK}
-        ${MIR4D_COCOA_FRAMEWORK}
-    )
+    target_compile_definitions(MirEngineMacOpenGL PUBLIC GL_SILENCE_DEPRECATION=1)
+    target_link_libraries(MirEngineMacOpenGL PUBLIC MirEngine MirEngineIO ${MIR4D_OPENGL_FRAMEWORK} ${MIR4D_COCOA_FRAMEWORK})
     target_compile_features(MirEngineMacOpenGL PUBLIC cxx_std_23)
 
     add_library(MirEngineRender INTERFACE)
@@ -113,7 +102,6 @@ target_link_libraries(MirEngineRuntime INTERFACE MirEngineBRep)
 target_include_directories(MirEngineRuntime INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(MirEngineRuntime INTERFACE cxx_std_23)
 
-# Explicit domain targets keep header-only modules in the build graph.
 add_library(MirEngineViewport INTERFACE)
 target_link_libraries(MirEngineViewport INTERFACE MirEngine)
 target_include_directories(MirEngineViewport INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -163,87 +151,58 @@ endif()
 
 add_executable(MIR4D_BuildCheck MirEngine/Tests/Core/BuildCheck.cpp)
 target_link_libraries(MIR4D_BuildCheck PRIVATE MirEngine)
-
 add_executable(MIR4D_Integration4D MirEngine/Tests/Integration/Integration4D.cpp)
 target_link_libraries(MIR4D_Integration4D PRIVATE MirEngine)
-
 add_executable(MIR4D_StlRoundTrip MirEngine/Tests/IO/StlRoundTrip.cpp)
 target_link_libraries(MIR4D_StlRoundTrip PRIVATE MirEngineIO)
-
 add_executable(MIR4D_StepImporter MirEngine/Tests/IO/Step/StepImporterTest.cpp)
 target_link_libraries(MIR4D_StepImporter PRIVATE MirEngineIO)
 
-add_executable(MIR4D_AssimpImport MirEngine/Tests/IO/AssimpImport.cpp)
-target_include_directories(MIR4D_AssimpImport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(MIR4D_AssimpImport PRIVATE MirEngineIO)
-
 if(MIR_ENABLE_ASSIMP)
-    # AssimpImporter registers itself through a static initializer in AssimpImporter.cpp.
-    # Force the whole archive into the executable so the registrar is not dropped by the linker.
-    foreach(_t MIR4D_StlRoundTrip MIR4D_StepImporter MIR4D_AssimpImport MIR4D_DocumentRenderBridge)
-        if(TARGET ${_t})
-            target_link_options(${_t} PRIVATE -Wl,-force_load,$<TARGET_FILE:MirEngineIO>)
-        endif()
-    endforeach()
+    add_executable(MIR4D_AssimpImport MirEngine/Tests/IO/AssimpImport.cpp)
+    target_include_directories(MIR4D_AssimpImport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(MIR4D_AssimpImport PRIVATE MirEngineIO)
+    target_link_options(MIR4D_AssimpImport PRIVATE -Wl,-force_load,$<TARGET_FILE:MirEngineIO>)
 endif()
 
 add_executable(MIR4D_DocumentRenderBridge MirEngine/Tests/Render/DocumentRenderBridge.cpp)
 target_link_libraries(MIR4D_DocumentRenderBridge PRIVATE MirEngineIO)
-
 add_executable(MIR4D_RenderCamera MirEngine/Tests/Render/RenderCameraTest.cpp)
 target_link_libraries(MIR4D_RenderCamera PRIVATE MirEngineRender)
-
 add_executable(MIR4D_CreateBox MirEngine/Tests/Document/CreateBox.cpp)
 target_link_libraries(MIR4D_CreateBox PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_ObjectStore MirEngine/Tests/Document/ObjectStoreTests.cpp)
 target_link_libraries(MIR4D_ObjectStore PRIVATE MirEngine)
-
 add_executable(MIR4D_EngineDocumentBridge MirEngine/Tests/Document/EngineDocumentBridge.cpp)
 target_link_libraries(MIR4D_EngineDocumentBridge PRIVATE MirUI)
-
 add_executable(MIR4D_BRepBox MirEngine/Tests/BRep/BRepBox.cpp)
 target_link_libraries(MIR4D_BRepBox PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_BRepTopology MirEngine/Tests/BRep/BRepTopology.cpp)
 target_link_libraries(MIR4D_BRepTopology PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_BRepProfileExtrude MirEngine/Tests/BRep/BRepProfileExtrude.cpp)
 target_link_libraries(MIR4D_BRepProfileExtrude PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_BRepHeaderCheck MirEngine/Tests/BRep/BRepHeaderCheck.cpp)
 target_link_libraries(MIR4D_BRepHeaderCheck PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_BRepBoolean MirEngine/Tests/BRep/BRepBoolean.cpp)
 target_link_libraries(MIR4D_BRepBoolean PRIVATE MirEngineBRep)
-
 add_executable(MIR4D_GeometryQuery MirEngine/Tests/Geometry/GeometryQueryTest.cpp)
 target_link_libraries(MIR4D_GeometryQuery PRIVATE MirEngineGeometry)
-
 add_executable(MIR4D_SketchRectangleProfile MirEngine/Tests/Sketch/SketchRectangleProfileTest.cpp)
 target_link_libraries(MIR4D_SketchRectangleProfile PRIVATE MirEngine)
-
 add_executable(MIR4D_SketchRectangleSolver MirEngine/Tests/Sketch/SketchRectangleSolverTest.cpp)
 target_link_libraries(MIR4D_SketchRectangleSolver PRIVATE MirEngine)
-
 add_executable(MIR4D_ViewportFoundation MirEngine/Tests/Render/ViewportFoundation.cpp)
 target_link_libraries(MIR4D_ViewportFoundation PRIVATE MirEngineViewport)
-
 add_executable(MIR4D_ViewportRuntime MirEngine/Tests/Render/ViewportRuntime.cpp)
 target_link_libraries(MIR4D_ViewportRuntime PRIVATE MirEngineViewport)
-
 add_executable(MIR4D_ViewportController MirEngine/Tests/Viewport/ViewportControllerTest.cpp)
 target_link_libraries(MIR4D_ViewportController PRIVATE MirEngineViewport)
-
 add_executable(MIR4D_Count MirEngine/Tests/Core/CountTest.cpp)
 target_link_libraries(MIR4D_Count PRIVATE MirEngine)
-
 add_executable(MIR4D_Simulation MirEngine/Tests/Simulation/SimulationTest.cpp)
 target_link_libraries(MIR4D_Simulation PRIVATE MirEngineSimulation)
-
 add_executable(MIR4D_ExtendedDomains MirEngine/Tests/Domains/ExtendedDomainsTest.cpp)
 target_link_libraries(MIR4D_ExtendedDomains PRIVATE MirEngineDomains)
-
 add_executable(MIR4D_SelectionState MirEngine/Tests/Interaction/SelectionStateTests.cpp)
 target_link_libraries(MIR4D_SelectionState PRIVATE MirEngine)
 
@@ -252,7 +211,9 @@ add_test(NAME MIR4D_BuildCheck COMMAND MIR4D_BuildCheck)
 add_test(NAME MIR4D_Integration4D COMMAND MIR4D_Integration4D)
 add_test(NAME MIR4D_StlRoundTrip COMMAND MIR4D_StlRoundTrip)
 add_test(NAME MIR4D_StepImporter COMMAND MIR4D_StepImporter)
-add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
+if(MIR_ENABLE_ASSIMP)
+    add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
+endif()
 add_test(NAME MIR4D_DocumentRenderBridge COMMAND MIR4D_DocumentRenderBridge)
 add_test(NAME MIR4D_RenderCamera COMMAND MIR4D_RenderCamera)
 add_test(NAME MIR4D_CreateBox COMMAND MIR4D_CreateBox)
