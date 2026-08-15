@@ -8,13 +8,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 
 namespace mir
 {
 
 /// Canonical runtime owner for one interactive viewport.
-/// It owns only presentation/interaction state and references the engineering Scene.
-/// Renderer remains responsible for GPU/backend work.
+/// It owns presentation/interaction state and references the engineering Scene.
 class ViewportRuntime
 {
 public:
@@ -53,12 +53,90 @@ public:
     void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
     void orbitBy(Scalar dx, Scalar dy) noexcept { state_.controller.orbitBy(dx, dy); }
 
+    /// Fit the entire engineering scene into the current perspective viewport.
+    /// This is deterministic and uses the scene's transformed mesh bounds.
+    bool fitAll() noexcept
+    {
+        if (!scene_)
+            return false;
+
+        double minX = 0.0, minY = 0.0, minZ = 0.0;
+        double maxX = 0.0, maxY = 0.0, maxZ = 0.0;
+        bool hasBounds = false;
+
+        for (const auto& node : scene_->nodes())
+        {
+            if (!node || !node->model() || !node->model()->hasMesh())
+                continue;
+            const auto& mesh = node->model()->mesh();
+            if (mesh.empty())
+                continue;
+
+            const Matrix4 m = node->transform().matrix();
+            for (const auto& vertex : mesh.vertices)
+            {
+                const double x = static_cast<double>(m(0, 0)) * vertex.x +
+                                 static_cast<double>(m(0, 1)) * vertex.y +
+                                 static_cast<double>(m(0, 2)) * vertex.z +
+                                 static_cast<double>(m(0, 3));
+                const double y = static_cast<double>(m(1, 0)) * vertex.x +
+                                 static_cast<double>(m(1, 1)) * vertex.y +
+                                 static_cast<double>(m(1, 2)) * vertex.z +
+                                 static_cast<double>(m(1, 3));
+                const double z = static_cast<double>(m(2, 0)) * vertex.x +
+                                 static_cast<double>(m(2, 1)) * vertex.y +
+                                 static_cast<double>(m(2, 2)) * vertex.z +
+                                 static_cast<double>(m(2, 3));
+
+                if (!hasBounds)
+                {
+                    minX = maxX = x;
+                    minY = maxY = y;
+                    minZ = maxZ = z;
+                    hasBounds = true;
+                }
+                else
+                {
+                    minX = std::min(minX, x); maxX = std::max(maxX, x);
+                    minY = std::min(minY, y); maxY = std::max(maxY, y);
+                    minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
+                }
+            }
+        }
+
+        if (!hasBounds)
+            return false;
+
+        const Point3 center{
+            (minX + maxX) * 0.5,
+            (minY + maxY) * 0.5,
+            (minZ + maxZ) * 0.5};
+        const double dx = (maxX - minX) * 0.5;
+        const double dy = (maxY - minY) * 0.5;
+        const double dz = (maxZ - minZ) * 0.5;
+        const double radius = std::max(std::sqrt(dx * dx + dy * dy + dz * dz), 1e-9);
+
+        const double fov = static_cast<double>(state_.camera.fovY());
+        const double halfFov = std::max(fov * 0.5, 0.05);
+        const double fitDistance = radius / std::tan(halfFov) * 1.25;
+
+        state_.camera.setTarget(center);
+        state_.camera.setOrbit(
+            state_.camera.theta(),
+            std::clamp(state_.camera.phi(), Scalar(0.05), Scalar(3.141592653589793 - 0.05)),
+            std::clamp(static_cast<Scalar>(fitDistance), Scalar(1e-6), Scalar(1e12)));
+        return true;
+    }
+
     [[nodiscard]] PickResult pick(Scalar x, Scalar y) const noexcept
     {
         if (!scene_)
             return {};
-        return state_.pick(*scene_, x, y);
+        return state_.pick(*scene_, x, y, width(), height());
     }
+
+    [[nodiscard]] std::uint32_t width() const noexcept { return state_.width; }
+    [[nodiscard]] std::uint32_t height() const noexcept { return state_.height; }
 
     /// Assigns a MaterialLibrary material id to an object.
     void setObjectMaterial(mir4d::ObjectId objectId,
@@ -105,9 +183,6 @@ public:
             ? static_cast<float>(state_.width) / static_cast<float>(state_.height)
             : 1.0f;
 
-        // Dynamic clipping: near/far planes follow the scene bounds and the
-        // camera distance, so 1 mm parts and 10 km assemblies both render
-        // without fixed-range clipping (MIR4D_RENDERING_VISUALIZATION spec).
         double minX = 0.0, minY = 0.0, minZ = 0.0;
         double maxX = 0.0, maxY = 0.0, maxZ = 0.0;
         bool hasBounds = false;
@@ -170,11 +245,10 @@ public:
         const double dzc = sceneCenter.z - cameraPosition.z;
         const double distanceToScene = std::sqrt(dxc * dxc + dyc * dyc + dzc * dzc);
 
-        // Far: distance + radius + adaptive margin; near: small, but never a
-        // degenerate epsilon (avoids z-fighting, keeps 1 mm details visible).
-        const double farPlane = distanceToScene + sceneRadius +
-                                std::max(sceneRadius * 0.5, distanceToScene * 0.1) + 1.0;
-        const double nearPlane = std::clamp(distanceToScene * 0.0008, 0.0005, 5.0);
+        const double farPlane = std::max(
+            distanceToScene + sceneRadius + std::max(sceneRadius * 0.5, distanceToScene * 0.1) + 1.0,
+            10.0);
+        const double nearPlane = std::clamp(distanceToScene * 0.0005, 0.0001, std::max(0.01, farPlane * 0.01));
 
         const Scalar fov = state_.camera.fovY();
         const Scalar aspect = context.aspectRatio > 0
