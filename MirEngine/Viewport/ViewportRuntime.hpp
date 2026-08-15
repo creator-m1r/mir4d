@@ -23,16 +23,8 @@ public:
     {
     }
 
-    void setRenderer(MirEngine::Rendering::Renderer* renderer) noexcept
-    {
-        renderer_ = renderer;
-    }
-
-    void setScene(Scene* scene) noexcept
-    {
-        scene_ = scene;
-        state_.selection.clear();
-    }
+    void setRenderer(MirEngine::Rendering::Renderer* renderer) noexcept { renderer_ = renderer; }
+    void setScene(Scene* scene) noexcept { scene_ = scene; state_.selection.clear(); }
 
     [[nodiscard]] Scene* scene() const noexcept { return scene_; }
     [[nodiscard]] ViewportState& state() noexcept { return state_; }
@@ -41,8 +33,7 @@ public:
     void resize(std::uint32_t width, std::uint32_t height) noexcept
     {
         state_.resize(width, height);
-        if (renderer_)
-            renderer_->resize(state_.width, state_.height);
+        if (renderer_) renderer_->resize(state_.width, state_.height);
     }
 
     void beginOrbit(Scalar x, Scalar y) noexcept { state_.controller.beginOrbit(x, y); }
@@ -53,99 +44,54 @@ public:
     void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
     void orbitBy(Scalar dx, Scalar dy) noexcept { state_.controller.orbitBy(dx, dy); }
 
-    /// Fit the entire engineering scene into the current perspective viewport.
-    /// This is deterministic and uses the scene's transformed mesh bounds.
+    /// Fit the complete engineering scene into the current perspective viewport.
     bool fitAll() noexcept
     {
-        if (!scene_)
-            return false;
+        if (!scene_) return false;
 
         double minX = 0.0, minY = 0.0, minZ = 0.0;
         double maxX = 0.0, maxY = 0.0, maxZ = 0.0;
         bool hasBounds = false;
-
         for (const auto& node : scene_->nodes())
         {
-            if (!node || !node->model() || !node->model()->hasMesh())
-                continue;
+            if (!node || !node->model() || !node->model()->hasMesh()) continue;
             const auto& mesh = node->model()->mesh();
-            if (mesh.empty())
-                continue;
-
+            if (mesh.empty()) continue;
             const Matrix4 m = node->transform().matrix();
             for (const auto& vertex : mesh.vertices)
             {
-                const double x = static_cast<double>(m(0, 0)) * vertex.x +
-                                 static_cast<double>(m(0, 1)) * vertex.y +
-                                 static_cast<double>(m(0, 2)) * vertex.z +
-                                 static_cast<double>(m(0, 3));
-                const double y = static_cast<double>(m(1, 0)) * vertex.x +
-                                 static_cast<double>(m(1, 1)) * vertex.y +
-                                 static_cast<double>(m(1, 2)) * vertex.z +
-                                 static_cast<double>(m(1, 3));
-                const double z = static_cast<double>(m(2, 0)) * vertex.x +
-                                 static_cast<double>(m(2, 1)) * vertex.y +
-                                 static_cast<double>(m(2, 2)) * vertex.z +
-                                 static_cast<double>(m(2, 3));
-
-                if (!hasBounds)
-                {
-                    minX = maxX = x;
-                    minY = maxY = y;
-                    minZ = maxZ = z;
-                    hasBounds = true;
-                }
-                else
-                {
-                    minX = std::min(minX, x); maxX = std::max(maxX, x);
-                    minY = std::min(minY, y); maxY = std::max(maxY, y);
-                    minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
-                }
+                const double x = static_cast<double>(m(0,0))*vertex.x + static_cast<double>(m(0,1))*vertex.y + static_cast<double>(m(0,2))*vertex.z + static_cast<double>(m(0,3));
+                const double y = static_cast<double>(m(1,0))*vertex.x + static_cast<double>(m(1,1))*vertex.y + static_cast<double>(m(1,2))*vertex.z + static_cast<double>(m(1,3));
+                const double z = static_cast<double>(m(2,0))*vertex.x + static_cast<double>(m(2,1))*vertex.y + static_cast<double>(m(2,2))*vertex.z + static_cast<double>(m(2,3));
+                if (!hasBounds) { minX=maxX=x; minY=maxY=y; minZ=maxZ=z; hasBounds=true; }
+                else { minX=std::min(minX,x); maxX=std::max(maxX,x); minY=std::min(minY,y); maxY=std::max(maxY,y); minZ=std::min(minZ,z); maxZ=std::max(maxZ,z); }
             }
         }
+        if (!hasBounds) return false;
 
-        if (!hasBounds)
-            return false;
-
-        const Point3 center{
-            (minX + maxX) * 0.5,
-            (minY + maxY) * 0.5,
-            (minZ + maxZ) * 0.5};
-        const double dx = (maxX - minX) * 0.5;
-        const double dy = (maxY - minY) * 0.5;
-        const double dz = (maxZ - minZ) * 0.5;
-        const double radius = std::max(std::sqrt(dx * dx + dy * dy + dz * dz), 1e-9);
-
-        const double fov = static_cast<double>(state_.camera.fovY());
-        const double halfFov = std::max(fov * 0.5, 0.05);
-        const double fitDistance = radius / std::tan(halfFov) * 1.25;
+        const Point3 center{(minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5};
+        const double dx=(maxX-minX)*0.5, dy=(maxY-minY)*0.5, dz=(maxZ-minZ)*0.5;
+        const double radius=std::max(std::sqrt(dx*dx+dy*dy+dz*dz),1e-9);
+        const double halfFov=std::max(static_cast<double>(state_.camera.fovY())*0.5,0.05);
+        const double distance=radius/std::tan(halfFov)*1.25;
 
         state_.camera.setTarget(center);
-        state_.camera.setOrbit(
-            state_.camera.theta(),
-            std::clamp(state_.camera.phi(), Scalar(0.05), Scalar(3.141592653589793 - 0.05)),
-            std::clamp(static_cast<Scalar>(fitDistance), Scalar(1e-6), Scalar(1e12)));
+        state_.camera.setOrbit(state_.camera.theta(), state_.camera.phi(), std::clamp(static_cast<Scalar>(distance),Scalar(1e-6),Scalar(1e12)));
         return true;
     }
 
     [[nodiscard]] PickResult pick(Scalar x, Scalar y) const noexcept
     {
-        if (!scene_)
-            return {};
-        return state_.pick(*scene_, x, y, width(), height());
+        if (!scene_) return {};
+        return state_.pick(*scene_, x, y);
     }
 
     [[nodiscard]] std::uint32_t width() const noexcept { return state_.width; }
     [[nodiscard]] std::uint32_t height() const noexcept { return state_.height; }
 
-    /// Assigns a MaterialLibrary material id to an object.
-    void setObjectMaterial(mir4d::ObjectId objectId,
-                           MirEngine::Rendering::MaterialId materialId) noexcept
+    void setObjectMaterial(mir4d::ObjectId objectId, MirEngine::Rendering::MaterialId materialId) noexcept
     {
-        if (renderer_)
-            renderer_->setObjectMaterial(
-                static_cast<std::uint64_t>(objectId),
-                static_cast<std::int32_t>(materialId));
+        if (renderer_) renderer_->setObjectMaterial(static_cast<std::uint64_t>(objectId), static_cast<std::int32_t>(materialId));
     }
 
     bool selectAt(Scalar x, Scalar y, bool additive = false) noexcept
@@ -153,132 +99,80 @@ public:
         const PickResult result = pick(x, y);
         if (!result.hit() || !mir4d::isValidObjectId(result.objectId))
         {
-            if (!additive)
-                state_.selection.clear();
+            if (!additive) state_.selection.clear();
             return false;
         }
-
-        if (additive)
-            state_.selection.toggle(result.objectId);
-        else
-            state_.selection.select(result.objectId, false);
+        if (additive) state_.selection.toggle(result.objectId);
+        else state_.selection.select(result.objectId, false);
         return true;
     }
 
-    void update(double /*deltaTime*/) noexcept
-    {
-        // Camera controller is immediate-input driven.
-        // This hook remains the canonical frame update boundary for future inertia.
-    }
+    void update(double /*deltaTime*/) noexcept {}
 
     void render()
     {
-        if (!renderer_ || !scene_)
-            return;
+        if (!renderer_ || !scene_) return;
 
         auto& context = renderContext_;
         context.viewportWidth = state_.width;
         context.viewportHeight = state_.height;
-        context.aspectRatio = state_.height > 0
-            ? static_cast<float>(state_.width) / static_cast<float>(state_.height)
-            : 1.0f;
+        context.aspectRatio = state_.height > 0 ? static_cast<float>(state_.width) / static_cast<float>(state_.height) : 1.0f;
 
-        double minX = 0.0, minY = 0.0, minZ = 0.0;
-        double maxX = 0.0, maxY = 0.0, maxZ = 0.0;
-        bool hasBounds = false;
+        double minX=0.0,minY=0.0,minZ=0.0,maxX=0.0,maxY=0.0,maxZ=0.0;
+        bool hasBounds=false;
         for (const auto& node : scene_->nodes())
         {
-            if (!node || !node->model() || !node->model()->hasMesh())
-                continue;
-            const auto& mesh = node->model()->mesh();
-            if (mesh.empty())
-                continue;
-
-            const Matrix4 m = node->transform().matrix();
+            if (!node || !node->model() || !node->model()->hasMesh()) continue;
+            const auto& mesh=node->model()->mesh();
+            if (mesh.empty()) continue;
+            const Matrix4 m=node->transform().matrix();
             for (const auto& vertex : mesh.vertices)
             {
-                const double x = static_cast<double>(m(0, 0)) * vertex.x +
-                                 static_cast<double>(m(0, 1)) * vertex.y +
-                                 static_cast<double>(m(0, 2)) * vertex.z +
-                                 static_cast<double>(m(0, 3));
-                const double y = static_cast<double>(m(1, 0)) * vertex.x +
-                                 static_cast<double>(m(1, 1)) * vertex.y +
-                                 static_cast<double>(m(1, 2)) * vertex.z +
-                                 static_cast<double>(m(1, 3));
-                const double z = static_cast<double>(m(2, 0)) * vertex.x +
-                                 static_cast<double>(m(2, 1)) * vertex.y +
-                                 static_cast<double>(m(2, 2)) * vertex.z +
-                                 static_cast<double>(m(2, 3));
-                if (!hasBounds)
-                {
-                    minX = maxX = x;
-                    minY = maxY = y;
-                    minZ = maxZ = z;
-                    hasBounds = true;
-                }
-                else
-                {
-                    minX = std::min(minX, x); maxX = std::max(maxX, x);
-                    minY = std::min(minY, y); maxY = std::max(maxY, y);
-                    minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
-                }
+                const double x=static_cast<double>(m(0,0))*vertex.x+static_cast<double>(m(0,1))*vertex.y+static_cast<double>(m(0,2))*vertex.z+static_cast<double>(m(0,3));
+                const double y=static_cast<double>(m(1,0))*vertex.x+static_cast<double>(m(1,1))*vertex.y+static_cast<double>(m(1,2))*vertex.z+static_cast<double>(m(1,3));
+                const double z=static_cast<double>(m(2,0))*vertex.x+static_cast<double>(m(2,1))*vertex.y+static_cast<double>(m(2,2))*vertex.z+static_cast<double>(m(2,3));
+                if (!hasBounds) { minX=maxX=x; minY=maxY=y; minZ=maxZ=z; hasBounds=true; }
+                else { minX=std::min(minX,x); maxX=std::max(maxX,x); minY=std::min(minY,y); maxY=std::max(maxY,y); minZ=std::min(minZ,z); maxZ=std::max(maxZ,z); }
             }
         }
 
-        Point3 sceneCenter{0.0, 0.0, 0.0};
-        Scalar sceneRadius = Scalar(1.0);
+        Point3 sceneCenter{0.0,0.0,0.0};
+        Scalar sceneRadius=Scalar(1.0);
         if (hasBounds)
         {
-            sceneCenter = Point3{
-                (minX + maxX) * 0.5,
-                (minY + maxY) * 0.5,
-                (minZ + maxZ) * 0.5};
-            const double dx = (maxX - minX) * 0.5;
-            const double dy = (maxY - minY) * 0.5;
-            const double dz = (maxZ - minZ) * 0.5;
-            sceneRadius = std::max(std::sqrt(dx * dx + dy * dy + dz * dz), Scalar(1e-9));
+            sceneCenter={(minX+maxX)*0.5,(minY+maxY)*0.5,(minZ+maxZ)*0.5};
+            const double dx=(maxX-minX)*0.5,dy=(maxY-minY)*0.5,dz=(maxZ-minZ)*0.5;
+            sceneRadius=std::max(std::sqrt(dx*dx+dy*dy+dz*dz),Scalar(1e-9));
         }
 
-        const Point3 cameraPosition = state_.camera.position();
-        const double dxc = sceneCenter.x - cameraPosition.x;
-        const double dyc = sceneCenter.y - cameraPosition.y;
-        const double dzc = sceneCenter.z - cameraPosition.z;
-        const double distanceToScene = std::sqrt(dxc * dxc + dyc * dyc + dzc * dzc);
+        const Point3 cameraPosition=state_.camera.position();
+        const double dxc=sceneCenter.x-cameraPosition.x,dyc=sceneCenter.y-cameraPosition.y,dzc=sceneCenter.z-cameraPosition.z;
+        const double distanceToScene=std::sqrt(dxc*dxc+dyc*dyc+dzc*dzc);
+        const double farPlane=std::max(distanceToScene+sceneRadius+std::max(sceneRadius*0.5,distanceToScene*0.1)+1.0,10.0);
+        const double nearPlane=std::clamp(distanceToScene*0.0005,0.0001,std::max(0.01,farPlane*0.01));
 
-        const double farPlane = std::max(
-            distanceToScene + sceneRadius + std::max(sceneRadius * 0.5, distanceToScene * 0.1) + 1.0,
-            10.0);
-        const double nearPlane = std::clamp(distanceToScene * 0.0005, 0.0001, std::max(0.01, farPlane * 0.01));
+        const Scalar fov=state_.camera.fovY();
+        const Scalar aspect=context.aspectRatio>0?Scalar(context.aspectRatio):Scalar(1.0);
+        state_.camera.setPerspective(fov,aspect,nearPlane,farPlane);
+        context.fovY=static_cast<float>(fov);
+        context.nearPlane=static_cast<float>(nearPlane);
+        context.farPlane=static_cast<float>(farPlane);
 
-        const Scalar fov = state_.camera.fovY();
-        const Scalar aspect = context.aspectRatio > 0
-            ? Scalar(context.aspectRatio)
-            : Scalar(1.0);
-        state_.camera.setPerspective(fov, aspect, nearPlane, farPlane);
-
-        context.fovY = static_cast<float>(fov);
-        context.nearPlane = static_cast<float>(nearPlane);
-        context.farPlane = static_cast<float>(farPlane);
-
-        const Matrix4 view = state_.camera.viewMatrix();
-        const Matrix4 projection = state_.camera.projectionMatrix();
-        context.updateMatrices(toRaw(view), toRaw(projection));
-
-        const Point3 position = state_.camera.position();
-        context.setCameraPosition(static_cast<float>(position.x),
-                                  static_cast<float>(position.y),
-                                  static_cast<float>(position.z));
-
-        renderer_->render(*scene_, context);
+        const Matrix4 view=state_.camera.viewMatrix();
+        const Matrix4 projection=state_.camera.projectionMatrix();
+        context.updateMatrices(toRaw(view),toRaw(projection));
+        const Point3 position=state_.camera.position();
+        context.setCameraPosition(static_cast<float>(position.x),static_cast<float>(position.y),static_cast<float>(position.z));
+        renderer_->render(*scene_,context);
     }
 
 private:
     static MirEngine::Rendering::Matrix4Raw toRaw(const Matrix4& matrix) noexcept
     {
         MirEngine::Rendering::Matrix4Raw result{};
-        for (std::size_t row = 0; row < 4; ++row)
-            for (std::size_t column = 0; column < 4; ++column)
-                result[row + column * 4] = static_cast<float>(matrix(row, column));
+        for (std::size_t row=0;row<4;++row)
+            for (std::size_t column=0;column<4;++column)
+                result[row+column*4]=static_cast<float>(matrix(row,column));
         return result;
     }
 
