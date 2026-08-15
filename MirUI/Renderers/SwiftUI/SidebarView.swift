@@ -1,6 +1,4 @@
 import SwiftUI
-import AppKit
-import UniformTypeIdentifiers
 
 struct SidebarView: View {
     @ObservedObject var appState: CADAppState
@@ -14,62 +12,37 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            panelHeader
             searchField
             sectionPicker
-            switch activeSection {
-            case 0: modelTree
-            case 1: filterList
-            default: layerList
+            Group {
+                switch activeSection {
+                case 0: modelTree
+                case 1: filterList
+                default: layerList
+                }
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             footer
         }
-        .background(MirTheme.Colors.panel)
-        .overlay(alignment: .trailing) {
-            Rectangle().fill(MirTheme.Colors.border).frame(width: 1)
-        }
-    }
-
-    private var panelHeader: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "list.bullet.indent")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(MirTheme.Colors.accentBright)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(localized("Навигатор", "Navigator"))
-                    .font(MirTheme.Typography.bodySemibold)
-                    .foregroundStyle(MirTheme.Colors.textPrimary)
-                Text(localized("Структура проекта", "Project structure"))
-                    .font(MirTheme.Typography.status)
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
-            }
-            Spacer()
-            Button { activeSection = 0; search = "" } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(MirTheme.Colors.textTertiary)
-            .background(MirTheme.Colors.surfaceRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-            .help(localized("Сбросить навигатор", "Reset navigator"))
-        }
-        .padding(.horizontal, MirTheme.Spacing.md)
-        .padding(.vertical, 9)
         .background(MirTheme.Colors.panel)
     }
 
     private var searchField: some View {
         HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass").foregroundStyle(MirTheme.Colors.textTertiary)
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(MirTheme.Colors.textTertiary)
             TextField(localized("Поиск по модели…", "Search model…"), text: $search)
                 .textFieldStyle(.plain)
                 .font(MirTheme.Typography.caption)
                 .foregroundStyle(MirTheme.Colors.textPrimary)
+                .onSubmit { activeSection = 0 }
             if !search.isEmpty {
-                Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textTertiary)
+                Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+                .accessibilityLabel(localized("Очистить поиск", "Clear search"))
             }
         }
         .padding(9)
@@ -83,14 +56,17 @@ struct SidebarView: View {
     private var sectionPicker: some View {
         HStack(spacing: 3) {
             ForEach(sections.indices, id: \.self) { index in
-                Button(sections[index]) { withAnimation(MirTheme.Animation.fast) { activeSection = index } }
-                    .buttonStyle(.plain)
-                    .font(MirTheme.Typography.caption)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity)
-                    .background(activeSection == index ? MirTheme.Colors.accentSoft : Color.clear)
-                    .foregroundStyle(activeSection == index ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                Button(sections[index]) {
+                    withAnimation(MirTheme.Animation.fast) { activeSection = index }
+                }
+                .buttonStyle(.plain)
+                .font(MirTheme.Typography.caption)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(activeSection == index ? MirTheme.Colors.accentSoft : Color.clear)
+                .foregroundStyle(activeSection == index ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
+                .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+                .accessibilityAddTraits(activeSection == index ? .isSelected : [])
             }
         }
         .padding(4)
@@ -107,29 +83,38 @@ struct SidebarView: View {
                 ForEach(treeSections) { section in
                     VStack(alignment: .leading, spacing: 2) {
                         sectionHeader(section)
-                        ForEach(section.nodes) { node in TreeItemView(node: node, appState: appState, level: 0) }
+                        ForEach(section.nodes) { node in
+                            TreeItemView(node: node, appState: appState, level: 0)
+                        }
                     }
                 }
                 if treeSections.isEmpty { emptyTreeState }
             }
-            .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10)
+            .padding(.horizontal, 10)
+            .padding(.top, 6)
+            .padding(.bottom, 10)
         }
+        .scrollIndicators(.automatic)
         .animation(MirTheme.Animation.normal, value: modelRuntime.revision)
     }
 
     private var emptyTreeState: some View {
         VStack(spacing: 8) {
             Image(systemName: search.isEmpty ? "cube.transparent" : "magnifyingglass")
-                .font(.system(size: 22, weight: .light)).foregroundStyle(MirTheme.Colors.textTertiary)
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
             Text(search.isEmpty ? localized("Проект пуст", "Project is empty") : localized("Ничего не найдено", "Nothing found"))
-                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textSecondary)
             if search.isEmpty {
                 Text(localized("Создайте тело или эскиз, чтобы начать работу", "Create a body or sketch to begin"))
-                    .font(MirTheme.Typography.status).foregroundStyle(MirTheme.Colors.textTertiary)
+                    .font(MirTheme.Typography.status)
+                    .foregroundStyle(MirTheme.Colors.textTertiary)
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 34)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 34)
     }
 
     private struct TreeSection: Identifiable {
@@ -157,12 +142,20 @@ struct SidebarView: View {
 
     private func sectionHeader(_ section: TreeSection) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: section.icon).font(.system(size: 9, weight: .semibold)).foregroundStyle(MirTheme.Colors.textTertiary)
-            Text(section.title.uppercased()).font(.system(size: 9, weight: .semibold)).tracking(0.4).foregroundStyle(MirTheme.Colors.textTertiary)
-            Text("\(section.nodes.count)").font(.system(size: 9, weight: .semibold, design: .monospaced)).foregroundStyle(MirTheme.Colors.textTertiary)
+            Image(systemName: section.icon)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Text(section.title.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.4)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+            Text("\(section.nodes.count)")
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
             Spacer()
         }
-        .padding(.horizontal, 6).padding(.top, 5)
+        .padding(.horizontal, 6)
+        .padding(.top, 5)
     }
 
     private func contains(_ node: MIR4DModelNode, query: String) -> Bool {
@@ -186,46 +179,117 @@ struct SidebarView: View {
     private var layerList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
-                layerRow(localized("Геометрия", "Geometry"), true)
-                layerRow(localized("Эскизы", "Sketches"), true)
-                layerRow(localized("Сетки", "Meshes"), appState.gridVisible)
-                layerRow(localized("Оси", "Axes"), appState.axesVisible)
-                layerRow(localized("Сечения", "Sections"), appState.sectionMode)
+                layerInfoRow(localized("Геометрия", "Geometry"), "cube.transparent", true)
+                layerInfoRow(localized("Эскизы", "Sketches"), "pencil.and.ruler", true)
+                layerToggle(localized("Сетка", "Grid"), "grid", appState.gridVisible) {
+                    appState.toggleGrid()
+                }
+                layerToggle(localized("Оси", "Axes"), "axis.3d", appState.axesVisible) {
+                    appState.toggleAxes()
+                }
+                layerToggle(localized("Сечения", "Sections"), "scissors", appState.sectionMode) {
+                    appState.toggleSection()
+                }
             }
             .padding(MirTheme.Spacing.md)
         }
+        .scrollIndicators(.automatic)
+    }
+
+    private func layerInfoRow(_ title: String, _ icon: String, _ visible: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(MirTheme.Colors.accentBright)
+            Text(title)
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textPrimary)
+            Spacer()
+            Text(localized("активно", "active"))
+                .font(MirTheme.Typography.status)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(MirTheme.Colors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+    }
+
+    private func layerToggle(_ title: String, _ icon: String, _ visible: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: visible ? "eye" : "eye.slash")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(visible ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                Text(title)
+                    .font(MirTheme.Typography.caption)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                Spacer()
+                Text(visible ? localized("ВКЛ", "ON") : localized("ВЫКЛ", "OFF"))
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(visible ? MirTheme.Colors.success : MirTheme.Colors.textTertiary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .background(visible ? MirTheme.Colors.surfaceRaised : MirTheme.Colors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help(visible ? localized("Скрыть слой", "Hide layer") : localized("Показать слой", "Show layer"))
     }
 
     private var filterList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localized("Фильтры модели", "Model Filters")).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
-                Text(localized("Фильтрация дерева модели", "Model tree filtering")).font(MirTheme.Typography.body).foregroundStyle(MirTheme.Colors.textPrimary)
+            VStack(alignment: .leading, spacing: 10) {
+                Label(localized("Фильтры модели", "Model Filters"), systemImage: "line.3.horizontal.decrease.circle")
+                    .font(MirTheme.Typography.bodySemibold)
+                    .foregroundStyle(MirTheme.Colors.textPrimary)
+                Text(localized("Поиск выше фильтрует дерево по имени объекта и его дочерним элементам.", "The search above filters the tree by object name and descendants."))
+                    .font(MirTheme.Typography.status)
+                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !search.isEmpty {
+                    Button {
+                        search = ""
+                        activeSection = 0
+                    } label: {
+                        Label(localized("Сбросить фильтр", "Clear filter"), systemImage: "xmark.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(MirTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(MirTheme.Spacing.md)
         }
-    }
-
-    private func layerRow(_ title: String, _ visible: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: visible ? "eye" : "eye.slash").font(.system(size: 11, weight: .medium)).foregroundStyle(visible ? MirTheme.Colors.accentBright : MirTheme.Colors.textTertiary)
-            Text(title).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textPrimary)
-            Spacer()
-        }
-        .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(MirTheme.Colors.surface).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
     }
 
     private var footer: some View {
         HStack(spacing: 6) {
-            Circle().fill(MirTheme.Colors.success).frame(width: 6, height: 6)
-            Text(localized("Модель", "Model")).font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textTertiary)
+            Circle()
+                .fill(MirTheme.Colors.success)
+                .frame(width: 6, height: 6)
+            Text(localized("Модель", "Model"))
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textTertiary)
             Spacer()
-            Text("v\(modelRuntime.revision)").font(.system(size: 10, design: .monospaced)).foregroundStyle(MirTheme.Colors.textTertiary)
+            Text("v\(modelRuntime.revision)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(MirTheme.Colors.textTertiary)
         }
-        .padding(.horizontal, MirTheme.Spacing.md).padding(.vertical, 9)
-        .background(MirTheme.Colors.panel)
+        .padding(.horizontal, MirTheme.Spacing.md)
+        .padding(.vertical, 9)
+        .background(MirTheme.Colors.panelRaised)
+        .overlay(alignment: .top) {
+            Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
+        }
     }
 
-    private func localized(_ russian: String, _ english: String) -> String { appState.ui.language == .russian ? russian : english }
+    private func localized(_ russian: String, _ english: String) -> String {
+        appState.ui.language == .russian ? russian : english
+    }
 }
