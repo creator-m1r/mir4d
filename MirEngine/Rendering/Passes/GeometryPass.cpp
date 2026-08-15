@@ -13,6 +13,7 @@
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
 #include "MirEngine/Math/Transform.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <cstdint>
 #include <vector>
@@ -26,10 +27,9 @@
 namespace MirEngine::Rendering
 {
 
-// Camera-relative vertex shader:
-//   u_model carries world translation already shifted by the camera position
-//   (computed in double on the CPU), u_view keeps only the rotation part,
-//   so all GPU numbers stay small regardless of world scale.
+// All lighting vectors and normals are evaluated in VIEW space. The model
+// translation is camera-relative and therefore stays numerically stable for
+// large CAD coordinates.
 static const char* kDefaultVert = R"(
 #version 410 core
 layout (location = 0) in vec3 aPos;
@@ -40,31 +40,35 @@ uniform mat4 u_view;
 uniform mat4 u_projection;
 
 out vec3 v_normal;
-out vec3 v_worldPos;
 out vec3 v_viewPos;
 
-void main() {
-    vec4 worldPos = u_model * vec4(aPos, 1.0);
-    v_worldPos = worldPos.xyz;
-    v_normal = mat3(u_model) * aNormal;
-    vec4 viewPos = u_view * worldPos;
+void main()
+{
+    vec4 modelPos = u_model * vec4(aPos, 1.0);
+    vec4 viewPos = u_view * modelPos;
+
+    // u_view is rotation-only. The inverse-transpose keeps normals correct
+    // for future non-uniform CAD object scales as well as rotations.
+    mat3 normalMatrix = mat3(transpose(inverse(u_view * u_model)));
+    v_normal = normalize(normalMatrix * aNormal);
     v_viewPos = viewPos.xyz;
+
     gl_Position = u_projection * viewPos;
 }
 )";
 
-// PBR fragment shader:
-//   GGX specular + Lambert diffuse + Schlick Fresnel,
-//   Engineering Studio light rig (key + fill + ambient),
-//   fully procedural material parameters (no textures).
+// Engineering CAD lighting: GGX specular + Lambert diffuse + Schlick
+// Fresnel, with a warm key, cool fill and soft ambient contribution.
 static const char* kDefaultFrag = R"(
 #version 410 core
 in vec3 v_normal;
-in vec3 v_worldPos;
 in vec3 v_viewPos;
 out vec4 FragColor;
 
-uniform vec3 u_keyDir;      // world-space key light direction
+// Directions point FROM the surface TOWARD each light and are already in
+// view space. Keeping every lighting vector in one coordinate space avoids
+// the previous world/view mismatch that caused unstable or dark faces.
+uniform vec3 u_keyDir;
 uniform vec3 u_keyColor;
 uniform float u_keyIntensity;
 uniform vec3 u_fillDir;
@@ -72,7 +76,6 @@ uniform vec3 u_fillColor;
 uniform float u_fillIntensity;
 uniform vec3 u_ambientColor;
 uniform float u_ambientIntensity;
-uniform mat3 u_worldToView;
 
 uniform vec3 u_baseColor;
 uniform float u_roughness;
@@ -84,53 +87,63 @@ uniform float u_opacity;
 
 const float PI = 3.14159265359;
 
-float D_GGX(float NoH, float a)
+float D_GGX(float NoH, float alpha)
 {
-    float a2 = a * a;
+    float a2 = alpha * alpha;
     float d = NoH * NoH * (a2 - 1.0) + 1.0;
-    return a2 / (PI * d * d);
+    return a2 / max(PI * d * d, 1e-6);
 }
 
-float V_Smith(float NoV, float NoL, float a)
+float V_Smith(float NoV, float NoL, float alpha)
 {
-    float a2 = a * a;
-    float gv = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
-    float gl = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
-    return 0.5 / (gv + gl + 1e-5);
+    float a2 = alpha * alpha;
+    float gv = NoL * sqrt(max(NoV * NoV * (1.0 - a2) + a2, 1e-6));
+    float gl = NoV * sqrt(max(NoL * NoL * (1.0 - a2) + a2, 1e-6));
+    return 0.5 / max(gv + gl, 1e-5);
 }
 
-vec3 F_Schlick(float u, vec3 F0)
+vec3 F_Schlick(float VoH, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(1.0 - u, 5.0);
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
 }
 
-vec3 shadeDirectional(vec3 N, vec3 V, vec3 Ldir, vec3 lightColor, float lightIntensity,
-                      vec3 baseColor, float metallic, float roughness, vec3 F0)
+vec3 shadeDirectional(vec3 N, vec3 V, vec3 L,
+                      vec3 lightColor, float lightIntensity,
+                      vec3 baseColor, float metallic,
+                      float roughness, vec3 F0)
 {
-    vec3 L = normalize(u_worldToView * Ldir);
+    L = normalize(L);
     float NoL = clamp(dot(N, L), 0.0, 1.0);
-    if (NoL <= 0.0) return vec3(0.0);
+    if (NoL <= 0.0)
+        return vec3(0.0);
 
     vec3 H = normalize(L + V);
     float NoH = clamp(dot(N, H), 0.0, 1.0);
     float NoV = clamp(dot(N, V), 0.0, 1.0);
+    float VoH = clamp(dot(V, H), 0.0, 1.0);
 
-    float a = max(roughness * roughness, 0.02);
-    float D = D_GGX(NoH, a);
-    float Vis = V_Smith(NoV, NoL, a);
-    vec3 F = F_Schlick(clamp(dot(V, H), 0.0, 1.0), F0);
+    float alpha = max(roughness * roughness, 0.02);
+    float D = D_GGX(NoH, alpha);
+    float Vis = V_Smith(NoV, NoL, alpha);
+    vec3 F = F_Schlick(VoH, F0);
 
-    vec3 spec = D * Vis * F;
-    vec3 kd = (1.0 - F) * (1.0 - metallic);
-    return (kd * baseColor / PI + spec) * lightColor * lightIntensity * NoL;
+    vec3 specular = D * Vis * F;
+    vec3 diffuseWeight = (vec3(1.0) - F) * (1.0 - metallic);
+    vec3 diffuse = diffuseWeight * baseColor / PI;
+
+    return (diffuse + specular) * lightColor * lightIntensity * NoL;
 }
 
-void main() {
+void main()
+{
     vec3 N = normalize(v_normal);
     vec3 V = normalize(-v_viewPos);
-    float NoV = clamp(dot(N, V), 0.0, 1.0);
 
-    vec3 F0 = mix(vec3(0.04 * u_specular), u_baseColor, u_metallic);
+    // Metallic materials use their base color as F0; dielectric materials
+    // start from the artist-controlled specular value.
+    float dielectricF0 = clamp(0.04 * max(u_specular, 0.0), 0.0, 0.16);
+    vec3 F0 = mix(vec3(dielectricF0), clamp(u_baseColor, 0.0, 1.0),
+                  clamp(u_metallic, 0.0, 1.0));
 
     vec3 Lo = vec3(0.0);
     Lo += shadeDirectional(N, V, u_keyDir, u_keyColor, u_keyIntensity,
@@ -139,28 +152,26 @@ void main() {
                            u_baseColor, u_metallic, u_roughness, F0);
 
     vec3 ambient = u_ambientColor * u_ambientIntensity * u_baseColor;
+    vec3 color = max(ambient + Lo + u_emission, vec3(0.0));
 
-    vec3 color = ambient + Lo + u_emission;
-    color = max(color, vec3(0.0));
-    color = color / (color + vec3(1.0)); // soft tone mapping
-    color = pow(color, vec3(1.0 / 2.2)); // gamma
+    // Filmic-friendly simple tonemap followed by display gamma.
+    color = color / (color + vec3(1.0));
+    color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
 
-    FragColor = vec4(color, u_opacity);
+    FragColor = vec4(color, clamp(u_opacity, 0.0, 1.0));
 }
 )";
 
 namespace
 {
 
-/// Engineering Studio light rig: soft key + cool fill + ambient floor.
-/// Guarantees readable faces and no fully black surfaces.
 struct EngineeringStudioLights
 {
-    float keyDir[3] = {0.5f, 1.0f, 0.3f};
-    float keyColor[3] = {1.0f, 0.98f, 0.94f};
-    float keyIntensity = 1.1f;
+    float keyDir[3] = {0.50f, 1.00f, 0.30f};
+    float keyColor[3] = {1.00f, 0.98f, 0.94f};
+    float keyIntensity = 1.10f;
 
-    float fillDir[3] = {-0.6f, -0.2f, -0.8f};
+    float fillDir[3] = {-0.60f, -0.20f, -0.80f};
     float fillColor[3] = {0.62f, 0.70f, 0.85f};
     float fillIntensity = 0.45f;
 
@@ -230,28 +241,26 @@ void GeometryPass::execute(RenderContext& context,
         m_cachedRevision = revision;
     }
 
-    // Camera-relative view matrix: rotation only, no translation.
     Matrix4Raw viewRel = context.viewMatrix;
-    viewRel[3] = 0.0f; viewRel[7] = 0.0f; viewRel[11] = 0.0f;
+    // Matrix4Raw is column-major: translation is [12,13,14].
+    viewRel[12] = 0.0f;
+    viewRel[13] = 0.0f;
+    viewRel[14] = 0.0f;
 
     EngineeringStudioLights lights;
     normalize3(lights.keyDir);
     normalize3(lights.fillDir);
 
-    // World directions -> view space (for consistent half vectors).
-    float keyDirView[3] = {
+    // Transform world-space light directions into view space using only the
+    // camera rotation. Normals and view vectors use that same space below.
+    const float keyDirView[3] = {
         viewRel[0] * lights.keyDir[0] + viewRel[4] * lights.keyDir[1] + viewRel[8] * lights.keyDir[2],
         viewRel[1] * lights.keyDir[0] + viewRel[5] * lights.keyDir[1] + viewRel[9] * lights.keyDir[2],
         viewRel[2] * lights.keyDir[0] + viewRel[6] * lights.keyDir[1] + viewRel[10] * lights.keyDir[2]};
-    float fillDirView[3] = {
+    const float fillDirView[3] = {
         viewRel[0] * lights.fillDir[0] + viewRel[4] * lights.fillDir[1] + viewRel[8] * lights.fillDir[2],
         viewRel[1] * lights.fillDir[0] + viewRel[5] * lights.fillDir[1] + viewRel[9] * lights.fillDir[2],
         viewRel[2] * lights.fillDir[0] + viewRel[6] * lights.fillDir[1] + viewRel[10] * lights.fillDir[2]};
-
-    float worldToView[9] = {
-        viewRel[0], viewRel[1], viewRel[2],
-        viewRel[4], viewRel[5], viewRel[6],
-        viewRel[8], viewRel[9], viewRel[10]};
 
     shader->bind();
     shader->setMatrix("u_view", viewRel);
@@ -264,12 +273,6 @@ void GeometryPass::execute(RenderContext& context,
     shader->setFloat("u_fillIntensity", lights.fillIntensity);
     shader->setVec3("u_ambientColor", lights.ambientColor[0], lights.ambientColor[1], lights.ambientColor[2]);
     shader->setFloat("u_ambientIntensity", lights.ambientIntensity);
-    shader->setMatrix3("u_worldToView", worldToView);
-
-    const double cameraPosD[3] = {
-        static_cast<double>(context.cameraPosition[0]),
-        static_cast<double>(context.cameraPosition[1]),
-        static_cast<double>(context.cameraPosition[2])};
 
     for (const auto& node : scene.nodes())
     {
@@ -280,8 +283,6 @@ void GeometryPass::execute(RenderContext& context,
 
         processNode(*node, device, shader.get(), context.cameraPosition);
     }
-
-    (void)cameraPosD;
 }
 
 void GeometryPass::processNode(const mir::ModelNode& node,
@@ -368,7 +369,6 @@ void GeometryPass::processNode(const mir::ModelNode& node,
         m_vaos[handle] = vao;
     }
 
-    // Material resolution: object -> library material (default Engineering Steel).
     MaterialId materialId = MaterialLibrary::defaultMaterial();
     const auto materialIt = m_objectMaterials.find(node.id());
     if (materialIt != m_objectMaterials.end())
@@ -400,11 +400,10 @@ void GeometryPass::processNode(const mir::ModelNode& node,
 Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
                                          const double cameraPos[3]) noexcept
 {
-    // Camera-relative model matrix: translation shifted by the camera
-    // position in double precision, so GPU floats stay small.
     const mir::Matrix4 matrix = transform.matrix();
     Matrix4Raw result{};
     for (std::size_t row = 0; row < 4; ++row)
+    {
         for (std::size_t column = 0; column < 4; ++column)
         {
             if (column == 3 && row < 3)
@@ -418,6 +417,7 @@ Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
                 result[row + column * 4] = static_cast<float>(matrix(row, column));
             }
         }
+    }
     return result;
 }
 
