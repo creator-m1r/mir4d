@@ -115,12 +115,6 @@ final class WindowConfiguratorView: NSView {
         window.collectionBehavior.remove(.fullScreenAuxiliary)
         window.title = "МИР 4D"
 
-        // CAD sessions must start from a single clean window: macOS window
-        // restoration would replay every previously opened project window on
-        // top of the fresh one, and LaunchServices would still deliver the
-        // requested project URL separately.
-        window.isRestorable = false
-
         if let zoom = window.standardWindowButton(.zoomButton) {
             zoom.isHidden = false
             zoom.isEnabled = true

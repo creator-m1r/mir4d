@@ -15,6 +15,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(MirUI STATIC
     Core/Transform/TransformAdapter.cpp
     Interop/MIR4DEngineDocumentBridge.cpp
+    Interop/SelectionEventBridge.cpp
     Interop/SelectionInspectorBridge.cpp
     Widgets/PropertyGrid/RenderSelectionPropertyAdapter.cpp
     Widgets/PropertyGrid/SelectionInspectorModel.cpp

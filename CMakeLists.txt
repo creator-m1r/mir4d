@@ -55,6 +55,7 @@ if(APPLE)
         MirEngine/Rendering/Selection/RenderSelectionController.cpp
         MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
         MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
+        MirEngine/Rendering/Viewport/RenderViewport.cpp
         MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
     )
 

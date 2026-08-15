@@ -60,7 +60,6 @@ uniform mat3 uWorldFromView;   // view-space -> world-space rotation (R^T)
 uniform float uMinorStep;
 uniform float uMajorStep;
 uniform float uFadeDistance;
-uniform float uCameraHeight;    // perpendicular camera-to-plane distance
 uniform vec3 uMinorColor;
 uniform vec3 uMajorColor;
 uniform vec3 uAxisAColor;
@@ -86,20 +85,12 @@ void main() {
 
     vec3 pView = dir * t;
     vec3 local = uWorldFromView * pView + (uCamPos - uAnchor);
+    float dist = length(pView);
 
     vec2 c1 = (uPlaneNormalWorld.z > 0.5) ? local.xz
            : ((uPlaneNormalWorld.y > 0.5) ? local.xy : local.yz);
 
-    // Fade by the distance measured ALONG the plane (uniform circles around
-    // the camera's projection onto the plane), not by the 3D eye distance:
-    // rays near the horizon travel long before hitting the plane, which made
-    // the side regions of the viewport fade out while the center stayed dark.
-    // A radius of 5 * cameraHeight covers the whole viewport: the steepest
-    // side rays hit the plane at ~2.7 * cameraHeight, so they stay well
-    // inside the fade band.
-    float distPlane = length(pView);
-    float distAlong = sqrt(max(0.0, distPlane * distPlane - uCameraHeight * uCameraHeight));
-    float fade = 1.0 - smoothstep(uFadeDistance * 0.55, uFadeDistance, distAlong);
+    float fade = 1.0 - smoothstep(uFadeDistance * 0.55, uFadeDistance, dist);
     if (fade <= 0.0) discard;
 
     // Minor lines
@@ -348,14 +339,9 @@ void GridPass::execute(RenderContext& context,
         anchor[2] = std::floor(eyeZ / majorStep) * majorStep;
     }
 
-    // Fade must cover the whole visible region of the plane: rays near the
-    // horizon travel far along the plane, so the fade radius is scaled by the
-    // perpendicular camera-to-plane distance (farPlane stays a lower bound).
     const float fade = m_fadeDistanceOverride > 0.0f
         ? m_fadeDistanceOverride
-        : static_cast<float>(std::max(
-              static_cast<double>(context.farPlane) * 0.85,
-              distPlane * 5.0));
+        : context.farPlane * 0.85f;
 
     // Invert projection for view-space ray reconstruction.
     // Matrix4::inverse() (Gauss-Jordan with partial pivoting) is the canonical
@@ -386,14 +372,10 @@ void GridPass::execute(RenderContext& context,
                               planeNormal[2] * (planeOrigin[2] - eyeZ);
 
     // World-from-view rotation (R^T) as a mat3.
-    // v is column-major: v[c*4+r] = R[r][c]. GLSL mat3 is also column-major,
-    // so to make the shader compute R^T * pView we must upload data[j*3+i] =
-    // R[j][i] = v[i*4+j]; a naive row-wise copy here transposes the rotation
-    // and mirrors the grid frame against the scene.
     float worldFromView[9] = {
-        v[0], v[4], v[8],
-        v[1], v[5], v[9],
-        v[2], v[6], v[10]};
+        v[0], v[1], v[2],
+        v[4], v[5], v[6],
+        v[8], v[9], v[10]};
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -426,7 +408,6 @@ void GridPass::execute(RenderContext& context,
         m_gridShader->setFloat("uMinorStep", minorStepF);
         m_gridShader->setFloat("uMajorStep", majorStepF);
         m_gridShader->setFloat("uFadeDistance", fade);
-        m_gridShader->setFloat("uCameraHeight", static_cast<float>(distPlane));
         m_gridShader->setVec3("uMinorColor", 0.20f, 0.23f, 0.28f);
         m_gridShader->setVec3("uMajorColor", 0.36f, 0.40f, 0.48f);
         m_gridShader->setVec3("uAxisAColor", axisAColor[0], axisAColor[1], axisAColor[2]);
