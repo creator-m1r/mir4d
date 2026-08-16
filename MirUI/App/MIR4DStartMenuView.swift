@@ -1,9 +1,10 @@
 //
 //  MIR4DStartMenuView.swift
-//  MIR4D
+//  MIR 4D
 //
-//  Project Hub — центральная точка навигации по проектам MIR 4D.
-//  Вся работа с проектами проходит через MIR4DProjectCommands.
+//  Project Hub — simple command centre for MIR 4D.
+//  The start screen deliberately exposes only the actions a user needs first:
+//  continue, create, open. Advanced workspaces remain available below.
 //
 
 import SwiftUI
@@ -13,7 +14,6 @@ struct MIR4DStartMenuView: View {
     @EnvironmentObject private var appState: CADAppState
     @ObservedObject var diagnostic: MIR4DBootCoordinator
 
-    @State private var selectedMode: MIR4DStartMode?
     @State private var showOpenProject = false
     @State private var showNewProject = false
     @State private var autoOpenLastProject = MIR4DProjectSession.shared.isAutoOpenLastProjectEnabled
@@ -28,31 +28,18 @@ struct MIR4DStartMenuView: View {
 
     private var continueProject: MIR4DRecentProject? { recentProjects.first }
 
-    private var continueAvailability: MIR4DRecentAvailability? {
-        guard let project = continueProject else { return nil }
-        return MIR4DProjectSession.shared.availability(of: project)
-    }
-
-    private var canContinue: Bool { continueAvailability == .available }
-
-    private var continueStatusText: String {
-        if continueProject == nil { return "Нет проекта для продолжения" }
-        return canContinue ? "Последний проект" : "Проект недоступен"
-    }
-
-    private var continueStatusColor: Color {
-        canContinue ? .secondary : .orange
+    private var canContinue: Bool {
+        guard let project = continueProject else { return false }
+        return MIR4DProjectSession.shared.availability(of: project) == .available
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider().opacity(0.2)
+            topBar
+            Divider().opacity(0.16)
             content
-            Divider().opacity(0.2)
-            footer
         }
-        .background(Color(red: 0.025, green: 0.035, blue: 0.055))
+        .background(Color(red: 0.018, green: 0.026, blue: 0.042))
         .sheet(isPresented: $showOpenProject) {
             MIR4DProjectOpenView().environmentObject(appState)
         }
@@ -78,50 +65,86 @@ struct MIR4DStartMenuView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("МИР 4D")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("Инженерная среда моделирования")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+    // MARK: - Top navigation
+
+    private var topBar: some View {
+        HStack(spacing: 18) {
+            HStack(spacing: 11) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(Color.white.opacity(0.08))
+                    Text("M4D")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("МИР 4D")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text("Инженерная среда")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
+
             Spacer()
+
             HStack(spacing: 8) {
-                Circle().fill(.green).frame(width: 8, height: 8)
-                Text("Система готова")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                systemStatus
+                Divider().frame(height: 20).opacity(0.25)
+                Button("Открыть") { presentOpenProject() }
+                    .buttonStyle(MIR4DTopBarButtonStyle(prominent: false))
+                Button("Новый проект") { presentNewProject() }
+                    .buttonStyle(MIR4DTopBarButtonStyle(prominent: true))
             }
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
         .foregroundStyle(.white)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 22)
     }
+
+    private var systemStatus: some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(.green)
+                .frame(width: 6, height: 6)
+            Text("Готово")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .help("Самодиагностика завершена: \(Int(diagnostic.progress * 100))%")
+    }
+
+    // MARK: - Main content
 
     private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Начало работы")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text("Создайте проект, откройте существующий или продолжите работу.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-
-                primaryActions
-                openButton
+            VStack(alignment: .leading, spacing: 26) {
+                welcome
+                primaryArea
                 recentSection
-                scenariosSection
+                workspaceSection
             }
-            .padding(32)
+            .frame(maxWidth: 1120)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 34)
+            .padding(.vertical, 30)
         }
     }
 
-    private var primaryActions: some View {
+    private var welcome: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Что будем делать?")
+                .font(.system(size: 30, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+            Text("Начните с проекта. Остальные инструменты появятся внутри рабочей среды, когда они понадобятся.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var primaryArea: some View {
         HStack(spacing: 14) {
             continueCard
             createCard
@@ -133,131 +156,120 @@ struct MIR4DStartMenuView: View {
             guard canContinue else { return }
             _ = commands.restoreLastProject(appState: appState)
         } label: {
-            continueCardContent
-        }
-        .buttonStyle(MIR4DStartCardButtonStyle())
-        .disabled(!canContinue)
-        .help(canContinue ? "Открыть последний проект" : "Нет доступного проекта для продолжения")
-    }
-
-    private var continueCardContent: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack {
+            HStack(spacing: 18) {
                 Image(systemName: "arrow.forward.circle.fill")
-                    .font(.system(size: 23))
+                    .font(.system(size: 30))
+                    .foregroundStyle(canContinue ? .white : .secondary)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Продолжить")
+                        .font(.system(size: 17, weight: .semibold))
+                    if let project = continueProject {
+                        Text(project.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(1)
+                    } else {
+                        Text("Последний проект не найден")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(canContinue ? "Вернуться к последней работе" : "Создайте или откройте проект")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
                 Image(systemName: "arrow.right")
                     .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
             }
-
-            Text("Продолжить")
-                .font(.system(size: 18, weight: .semibold))
-
-            if let project = continueProject {
-                Text(project.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
-            }
-
-            Text(continueStatusText)
-                .font(.system(size: 11))
-                .foregroundStyle(continueStatusColor)
-
-            Spacer(minLength: 4)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, minHeight: 112)
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.white.opacity(canContinue ? 0.075 : 0.035))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(Color.white.opacity(canContinue ? 0.14 : 0.06), lineWidth: 1)
+            )
         }
-        .foregroundStyle(.white)
-        .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(canContinue ? 0.07 : 0.035))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(canContinue ? 0.13 : 0.06), lineWidth: 1)
-        )
+        .buttonStyle(MIR4DStartCardButtonStyle())
+        .disabled(!canContinue)
     }
 
     private var createCard: some View {
         Button { presentNewProject() } label: {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack {
-                    Image(systemName: "plus.square.fill").font(.system(size: 23))
-                    Spacer()
-                    Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
+            HStack(spacing: 18) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(.white)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Новый проект")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text("Создать инженерный проект MIR 4D")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.82))
+                    Text("CAD • BIM • 4D")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
                 }
-                Text("Создать проект").font(.system(size: 18, weight: .semibold))
-                Text("Новый проект MIR 4D")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                Text("CAD • BIM • 4D")
-                    .font(.system(size: 11))
+
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                Spacer(minLength: 4)
             }
             .foregroundStyle(.white)
-            .padding(20)
-            .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.07)))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.13), lineWidth: 1))
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, minHeight: 112)
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.white.opacity(0.075))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
         }
         .buttonStyle(MIR4DStartCardButtonStyle())
     }
 
-    private var openButton: some View {
-        Button { presentOpenProject() } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "folder.fill").font(.system(size: 18))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Открыть проект .mir4d").font(.system(size: 14, weight: .semibold))
-                    Text("Выбрать существующий проект MIR 4D")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.045)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.09), lineWidth: 1))
-        }
-        .buttonStyle(MIR4DStartCardButtonStyle())
-    }
+    // MARK: - Recent projects
 
     private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Недавние проекты")
-                        .font(.system(size: 16, weight: .semibold))
+                    Text("Ваши проекты")
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white)
-                    Text("Последние открытые проекты MIR 4D")
+                    Text("Откройте проект одним нажатием")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("до 10")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Button("Все проекты") { presentOpenProject() }
+                    .buttonStyle(MIR4DQuietButtonStyle())
             }
 
             if recentProjects.isEmpty {
                 emptyRecentState
             } else {
                 VStack(spacing: 1) {
-                    ForEach(recentProjects) { project in
+                    ForEach(Array(recentProjects.prefix(5))) { project in
                         recentRow(project)
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.035)))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.07), lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: 13).fill(Color.white.opacity(0.032)))
+                .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color.white.opacity(0.065), lineWidth: 1))
             }
 
             Toggle(
-                "Открывать последний проект при запуске",
+                "Автоматически открывать последний проект",
                 isOn: Binding(
                     get: { autoOpenLastProject },
                     set: { value in
@@ -267,29 +279,27 @@ struct MIR4DStartMenuView: View {
                 )
             )
             .toggleStyle(.switch)
-            .font(.system(size: 11))
+            .font(.system(size: 10))
             .foregroundStyle(.secondary)
         }
     }
 
     private var emptyRecentState: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 20))
+        HStack(spacing: 13) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 21))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Нет недавних проектов")
+                Text("Здесь появятся ваши проекты")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
-                Text("Создайте проект или откройте существующий .mir4d.")
+                Text("Создайте новый проект или откройте существующий .mir4d.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.025)))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        .padding(17)
     }
 
     private func recentRow(_ project: MIR4DRecentProject) -> some View {
@@ -302,52 +312,34 @@ struct MIR4DStartMenuView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: available ? "cube.transparent" : "exclamationmark.triangle")
-                    .font(.system(size: 18))
+                    .font(.system(size: 17))
                     .foregroundStyle(available ? .white : .orange)
-                    .frame(width: 28)
+                    .frame(width: 27)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(project.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-
-                    HStack(spacing: 7) {
+                    HStack(spacing: 6) {
                         Text(project.path)
-                            .font(.system(size: 10, design: .monospaced))
+                            .font(.system(size: 9, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                         Text("•").foregroundStyle(.secondary)
                         Text(project.lastOpened.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                    }
-
-                    if availability == .missing {
-                        Text("Проект недоступен: папка не найдена")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
-                    } else if availability == .invalid {
-                        Text("Проект недоступен: пакет MIR 4D повреждён или неполный")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
                     }
                 }
 
                 Spacer()
-
-                if available {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("недоступен")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.orange)
-                }
+                Image(systemName: available ? "arrow.up.right" : "exclamationmark.triangle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(available ? .secondary : .orange)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -360,67 +352,59 @@ struct MIR4DStartMenuView: View {
         }
     }
 
-    private var scenariosSection: some View {
+    // MARK: - Workspaces
+
+    private var workspaceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Сценарии работы")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text("Рабочие области MIR 4D")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Рабочие области")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text("Дополнительные режимы MIR 4D — без перегрузки главного экрана")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                startCard(mode: .laboratory4D)
-                startCard(mode: .mathematicalUniverse)
-                startCard(mode: .programmingWorld)
-                startCard(mode: .knowledgeWorld)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                workspaceCard(.laboratory4D)
+                workspaceCard(.mathematicalUniverse)
+                workspaceCard(.programmingWorld)
+                workspaceCard(.knowledgeWorld)
             }
         }
     }
 
-    private func startCard(mode: MIR4DStartMode) -> some View {
+    private func workspaceCard(_ mode: MIR4DStartMode) -> some View {
         Button { activate(mode) } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                Image(systemName: mode.icon).font(.system(size: 27)).foregroundStyle(.white)
-                Text(mode.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
-                Text(mode.description).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3)
-                Spacer(minLength: 4)
-                HStack {
-                    Text("Открыть рабочую область")
-                    Spacer()
-                    Image(systemName: "arrow.right")
+            HStack(spacing: 12) {
+                Image(systemName: mode.icon)
+                    .font(.system(size: 17))
+                    .foregroundStyle(.white)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(mode.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                    Text(mode.description)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.7))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
             }
-            .padding(19)
-            .frame(maxWidth: .infinity, minHeight: 155, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 15))
-            .background(RoundedRectangle(cornerRadius: 15).fill(Color.white.opacity(0.035)))
-            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .padding(13)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 11).fill(Color.white.opacity(0.028)))
+            .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(0.06), lineWidth: 1))
         }
         .buttonStyle(MIR4DStartCardButtonStyle())
         .help(mode.description)
     }
 
-    private var footer: some View {
-        HStack {
-            Text("Самодиагностика: \(Int(diagnostic.progress * 100))%")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("MIR 4D • Engineering Platform")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 14)
-    }
+    // MARK: - Actions
 
     private func presentOpenProject() {
         showNewProject = false
@@ -428,13 +412,11 @@ struct MIR4DStartMenuView: View {
     }
 
     private func presentNewProject() {
-        selectedMode = .newProject
         showOpenProject = false
         DispatchQueue.main.async { showNewProject = true }
     }
 
     private func activate(_ mode: MIR4DStartMode) {
-        selectedMode = mode
         switch mode {
         case .openProject: presentOpenProject()
         case .newProject: presentNewProject()
@@ -462,11 +444,40 @@ struct MIR4DStartMenuView: View {
     }
 }
 
+struct MIR4DTopBarButtonStyle: ButtonStyle {
+    let prominent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .semibold))
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(prominent ? 0.12 : 0.055))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(prominent ? 0.16 : 0.08), lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.72 : 1)
+    }
+}
+
+struct MIR4DQuietButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+            .opacity(configuration.isPressed ? 0.55 : 1)
+    }
+}
+
 struct MIR4DStartCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .opacity(configuration.isPressed ? 0.84 : 1.0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
@@ -505,16 +516,7 @@ enum MIR4DStartMode: String, CaseIterable, Identifiable {
         case .laboratory4D: return "cube.transparent"
         case .mathematicalUniverse: return "function"
         case .programmingWorld: return "chevron.left.forwardslash.chevron.right"
-        case .knowledgeWorld: return "graduationcap"
+        case .knowledgeWorld: return "books.vertical"
         }
     }
-}
-
-extension Notification.Name {
-    static let mir4DOpenProject = Notification.Name("MIR4D.OpenProject")
-    static let mir4DStartWorkspace = Notification.Name("MIR4D.StartWorkspace")
-    static let mir4DStart4DLaboratory = Notification.Name("MIR4D.Start4DLaboratory")
-    static let mir4DStartMathUniverse = Notification.Name("MIR4D.StartMathUniverse")
-    static let mir4DStartProgrammingWorld = Notification.Name("MIR4D.StartProgrammingWorld")
-    static let mir4DStartKnowledgeWorld = Notification.Name("MIR4D.StartKnowledgeWorld")
 }
