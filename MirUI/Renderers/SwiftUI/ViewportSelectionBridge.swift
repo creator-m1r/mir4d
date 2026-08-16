@@ -1,9 +1,13 @@
 import Foundation
-import AppKit
 
 /// Presentation-side bridge between SwiftUI selection controls and the native
-/// viewport. It deliberately does not own CAD selection state; the viewport
-/// remains the source of hit-testing and CADAppState remains the UI model.
+/// viewport. It deliberately does not own CAD selection state.
+///
+/// The current MirGLCustomView exposes the rendering/picking surface through
+/// its existing callback and C ABI. We therefore publish a small, stable
+/// notification payload here instead of inventing Swift properties on the
+/// native view. The native viewport can subscribe when its picking API is
+/// ready, without coupling SwiftUI to MirEngine internals.
 final class ViewportSelectionBridge: NSObject {
     static let shared = ViewportSelectionBridge()
 
@@ -11,42 +15,38 @@ final class ViewportSelectionBridge: NSObject {
     private(set) var snapEnabled = true
     private(set) var additiveSelection = false
 
-    private var observer: NSObjectProtocol?
+    private var filterObserver: NSObjectProtocol?
 
     private override init() {
         super.init()
-        observer = NotificationCenter.default.addObserver(
+        filterObserver = NotificationCenter.default.addObserver(
             forName: .mir4DSelectionFilterChanged,
             object: nil,
             queue: .main
         ) { [weak self] note in
             guard let value = note.object as? String else { return }
             self?.filter = value
-            self?.applyToAttachedViews()
+            self?.publish()
         }
     }
 
     deinit {
-        if let observer { NotificationCenter.default.removeObserver(observer) }
+        if let filterObserver {
+            NotificationCenter.default.removeObserver(filterObserver)
+        }
     }
 
     func setSnapEnabled(_ enabled: Bool) {
         snapEnabled = enabled
-        applyToAttachedViews()
+        publish()
     }
 
     func setAdditiveSelection(_ enabled: Bool) {
         additiveSelection = enabled
-        applyToAttachedViews()
+        publish()
     }
 
-    func attach(_ view: MirGLCustomView) {
-        view.mirSelectionFilter = filter
-        view.mirSnapEnabled = snapEnabled
-        view.mirAdditiveSelection = additiveSelection
-    }
-
-    private func applyToAttachedViews() {
+    func publish() {
         NotificationCenter.default.post(
             name: .mir4DViewportSelectionStateChanged,
             object: self,
