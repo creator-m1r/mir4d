@@ -259,16 +259,18 @@ namespace
     void fillPlaneColors(const mir::Plane& plane,
                          float color[3])
     {
+        // Промышленная палитра: плоскость окрашена по оси своей нормали
+        // (X=красный, Y=зелёный, Z=синий), приглушённые тона.
         switch (plane.type())
         {
             case mir::PlaneType::BaseXY:
-                color[0] = 0.0f; color[1] = 0.9f; color[2] = 1.0f; break;
+                color[0] = 0.18f; color[1] = 0.40f; color[2] = 0.80f; break; // нормаль Z — синий
             case mir::PlaneType::BaseXZ:
-                color[0] = 0.2f; color[1] = 1.0f; color[2] = 0.4f; break;
+                color[0] = 0.22f; color[1] = 0.62f; color[2] = 0.38f; break; // нормаль Y — зелёный
             case mir::PlaneType::BaseYZ:
-                color[0] = 1.0f; color[1] = 0.6f; color[2] = 0.1f; break;
+                color[0] = 0.78f; color[1] = 0.30f; color[2] = 0.26f; break; // нормаль X — красный
             default:
-                color[0] = 1.0f; color[1] = 0.85f; color[2] = 0.2f; break;
+                color[0] = 0.55f; color[1] = 0.58f; color[2] = 0.66f; break; // пользовательские — серый
         }
     }
 }
@@ -350,7 +352,7 @@ int MirEnginePlaneStoreSnapshot(void* store,
         colors[o + 1] = c[1];
         colors[o + 2] = c[2];
         sizes[i] = 10.0f;
-        active[i] = false;
+        active[i] = (p->id() == mir::kBasePlaneXY);
         selected[i] = false;
     }
     return count;

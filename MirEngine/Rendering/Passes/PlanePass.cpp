@@ -22,6 +22,7 @@
 #endif
 
 #include <iostream>
+#include <cmath>
 
 namespace MirEngine::Rendering
 {
@@ -71,13 +72,33 @@ Matrix4Raw matrixToRaw(const mir::Matrix4& m)
     return r;
 }
 
-std::uint32_t countHighlighted(const std::vector<PlaneRenderData>& planes)
+float niceStepLocal(double target)
 {
-    std::uint32_t n = 0;
-    for (const auto& p : planes)
-        if (p.active || p.selected)
-            ++n;
-    return n;
+    if (target <= 0.0) return 1.0;
+    const double exp = std::floor(std::log10(target));
+    const double base = std::pow(10.0, exp);
+    const double f = target / base;
+    double nice = 1.0;
+    if (f >= 5.0) nice = 10.0;
+    else if (f >= 2.0) nice = 5.0;
+    else if (f >= 1.0) nice = 2.0;
+    return static_cast<float>(nice * base);
+}
+
+// Половинный размер плоскости адаптируется под зум камеры, чтобы плоскости
+// визуально совмещались с адаптивной сеткой GridPass (ТЗ Этап 1, отображение).
+float adaptivePlaneHalfExtent(const RenderContext& context)
+{
+    const float* cp = context.cameraPosition;
+    const double camDist = std::sqrt(double(cp[0]) * cp[0] + double(cp[1]) * cp[1] + double(cp[2]) * cp[2]);
+    const float stepVal = niceStepLocal(camDist * 0.1);
+    // Ограничиваем половинный размер: плоскость должна быть заметной, но не
+    // закрывать весь вид при удалённой камере (иначе после клиппинга —
+    // "лепестки").
+    float s = stepVal;
+    s = std::min(s, 60.0f);
+    s = std::max(s, 8.0f);
+    return s;
 }
 
 } // namespace
@@ -97,7 +118,8 @@ bool PlanePass::createShaders()
 }
 
 void PlanePass::buildDynamicGeometry(RenderDevice& device,
-                                     const std::vector<PlaneRenderData>& planes)
+                                     const std::vector<PlaneRenderData>& planes,
+                                     float sizeScale)
 {
     std::vector<Vertex> verts;
     std::vector<uint32_t> indices;
@@ -118,11 +140,11 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
     for (const auto& p : planes)
     {
         const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
-        const mir::Vector3 nx{p.xAxis[0], p.xAxis[1], p.xAxis[2]};
-        const mir::Vector3 ny{p.yAxis[0], p.yAxis[1], p.yAxis[2]};
-        const mir::Vector3 n{p.normal[0], p.normal[1], p.normal[2]};
-        const float s = p.size;
-        const float surfaceA = p.active ? 0.22f : (p.selected ? 0.18f : 0.10f);
+        const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
+        const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
+        const mir::Vector3 n = mir::Vector3{p.normal[0], p.normal[1], p.normal[2]}.normalized();
+        const float s = sizeScale;
+        const float surfaceA = p.active ? 0.16f : (p.selected ? 0.12f : 0.05f);
         const float r = p.color[0], g = p.color[1], b = p.color[2];
 
         // Рабочая поверхность (2 треугольника).
@@ -151,21 +173,24 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
         push(oy.x, oy.y, oy.z, 0.20f, 0.70f, 0.30f, 1.0f);
         push(o.x, o.y, o.z, 0.22f, 0.34f, 0.95f, 1.0f);
         push(on.x, on.y, on.z, 0.22f, 0.34f, 0.95f, 1.0f);
+        // 3 отрезка осей: (o->ox), (o->oy), (o->on) = 6 вершин.
         uint32_t lineBase = base;
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 6; ++i)
             indices.push_back(lineBase + static_cast<uint32_t>(i));
-        base += 5;
+        base += 6;
 
-        if (p.active || p.selected)
+        // Контур плоскости рисуется всегда (промышленный стиль), активная/
+        // выбранная — ярче.
         {
-            push(c00.x, c00.y, c00.z, r, g, b, 1.0f);
-            push(c10.x, c10.y, c10.z, r, g, b, 1.0f);
-            push(c10.x, c10.y, c10.z, r, g, b, 1.0f);
-            push(c11.x, c11.y, c11.z, r, g, b, 1.0f);
-            push(c11.x, c11.y, c11.z, r, g, b, 1.0f);
-            push(c01.x, c01.y, c01.z, r, g, b, 1.0f);
-            push(c01.x, c01.y, c01.z, r, g, b, 1.0f);
-            push(c00.x, c00.y, c00.z, r, g, b, 1.0f);
+            const float borderA = p.active ? 1.0f : (p.selected ? 0.95f : 0.7f);
+            push(c00.x, c00.y, c00.z, r, g, b, borderA);
+            push(c10.x, c10.y, c10.z, r, g, b, borderA);
+            push(c10.x, c10.y, c10.z, r, g, b, borderA);
+            push(c11.x, c11.y, c11.z, r, g, b, borderA);
+            push(c11.x, c11.y, c11.z, r, g, b, borderA);
+            push(c01.x, c01.y, c01.z, r, g, b, borderA);
+            push(c01.x, c01.y, c01.z, r, g, b, borderA);
+            push(c00.x, c00.y, c00.z, r, g, b, borderA);
             uint32_t b2 = base;
             for (int i = 0; i < 8; ++i)
                 indices.push_back(b2 + static_cast<uint32_t>(i));
@@ -205,7 +230,7 @@ void PlanePass::execute(RenderContext& context,
     if (!m_initialized || context.planes.empty())
         return;
 
-    buildDynamicGeometry(device, context.planes);
+    buildDynamicGeometry(device, context.planes, adaptivePlaneHalfExtent(context));
 
     const mir::Matrix4 vp = rawToMatrix(context.viewProjectionMatrix);
     const Matrix4Raw vpRaw = matrixToRaw(vp);
@@ -223,9 +248,7 @@ void PlanePass::execute(RenderContext& context,
     glDrawElements(GL_TRIANGLES, triCount * 3, GL_UNSIGNED_INT, nullptr);
 
     const std::uint32_t triIndices = triCount * 3;
-    const std::uint32_t highlighted = countHighlighted(context.planes);
-    const std::uint32_t lineTotal = static_cast<std::uint32_t>(context.planes.size()) * 5 +
-                                     highlighted * 8;
+    const std::uint32_t lineTotal = static_cast<std::uint32_t>(context.planes.size()) * (6 + 8);
     if (lineTotal > 0)
     {
         const auto* offset = reinterpret_cast<const void*>(

@@ -53,7 +53,8 @@ private:
 
     bool createShaders();
     void buildDynamicGeometry(RenderDevice& device,
-                              const std::vector<PlaneRenderData>& planes);
+                              const std::vector<PlaneRenderData>& planes,
+                              float sizeScale);
 };
 
 } // namespace MirEngine::Rendering
