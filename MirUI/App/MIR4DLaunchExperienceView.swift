@@ -78,6 +78,7 @@ struct MIR4DLaunchExperienceView: View {
                 Text("Мечтай · Изобретай · Развивай").font(.system(size: 12)).foregroundStyle(.white.opacity(0.52))
             }
             Spacer()
+
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     Circle().fill(.blue).frame(width: 6, height: 6)
@@ -85,10 +86,37 @@ struct MIR4DLaunchExperienceView: View {
                     Spacer()
                     Text("\(Int(boot.progress * 100))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
                 }
-                Text(boot.currentTitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78)).lineLimit(1)
-                ProgressView(value: boot.progress, total: 1).tint(.blue).animation(.easeInOut(duration: 0.2), value: boot.progress)
+
+                ForEach(Array(boot.steps.prefix(4))) { step in
+                    HStack(spacing: 7) {
+                        Image(systemName: diagnosticIcon(step.severity))
+                            .font(.system(size: 9))
+                            .foregroundStyle(diagnosticColor(step.severity))
+                            .frame(width: 12)
+                        Text(step.title)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.66))
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(step.detail)
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.42))
+                            .lineLimit(1)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                Text(boot.currentTitle)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.40))
+                    .lineLimit(1)
+
+                ProgressView(value: boot.progress, total: 1)
+                    .tint(.blue)
+                    .animation(.easeInOut(duration: 0.2), value: boot.progress)
             }
-            .padding(.horizontal, 32).padding(.bottom, 34)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 34)
         }
         .background(RoundedRectangle(cornerRadius: 12).fill(
             LinearGradient(colors: [Color(red: 0.035, green: 0.055, blue: 0.085), Color(red: 0.008, green: 0.012, blue: 0.020)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -99,6 +127,24 @@ struct MIR4DLaunchExperienceView: View {
         .offset(x: diagnosticsLeaving ? -70 : 0)
         .opacity(diagnosticsLeaving ? 0.15 : 1)
         .animation(.easeInOut(duration: 0.62), value: diagnosticsLeaving)
+    }
+
+    private func diagnosticIcon(_ severity: MIR4DBootCoordinator.Severity) -> String {
+        switch severity {
+        case .success: return "checkmark.circle.fill"
+        case .warning: return "exclamationmark.circle.fill"
+        case .error: return "xmark.circle.fill"
+        case .info: return "circle"
+        }
+    }
+
+    private func diagnosticColor(_ severity: MIR4DBootCoordinator.Severity) -> Color {
+        switch severity {
+        case .success: return .blue
+        case .warning: return .yellow
+        case .error: return .red
+        case .info: return .white.opacity(0.28)
+        }
     }
 
     private func startBoot() {
