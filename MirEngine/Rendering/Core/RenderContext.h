@@ -97,6 +97,14 @@ public:
     std::uint64_t selectionFaceId{0};
 
     // ==========================================================================
+    // Hover
+    // ==========================================================================
+
+    // Object id currently under the cursor (hover). The geometry pass applies
+    // a subtler tint than the selection highlight. Zero means no hover.
+    std::uint64_t hoverObjectId{0};
+
+    // ==========================================================================
     // Methods
     // ==========================================================================
 
@@ -155,6 +163,12 @@ public:
         selectionFaceId = faceId;
     }
 
+    // Sets the object id under the cursor (hover highlight).
+    void setHover(std::uint64_t objectId) noexcept
+    {
+        hoverObjectId = objectId;
+    }
+
     // Resets every value to its default.
     void reset() noexcept
     {
@@ -173,6 +187,7 @@ public:
         selectionIds = nullptr;
         selectionObjectId = 0;
         selectionFaceId = 0;
+        hoverObjectId = 0;
     }
 
 private:

@@ -54,6 +54,42 @@ final class MIR4DModelRuntime: ObservableObject {
         return nil
     }
 
+    /// Removes a body (with its operations and geometry) from the persisted
+    /// model after the MirEngine scene deleted the object. MirEngine Scene is
+    /// the source of truth; this keeps the navigation tree in sync.
+    @discardableResult
+    func removeBody(forViewportObjectID objectID: UInt64) -> Bool {
+        guard let bodyID = persistedBodyID(forViewportEngineObjectID: objectID) else {
+            return false
+        }
+
+        let operationIDs = document.operations
+            .filter { $0.bodyID == bodyID }
+            .map(\.id)
+        let geometryIDs = document.geometry
+            .filter { geometry in
+                guard let operationID = geometry.operationID else { return false }
+                return operationIDs.contains(operationID)
+            }
+            .map(\.id)
+
+        document.geometry.removeAll { geometry in
+            geometryIDs.contains(geometry.id)
+        }
+        document.operations.removeAll { $0.bodyID == bodyID }
+        document.bodies.removeAll { $0.id == bodyID }
+        document.root.removeChild(id: bodyID)
+
+        for geometryID in geometryIDs {
+            engineObjectIDs.removeValue(forKey: geometryID)
+        }
+        viewportObjectIDs.removeValue(forKey: bodyID)
+
+        revision &+= 1
+        publishChange()
+        return true
+    }
+
     private init() {
         document = MIR4DModelDocument.newProject(name: "Новый проект")
 #if !MIR4D_SWIFTPM

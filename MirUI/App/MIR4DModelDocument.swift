@@ -79,6 +79,14 @@ struct MIR4DModelNode: Codable, Equatable, Identifiable {
     var title: String
     var kind: Kind
     var children: [MIR4DModelNode] = []
+
+    /// Removes a descendant node by id, keeping the tree structure intact.
+    mutating func removeChild(id: UUID) {
+        children.removeAll { $0.id == id }
+        for index in children.indices {
+            children[index].removeChild(id: id)
+        }
+    }
 }
 
 struct MIR4DBody: Codable, Equatable, Identifiable {

@@ -17,6 +17,10 @@ struct ViewportState
     ViewportController controller{&camera};
     SelectionState selection{};
 
+    // Object id currently under the cursor (hover). Invalid when the cursor
+    // is over empty space. Hover never mutates selection.
+    mir4d::ObjectId hoveredObjectId{mir4d::InvalidObjectId};
+
     std::uint32_t width{1};
     std::uint32_t height{1};
 

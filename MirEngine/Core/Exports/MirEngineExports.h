@@ -181,12 +181,62 @@ void MirEngineViewportClick(
     bool addToSelection
 );
 
+// Updates the hover state from the cursor position. The hovered object
+// receives a subtler highlight than the selection; hovering never changes
+// the selection set.
+void MirEngineViewportHover(
+    void* viewport,
+    float x,
+    float y
+);
+
+// Clears the hover state (cursor left the viewport).
+void MirEngineViewportHoverClear(
+    void* viewport
+);
+
 
 // ------------------------------------------------------------
 // Selection
 // ------------------------------------------------------------
 
 uint64_t MirEngineGetSelectedObjectId(
+    void* viewport
+);
+
+// Deletes the primary selection through the canonical Scene API. The
+// renderer observes the scene change; nothing is removed from the renderer
+// directly. Returns true when an object was removed.
+bool MirEngineDeleteSelectedObject(
+    void* viewport
+);
+
+// Clears the selection set without modifying the scene.
+void MirEngineClearSelection(
+    void* viewport
+);
+
+// Aborts an active object drag and restores the drag-start transform (Esc).
+// No history entry is created.
+void MirEngineViewportDragCancel(
+    void* viewport
+);
+
+// Undo / Redo of scene commands (Move / Delete). Returns true when a
+// command was reverted / reapplied.
+bool MirEngineUndo(
+    void* viewport
+);
+
+bool MirEngineRedo(
+    void* viewport
+);
+
+bool MirEngineCanUndo(
+    void* viewport
+);
+
+bool MirEngineCanRedo(
     void* viewport
 );
 

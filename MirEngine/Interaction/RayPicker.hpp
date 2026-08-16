@@ -112,7 +112,10 @@ public:
         const Matrix4 inverse = (projection * view).inverse();
 
         const Scalar ndcX = (Scalar(2) * screenX / Scalar(viewportWidth)) - Scalar(1);
-        const Scalar ndcY = Scalar(1) - (Scalar(2) * screenY / Scalar(viewportHeight));
+        // screenY arrives in view-local space with the origin at the bottom
+        // (AppKit NSView / OpenGL framebuffer convention, y increasing upward),
+        // matching the renderer: NDC y = +1 maps to the top of the viewport.
+        const Scalar ndcY = (Scalar(2) * screenY / Scalar(viewportHeight)) - Scalar(1);
 
         const Vector4 nearClip{ndcX, ndcY, Scalar(-1), Scalar(1)};
         const Vector4 farClip{ndcX, ndcY, Scalar(1), Scalar(1)};

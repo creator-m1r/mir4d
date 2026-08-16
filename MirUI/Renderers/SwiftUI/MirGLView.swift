@@ -1127,9 +1127,35 @@ final class MirGLCustomView: NSView {
 
         if event.keyCode == 53 {
 
-            endRadialMenu(
-                commit: false
-            )
+            if radialMenuActive {
+
+                endRadialMenu(
+                    commit: false
+                )
+
+                return
+            }
+
+            cancelDragOrClearSelection()
+
+            return
+        }
+
+        if event.keyCode == 51 ||
+            event.keyCode == 117 {
+
+            deleteSelectedObject()
+
+            return
+        }
+
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "z" {
+
+            let isShift =
+                event.modifierFlags.contains(.shift)
+
+            undoOrRedo(isShift: isShift)
 
             return
         }
@@ -1298,6 +1324,81 @@ final class MirGLCustomView: NSView {
 
         forwardMouseMove(event)
         publishCameraOrientation()
+    }
+
+    // MARK: Hover
+
+    override func updateTrackingAreas() {
+
+        super.updateTrackingAreas()
+
+        trackingAreas.forEach {
+            removeTrackingArea($0)
+        }
+
+        let trackingArea =
+            NSTrackingArea(
+                rect: .zero,
+                options: [
+                    .activeInKeyWindow,
+                    .mouseMoved,
+                    .mouseEnteredAndExited,
+                    .inVisibleRect
+                ],
+                owner: self,
+                userInfo: nil
+            )
+
+        addTrackingArea(trackingArea)
+    }
+
+    override func mouseMoved(
+        with event: NSEvent
+    ) {
+
+        if radialMenuActive {
+            return
+        }
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        let localPoint =
+            convert(
+                event.locationInWindow,
+                from: nil
+            )
+
+        let point =
+            enginePoint(localPoint)
+
+        MirEngineViewportHover(
+            viewport,
+            point.0,
+            point.1
+        )
+    }
+
+    override func mouseExited(
+        with event: NSEvent
+    ) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        MirEngineViewportHoverClear(viewport)
     }
 
     override func rightMouseDown(
@@ -1563,6 +1664,89 @@ final class MirGLCustomView: NSView {
     }
 
     // MARK: Engine mouse forwarding
+
+    /// Esc handling: abort an active drag first, otherwise clear the selection.
+    private func cancelDragOrClearSelection() {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        MirEngineViewportDragCancel(viewport)
+
+        let objectID =
+            MirEngineGetSelectedObjectId(viewport)
+
+        if objectID != 0 {
+
+            MirEngineClearSelection(viewport)
+
+            onSelectionChanged?(0)
+        }
+    }
+
+    /// Delete / Backspace: remove the primary selection through MirEngine.
+    private func deleteSelectedObject() {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        let objectID =
+            MirEngineGetSelectedObjectId(viewport)
+
+        let removed =
+            MirEngineDeleteSelectedObject(viewport)
+
+        guard removed else {
+            return
+        }
+
+        // Keep the persisted model (navigation tree) in sync with the scene.
+        if objectID > 0 {
+            MIR4DModelRuntime.shared.removeBody(
+                forViewportObjectID: objectID
+            )
+        }
+
+        onSelectionChanged?(0)
+    }
+
+    /// Cmd+Z (undo) / Cmd+Shift+Z (redo) of scene commands.
+    private func undoOrRedo(isShift: Bool) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+            return
+        }
+
+        let applied =
+            isShift
+            ? MirEngineRedo(viewport)
+            : MirEngineUndo(viewport)
+
+        guard applied else {
+            return
+        }
+
+        // The scene may have changed identity; drop the stale selection so
+        // the UI (properties panel) reflects the reverted state.
+        onSelectionChanged?(0)
+    }
 
     private func forwardMouseDown(
         _ event: NSEvent

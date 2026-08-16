@@ -527,22 +527,7 @@ void MirEngineViewportMouseDown(
     if (!native || !native->runtime)
         return;
 
-    constexpr int leftButton = 0;
-    constexpr int middleButton = 1;
-    constexpr int rightButton = 2;
-
-    if (button == leftButton)
-    {
-        native->runtime->beginOrbit(x, y);
-    }
-    else if (button == middleButton)
-    {
-        native->runtime->beginPan(x, y);
-    }
-    else if (button == rightButton)
-    {
-        native->runtime->beginPan(x, y);
-    }
+    native->runtime->handleMouseDown(button, x, y);
 }
 
 
@@ -553,17 +538,13 @@ void MirEngineViewportMouseUp(
     float y
 )
 {
-    (void)button;
-    (void)x;
-    (void)y;
-
     auto* native =
         asViewport(viewport);
 
     if (!native || !native->runtime)
         return;
 
-    native->runtime->endInteraction();
+    native->runtime->handleMouseUp(button, x, y);
 }
 
 
@@ -579,7 +560,7 @@ void MirEngineViewportMouseMove(
     if (!native || !native->runtime)
         return;
 
-    native->runtime->move(x, y);
+    native->runtime->handleMouseMove(x, y);
 }
 
 
@@ -668,6 +649,36 @@ void MirEngineViewportClick(
 }
 
 
+void MirEngineViewportHover(
+    void* viewport,
+    float x,
+    float y
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->updateHover(x, y);
+}
+
+
+void MirEngineViewportHoverClear(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->clearHover();
+}
+
+
 // ------------------------------------------------------------
 // Selection
 // ------------------------------------------------------------
@@ -685,6 +696,109 @@ uint64_t MirEngineGetSelectedObjectId(
     return static_cast<uint64_t>(
         native->runtime->state().selection.primary()
     );
+}
+
+
+// Deletes the primary selection through the canonical Scene API.
+// The renderer observes the scene change; nothing is removed from the
+// renderer directly.
+bool MirEngineDeleteSelectedObject(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    return native->runtime->deleteSelectedObject();
+}
+
+
+// Clears the selection set without modifying the scene.
+void MirEngineClearSelection(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->clearSelection();
+}
+
+
+// Aborts an active drag and restores the drag-start transform (Esc).
+void MirEngineViewportDragCancel(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->cancelDrag();
+}
+
+
+bool MirEngineUndo(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    return native->runtime->undo();
+}
+
+
+bool MirEngineRedo(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    return native->runtime->redo();
+}
+
+
+bool MirEngineCanUndo(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    return native->runtime->canUndo();
+}
+
+
+bool MirEngineCanRedo(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    return native->runtime->canRedo();
 }
 
 

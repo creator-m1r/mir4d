@@ -5,6 +5,7 @@
 #include "MirEngine/Rendering/Renderer.h"
 #include "MirEngine/Rendering/Core/RenderContext.h"
 #include "MirEngine/Rendering/Material/MaterialLibrary.hpp"
+#include "MirEngine/Document/SceneCommandHistory.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -32,6 +33,8 @@ public:
     {
         scene_ = scene;
         state_.selection.clear();
+        state_.hoveredObjectId = mir4d::InvalidObjectId;
+        history_.clear();
     }
 
     [[nodiscard]] Scene* scene() const noexcept { return scene_; }
@@ -52,6 +55,171 @@ public:
     void zoom(Scalar delta) noexcept { state_.controller.zoom(delta); }
     void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
     void orbitBy(Scalar dx, Scalar dy) noexcept { state_.controller.orbitBy(dx, dy); }
+
+    // ── Manipulation: Hover → Selection → Drag ─────────────────────────
+    //
+    // Left-button down on an already selected object arms a move-drag
+    // candidate; the camera stays locked until the drag threshold is crossed
+    // (a plain click keeps selection untouched and lets the UI run its own
+    // pick). Left-button down on empty space or an unselected object falls
+    // back to orbit. Middle/right buttons keep their pan behavior.
+
+    void handleMouseDown(int button, Scalar x, Scalar y) noexcept
+    {
+        state_.controller.end();
+        dragging_ = false;
+        dragCandidateId_ = mir4d::InvalidObjectId;
+
+        constexpr int leftButton = 0;
+        if (button == leftButton)
+        {
+            const PickResult result = pick(x, y);
+            if (result.hit() &&
+                scene_ &&
+                state_.selection.contains(result.objectId))
+            {
+                dragCandidateId_ = result.objectId;
+                dragStartX_ = x;
+                dragStartY_ = y;
+                const auto node = scene_->find(result.objectId);
+                dragStartTransform_ =
+                    node ? node->transform() : Transform::identity();
+                return;
+            }
+            state_.controller.beginOrbit(x, y);
+            return;
+        }
+
+        state_.controller.beginPan(x, y);
+    }
+
+    void handleMouseMove(Scalar x, Scalar y) noexcept
+    {
+        if (dragging_)
+        {
+            updateDrag(x, y);
+            return;
+        }
+
+        if (mir4d::isValidObjectId(dragCandidateId_))
+        {
+            const Scalar dx = x - dragStartX_;
+            const Scalar dy = y - dragStartY_;
+            constexpr Scalar kDragThresholdSquared = Scalar(6) * Scalar(6);
+            if (dx * dx + dy * dy > kDragThresholdSquared)
+            {
+                dragging_ = true;
+                updateDrag(x, y);
+            }
+            return;
+        }
+
+        state_.controller.move(x, y);
+    }
+
+    void handleMouseUp(int button, Scalar x, Scalar y) noexcept
+    {
+        (void)button;
+        (void)x;
+        (void)y;
+
+        // A finished drag commits exactly one Move operation; a drag over N
+        // frames never produces N history entries.
+        if (dragging_ && scene_ &&
+            mir4d::isValidObjectId(dragCandidateId_))
+        {
+            const auto node = scene_->find(dragCandidateId_);
+            if (node && node->transform() != dragStartTransform_)
+            {
+                history_.execute(
+                    std::make_unique<mir4d::MoveObjectCommand>(
+                        dragCandidateId_,
+                        dragStartTransform_,
+                        node->transform()),
+                    *scene_);
+            }
+        }
+
+        dragging_ = false;
+        dragCandidateId_ = mir4d::InvalidObjectId;
+        state_.controller.end();
+    }
+
+    /// Aborts an active drag and restores the transform captured at drag start
+    /// (Esc during manipulation). No history entry is created.
+    void cancelDrag() noexcept
+    {
+        if (!scene_ || !mir4d::isValidObjectId(dragCandidateId_))
+        {
+            dragging_ = false;
+            dragCandidateId_ = mir4d::InvalidObjectId;
+            state_.controller.end();
+            return;
+        }
+
+        if (auto node = scene_->find(dragCandidateId_))
+            node->setTransform(dragStartTransform_);
+        dragging_ = false;
+        dragCandidateId_ = mir4d::InvalidObjectId;
+        state_.controller.end();
+    }
+
+    [[nodiscard]] bool isDragging() const noexcept { return dragging_; }
+
+    /// Removes the primary selection from the scene through the command
+    /// history (undoable). MirEngine Scene is the single source of truth;
+    /// the renderer just observes the changed scene.
+    bool deleteSelectedObject() noexcept
+    {
+        if (!scene_)
+            return false;
+
+        const mir4d::ObjectId primary = state_.selection.primary();
+        if (!mir4d::isValidObjectId(primary))
+            return false;
+
+        const auto node = scene_->find(primary);
+        if (!node)
+            return false;
+
+        history_.execute(
+            std::make_unique<mir4d::DeleteObjectCommand>(node),
+            *scene_);
+
+        state_.selection.deselect(primary);
+        if (state_.hoveredObjectId == primary)
+            state_.hoveredObjectId = mir4d::InvalidObjectId;
+        return true;
+    }
+
+    /// Clears the selection set without touching the scene.
+    void clearSelection() noexcept
+    {
+        state_.selection.clear();
+    }
+
+    // ── Undo / Redo ─────────────────────────────────────────────────────
+
+    bool undo() noexcept
+    {
+        if (!scene_ || !history_.undo(*scene_))
+            return false;
+        state_.selection.clear();
+        state_.hoveredObjectId = mir4d::InvalidObjectId;
+        return true;
+    }
+
+    bool redo() noexcept
+    {
+        if (!scene_ || !history_.redo(*scene_))
+            return false;
+        state_.selection.clear();
+        state_.hoveredObjectId = mir4d::InvalidObjectId;
+        return true;
+    }
+
+    [[nodiscard]] bool canUndo() const noexcept { return history_.canUndo(); }
+    [[nodiscard]] bool canRedo() const noexcept { return history_.canRedo(); }
 
     void setProjection(CameraProjection projection) noexcept
     {
@@ -76,6 +244,30 @@ public:
         if (!scene_)
             return {};
         return state_.pick(*scene_, x, y);
+    }
+
+    /// Recomputes the hovered object from the cursor position.
+    /// Hover is purely presentational: it never mutates selection.
+    void updateHover(Scalar x, Scalar y) noexcept
+    {
+        if (!scene_)
+        {
+            state_.hoveredObjectId = mir4d::InvalidObjectId;
+            return;
+        }
+        const PickResult result = state_.pick(*scene_, x, y);
+        state_.hoveredObjectId =
+            result.hit() ? result.objectId : mir4d::InvalidObjectId;
+    }
+
+    void clearHover() noexcept
+    {
+        state_.hoveredObjectId = mir4d::InvalidObjectId;
+    }
+
+    [[nodiscard]] mir4d::ObjectId hoveredObjectId() const noexcept
+    {
+        return state_.hoveredObjectId;
     }
 
     /// Assigns a MaterialLibrary material id to an object.
@@ -235,6 +427,8 @@ public:
             context.setSelection(&state_.selection.ids());
         }
 
+        context.setHover(static_cast<std::uint64_t>(state_.hoveredObjectId));
+
         renderer_->render(*scene_, context);
     }
 
@@ -248,10 +442,78 @@ private:
         return result;
     }
 
+    /// Projects the cursor ray onto the horizontal work plane (Y = planeY)
+    /// used by the active drag. The ground plane is XZ for the Y-up camera.
+    [[nodiscard]] static bool rayPlaneIntersection(const PickRay& ray,
+                                                   Scalar planeY,
+                                                   Point3& hit) noexcept
+    {
+        if (std::abs(ray.direction.y) <= Scalar(1e-9))
+            return false;
+        const Scalar t = (planeY - ray.origin.y) / ray.direction.y;
+        if (t < Scalar(0))
+            return false;
+        hit = Point3{
+            ray.origin.x + ray.direction.x * t,
+            planeY,
+            ray.origin.z + ray.direction.z * t};
+        return true;
+    }
+
+    /// Moves the drag candidate on the work plane. The delta is computed
+    /// against the drag-start ray projection, so errors never accumulate
+    /// frame over frame: current transform = dragStartTransform + delta.
+    void updateDrag(Scalar x, Scalar y) noexcept
+    {
+        if (!scene_)
+        {
+            dragging_ = false;
+            dragCandidateId_ = mir4d::InvalidObjectId;
+            return;
+        }
+
+        auto node = scene_->find(dragCandidateId_);
+        if (!node)
+        {
+            dragging_ = false;
+            dragCandidateId_ = mir4d::InvalidObjectId;
+            return;
+        }
+
+        const PickRay currentRay = RayPicker::buildRay(
+            state_.camera, x, y, state_.width, state_.height);
+        const PickRay startRay = RayPicker::buildRay(
+            state_.camera, dragStartX_, dragStartY_, state_.width, state_.height);
+        if (currentRay.direction.isZero() || startRay.direction.isZero())
+            return;
+
+        const Scalar planeY = dragStartTransform_.position.y;
+        Point3 currentHit{};
+        Point3 startHit{};
+        if (!rayPlaneIntersection(currentRay, planeY, currentHit) ||
+            !rayPlaneIntersection(startRay, planeY, startHit))
+            return;
+
+        Transform updated = dragStartTransform_;
+        updated.position.x += currentHit.x - startHit.x;
+        updated.position.y += currentHit.y - startHit.y;
+        updated.position.z += currentHit.z - startHit.z;
+        node->setTransform(updated);
+    }
+
     MirEngine::Rendering::Renderer* renderer_{nullptr};
     Scene* scene_{nullptr};
     ViewportState state_{};
     MirEngine::Rendering::RenderContext renderContext_{};
+    mir4d::SceneCommandHistory history_{};
+
+    // Move-manipulation state. dragStartTransform_ keeps the transform
+    // captured when the drag was armed, so Esc restores it exactly.
+    mir4d::ObjectId dragCandidateId_{mir4d::InvalidObjectId};
+    Scalar dragStartX_{0};
+    Scalar dragStartY_{0};
+    Transform dragStartTransform_{Transform::identity()};
+    bool dragging_{false};
 };
 
 } // namespace mir

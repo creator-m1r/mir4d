@@ -36,7 +36,9 @@ class Shader;
 ///     selection tint;
 ///   - when the context carries a source face id (selectionFaceId), only the
 ///     triangles of that face are tinted instead of the whole object
-///     (drawn as an overlay pass with depth func LessEqual).
+///     (drawn as an overlay pass with depth func LessEqual);
+///   - the object under the cursor (RenderContext hoverObjectId) gets a
+///     subtler hover tint unless it is already selected.
 class GeometryPass final : public RenderPass
 {
 public:
@@ -77,7 +79,8 @@ private:
                      RenderContext& context,
                      RenderDevice& device,
                      Shader* shader,
-                     bool selected);
+                     bool selected,
+                     bool hovered);
 
     void rebuildSceneCache(mir::Scene& scene, RenderDevice& device);
     void uploadMesh(const mir::ModelNode& node,

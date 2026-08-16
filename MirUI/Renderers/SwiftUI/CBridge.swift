@@ -70,6 +70,15 @@ public func MirEngineViewportZoomAt(_ viewport: UnsafeMutableRawPointer?, _ delt
 public func MirEngineViewportPan(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float) {}
 public func MirEngineViewportOrbit(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float) {}
 public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool) {}
+public func MirEngineViewportHover(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float) {}
+public func MirEngineViewportHoverClear(_ viewport: UnsafeMutableRawPointer?) {}
+public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+public func MirEngineClearSelection(_ viewport: UnsafeMutableRawPointer?) {}
+public func MirEngineViewportDragCancel(_ viewport: UnsafeMutableRawPointer?) {}
+public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyOpenGLContext") public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?)
@@ -104,6 +113,15 @@ public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Fl
 @_silgen_name("MirEngineViewportPan") public func MirEngineViewportPan(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
 @_silgen_name("MirEngineViewportOrbit") public func MirEngineViewportOrbit(_ viewport: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
 @_silgen_name("MirEngineViewportClick") public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool)
+@_silgen_name("MirEngineViewportHover") public func MirEngineViewportHover(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float)
+@_silgen_name("MirEngineViewportHoverClear") public func MirEngineViewportHoverClear(_ viewport: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineDeleteSelectedObject") public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineClearSelection") public func MirEngineClearSelection(_ viewport: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineViewportDragCancel") public func MirEngineViewportDragCancel(_ viewport: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineUndo") public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineRedo") public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineCanUndo") public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineCanRedo") public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 #endif
 
 // MARK: - Live document bridge

@@ -83,6 +83,7 @@ uniform vec3 u_emission;
 uniform float u_opacity;
 
 uniform int u_selected;
+uniform int u_hover;
 
 const float PI = 3.14159265359;
 
@@ -165,6 +166,13 @@ void main() {
     {
         const vec3 selectionColor = vec3(1.0, 0.62, 0.16);
         color = mix(color, selectionColor, 0.42);
+        color = clamp(color, vec3(0.0), vec3(1.0));
+    }
+    else if (u_hover != 0)
+    {
+        // Hover highlight: cool cyan tint, subtler than selection.
+        const vec3 hoverColor = vec3(0.35, 0.85, 1.0);
+        color = mix(color, hoverColor, 0.22);
         color = clamp(color, vec3(0.0), vec3(1.0));
     }
 
@@ -324,7 +332,10 @@ void GeometryPass::execute(RenderContext& context,
             }
         }
 
-        processNode(*node, context, device, shader.get(), selected);
+        const bool hovered =
+            !selected && context.hoverObjectId == node->id();
+
+        processNode(*node, context, device, shader.get(), selected, hovered);
     }
 
     // Face-level highlight overlay: drawn after the object geometry with the
@@ -434,7 +445,8 @@ void GeometryPass::processNode(const mir::ModelNode& node,
                                RenderContext& context,
                                RenderDevice& device,
                                Shader* shader,
-                               bool selected)
+                               bool selected,
+                               bool hovered)
 {
     const auto cached = m_objectToHandle.find(node.id());
     if (cached == m_objectToHandle.end())
@@ -453,6 +465,7 @@ void GeometryPass::processNode(const mir::ModelNode& node,
 
     applyMaterialUniforms(shader, material);
     shader->setInt("u_selected", selected ? 1 : 0);
+    shader->setInt("u_hover", hovered ? 1 : 0);
 
     RenderCommand command;
     command.mesh = cached->second;

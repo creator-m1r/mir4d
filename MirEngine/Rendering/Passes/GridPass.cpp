@@ -1,3 +1,16 @@
+// MirEngine/Rendering/Passes/GridPass.cpp
+// =================================================================================
+// Engineering grid overlay.
+//
+// The grid is rebuilt on the CPU every frame as line quads. All geometry lives
+// in camera-relative coordinates (world - camera position, computed in double
+// precision) and is transformed by two separate uniforms:
+//     gl_Position = u_projection * u_view * vec4(aPos, 1.0)
+// where u_view is the rotation-only camera view matrix. This matches the
+// GeometryPass contract, so the grid and the objects share the same math and
+// cannot diverge.
+// =================================================================================
+
 #include "GridPass.h"
 #include "../OpenGL/OpenGLShader.h"
 #include "../Resources/VertexArray.h"
@@ -24,7 +37,7 @@ namespace MirEngine::Rendering
 namespace
 {
 
-// Full-screen background quad in NDC.
+// Full-screen background quad in NDC (drawn without a matrix).
 constexpr float kBgQuadVertices[] = {
     -1.0f, -1.0f, 1.0f,
      1.0f, -1.0f, 1.0f,
@@ -39,24 +52,24 @@ struct GridSegment
 {
     double p0[3]{0.0, 0.0, 0.0};
     double p1[3]{0.0, 0.0, 0.0};
-    float color[3]{0.22f, 0.25f, 0.30f};
-    float alpha0{0.5f};
-    float alpha1{0.5f};
-    float widthPx{1.0f};
+    float color[3]{0.45f, 0.50f, 0.58f};
+    float alpha0{0.75f};
+    float alpha1{0.75f};
+    float widthPx{2.5f};
 };
 
 } // namespace
 
-// Line vertex shader. Vertices arrive camera-relative (world - camera
-// position, computed in double on the CPU), u_viewProj is the full projection
-// times the rotation-only view matrix, so all GPU numbers stay small.
+// Line vertex shader. u_view is the rotation-only view matrix, u_projection is
+// the projection matrix. Vertices are camera-relative.
 static const char* kLineVS = R"(
 #version 410 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
 layout (location = 2) in vec2 aParams; // x = alpha, y = side profile (-1..1)
 
-uniform mat4 u_viewProj;
+uniform mat4 u_view;
+uniform mat4 u_projection;
 
 out vec3 v_color;
 out float v_alpha;
@@ -66,12 +79,11 @@ void main() {
     v_color = aColor;
     v_alpha = aParams.x;
     v_side = aParams.y;
-    gl_Position = u_viewProj * vec4(aPos, 1.0);
+    gl_Position = u_projection * u_view * vec4(aPos, 1.0);
 }
 )";
 
-// Soft alpha edge across the line width: the quad is ~1-2 px wide, the side
-// profile grades the alpha, so lines stay smooth without MSAA.
+// Soft alpha edge across the line width.
 static const char* kLineFS = R"(
 #version 410 core
 in vec3 v_color;
@@ -149,14 +161,18 @@ bool GridPass::createShaders()
 void GridPass::buildBackground(RenderDevice& device)
 {
     std::vector<Vertex> vertices;
+    vertices.reserve(4);
     for (int i = 0; i < 4; ++i)
     {
-        vertices.push_back({{kBgQuadVertices[i * 3],
-                             kBgQuadVertices[i * 3 + 1],
-                             kBgQuadVertices[i * 3 + 2]},
-                            {0.0f, 1.0f, 0.0f},
-                            {0.0f, 0.0f}});
+        Vertex vertex;
+        vertex.position = {kBgQuadVertices[i * 3],
+                           kBgQuadVertices[i * 3 + 1],
+                           kBgQuadVertices[i * 3 + 2]};
+        vertex.normal = {0.0f, 0.0f, 1.0f};
+        vertex.uv = {0.0f, 0.0f};
+        vertices.push_back(vertex);
     }
+
     std::vector<std::uint32_t> indices = {
         kBgQuadIndices[0], kBgQuadIndices[1], kBgQuadIndices[2],
         kBgQuadIndices[3], kBgQuadIndices[4], kBgQuadIndices[5]};
@@ -189,7 +205,7 @@ void GridPass::planeBasis(GridPlane plane,
                           float vDir[3],
                           double anchor[3],
                           const double eye[3],
-                          double majorStep) noexcept
+                          double step) noexcept
 {
     anchor[0] = anchor[1] = anchor[2] = 0.0;
     switch (plane)
@@ -198,23 +214,23 @@ void GridPass::planeBasis(GridPlane plane,
         normal[0] = 0.0f; normal[1] = 0.0f; normal[2] = 1.0f;
         uDir[0] = 1.0f; uDir[1] = 0.0f; uDir[2] = 0.0f;
         vDir[0] = 0.0f; vDir[1] = 1.0f; vDir[2] = 0.0f;
-        anchor[0] = std::floor(eye[0] / majorStep) * majorStep;
-        anchor[1] = std::floor(eye[1] / majorStep) * majorStep;
+        anchor[0] = std::floor(eye[0] / step) * step;
+        anchor[1] = std::floor(eye[1] / step) * step;
         break;
     case GridPlane::XZ:
         normal[0] = 0.0f; normal[1] = 1.0f; normal[2] = 0.0f;
         uDir[0] = 1.0f; uDir[1] = 0.0f; uDir[2] = 0.0f;
         vDir[0] = 0.0f; vDir[1] = 0.0f; vDir[2] = 1.0f;
-        anchor[0] = std::floor(eye[0] / majorStep) * majorStep;
-        anchor[2] = std::floor(eye[2] / majorStep) * majorStep;
+        anchor[0] = std::floor(eye[0] / step) * step;
+        anchor[2] = std::floor(eye[2] / step) * step;
         break;
     case GridPlane::YZ:
     default:
         normal[0] = 1.0f; normal[1] = 0.0f; normal[2] = 0.0f;
         uDir[0] = 0.0f; uDir[1] = 1.0f; uDir[2] = 0.0f;
         vDir[0] = 0.0f; vDir[1] = 0.0f; vDir[2] = 1.0f;
-        anchor[1] = std::floor(eye[1] / majorStep) * majorStep;
-        anchor[2] = std::floor(eye[2] / majorStep) * majorStep;
+        anchor[1] = std::floor(eye[1] / step) * step;
+        anchor[2] = std::floor(eye[2] / step) * step;
         break;
     }
 }
@@ -253,27 +269,16 @@ void GridPass::execute(RenderContext& context,
 
     if (m_gridVAO && m_gridVBO && m_gridIBO && m_gridVBO->getVertexCount() > 0)
     {
+        // Rotation-only view matrix (camera translation is applied on the CPU
+        // by making all vertex positions camera-relative).
         Matrix4Raw viewRelative = context.viewMatrix;
         viewRelative[12] = 0.0f;
         viewRelative[13] = 0.0f;
         viewRelative[14] = 0.0f;
 
-        Matrix4Raw viewProj{};
-        // Matrix4Raw is column-major: element (row, col) sits at row + col * 4.
-        // Compute viewProj = proj * view in column-major indexing.
-        const float* proj = context.projectionMatrix.data();
-        const float* view = viewRelative.data();
-        for (int row = 0; row < 4; ++row)
-            for (int column = 0; column < 4; ++column)
-            {
-                float sum = 0.0f;
-                for (int k = 0; k < 4; ++k)
-                    sum += proj[row + k * 4] * view[k + column * 4];
-                viewProj[row + column * 4] = sum;
-            }
-
         m_lineShader->bind();
-        m_lineShader->setMatrix("u_viewProj", viewProj);
+        m_lineShader->setMatrix("u_view", viewRelative);
+        m_lineShader->setMatrix("u_projection", context.projectionMatrix);
         m_gridVAO->bind();
         glDrawElements(GL_TRIANGLES,
                        static_cast<GLsizei>(m_gridIBO->getIndexCount()),
@@ -310,9 +315,12 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         ? static_cast<double>(context.viewportWidth) / viewportHeight
         : 1.0;
 
+    // The plane basis is resolved FIRST: everything below depends on it.
     float normal[3] = {0.0f, 0.0f, 1.0f};
     float uDir[3] = {1.0f, 0.0f, 0.0f};
     float vDir[3] = {0.0f, 1.0f, 0.0f};
+    double anchor[3] = {0.0, 0.0, 0.0};
+    planeBasis(m_plane, normal, uDir, vDir, anchor, eye, 1.0);
 
     const double fade = m_fadeDistanceOverride > 0.0
         ? static_cast<double>(m_fadeDistanceOverride)
@@ -324,8 +332,7 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
                                       normal[2] * eye[2]);
     if (distPlane < 1e-9)
     {
-        // Camera lies exactly on the grid plane: the frustum does not
-        // intersect the plane at a well-defined extent. Skip this frame.
+        // Camera lies exactly on the grid plane: no well-defined view extent.
         m_gridVBO.reset();
         m_gridIBO.reset();
         m_gridVAO.reset();
@@ -360,10 +367,8 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
     const double nR = dot3(right, nrm);
     const double viewDist = distPlane / std::max(std::abs(nF), 1e-4);
 
-    // Frustum half-extents projected onto the grid plane. The visible region
-    // grows as the camera looks along the plane; the naive
-    // distPlane * tan(fov / 2) estimate would shrink the grid while orbiting
-    // (the "collapsing grid" artifact).
+    // Frustum half-extents projected onto the grid plane (constant during
+    // orbit, so the grid does not collapse at glancing angles).
     const double aV = fov * 0.5;
     const double cosV = std::cos(aV);
     const double sinV = std::sin(aV);
@@ -371,9 +376,6 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
     const double denomLoV = std::max(std::abs(nF * cosV - nU * sinV), 1e-6);
     const double tHiV = distPlane / denomHiV;
     const double tLoV = distPlane / denomLoV;
-    // Cap the frustum extents at the fade distance: beyond it every line is
-    // invisible anyway, and an unbounded extent (a frustum edge parallel to
-    // the plane) would overflow the line counters below.
     const double halfH = std::min(
         0.5 * std::sqrt((tHiV - tLoV) * (tHiV - tLoV) * cosV * cosV +
                         (tHiV + tLoV) * (tHiV + tLoV) * sinV * sinV),
@@ -391,41 +393,32 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
                         (tHiH + tLoH) * (tHiH + tLoH) * sinH * sinH),
         fade);
 
-    // Adaptive step: ~18 px per cell at the viewed distance, which stays
-    // constant while orbiting, so the grid scale no longer jumps with the
-    // view angle; 1/2/5 x 10^n; capped line count.
+    // Adaptive step: ~18 px per cell at the viewed distance (1/2/5 x 10^n),
+    // capped by the maximum line count.
     double step = niceStep(2.0 * viewDist * std::tan(aV) * 18.0 / viewportHeight);
     while ((2.0 * std::max(halfH, halfW) / step) > kMaxLinesPerAxis)
         step *= 2.0;
-    const double majorStep = step * 5.0;
 
     // The anchor snaps to the current step, so the grid shifts by a single
     // line while panning instead of jumping by five lines at a time.
-    double anchor[3] = {0.0, 0.0, 0.0};
     planeBasis(m_plane, normal, uDir, vDir, anchor, eye, step);
 
     std::vector<GridSegment> segments;
     segments.reserve(600);
 
-    int countU = 0;
-    int countV = 0;
-
     if (m_showGrid)
     {
-        // Coordinates along the plane axes, anchored at the camera.
-        countU = std::min(
+        const int countU = std::min(
             static_cast<int>(std::floor(halfW * kExtendFactor / step)),
             static_cast<int>(kMaxLinesPerAxis));
-        countV = std::min(
+        const int countV = std::min(
             static_cast<int>(std::floor(halfH * kExtendFactor / step)),
             static_cast<int>(kMaxLinesPerAxis));
 
         const double extendU = halfW * kExtendFactor;
         const double extendV = halfH * kExtendFactor;
 
-        // Lines of constant u (running along v). Coordinates are measured
-        // from the anchor (the grid cell under the camera), so the grid
-        // follows the camera and always covers the viewport.
+        // Lines of constant u (running along v).
         for (int k = -countU; k <= countU; ++k)
         {
             const double u = static_cast<double>(k) * step;
@@ -439,14 +432,14 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             }
             if (major)
             {
-                segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
-                segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
+                segment.color[0] = 0.65f; segment.color[1] = 0.70f; segment.color[2] = 0.78f;
+                segment.alpha0 = 0.95f; segment.alpha1 = 0.95f;
                 segment.widthPx = 3.0f;
             }
             else
             {
-                segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
-                segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
+                segment.color[0] = 0.45f; segment.color[1] = 0.50f; segment.color[2] = 0.58f;
+                segment.alpha0 = 0.75f; segment.alpha1 = 0.75f;
                 segment.widthPx = 2.5f;
             }
             segments.push_back(segment);
@@ -466,14 +459,14 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             }
             if (major)
             {
-                segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
-                segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
+                segment.color[0] = 0.65f; segment.color[1] = 0.70f; segment.color[2] = 0.78f;
+                segment.alpha0 = 0.95f; segment.alpha1 = 0.95f;
                 segment.widthPx = 3.0f;
             }
             else
             {
-                segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
-                segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
+                segment.color[0] = 0.45f; segment.color[1] = 0.50f; segment.color[2] = 0.58f;
+                segment.alpha0 = 0.75f; segment.alpha1 = 0.75f;
                 segment.widthPx = 2.5f;
             }
             segments.push_back(segment);
@@ -498,8 +491,8 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
                 segment.color[i] = axisColors[axis][i];
             }
             segment.alpha0 = 0.95f;
-            segment.alpha1 = 0.0f;
-            segment.widthPx = 2.0f;
+            segment.alpha1 = 0.55f;
+            segment.widthPx = 2.5f;
             segments.push_back(segment);
         }
     }
@@ -518,7 +511,7 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
     vertices.reserve(segments.size() * 4);
     indices.reserve(segments.size() * 6);
 
-    const double fadeStart = fade * 0.55;
+    const double fadeStart = fade * 0.70;
     const double range = std::max(fade - fadeStart, 1e-9);
     const double tanHalfFov = std::tan(fov * 0.5);
 
@@ -533,10 +526,8 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             continue;
         segDir[0] /= segLen; segDir[1] /= segLen; segDir[2] /= segLen;
 
-        // Perpendicular distance from the camera to the infinite line. This
-        // is the correct quantity for both fade and screen-space width: a
-        // line passing close to the camera stays 1 px, no matter how far its
-        // endpoints are (the "thick line" artifact).
+        // Perpendicular distance from the camera to the infinite line: the
+        // correct quantity for both fade and screen-space width.
         const double d0 = std::sqrt((segment.p0[0] - eye[0]) * (segment.p0[0] - eye[0]) +
                                     (segment.p0[1] - eye[1]) * (segment.p0[1] - eye[1]) +
                                     (segment.p0[2] - eye[2]) * (segment.p0[2] - eye[2]));
@@ -550,9 +541,8 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         float a1;
         if (segment.alpha0 == segment.alpha1)
         {
-            // Grid lines: fade by the line distance, so lines at the
-            // horizon vanish smoothly and lines under the camera never
-            // disappear because their endpoints are far away.
+            // Grid lines: fade by the line distance, so lines at the horizon
+            // vanish smoothly while lines under the camera never disappear.
             const float aLine = segment.alpha0 * static_cast<float>(
                 1.0 - std::clamp((dPerp - fadeStart) / range, 0.0, 1.0));
             if (aLine <= 0.004f)
@@ -576,6 +566,8 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         const double pxToWorld = 2.0 * dPerp * tanHalfFov / viewportHeight;
         const double halfWidth = pxToWorld * static_cast<double>(segment.widthPx) * 0.5;
 
+        // Expansion direction: perpendicular to both the segment direction and
+        // the view ray, so the quad faces the camera.
         const double mid[3] = {
             (segment.p0[0] + segment.p1[0]) * 0.5,
             (segment.p0[1] + segment.p1[1]) * 0.5,
