@@ -25,10 +25,12 @@ enum class GridPlane
 
 /// Engineering grid overlay.
 ///
-/// The grid is generated on the CPU every frame as screen-sized line quads
-/// (camera-relative, double precision, same contract as GeometryPass). The
-/// shader receives u_view and u_projection as two separate uniforms - exactly
-/// like GeometryPass - so no manual matrix multiplication is involved.
+/// The grid is a procedural infinite grid rendered as a single full-screen
+/// triangle. The fragment shader reconstructs the world-space point on the
+/// ground plane for every pixel and draws anti-aliased minor/major lines plus
+/// the two in-plane axes. No per-frame vertex buffer uploads are performed, so
+/// the pass is cheap and free of GL buffer churn (the previous CPU-quad
+/// builder re-uploaded dynamic buffers every frame).
 class GridPass final : public RenderPass
 {
 public:
@@ -51,18 +53,16 @@ public:
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
 private:
-    static constexpr double kExtendFactor = 1.18;   // overscan for line fade
-    static constexpr double kMaxLinesPerAxis = 220.0;
-
     bool m_initialized{false};
     GridPlane m_plane{GridPlane::XZ};
     float m_fadeDistanceOverride{0.0f};
     bool m_showGrid{true};
     bool m_showAxes{true};
 
-    std::unique_ptr<OpenGLShader> m_lineShader;
+    std::unique_ptr<OpenGLShader> m_gridShader;
     std::unique_ptr<OpenGLShader> m_bgShader;
 
+    // Static full-screen geometry (built once in initialize).
     std::shared_ptr<VertexBuffer> m_gridVBO;
     std::shared_ptr<IndexBuffer> m_gridIBO;
     std::shared_ptr<VertexArray> m_gridVAO;
@@ -73,16 +73,14 @@ private:
 
     bool createShaders();
     void buildBackground(RenderDevice& device);
-    void rebuildLines(RenderContext& context, RenderDevice& device);
+    void buildGridQuad(RenderDevice& device);
 
     [[nodiscard]] static double niceStep(double target) noexcept;
-    static void planeBasis(GridPlane plane,
-                           float normal[3],
-                           float uDir[3],
-                           float vDir[3],
-                           double anchor[3],
-                           const double eye[3],
-                           double step) noexcept;
+    static void planeAxes(GridPlane plane,
+                          float normal[3],
+                          float point[3],
+                          float uDir[3],
+                          float vDir[3]) noexcept;
 };
 
 } // namespace MirEngine::Rendering

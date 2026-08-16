@@ -180,6 +180,9 @@ target_link_libraries(MIR4D_DocumentRenderBridge PRIVATE MirEngineIO)
 add_executable(MIR4D_RenderCamera MirEngine/Tests/Render/RenderCameraTest.cpp)
 target_link_libraries(MIR4D_RenderCamera PRIVATE MirEngineRender)
 
+add_executable(MIR4D_RayPicker MirEngine/Tests/Interaction/RayPickerTest.cpp)
+target_link_libraries(MIR4D_RayPicker PRIVATE MirEngineRender MirEngineBRep MirEngine)
+
 if(APPLE)
     # Автономный отладочный стенд viewport'а (окно + мышь + клавиатура + диагностика),
     # работает вне MirUI/SwiftUI через тот же C ABI.
@@ -253,6 +256,7 @@ add_test(NAME MIR4D_StepImporter COMMAND MIR4D_StepImporter)
 add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
 add_test(NAME MIR4D_DocumentRenderBridge COMMAND MIR4D_DocumentRenderBridge)
 add_test(NAME MIR4D_RenderCamera COMMAND MIR4D_RenderCamera)
+add_test(NAME MIR4D_RayPicker COMMAND MIR4D_RayPicker)
 add_test(NAME MIR4D_CreateBox COMMAND MIR4D_CreateBox)
 add_test(NAME MIR4D_ObjectStore COMMAND MIR4D_ObjectStore)
 add_test(NAME MIR4D_EngineDocumentBridge COMMAND MIR4D_EngineDocumentBridge)

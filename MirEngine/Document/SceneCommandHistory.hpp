@@ -94,7 +94,7 @@ public:
     void undo(mir::Scene& scene) override
     {
         if (node_)
-            scene.add(node_);
+            (void)scene.add(node_);
     }
 
     [[nodiscard]] const char* description() const noexcept override
