@@ -52,10 +52,7 @@ struct SelectionFilterBar: View {
         .padding(.horizontal, 4)
         .background(MirTheme.Colors.surfaceRaised.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
-        .overlay {
-            RoundedRectangle(cornerRadius: MirTheme.Radius.medium)
-                .stroke(MirTheme.Colors.panelBorder.opacity(0.8), lineWidth: 1)
-        }
+        .overlay { RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.panelBorder.opacity(0.8), lineWidth: 1) }
         .shadow(color: .black.opacity(0.08), radius: 7, y: 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(appState.ui.language == .russian ? "Фильтр выбора геометрии" : "Geometry selection filter")
@@ -63,57 +60,44 @@ struct SelectionFilterBar: View {
 
     private var titleBlock: some View {
         HStack(spacing: 6) {
-            Image(systemName: "scope")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(MirTheme.Colors.accentBright)
+            Image(systemName: "scope").font(.system(size: 11, weight: .semibold)).foregroundStyle(MirTheme.Colors.accentBright)
             VStack(alignment: .leading, spacing: 0) {
-                Text(appState.ui.language == .russian ? "Выбор" : "Selection")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(MirTheme.Colors.textPrimary)
-                Text(appState.ui.language == .russian ? filter.title(appState.ui.language) : filter.title(appState.ui.language))
-                    .font(.system(size: 8))
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                Text(appState.ui.language == .russian ? "Выбор" : "Selection").font(.system(size: 10, weight: .semibold)).foregroundStyle(MirTheme.Colors.textPrimary)
+                Text(filter.title(appState.ui.language)).font(.system(size: 8)).foregroundStyle(MirTheme.Colors.textTertiary)
             }
-        }
-        .padding(.leading, 7)
-        .frame(minWidth: 72, alignment: .leading)
+        }.padding(.leading, 7).frame(minWidth: 72, alignment: .leading)
     }
 
     private var filterButtons: some View {
-        HStack(spacing: 2) {
-            ForEach(MirSelectionFilter.allCases) { item in
-                filterButton(item)
-            }
-        }
+        HStack(spacing: 2) { ForEach(MirSelectionFilter.allCases) { filterButton($0) } }
     }
 
     private func filterButton(_ item: MirSelectionFilter) -> some View {
         let selected = filter == item
-
         return Button {
             withAnimation(MirTheme.Animation.fast) { filter = item }
+            NotificationCenter.default.post(
+                name: .mir4DSelectionFilterChanged,
+                object: item.rawValue
+            )
         } label: {
             VStack(spacing: 2) {
-                Image(systemName: item.systemImage)
-                    .font(.system(size: 10, weight: selected ? .semibold : .regular))
-                Text(item.title(appState.ui.language))
-                    .font(.system(size: 8.5, weight: selected ? .semibold : .regular))
-                    .lineLimit(1)
+                Image(systemName: item.systemImage).font(.system(size: 10, weight: selected ? .semibold : .regular))
+                Text(item.title(appState.ui.language)).font(.system(size: 8.5, weight: selected ? .semibold : .regular)).lineLimit(1)
             }
             .foregroundStyle(selected ? MirTheme.Colors.textPrimary : MirTheme.Colors.textSecondary)
             .frame(minWidth: 46, minHeight: 32)
             .background(selected ? MirTheme.Colors.accentSoft : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-            .overlay {
-                if selected {
-                    RoundedRectangle(cornerRadius: MirTheme.Radius.small)
-                        .stroke(MirTheme.Colors.accent.opacity(0.55), lineWidth: 1)
-                }
-            }
+            .overlay { if selected { RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.accent.opacity(0.55), lineWidth: 1) } }
         }
         .buttonStyle(.plain)
         .help(item.title(appState.ui.language))
         .accessibilityLabel(item.title(appState.ui.language))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
+}
+
+extension Notification.Name {
+    static let mir4DSelectionFilterChanged = Notification.Name("MIR4D.SelectionFilterChanged")
 }
