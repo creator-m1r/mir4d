@@ -40,6 +40,7 @@ if(APPLE)
         MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
         MirEngine/Rendering/Passes/GeometryPass.cpp
         MirEngine/Rendering/Passes/GridPass.cpp
+        MirEngine/Rendering/Passes/PlanePass.cpp
         MirEngine/Rendering/Resources/ShaderLibrary.cpp
         MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
         MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
@@ -224,6 +225,9 @@ target_link_libraries(MIR4D_SketchRectangleProfile PRIVATE MirEngine)
 add_executable(MIR4D_SketchRectangleSolver MirEngine/Tests/Sketch/SketchRectangleSolverTest.cpp)
 target_link_libraries(MIR4D_SketchRectangleSolver PRIVATE MirEngine)
 
+add_executable(MIR4D_WorkPlane MirEngine/Tests/Planes/WorkPlaneTest.cpp)
+target_link_libraries(MIR4D_WorkPlane PRIVATE MirEngine)
+
 add_executable(MIR4D_ViewportFoundation MirEngine/Tests/Render/ViewportFoundation.cpp)
 target_link_libraries(MIR4D_ViewportFoundation PRIVATE MirEngineViewport)
 
@@ -268,6 +272,7 @@ add_test(NAME MIR4D_BRepBoolean COMMAND MIR4D_BRepBoolean)
 add_test(NAME MIR4D_GeometryQuery COMMAND MIR4D_GeometryQuery)
 add_test(NAME MIR4D_SketchRectangleProfile COMMAND MIR4D_SketchRectangleProfile)
 add_test(NAME MIR4D_SketchRectangleSolver COMMAND MIR4D_SketchRectangleSolver)
+add_test(NAME MIR4D_WorkPlane COMMAND MIR4D_WorkPlane)
 add_test(NAME MIR4D_ViewportFoundation COMMAND MIR4D_ViewportFoundation)
 add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)

@@ -46,4 +46,21 @@ final class MIR4DModelCommands {
         appState.showNotification("Создано тело: \(bodyID.uuidString.prefix(8))", type: .success)
         return bodyID
     }
+
+    /// ТЗ Этап 1: создать пользовательскую рабочую плоскость параллельно базовой.
+    func createWorkPlane(
+        basePlane: UInt32,
+        offset: Double = 10.0,
+        angleDeg: Double = 0.0
+    ) {
+        NotificationCenter.default.post(
+            name: .mir4DCreateWorkPlane,
+            object: nil,
+            userInfo: [
+                "basePlane": basePlane,
+                "offset": offset,
+                "angleDeg": angleDeg
+            ]
+        )
+    }
 }

@@ -64,18 +64,19 @@ void OpenGLVertexBuffer::uploadVertices(const Vertex* data, size_t count,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData. Bind the
+    // scratch VAO here (not inside bind(), which is also invoked while a real
+    // VAO is already bound during setupAttributes).
+    BindDefaultVertexArray();
     bind();
 
-    glGetError(); // clear any pending error so we attribute the next one correctly
     const GLsizeiptr sizeInBytes = static_cast<GLsizeiptr>(count * sizeof(Vertex));
     glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, usageToGL(usage));
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         std::cerr << "[OpenGLVertexBuffer] glBufferData error: 0x"
-                  << std::hex << err << std::dec
-                  << " handle=" << m_handle << " count=" << count
-                  << " vao=" << 0 << "\n";
+                  << std::hex << err << std::dec << "\n";
         m_vertexCount = 0;
     } else {
         m_vertexCount = count;
@@ -92,6 +93,8 @@ void OpenGLVertexBuffer::upload(const void* data, size_t size,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData.
+    BindDefaultVertexArray();
     bind();
 
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(size), data, usageToGL(usage));
@@ -110,7 +113,6 @@ void OpenGLVertexBuffer::upload(const void* data, size_t size,
 
 void OpenGLVertexBuffer::bind()
 {
-    BindDefaultVertexArray();
     glBindBuffer(GL_ARRAY_BUFFER, m_handle);
 }
 

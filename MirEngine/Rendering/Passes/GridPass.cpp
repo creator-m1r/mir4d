@@ -114,12 +114,12 @@ void main()
 
     // Crisp in-plane axes through the plane origin:
     //   line coord.y = 0 runs along +X (red)
-    //   line coord.x = 0 runs along +Z (blue)
+    //   line coord.x = 0 runs along +Y (green)
     float axX = axisLine(coord.y, 1.5) * u_axesEnabled;
-    float axZ = axisLine(coord.x, 1.5) * u_axesEnabled;
-    float axis = max(axX, axZ);
+    float axY = axisLine(coord.x, 1.5) * u_axesEnabled;
+    float axis = max(axX, axY);
     vec3 axisCol = axX * vec3(0.90, 0.22, 0.18)
-                 + axZ * vec3(0.22, 0.34, 0.95);
+                 + axY * vec3(0.20, 0.70, 0.30);
     color = mix(color, axisCol, clamp(axis, 0.0, 1.0));
     intensity = max(intensity, axis);
 
@@ -152,6 +152,33 @@ void main()
 {
     float t = clamp(v_uv.y, 0.0, 1.0);
     FragColor = vec4(mix(u_bottomColor, u_topColor, t), 1.0);
+}
+)GLSL";
+
+// World-space axis gizmo drawn as GL_LINES. Positions are transformed by the
+// inverse view-projection; colors ride in the vertex normal slot (location 1)
+// so the existing VertexArray attribute layout can be reused unchanged.
+constexpr char kAxisVertSrc[] = R"GLSL(
+#version 410 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aColor;
+uniform mat4 u_invViewProj;
+uniform float u_scale;
+out vec3 v_color;
+void main()
+{
+    v_color = aColor;
+    gl_Position = u_invViewProj * vec4(aPos * u_scale, 1.0);
+}
+)GLSL";
+
+constexpr char kAxisFragSrc[] = R"GLSL(
+#version 410 core
+in vec3 v_color;
+out vec4 FragColor;
+void main()
+{
+    FragColor = vec4(v_color, 1.0);
 }
 )GLSL";
 
@@ -191,6 +218,13 @@ bool GridPass::createShaders()
     if (!m_bgShader->compile(kBgVertSrc, kBgFragSrc))
     {
         std::cerr << "[GridPass] Failed to compile background shader\n";
+        return false;
+    }
+
+    m_axisShader = std::make_unique<OpenGLShader>();
+    if (!m_axisShader->compile(kAxisVertSrc, kAxisFragSrc))
+    {
+        std::cerr << "[GridPass] Failed to compile axis shader\n";
         return false;
     }
     return true;
@@ -239,6 +273,34 @@ void GridPass::buildGridQuad(RenderDevice& device)
     m_gridVAO = device.createVertexArray();
     m_gridVAO->setVertexBuffer(m_gridVBO);
     m_gridVAO->setIndexBuffer(m_gridIBO);
+}
+
+void GridPass::buildAxisGizmo(RenderDevice& device)
+{
+    // Origin gizmo: X (red), Y (green), Z (blue) as world-space lines.
+    // Colors are packed into the Vertex normal slot (location 1).
+    const float len = 1.0f;
+    std::vector<Vertex> verts(6);
+    // X
+    verts[0].position = {0.0f, 0.0f, 0.0f};
+    verts[0].normal = {0.90f, 0.22f, 0.18f};
+    verts[1].position = {len, 0.0f, 0.0f};
+    verts[1].normal = {0.90f, 0.22f, 0.18f};
+    // Y
+    verts[2].position = {0.0f, 0.0f, 0.0f};
+    verts[2].normal = {0.20f, 0.70f, 0.30f};
+    verts[3].position = {0.0f, len, 0.0f};
+    verts[3].normal = {0.20f, 0.70f, 0.30f};
+    // Z (vertical)
+    verts[4].position = {0.0f, 0.0f, 0.0f};
+    verts[4].normal = {0.22f, 0.34f, 0.95f};
+    verts[5].position = {0.0f, 0.0f, len};
+    verts[5].normal = {0.22f, 0.34f, 0.95f};
+
+    m_axisVBO = device.createVertexBuffer();
+    m_axisVBO->uploadVertices(verts, BufferUsage::Static);
+    m_axisVAO = device.createVertexArray();
+    m_axisVAO->setVertexBuffer(m_axisVBO);
 }
 
 double GridPass::niceStep(double target) noexcept
@@ -290,8 +352,9 @@ bool GridPass::initialize(RenderDevice& device)
 
     buildBackground(device);
     buildGridQuad(device);
+    buildAxisGizmo(device);
 
-    if (!m_bgVAO || !m_gridVAO)
+    if (!m_bgVAO || !m_gridVAO || !m_axisVAO)
     {
         std::cerr << "[GridPass] Failed to build static geometry\n";
         return false;
@@ -383,6 +446,24 @@ void GridPass::execute(RenderContext& context,
     m_gridVAO->unbind();
 
     m_gridShader->unbind();
+
+    // World-space origin gizmo: X (red), Y (green) on the floor plane, Z (blue)
+    // vertical. Drawn depth-test-free so it stays readable behind geometry.
+    if (m_showAxes && m_axisShader && m_axisVAO)
+    {
+        const float axisLen = static_cast<float>(
+            std::max(camDist * 0.3, static_cast<double>(stepVal) * 4.0));
+
+        device.setDepthTest(false);
+        device.setBlend(false);
+        m_axisShader->bind();
+        m_axisShader->setMatrix("u_invViewProj", invRaw);
+        m_axisShader->setFloat("u_scale", axisLen);
+        m_axisVAO->bind();
+        glDrawArrays(GL_LINES, 0, 6);
+        m_axisVAO->unbind();
+        m_axisShader->unbind();
+    }
 
     glDepthMask(GL_TRUE);
     device.setDepthTest(true);

@@ -28,17 +28,19 @@ int main()
     assert(std::abs(target.x - initialTarget.x) > 1e-12 ||
            std::abs(target.y - initialTarget.y) > 1e-12);
 
-    // Pan happens in the camera view plane: from straight above (phi = pi/2,
-    // theta = 0) the view right vector is world +X and up is world +Y, so
-    // panning must only shift the target in X and Y.
+    // Pan happens in the camera view plane. With the Z-up convention the
+    // orbit elevation (phi) is measured from +Z: at phi = pi/2 the eye sits on
+    // the +Y axis looking down -Y, so the view plane is XZ (right = world -X,
+    // up = world +Z). Panning therefore shifts the target in X and Z, leaving
+    // Y fixed.
     camera.setOrbit(0.0, 3.14159265358979323846 * 0.5, 12.0);
     camera.setTarget({0.0, 0.0, 0.0});
     const auto topViewTarget = camera.target();
     controller.panBy(2.0, 1.0);
     const auto panned = camera.target();
-    assert(std::abs(panned.z - topViewTarget.z) < 1e-9);
+    assert(std::abs(panned.y - topViewTarget.y) < 1e-9);
     assert(std::abs(panned.x - topViewTarget.x) > 1e-9);
-    assert(std::abs(panned.y - topViewTarget.y) > 1e-9);
+    assert(std::abs(panned.z - topViewTarget.z) > 1e-9);
 
     // Zoom anchored at the screen center must keep the target fixed.
     camera.setOrbit(0.8, 1.2, 12.0);

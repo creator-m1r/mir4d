@@ -32,6 +32,23 @@
 namespace MirEngine::Rendering {
 
 // -----------------------------------------------------------------------------
+// Work plane overlay data (ТЗ Этап 1, раздел 5).
+// Backend-neutral: only mathematical/geometric quantities, no GPU types.
+// -----------------------------------------------------------------------------
+struct PlaneRenderData
+{
+    std::uint32_t id{0};
+    float origin[3]{0.0f, 0.0f, 0.0f};
+    float normal[3]{0.0f, 0.0f, 1.0f};
+    float xAxis[3]{1.0f, 0.0f, 0.0f};
+    float yAxis[3]{0.0f, 1.0f, 0.0f};
+    float color[3]{0.45f, 0.55f, 0.75f};
+    float size{10.0f};     // half-extent of the drawn working surface
+    bool active{false};    // the plane a new sketch would attach to
+    bool selected{false};  // currently selected in the UI
+};
+
+// -----------------------------------------------------------------------------
 // Per-frame rendering context.
 // -----------------------------------------------------------------------------
 class RenderContext {
@@ -103,6 +120,14 @@ public:
     // Object id currently under the cursor (hover). The geometry pass applies
     // a subtler tint than the selection highlight. Zero means no hover.
     std::uint64_t hoverObjectId{0};
+
+    // ==========================================================================
+    // Work planes (ТЗ Этап 1)
+    // ==========================================================================
+
+    // Planes to overlay in the viewport. Populated by the renderer from the
+    // document's PlaneStore (via setPlanes). Empty when no planes are shown.
+    std::vector<PlaneRenderData> planes;
 
     // ==========================================================================
     // Methods

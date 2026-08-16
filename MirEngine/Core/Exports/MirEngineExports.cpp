@@ -147,6 +147,170 @@ void MirEngineDestroyRenderer(void* renderer)
 
 
 // ------------------------------------------------------------
+// Work planes (ТЗ Этап 1)
+// ------------------------------------------------------------
+
+void MirEngineSetPlanes(void* renderer,
+                        int count,
+                        const uint32_t* ids,
+                        const float* origins,
+                        const float* normals,
+                        const float* xAxes,
+                        const float* yAxes,
+                        const float* colors,
+                        const float* sizes,
+                        const bool* active,
+                        const bool* selected)
+{
+    if (!renderer)
+        return;
+
+    auto* native = static_cast<OpenGLRenderer*>(renderer);
+    std::vector<MirEngine::Rendering::PlaneRenderData> data;
+    if (count > 0 && ids && origins && normals && xAxes && yAxes && colors && sizes && active && selected)
+    {
+        data.reserve(static_cast<std::size_t>(count));
+        for (int i = 0; i < count; ++i)
+        {
+            const int o = i * 3;
+            MirEngine::Rendering::PlaneRenderData p;
+            p.id = ids[i];
+            p.origin[0] = origins[o + 0];
+            p.origin[1] = origins[o + 1];
+            p.origin[2] = origins[o + 2];
+            p.normal[0] = normals[o + 0];
+            p.normal[1] = normals[o + 1];
+            p.normal[2] = normals[o + 2];
+            p.xAxis[0] = xAxes[o + 0];
+            p.xAxis[1] = xAxes[o + 1];
+            p.xAxis[2] = xAxes[o + 2];
+            p.yAxis[0] = yAxes[o + 0];
+            p.yAxis[1] = yAxes[o + 1];
+            p.yAxis[2] = yAxes[o + 2];
+            p.color[0] = colors[o + 0];
+            p.color[1] = colors[o + 1];
+            p.color[2] = colors[o + 2];
+            p.size = sizes[i];
+            p.active = active[i];
+            p.selected = selected[i];
+            data.push_back(p);
+        }
+    }
+    native->setPlanes(data);
+}
+
+
+// ------------------------------------------------------------
+// Work plane store (ТЗ Этап 1)
+// ------------------------------------------------------------
+
+#include "../Planes/PlaneStore.hpp"
+#include "../Planes/PlaneFactory.hpp"
+
+namespace
+{
+    void fillPlaneColors(const mir::Plane& plane,
+                         float color[3])
+    {
+        switch (plane.type())
+        {
+            case mir::PlaneType::BaseXY:
+                color[0] = 0.0f; color[1] = 0.9f; color[2] = 1.0f; break;
+            case mir::PlaneType::BaseXZ:
+                color[0] = 0.2f; color[1] = 1.0f; color[2] = 0.4f; break;
+            case mir::PlaneType::BaseYZ:
+                color[0] = 1.0f; color[1] = 0.6f; color[2] = 0.1f; break;
+            default:
+                color[0] = 1.0f; color[1] = 0.85f; color[2] = 0.2f; break;
+        }
+    }
+}
+
+void* MirEngineCreatePlaneStore(void)
+{
+    return new mir::PlaneStore();
+}
+
+void MirEngineDestroyPlaneStore(void* store)
+{
+    delete static_cast<mir::PlaneStore*>(store);
+}
+
+void MirEnginePlaneStoreAddBasePlanes(void* store)
+{
+    if (store)
+        static_cast<mir::PlaneStore*>(store)->ensureBasePlanes();
+}
+
+uint32_t MirEnginePlaneStoreCreateOffsetPlane(void* store,
+                                              uint32_t basePlane,
+                                              double offset,
+                                              double angleDeg)
+{
+    if (!store)
+        return 0;
+    auto* s = static_cast<mir::PlaneStore*>(store);
+    auto base = s->find(basePlane);
+    if (!base)
+        return 0;
+    auto plane = mir::PlaneFactory::createOffset(*base, offset, angleDeg);
+    if (!s->add(plane))
+        return 0;
+    return plane->id();
+}
+
+int MirEnginePlaneStoreSnapshot(void* store,
+                                int maxCount,
+                                uint32_t* ids,
+                                float* origins,
+                                float* normals,
+                                float* xAxes,
+                                float* yAxes,
+                                float* colors,
+                                float* sizes,
+                                bool* active,
+                                bool* selected)
+{
+    if (!store)
+        return 0;
+    auto* s = static_cast<mir::PlaneStore*>(store);
+    const auto planes = s->list();
+    const int count = static_cast<int>(planes.size());
+    if (maxCount <= 0)
+        return count;
+    const int n = std::min(count, maxCount);
+    for (int i = 0; i < n; ++i)
+    {
+        const auto& p = planes[static_cast<std::size_t>(i)];
+        const int o = i * 3;
+        ids[i] = p->id();
+        origins[o + 0] = static_cast<float>(p->origin().x);
+        origins[o + 1] = static_cast<float>(p->origin().y);
+        origins[o + 2] = static_cast<float>(p->origin().z);
+        normals[o + 0] = static_cast<float>(p->normal().x);
+        normals[o + 1] = static_cast<float>(p->normal().y);
+        normals[o + 2] = static_cast<float>(p->normal().z);
+        xAxes[o + 0] = static_cast<float>(p->xAxis().x);
+        xAxes[o + 1] = static_cast<float>(p->xAxis().y);
+        xAxes[o + 2] = static_cast<float>(p->xAxis().z);
+        const mir::Vector3 y = p->yAxis();
+        yAxes[o + 0] = static_cast<float>(y.x);
+        yAxes[o + 1] = static_cast<float>(y.y);
+        yAxes[o + 2] = static_cast<float>(y.z);
+        float c[3];
+        fillPlaneColors(*p, c);
+        colors[o + 0] = c[0];
+        colors[o + 1] = c[1];
+        colors[o + 2] = c[2];
+        sizes[i] = 10.0f;
+        active[i] = false;
+        selected[i] = false;
+    }
+    return count;
+}
+
+
+// ------------------------------------------------------------
 // Viewport
 // ------------------------------------------------------------
 

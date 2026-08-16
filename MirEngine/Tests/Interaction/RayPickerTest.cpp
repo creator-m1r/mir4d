@@ -58,12 +58,13 @@ int main()
     bottomNode->setTransform(bottomTransform);
 
     // Orthographic camera looking straight down -Z with up = +Y, so world +Y
-    // maps linearly to screen-up. theta = 0, phi = pi/2 puts the eye on +Z.
+    // maps linearly to screen-up. With the Z-up convention phi is measured from
+    // +Z, so a top-down view (eye on +Z, looking -Z) is phi = 0. theta = 0.
     // distance = 20 => ortho half-height = 20, so world Y at z=0 equals
     // ndcY * 20. A ray at ndcY = 0.9 (screenY = 0.95*H) hits world Y = 18.
     mir::Camera camera;
     camera.setTarget({0.0, 0.0, 0.0});
-    camera.setOrbit(0.0, std::atan(1.0) * 2.0, 20.0);
+    camera.setOrbit(0.0, 0.0, 20.0);
     camera.setProjection(mir::CameraProjection::Orthographic);
     camera.setAspect(800.0 / 600.0);
 

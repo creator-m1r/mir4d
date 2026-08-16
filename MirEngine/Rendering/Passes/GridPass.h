@@ -54,13 +54,14 @@ public:
 
 private:
     bool m_initialized{false};
-    GridPlane m_plane{GridPlane::XZ};
+    GridPlane m_plane{GridPlane::XY};
     float m_fadeDistanceOverride{0.0f};
     bool m_showGrid{true};
     bool m_showAxes{true};
 
     std::unique_ptr<OpenGLShader> m_gridShader;
     std::unique_ptr<OpenGLShader> m_bgShader;
+    std::unique_ptr<OpenGLShader> m_axisShader;
 
     // Static full-screen geometry (built once in initialize).
     std::shared_ptr<VertexBuffer> m_gridVBO;
@@ -71,9 +72,14 @@ private:
     std::shared_ptr<IndexBuffer> m_bgIBO;
     std::shared_ptr<VertexArray> m_bgVAO;
 
+    // Static world-space axis gizmo (built once in initialize).
+    std::shared_ptr<VertexBuffer> m_axisVBO;
+    std::shared_ptr<VertexArray> m_axisVAO;
+
     bool createShaders();
     void buildBackground(RenderDevice& device);
     void buildGridQuad(RenderDevice& device);
+    void buildAxisGizmo(RenderDevice& device);
 
     [[nodiscard]] static double niceStep(double target) noexcept;
     static void planeAxes(GridPlane plane,

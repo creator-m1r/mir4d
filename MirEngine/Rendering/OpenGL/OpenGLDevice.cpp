@@ -111,7 +111,6 @@ void OpenGLDevice::draw(const RenderCommand& command)
         }
     }(command.primitive);
 
-    glGetError(); // clear pending so we attribute the error to this draw
     if (mesh->hasIndexBuffer())
     {
         const GLsizei count = (command.indexCount != 0)
@@ -125,15 +124,6 @@ void OpenGLDevice::draw(const RenderCommand& command)
             ? static_cast<GLsizei>(command.indexCount)
             : static_cast<GLsizei>(mesh->getElementCount());
         glDrawArrays(primitive, static_cast<GLint>(command.firstIndex), count);
-    }
-
-    {
-        GLenum derr = glGetError();
-        if (derr != GL_NO_ERROR)
-            std::cerr << "[OpenGLDevice::draw] GL error 0x" << std::hex << derr
-                      << std::dec << " mesh=" << command.mesh
-                      << " idx=" << mesh->hasIndexBuffer()
-                      << " elem=" << mesh->getElementCount() << "\n";
     }
 
     mesh->unbind();

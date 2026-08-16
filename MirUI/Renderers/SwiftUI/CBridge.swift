@@ -79,6 +79,32 @@ public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false 
 public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+
+// Work planes (ТЗ Этап 1) — SwiftPM stub.
+public struct MirEnginePlane {
+    public var id: UInt32
+    public var origin: (Float, Float, Float)
+    public var normal: (Float, Float, Float)
+    public var xAxis: (Float, Float, Float)
+    public var yAxis: (Float, Float, Float)
+    public var color: (Float, Float, Float)
+    public var size: Float
+    public var active: Bool
+    public var selected: Bool
+    public init(id: UInt32, origin: (Float, Float, Float), normal: (Float, Float, Float),
+                xAxis: (Float, Float, Float), yAxis: (Float, Float, Float),
+                color: (Float, Float, Float), size: Float, active: Bool, selected: Bool) {
+        self.id = id; self.origin = origin; self.normal = normal
+        self.xAxis = xAxis; self.yAxis = yAxis; self.color = color
+        self.size = size; self.active = active; self.selected = selected
+    }
+}
+public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ planes: [MirEnginePlane]) {}
+public func MirEngineCreatePlaneStore() -> UnsafeMutableRawPointer? { nil }
+public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?) {}
+public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?) {}
+public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32 { 0 }
+public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32 { 0 }
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyOpenGLContext") public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?)
@@ -122,6 +148,89 @@ public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { fal
 @_silgen_name("MirEngineRedo") public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineCanUndo") public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineCanRedo") public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineSetPlanes") public func MirEngineSetPlanes(_ renderer: UnsafeMutableRawPointer?,
+    _ count: Int32, _ ids: UnsafePointer<UInt32>?, _ origins: UnsafePointer<Float>?,
+    _ normals: UnsafePointer<Float>?, _ xAxes: UnsafePointer<Float>?,
+    _ yAxes: UnsafePointer<Float>?, _ colors: UnsafePointer<Float>?,
+    _ sizes: UnsafePointer<Float>?, _ active: UnsafePointer<Bool>?, _ selected: UnsafePointer<Bool>?)
+
+// Work planes (ТЗ Этап 1) — helper that flattens Swift planes to flat arrays.
+public struct MirEnginePlane {
+    public var id: UInt32
+    public var origin: (Float, Float, Float)
+    public var normal: (Float, Float, Float)
+    public var xAxis: (Float, Float, Float)
+    public var yAxis: (Float, Float, Float)
+    public var color: (Float, Float, Float)
+    public var size: Float
+    public var active: Bool
+    public var selected: Bool
+    public init(id: UInt32, origin: (Float, Float, Float), normal: (Float, Float, Float),
+                xAxis: (Float, Float, Float), yAxis: (Float, Float, Float),
+                color: (Float, Float, Float), size: Float, active: Bool, selected: Bool) {
+        self.id = id; self.origin = origin; self.normal = normal
+        self.xAxis = xAxis; self.yAxis = yAxis; self.color = color
+        self.size = size; self.active = active; self.selected = selected
+    }
+}
+
+public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ planes: [MirEnginePlane]) {
+    guard let renderer, !planes.isEmpty else {
+        if let renderer {
+            MirEngineSetPlanes(renderer, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+        }
+        return
+    }
+    let count = planes.count
+    var ids = [UInt32](); ids.reserveCapacity(count)
+    var origins = [Float](); origins.reserveCapacity(count * 3)
+    var normals = [Float](); normals.reserveCapacity(count * 3)
+    var xAxes = [Float](); xAxes.reserveCapacity(count * 3)
+    var yAxes = [Float](); yAxes.reserveCapacity(count * 3)
+    var colors = [Float](); colors.reserveCapacity(count * 3)
+    var sizes = [Float](); sizes.reserveCapacity(count)
+    var active = [Bool](); active.reserveCapacity(count)
+    var selected = [Bool](); selected.reserveCapacity(count)
+    for p in planes {
+        ids.append(p.id)
+        origins.append(contentsOf: [p.origin.0, p.origin.1, p.origin.2])
+        normals.append(contentsOf: [p.normal.0, p.normal.1, p.normal.2])
+        xAxes.append(contentsOf: [p.xAxis.0, p.xAxis.1, p.xAxis.2])
+        yAxes.append(contentsOf: [p.yAxis.0, p.yAxis.1, p.yAxis.2])
+        colors.append(contentsOf: [p.color.0, p.color.1, p.color.2])
+        sizes.append(p.size)
+        active.append(p.active)
+        selected.append(p.selected)
+    }
+    ids.withUnsafeBufferPointer { idsP in
+        origins.withUnsafeBufferPointer { oP in
+            normals.withUnsafeBufferPointer { nP in
+                xAxes.withUnsafeBufferPointer { xP in
+                    yAxes.withUnsafeBufferPointer { yP in
+                        colors.withUnsafeBufferPointer { cP in
+                            sizes.withUnsafeBufferPointer { sP in
+                                active.withUnsafeBufferPointer { aP in
+                                    selected.withUnsafeBufferPointer { sp in
+                                        MirEngineSetPlanes(renderer, Int32(count),
+                                            idsP.baseAddress, oP.baseAddress, nP.baseAddress,
+                                            xP.baseAddress, yP.baseAddress, cP.baseAddress,
+                                            sP.baseAddress, aP.baseAddress, sp.baseAddress)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@_silgen_name("MirEngineCreatePlaneStore") public func MirEngineCreatePlaneStore() -> UnsafeMutableRawPointer?
+@_silgen_name("MirEngineDestroyPlaneStore") public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?)
+@_silgen_name("MirEnginePlaneStoreAddBasePlanes") public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?)
+@_silgen_name("MirEnginePlaneStoreCreateOffsetPlane") public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32
+@_silgen_name("MirEnginePlaneStoreSnapshot") public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32
 #endif
 
 // MARK: - Live document bridge

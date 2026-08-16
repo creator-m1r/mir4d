@@ -284,6 +284,7 @@ struct CADViewportChrome: View {
                 NotificationCenter.default.post(name: .mir4DCameraProjectionRequested, object: nil, userInfo: ["projection": isOrthographic ? 1 : 0])
             }
             viewportButton("cube.transparent", "Новое тело") { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
+            viewportButton("square.2.layers.3d", "Рабочая плоскость (XY +10)") { MIR4DModelCommands.shared.createWorkPlane(basePlane: 1, offset: 10.0) }
         }
         .padding(8).background(MirTheme.Colors.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
         .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.panelBorder, lineWidth: 1))

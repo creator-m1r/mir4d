@@ -62,6 +62,10 @@ void OpenGLIndexBuffer::uploadIndices(const uint32_t* data, size_t count,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData. Bind the
+    // scratch VAO here (not inside bind(), which is also invoked while a real
+    // VAO is already bound during setupAttributes).
+    BindDefaultVertexArray();
     bind();
 
     const GLsizeiptr sizeInBytes = static_cast<GLsizeiptr>(count * sizeof(uint32_t));
@@ -105,7 +109,6 @@ void OpenGLIndexBuffer::upload(const void* data, size_t size,
 
 void OpenGLIndexBuffer::bind()
 {
-    BindDefaultVertexArray();
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_handle);
 }
 

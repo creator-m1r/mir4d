@@ -442,21 +442,21 @@ private:
         return result;
     }
 
-    /// Projects the cursor ray onto the horizontal work plane (Y = planeY)
-    /// used by the active drag. The ground plane is XZ for the Y-up camera.
+    /// Projects the cursor ray onto the horizontal work plane (Z = planeZ)
+    /// used by the active drag. The ground plane is XY for the Z-up camera.
     [[nodiscard]] static bool rayPlaneIntersection(const PickRay& ray,
-                                                   Scalar planeY,
+                                                   Scalar planeZ,
                                                    Point3& hit) noexcept
     {
-        if (std::abs(ray.direction.y) <= Scalar(1e-9))
+        if (std::abs(ray.direction.z) <= Scalar(1e-9))
             return false;
-        const Scalar t = (planeY - ray.origin.y) / ray.direction.y;
+        const Scalar t = (planeZ - ray.origin.z) / ray.direction.z;
         if (t < Scalar(0))
             return false;
         hit = Point3{
             ray.origin.x + ray.direction.x * t,
-            planeY,
-            ray.origin.z + ray.direction.z * t};
+            ray.origin.y + ray.direction.y * t,
+            planeZ};
         return true;
     }
 
@@ -487,11 +487,11 @@ private:
         if (currentRay.direction.isZero() || startRay.direction.isZero())
             return;
 
-        const Scalar planeY = dragStartTransform_.position.y;
+        const Scalar planeZ = dragStartTransform_.position.z;
         Point3 currentHit{};
         Point3 startHit{};
-        if (!rayPlaneIntersection(currentRay, planeY, currentHit) ||
-            !rayPlaneIntersection(startRay, planeY, startHit))
+        if (!rayPlaneIntersection(currentRay, planeZ, currentHit) ||
+            !rayPlaneIntersection(startRay, planeZ, startHit))
             return;
 
         Transform updated = dragStartTransform_;

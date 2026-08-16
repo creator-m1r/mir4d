@@ -120,8 +120,8 @@ public:
 
         return {
             target_.x + distance_ * sinPhi * sinTheta,
-            target_.y + distance_ * cosPhi,
-            target_.z + distance_ * sinPhi * cosTheta};
+            target_.y + distance_ * sinPhi * cosTheta,
+            target_.z + distance_ * cosPhi};
     }
 
     /// World-space view direction: from the eye towards the target.
@@ -138,9 +138,11 @@ public:
     [[nodiscard]] Vector3 rightVector() const noexcept
     {
         const Vector3 f = forward();
-        Vector3 worldUp{0.0, 1.0, 0.0};
+        // Z-up world: the default up is +Z; fall back to +Y when looking
+        // straight down the Z axis (degenerate up).
+        Vector3 worldUp{0.0, 0.0, 1.0};
         if (std::abs(Vector3::dot(f, worldUp)) > Scalar(0.9999))
-            worldUp = {0.0, 0.0, 1.0};
+            worldUp = {0.0, 1.0, 0.0};
         return Vector3::cross(f, worldUp).normalized();
     }
 

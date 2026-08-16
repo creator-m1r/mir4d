@@ -74,6 +74,13 @@ bool OpenGLRenderer::initialize()
         m_geometryPass.reset();
     }
 
+    m_planePass = std::make_unique<PlanePass>();
+    if (!m_planePass->initialize(*m_device))
+    {
+        std::cerr << "[OpenGLRenderer] PlanePass initialization failed; continuing without planes.\n";
+        m_planePass.reset();
+    }
+
     // OpenGL diagnostics: context, limits, extensions.
     OpenGLDebug::resetErrors();
     OpenGLDebug::logReport();
@@ -111,6 +118,17 @@ void OpenGLRenderer::render(mir::Scene& scene,
 
     if (m_gridPass && m_gridPass->isInitialized())
         m_gridPass->execute(context, scene, *m_device);
+
+    // Work planes overlay (ТЗ Этап 1): feed the renderer's planes into the
+    // per-frame context, then draw under the solid geometry so bodies can
+    // occlude the translucent surface.
+    if (!m_planes.empty())
+        context.planes = m_planes;
+    else
+        context.planes.clear();
+
+    if (m_planePass && m_planePass->isInitialized())
+        m_planePass->execute(context, scene, *m_device);
 
     if (m_geometryPass)
         m_geometryPass->execute(context, scene, *m_device);

@@ -2,6 +2,8 @@
 
 #include "SketchConstraint.hpp"
 #include "SketchGeometry.hpp"
+#include "MirEngine/Math/Point.hpp"
+#include "MirEngine/Math/TransformMatrix.hpp"
 
 #include <cstdint>
 #include <string>
@@ -25,6 +27,36 @@ public:
     void setName(std::string name)
     {
         name_ = std::move(name);
+    }
+
+    // ── Plane anchoring (ТЗ раздел 25) ──────────────────────────────────────
+    // Эскиз существует в локальной системе координат конкретной плоскости.
+    // localTransform_ фиксирует basis плоскости (xAxis, yAxis, normal, origin)
+    // на момент создания/открытия эскиза, поэтому эскиз остаётся привязанным
+    // к плоскости даже при последующем её перемещении (перестройка — отдельно).
+    [[nodiscard]] std::uint32_t planeId() const noexcept { return planeId_; }
+    void setPlane(std::uint32_t id, const Matrix4& localTransform) noexcept
+    {
+        planeId_ = id;
+        localTransform_ = localTransform;
+    }
+
+    /// Локальная точка эскиза (lx, ly, 0) → мировая.
+    [[nodiscard]] Point3 toWorld(double lx, double ly) const noexcept
+    {
+        const Vector3 world = localTransform_.transformPoint(Vector3{lx, ly, 0.0});
+        return Point3{world.x, world.y, world.z};
+    }
+
+    /// Мировая точка → локальные (lx, ly). Проекция на плоскость.
+    void toLocal(const Point3& world, double& lx, double& ly) const noexcept
+    {
+        const Vector3 xAxis{localTransform_(0, 0), localTransform_(1, 0), localTransform_(2, 0)};
+        const Vector3 yAxis{localTransform_(0, 1), localTransform_(1, 1), localTransform_(2, 1)};
+        const Vector3 origin{localTransform_(0, 3), localTransform_(1, 3), localTransform_(2, 3)};
+        const Vector3 rel{world.x - origin.x, world.y - origin.y, world.z - origin.z};
+        lx = Vector3::dot(rel, xAxis);
+        ly = Vector3::dot(rel, yAxis);
     }
 
     [[nodiscard]] SketchGeometryStore& geometry() noexcept
@@ -55,6 +87,8 @@ public:
 
 private:
     std::string name_;
+    std::uint32_t planeId_{0};
+    Matrix4 localTransform_{Matrix4::identity()};
     SketchGeometryStore geometry_;
     SketchConstraintStore constraints_;
 };

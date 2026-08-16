@@ -10,6 +10,7 @@
 #include "../Renderer.h"
 #include "../Passes/GridPass.h"
 #include "../Passes/GeometryPass.h"
+#include "../Passes/PlanePass.h"
 #include "../Resources/ShaderLibrary.h"
 
 namespace MirEngine::Rendering
@@ -41,6 +42,13 @@ public:
 
     void setGridPlane(GridPlane plane) noexcept { if (m_gridPass) m_gridPass->setPlane(plane); }
 
+    /// Sets the work planes overlaid in the viewport (ТЗ Этап 1). The renderer
+    /// copies them into the per-frame context so PlanePass can draw them.
+    void setPlanes(const std::vector<PlaneRenderData>& planes) noexcept
+    {
+        m_planes = planes;
+    }
+
     /// Text report about the OpenGL context (requires the current context;
     /// performs makeCurrent itself).
     std::string diagnosticsReport();
@@ -55,6 +63,8 @@ private:
     ShaderLibrary m_shaderLibrary;
     std::unique_ptr<GridPass> m_gridPass;
     std::unique_ptr<GeometryPass> m_geometryPass;
+    std::unique_ptr<PlanePass> m_planePass;
+    std::vector<PlaneRenderData> m_planes;
     bool m_initialized{false};
 };
 

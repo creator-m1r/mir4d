@@ -10,6 +10,7 @@ extension Notification.Name {
     static let mir4DCreateBox = Notification.Name("MIR4D.CreateBox")
     static let mir4DFitViewport = Notification.Name("MIR4D.FitViewport")
     static let mir4DCameraProjectionRequested = Notification.Name("MIR4D.CameraProjectionRequested")
+    static let mir4DCreateWorkPlane = Notification.Name("MIR4D.CreateWorkPlane")
 }
 
 // MARK: - OpenGL / MirEngine View
@@ -66,6 +67,7 @@ final class MirGLCustomView: NSView {
     private var fitViewportObserver: NSObjectProtocol?
     private var cameraPresetObserver: NSObjectProtocol?
     private var cameraProjectionObserver: NSObjectProtocol?
+    private var workPlaneObserver: NSObjectProtocol?
 
     // MARK: Mouse interaction
 
@@ -117,6 +119,7 @@ final class MirGLCustomView: NSView {
             observeFitViewportRequests()
             observeCameraPresetRequests()
             observeCameraProjectionRequests()
+            observeWorkPlaneRequests()
 
             setupEngine()
             startDisplayLink()
@@ -267,6 +270,9 @@ final class MirGLCustomView: NSView {
                 print("MIR4D: startup cube created (objectID=\(startupBoxID))")
             }
         }
+
+        // ТЗ Этап 1: опубликовать базовые рабочие плоскости в оверлее вьюпорта.
+        WorkPlaneController.shared.push(to: renderer)
 
         guard viewport != nil else {
 
@@ -608,6 +614,67 @@ final class MirGLCustomView: NSView {
             }
     }
 
+    // MARK: Work planes (ТЗ Этап 1)
+
+    private func observeWorkPlaneRequests() {
+
+        guard workPlaneObserver == nil else {
+            return
+        }
+
+        workPlaneObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DCreateWorkPlane,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+
+                guard
+                    let payload = notification.userInfo,
+                    let basePlane = payload["basePlane"] as? UInt32
+                else {
+                    return
+                }
+
+                let offset =
+                    (payload["offset"] as? Double) ?? 0.0
+                let angleDeg =
+                    (payload["angleDeg"] as? Double) ?? 0.0
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.createWorkPlane(
+                        basePlane: basePlane,
+                        offset: offset,
+                        angleDeg: angleDeg
+                    )
+                }
+            }
+    }
+
+    private func createWorkPlane(
+        basePlane: UInt32,
+        offset: Double,
+        angleDeg: Double
+    ) {
+        let newId = WorkPlaneController.shared.createOffsetPlane(
+            basePlane: basePlane,
+            offset: offset,
+            angleDeg: angleDeg
+        )
+        guard newId != 0 else {
+            return
+        }
+
+        MirGLCustomView.engineLock.lock()
+        let activeRenderer = renderer
+        if let activeRenderer {
+            WorkPlaneController.shared.push(to: activeRenderer)
+        }
+        MirGLCustomView.engineLock.unlock()
+
+        print("MIR4D: work plane created (id=\(newId))")
+    }
+
     private func applyCameraProjection(_ projection: Int32) {
 
         MirGLCustomView.engineLock.lock()
@@ -622,6 +689,11 @@ final class MirGLCustomView: NSView {
     }
 
     private func removeObservers() {
+
+        if let observer = workPlaneObserver {
+            NotificationCenter.default.removeObserver(observer)
+            workPlaneObserver = nil
+        }
 
         if let observer = importObserver {
             NotificationCenter.default.removeObserver(

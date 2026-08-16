@@ -53,6 +53,51 @@ void MirEngineDestroyRenderer(
 
 
 // ------------------------------------------------------------
+// Work planes (ТЗ Этап 1)
+// ------------------------------------------------------------
+
+/// Pushes the document's work planes to the renderer for viewport overlay.
+/// Call when the plane set or selection changes (not per frame). Arrays are
+/// flat: origins/normals/xAxes/yAxes/colors hold 3*count floats.
+void MirEngineSetPlanes(
+    void* renderer,
+    int count,
+    const uint32_t* ids,
+    const float* origins,
+    const float* normals,
+    const float* xAxes,
+    const float* yAxes,
+    const float* colors,
+    const float* sizes,
+    const bool* active,
+    const bool* selected
+);
+
+// ------------------------------------------------------------
+// Work plane store (ТЗ Этап 1) — owns the document's planes.
+// ------------------------------------------------------------
+
+void* MirEngineCreatePlaneStore(void);
+void MirEngineDestroyPlaneStore(void* store);
+void MirEnginePlaneStoreAddBasePlanes(void* store);
+uint32_t MirEnginePlaneStoreCreateOffsetPlane(void* store,
+                                              uint32_t basePlane,
+                                              double offset,
+                                              double angleDeg);
+int MirEnginePlaneStoreSnapshot(void* store,
+                                int maxCount,
+                                uint32_t* ids,
+                                float* origins,
+                                float* normals,
+                                float* xAxes,
+                                float* yAxes,
+                                float* colors,
+                                float* sizes,
+                                bool* active,
+                                bool* selected);
+
+
+// ------------------------------------------------------------
 // Viewport / Scene
 // ------------------------------------------------------------
 
