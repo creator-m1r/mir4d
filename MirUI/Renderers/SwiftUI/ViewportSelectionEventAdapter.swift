@@ -18,13 +18,12 @@ struct MirSelectionResult: Equatable, Sendable {
     static let none = MirSelectionResult(kind: .none, id: 0)
 }
 
+@MainActor
 final class ViewportSelectionEventAdapter {
     static let shared = ViewportSelectionEventAdapter()
 
     private init() {}
 
-    /// Accepts the compact event representation already defined by the native
-    /// SelectionChangedEvent: data0 = SelectionKind, data1 = selection ID.
     func result(kindRawValue: UInt64, id: UInt64) -> MirSelectionResult {
         MirSelectionResult(kind: MirSelectionResult.Kind(rawValue: kindRawValue) ?? .none, id: id)
     }
@@ -38,5 +37,17 @@ final class ViewportSelectionEventAdapter {
         case .body: return .solid
         case .feature, .sketch: return .object
         }
+    }
+
+    /// Entry point for the native bridge. The native ABI stays untouched;
+    /// consumers receive the existing CADSelectionState through MirEventBus.
+    func publish(kindRawValue: UInt64, id: UInt64) {
+        let result = result(kindRawValue: kindRawValue, id: id)
+        MirEventBus.shared.publish(.selectionChanged(
+            CADSelectionState(
+                ids: result.id == 0 ? [] : [String(result.id)],
+                kind: result.id == 0 ? .none : .body
+            )
+        ))
     }
 }
