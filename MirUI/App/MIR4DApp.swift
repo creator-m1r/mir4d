@@ -13,7 +13,7 @@ struct MIR4DApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MIR4DStartupView()
+            MIR4DLaunchExperienceView()
                 .environmentObject(appState)
                 .environmentObject(launch)
                 .frame(minWidth: 1280, minHeight: 800)
@@ -22,9 +22,6 @@ struct MIR4DApp: App {
                     launch.handleOpenURL(url)
                 }
         }
-        // Keep the native macOS title bar and traffic-light controls owned by
-        // the window. MIR 4D's application header is rendered inside the
-        // SwiftUI content area below it, never over the system title region.
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -61,15 +58,10 @@ struct MIR4DApp: App {
     }
 }
 
-/// Native macOS window configuration.
-///
-/// The window itself owns its title bar, traffic-light controls and fullscreen
-/// transition. SwiftUI renders the MIR 4D application header inside the content
-/// area, so no application control is positioned over the native title region.
+/// Native macOS window configuration. The system title bar and traffic-light
+/// controls remain owned by AppKit; MIR 4D renders only inside the content area.
 struct MIR4DWindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> WindowConfiguratorView {
-        WindowConfiguratorView()
-    }
+    func makeNSView(context: Context) -> WindowConfiguratorView { WindowConfiguratorView() }
 
     func updateNSView(_ nsView: WindowConfiguratorView, context: Context) {
         nsView.scheduleConfiguration()
@@ -89,24 +81,14 @@ final class WindowConfiguratorView: NSView {
         scheduleConfiguration()
     }
 
-    /// macOS forbids mutating the window styleMask synchronously while the
-    /// SwiftUI layout pass is running. Window mutations are therefore deferred
-    /// to the next run-loop turn and performed once.
     func scheduleConfiguration() {
-        guard !didConfigure else { return }
-        guard window != nil else { return }
+        guard !didConfigure, window != nil else { return }
         didConfigure = true
-
-        DispatchQueue.main.async { [weak self] in
-            self?.configureWindow()
-        }
+        DispatchQueue.main.async { [weak self] in self?.configureWindow() }
     }
 
     private func configureWindow() {
         guard let window else { return }
-
-        // Keep the standard native title bar. The application UI must not
-        // replace, cover or float over this system-owned region.
         window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
@@ -134,20 +116,9 @@ final class WindowConfiguratorView: NSView {
     private func positionInitialWindow(_ window: NSWindow) {
         guard let screen = window.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-
-        // Start large enough for the full CAD shell while retaining a small
-        // margin around the native window. The user can resize/maximize it.
         let width = min(visible.width * 0.94, 1800)
         let height = min(visible.height * 0.92, 1100)
-        let origin = NSPoint(
-            x: visible.midX - width / 2,
-            y: visible.midY - height / 2
-        )
-
-        window.setFrame(
-            NSRect(x: origin.x, y: origin.y, width: width, height: height),
-            display: true,
-            animate: false
-        )
+        let origin = NSPoint(x: visible.midX - width / 2, y: visible.midY - height / 2)
+        window.setFrame(NSRect(x: origin.x, y: origin.y, width: width, height: height), display: true, animate: false)
     }
 }
