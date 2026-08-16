@@ -13,6 +13,7 @@ struct TopBarView: View {
         VStack(spacing: 0) {
             applicationHeader
             mainToolbar
+            WorkbenchRibbonView(appState: appState, registry: registry)
             ContextualCommandBarView(appState: appState, registry: registry)
         }
         .background(MirTheme.Colors.background)
@@ -28,8 +29,6 @@ struct TopBarView: View {
         }
     }
 
-    /// Собственная непрозрачная полоса приложения является частью SwiftUI-окна.
-    /// Она не перекрывает системную область заголовка macOS.
     private var applicationHeader: some View {
         HStack(spacing: 0) {
             brand.padding(.trailing, MirTheme.Spacing.lg)
@@ -86,7 +85,6 @@ struct TopBarView: View {
         }
         .padding(.horizontal, MirTheme.Spacing.lg)
         .frame(height: 42)
-        // Собственный сплошной тёмный фон: верхняя полоса не прозрачна.
         .background(MirTheme.Colors.topBar)
         .overlay(alignment: .bottom) {
             Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
@@ -114,16 +112,26 @@ struct TopBarView: View {
             toolbarAction("ruler", russian ? "Измерить" : "Measure", "inspect.measure")
             Spacer(minLength: MirTheme.Spacing.md)
             Button { appState.toggleExperience() } label: {
-                HStack(spacing: 5) { Image(systemName: "slider.horizontal.3"); Text(appState.ui.experience == .expert ? "EXP" : "BAS") }
-                    .font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(MirTheme.Colors.textSecondary)
-                    .padding(.horizontal, 8).frame(height: 28).background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-            }.buttonStyle(.plain)
+                HStack(spacing: 5) {
+                    Image(systemName: "slider.horizontal.3")
+                    Text(appState.ui.experience == .expert ? "EXP" : "BAS")
+                }
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(MirTheme.Colors.textSecondary)
+                .padding(.horizontal, 8).frame(height: 28)
+                .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            }
+            .buttonStyle(.plain)
             .help(appState.ui.experience == .expert ? (russian ? "Экспертный режим" : "Expert mode") : (russian ? "Базовый режим" : "Basic mode"))
             MirUIAppearanceToolbar(appearance: appearance)
-            Circle().fill(LinearGradient(colors: [MirTheme.Colors.accent, MirTheme.Colors.accentBright], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 30, height: 30).overlay { Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white) }.help("МИР 4D")
+            Circle()
+                .fill(LinearGradient(colors: [MirTheme.Colors.accent, MirTheme.Colors.accentBright], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 30, height: 30)
+                .overlay { Text("M1R").font(.system(size: 8, weight: .bold)).foregroundStyle(.white) }
+                .help("МИР 4D")
         }
-        .padding(.horizontal, MirTheme.Spacing.lg).frame(height: 46)
+        .padding(.horizontal, MirTheme.Spacing.lg)
+        .frame(height: 46)
         .background(MirTheme.Colors.surface)
     }
 
@@ -137,15 +145,25 @@ struct TopBarView: View {
                     Text(appState.documentName + (appState.documentDirty ? " •" : "")).font(MirTheme.Typography.status).foregroundStyle(MirTheme.Colors.textTertiary).lineLimit(1)
                 }
             }
-        }.help(russian ? "Документ МИР 4D" : "MIR 4D document")
+        }
+        .help(russian ? "Документ МИР 4D" : "MIR 4D document")
     }
 
     private var commandPaletteButton: some View {
         Button { commandPalettePresented = true } label: {
-            HStack(spacing: 6) { Image(systemName: "magnifyingglass"); Text(russian ? "Команды" : "Commands"); Text("⌘K").foregroundStyle(MirTheme.Colors.textTertiary) }
-                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
-                .padding(.horizontal, 10).padding(.vertical, 7).background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
-        }.buttonStyle(.plain).keyboardShortcut("k", modifiers: [.command]).help(russian ? "Палитра команд" : "Command palette")
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                Text(russian ? "Команды" : "Commands")
+                Text("⌘K").foregroundStyle(MirTheme.Colors.textTertiary)
+            }
+            .font(MirTheme.Typography.caption)
+            .foregroundStyle(MirTheme.Colors.textSecondary)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("k", modifiers: [.command])
+        .help(russian ? "Палитра команд" : "Command palette")
     }
 
     private var historyButtons: some View {
@@ -158,24 +176,34 @@ struct TopBarView: View {
     private func toolbarAction(_ icon: String, _ label: String, _ command: String) -> some View {
         Button { execute(command) } label: {
             HStack(spacing: 5) { Image(systemName: icon); Text(label) }
-                .font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textSecondary)
+                .font(MirTheme.Typography.caption)
+                .foregroundStyle(MirTheme.Colors.textSecondary)
                 .padding(.horizontal, 9).frame(height: 30)
                 .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-        }.buttonStyle(.plain).help(label)
+        }
+        .buttonStyle(.plain)
+        .help(label)
     }
 
     private func topButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 30, height: 28)
-        }.buttonStyle(.plain).foregroundStyle(MirTheme.Colors.textSecondary)
-            .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small)).help(label)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(MirTheme.Colors.textSecondary)
+        .background(MirTheme.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+        .help(label)
     }
 
     private func execute(_ id: String) {
         guard let command = registry.commands.first(where: { $0.id == id }) else {
-            MirEventBus.shared.publish(.commandRequested(id)); return
+            MirEventBus.shared.publish(.commandRequested(id))
+            return
         }
         guard command.workbenches.contains(appState.workbench), command.isAvailable(appState.activeContext) else { return }
-        MirEventBus.shared.publish(.commandRequested(id)); MirEventBus.shared.publish(.commandStarted(id)); command.execute(); MirEventBus.shared.publish(.commandFinished(id))
+        MirEventBus.shared.publish(.commandRequested(id))
+        MirEventBus.shared.publish(.commandStarted(id))
+        command.execute()
+        MirEventBus.shared.publish(.commandFinished(id))
     }
 }
