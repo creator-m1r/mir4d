@@ -6,6 +6,7 @@
 #include "OpenGLDevice.h"
 #include "OpenGLContext.h"
 #include "OpenGLShader.h"
+#include "OpenGLVertexArray.h"
 
 #if defined(__APPLE__)
 #include <OpenGL/gl3.h>
@@ -30,6 +31,9 @@ bool OpenGLDevice::initialize()
     }
 
     m_context->makeCurrent();
+    // OpenGL 4.1 Core requires a VAO to be bound for any buffer binding; keep a
+    // persistent scratch VAO bound so uploads never run with an unbound VAO.
+    BindDefaultVertexArray();
     m_state.initialize();
 
     const Size2D size = m_context->size();
@@ -107,6 +111,7 @@ void OpenGLDevice::draw(const RenderCommand& command)
         }
     }(command.primitive);
 
+    glGetError(); // clear pending so we attribute the error to this draw
     if (mesh->hasIndexBuffer())
     {
         const GLsizei count = (command.indexCount != 0)
@@ -120,6 +125,15 @@ void OpenGLDevice::draw(const RenderCommand& command)
             ? static_cast<GLsizei>(command.indexCount)
             : static_cast<GLsizei>(mesh->getElementCount());
         glDrawArrays(primitive, static_cast<GLint>(command.firstIndex), count);
+    }
+
+    {
+        GLenum derr = glGetError();
+        if (derr != GL_NO_ERROR)
+            std::cerr << "[OpenGLDevice::draw] GL error 0x" << std::hex << derr
+                      << std::dec << " mesh=" << command.mesh
+                      << " idx=" << mesh->hasIndexBuffer()
+                      << " elem=" << mesh->getElementCount() << "\n";
     }
 
     mesh->unbind();

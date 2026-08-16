@@ -75,5 +75,12 @@ private:
     void setupAttributes();
 };
 
+// OpenGL 4.1 Core has no default VAO: a VAO must always be bound when calling
+// glBindBuffer(GL_ARRAY_BUFFER / GL_ELEMENT_ARRAY_BUFFER) or glBufferData,
+// otherwise the driver raises GL_INVALID_OPERATION. BindDefaultVertexArray()
+// lazily creates and binds a persistent scratch VAO so buffer uploads never run
+// with an unbound VAO.
+void BindDefaultVertexArray() noexcept;
+
 } // namespace Rendering
 } // namespace MirEngine

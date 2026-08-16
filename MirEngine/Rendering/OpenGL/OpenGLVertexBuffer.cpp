@@ -18,6 +18,7 @@
 // =================================================================================
 
 #include "OpenGLVertexBuffer.h"
+#include "OpenGLVertexArray.h"
 #include <iostream>
 
 namespace MirEngine {
@@ -65,13 +66,16 @@ void OpenGLVertexBuffer::uploadVertices(const Vertex* data, size_t count,
 
     bind();
 
+    glGetError(); // clear any pending error so we attribute the next one correctly
     const GLsizeiptr sizeInBytes = static_cast<GLsizeiptr>(count * sizeof(Vertex));
     glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, usageToGL(usage));
 
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         std::cerr << "[OpenGLVertexBuffer] glBufferData error: 0x"
-                  << std::hex << err << std::dec << "\n";
+                  << std::hex << err << std::dec
+                  << " handle=" << m_handle << " count=" << count
+                  << " vao=" << 0 << "\n";
         m_vertexCount = 0;
     } else {
         m_vertexCount = count;
@@ -106,6 +110,7 @@ void OpenGLVertexBuffer::upload(const void* data, size_t size,
 
 void OpenGLVertexBuffer::bind()
 {
+    BindDefaultVertexArray();
     glBindBuffer(GL_ARRAY_BUFFER, m_handle);
 }
 

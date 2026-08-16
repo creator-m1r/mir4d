@@ -265,8 +265,13 @@ void GeometryPass::execute(RenderContext& context,
     }
 
     // Rebuild the GPU cache only when the scene content actually changed.
+    // Gate purely on contentRevision (a stable hash of scene + node state),
+    // never on the scene object's address: the hosting application may hand
+    // us a fresh scene reference each frame, and keying on &scene would force
+    // a full mesh re-upload every frame (and a spurious GL_INVALID_OPERATION
+    // from glBufferData on a live VAO-bound buffer).
     const std::uint64_t revision = scene.contentRevision();
-    if (m_cachedScene != &scene || m_cachedRevision != revision)
+    if (m_cachedRevision != revision)
     {
         rebuildSceneCache(scene, device);
         m_cachedScene = &scene;

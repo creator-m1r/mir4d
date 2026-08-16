@@ -553,6 +553,11 @@ int main(int argc, const char* argv[])
             [app sendEvent:event];
 
             renderFrame();
+            // Diagnostic: force a scene revision bump every frame so GeometryPass
+            // re-uploads the cube mesh each frame (reproduces app's per-frame
+            // glBufferData path to check for GL_INVALID_OPERATION).
+            if (gSmoke)
+                createBox();
             ++frame;
 
             if (gSmoke)

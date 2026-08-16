@@ -27,6 +27,22 @@
 namespace MirEngine {
 namespace Rendering {
 
+namespace
+{
+GLuint g_defaultVAO = 0;
+void bindDefaultVertexArrayImpl()
+{
+    if (g_defaultVAO == 0)
+        glGenVertexArrays(1, &g_defaultVAO);
+    glBindVertexArray(g_defaultVAO);
+}
+} // namespace
+
+void BindDefaultVertexArray() noexcept
+{
+    bindDefaultVertexArrayImpl();
+}
+
 // --------------------------------------------------------------------------
 // Конструктор / деструктор
 // --------------------------------------------------------------------------
@@ -56,7 +72,9 @@ void OpenGLVertexArray::bind()
 
 void OpenGLVertexArray::unbind()
 {
-    glBindVertexArray(0);
+    // Bind the persistent scratch VAO instead of 0: OpenGL 4.1 Core has no
+    // default VAO, and glBindBuffer/glBufferData require a bound VAO.
+    bindDefaultVertexArrayImpl();
 }
 
 // --------------------------------------------------------------------------

@@ -16,6 +16,7 @@
 // =================================================================================
 
 #include "OpenGLIndexBuffer.h"
+#include "OpenGLVertexArray.h"
 #include <iostream>
 
 namespace MirEngine {
@@ -104,6 +105,7 @@ void OpenGLIndexBuffer::upload(const void* data, size_t size,
 
 void OpenGLIndexBuffer::bind()
 {
+    BindDefaultVertexArray();
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_handle);
 }
 
