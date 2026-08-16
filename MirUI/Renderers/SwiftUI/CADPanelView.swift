@@ -5,24 +5,26 @@ import SwiftUI
 struct CADPanelView: View {
     let panel: CADPanel
     @ObservedObject var appState: CADAppState
+    @ObservedObject private var workspace = MIR4DWorkspaceCustomizationStore.shared
 
     var body: some View {
         VStack(spacing: 0) {
-            panelHeader
+            if workspace.showPanelHeaders { panelHeader }
             panelContent
         }
-        .background(MirTheme.Colors.panel)
+        .background(MirTheme.Colors.panel.opacity(workspace.panelOpacity))
+        .clipShape(RoundedRectangle(cornerRadius: workspace.panelCornerRadius))
         .overlay(alignment: .bottom) {
             Rectangle().fill(MirTheme.Colors.border).frame(height: 1)
         }
     }
 
     private var panelHeader: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: workspace.compactPanels ? 6 : 9) {
             Image(systemName: panelIcon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: workspace.compactPanels ? 10 : 11, weight: .semibold))
                 .foregroundStyle(MirTheme.Colors.accentBright)
-                .frame(width: 22, height: 22)
+                .frame(width: workspace.compactPanels ? 20 : 22, height: workspace.compactPanels ? 20 : 22)
                 .background(MirTheme.Colors.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
 
@@ -30,54 +32,41 @@ struct CADPanelView: View {
                 Text(panelTitle)
                     .font(MirTheme.Typography.bodySemibold)
                     .foregroundStyle(MirTheme.Colors.textPrimary)
-                Text(panelSubtitle)
-                    .font(MirTheme.Typography.status)
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                if !workspace.compactPanels {
+                    Text(panelSubtitle)
+                        .font(MirTheme.Typography.status)
+                        .foregroundStyle(MirTheme.Colors.textTertiary)
+                }
             }
 
             Spacer(minLength: 8)
 
             Menu {
-                Button { appState.togglePanel(panel) } label: {
-                    Label(appState.ui.language == .russian ? "Скрыть панель" : "Hide panel", systemImage: "eye.slash")
-                }
-                Button { appState.setPanelPlacement(.left, for: panel) } label: {
-                    Label(appState.ui.language == .russian ? "Переместить влево" : "Move left", systemImage: "sidebar.leading")
-                }
-                Button { appState.setPanelPlacement(.right, for: panel) } label: {
-                    Label(appState.ui.language == .russian ? "Переместить вправо" : "Move right", systemImage: "sidebar.trailing")
-                }
-                Button { appState.setPanelPlacement(.bottom, for: panel) } label: {
-                    Label(appState.ui.language == .russian ? "Переместить вниз" : "Move bottom", systemImage: "rectangle.bottomhalf.inset.filled")
-                }
+                Button { appState.togglePanel(panel) } label: { Label(appState.ui.language == .russian ? "Скрыть панель" : "Hide panel", systemImage: "eye.slash") }
+                Button { appState.setPanelPlacement(.left, for: panel) } label: { Label(appState.ui.language == .russian ? "Переместить влево" : "Move left", systemImage: "sidebar.leading") }
+                Button { appState.setPanelPlacement(.right, for: panel) } label: { Label(appState.ui.language == .russian ? "Переместить вправо" : "Move right", systemImage: "sidebar.trailing") }
+                Button { appState.setPanelPlacement(.bottom, for: panel) } label: { Label(appState.ui.language == .russian ? "Переместить вниз" : "Move bottom", systemImage: "rectangle.bottomhalf.inset.filled") }
+                Button { appState.setPanelPlacement(.floating, for: panel) } label: { Label(appState.ui.language == .russian ? "Отделить в окно" : "Detach as window", systemImage: "macwindow.on.rectangle") }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 24, height: 24)
+                Image(systemName: "ellipsis").font(.system(size: 10, weight: .semibold)).frame(width: 24, height: 24)
             }
             .menuStyle(.borderlessButton)
             .foregroundStyle(MirTheme.Colors.textTertiary)
             .background(MirTheme.Colors.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.border, lineWidth: 1))
-            .help(appState.ui.language == .russian ? "Действия панели" : "Panel actions")
 
             Button { appState.togglePanel(panel) } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .frame(width: 24, height: 24)
+                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)).frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
             .foregroundStyle(MirTheme.Colors.textTertiary)
             .background(MirTheme.Colors.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-            .contentShape(Rectangle())
             .help(appState.ui.language == .russian ? "Скрыть панель" : "Hide panel")
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(MirTheme.Colors.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(MirTheme.Colors.border.opacity(0.8)).frame(height: 1)
-        }
+        .padding(.horizontal, workspace.compactPanels ? 8 : 11)
+        .padding(.vertical, workspace.compactPanels ? 5 : 8)
+        .background(MirTheme.Colors.surface.opacity(workspace.panelOpacity))
+        .overlay(alignment: .bottom) { Rectangle().fill(MirTheme.Colors.border.opacity(0.8)).frame(height: 1) }
     }
 
     @ViewBuilder
@@ -104,14 +93,11 @@ struct CADPanelView: View {
     @ViewBuilder private var timeline: some View {
         switch appState.workbench {
         case .fourD, .simulation:
-            FourDTimelineView(appState: appState)
-                .frame(minHeight: 170, idealHeight: 230, maxHeight: 300)
+            FourDTimelineView(appState: appState).frame(minHeight: 170, idealHeight: 230, maxHeight: 300)
         case .assembly:
-            TimelinePanelView(appState: appState)
-                .frame(minHeight: 170, idealHeight: 220, maxHeight: 280)
+            TimelinePanelView(appState: appState).frame(minHeight: 170, idealHeight: 220, maxHeight: 280)
         default:
-            TimelinePanelView(appState: appState)
-                .frame(minHeight: 190, idealHeight: 250, maxHeight: 320)
+            TimelinePanelView(appState: appState).frame(minHeight: 190, idealHeight: 250, maxHeight: 320)
         }
     }
 
@@ -129,9 +115,7 @@ struct CADPanelView: View {
         case .project: return appState.ui.language == .russian ? "Структура проекта" : "Project structure"
         case .properties: return appState.ui.language == .russian ? "Свойства выбранного объекта" : "Selected object properties"
         case .timeline:
-            return appState.workbench == .fourD || appState.workbench == .simulation
-                ? (appState.ui.language == .russian ? "4D и сценарии" : "4D and scenarios")
-                : (appState.ui.language == .russian ? "Временная последовательность" : "Time sequence")
+            return appState.workbench == .fourD || appState.workbench == .simulation ? (appState.ui.language == .russian ? "4D и сценарии" : "4D and scenarios") : (appState.ui.language == .russian ? "Временная последовательность" : "Time sequence")
         default: return ""
         }
     }
