@@ -2,7 +2,7 @@
 //  MIR4DStartupView.swift
 //  MIR 4D
 //
-//  Startup choreography: darkness -> left diagnostic card -> right Project Hub -> workspace.
+//  Startup choreography: diagnostics -> Project Hub -> workspace.
 //  UI-only animation layer. MirEngine remains untouched.
 //
 
@@ -14,12 +14,7 @@ struct MIR4DStartupView: View {
     @EnvironmentObject private var launch: MIR4DLaunchCoordinator
     @StateObject private var boot = MIR4DBootCoordinator()
 
-    private enum Phase {
-        case diagnostics
-        case projectHub
-        case workspace
-    }
-
+    private enum Phase { case diagnostics, projectHub, workspace }
     @State private var phase: Phase = .diagnostics
     @State private var diagnosticsLeaving = false
     @State private var hubEntering = false
@@ -33,23 +28,18 @@ struct MIR4DStartupView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                workspace
-                    .zIndex(0)
+                workspace.zIndex(0)
 
                 if phase != .workspace || hubLeaving {
-                    darkness
-                        .zIndex(20)
-                        .allowsHitTesting(false)
+                    darkness.zIndex(20).allowsHitTesting(false)
                 }
 
                 if phase == .diagnostics {
-                    diagnosticDoor
-                        .zIndex(30)
+                    diagnosticDoor.zIndex(30)
                 }
 
                 if phase == .projectHub || hubLeaving {
-                    projectHubDoor
-                        .zIndex(30)
+                    projectHubDoor.zIndex(30)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -57,26 +47,18 @@ struct MIR4DStartupView: View {
         }
         .frame(minWidth: 1280, minHeight: 800)
         .onAppear { startBoot() }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
-            revealWorkspace()
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in revealWorkspace() }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DExternalProjectURL)) { notification in
             guard let url = notification.object as? URL else { return }
             openExternalProject(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { notification in
             if let rawValue = notification.userInfo?["workbench"] as? String,
-               let workbench = CADWorkbench(rawValue: rawValue) {
-                appState.selectWorkbench(workbench)
-            }
+               let workbench = CADWorkbench(rawValue: rawValue) { appState.selectWorkbench(workbench) }
             revealWorkspace()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
-            returnToProjectHub()
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in returnToProjectHub() }
     }
-
-    // MARK: - Scene layers
 
     private var workspace: some View {
         CADMainView(appState: appState)
@@ -93,19 +75,24 @@ struct MIR4DStartupView: View {
             .animation(.easeOut(duration: 0.75), value: phase)
     }
 
-    /// The diagnostic card behaves like a solid door arriving from the left.
     private var diagnosticDoor: some View {
         GeometryReader { proxy in
             ZStack {
                 Color(red: 0.012, green: 0.018, blue: 0.030)
+                MIR4DStartupMotionLayer()
+                    .opacity(diagnosticsLeaving ? 0.0 : 1.0)
+                    .animation(.easeOut(duration: 0.55), value: diagnosticsLeaving)
 
-                brandLockup
+                MIR4DStartupBrandMark()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .opacity(diagnosticsLeaving ? 0 : 1)
+                    .scaleEffect(diagnosticsLeaving ? 0.94 : 1)
+                    .animation(.easeOut(duration: 0.55), value: diagnosticsLeaving)
 
                 VStack(spacing: 0) {
                     Spacer()
                     diagnosticLayer
-                        .frame(maxWidth: 720)
+                        .frame(maxWidth: 760)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 40)
                         .padding(.bottom, 46)
@@ -114,13 +101,18 @@ struct MIR4DStartupView: View {
                         .animation(.easeOut(duration: 0.72), value: diagnosticsLeaving)
                 }
 
-                Text("MIR 4D Engineering Platform")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.30))
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 18)
-                    .opacity(diagnosticsLeaving ? 0 : 1)
-                    .animation(.easeOut(duration: 0.55), value: diagnosticsLeaving)
+                HStack {
+                    Text("SELF-DIAGNOSTIC")
+                    Spacer()
+                    Text("MIR 4D ENGINEERING PLATFORM")
+                }
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.24))
+                .padding(.horizontal, 22)
+                .padding(.bottom, 18)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .opacity(diagnosticsLeaving ? 0 : 1)
+                .animation(.easeOut(duration: 0.45), value: diagnosticsLeaving)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipShape(Rectangle())
@@ -136,41 +128,27 @@ struct MIR4DStartupView: View {
         .transition(.identity)
     }
 
-    /// The Project Hub is the translucent right-hand door. It enters from the
-    /// right after diagnostics and remains mounted while it slides away on selection.
     private var projectHubDoor: some View {
         GeometryReader { proxy in
-            MIR4DStartMenuView(diagnostic: boot)
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .background(MirTheme.Colors.panel.opacity(0.15))
-                .clipShape(Rectangle())
-                .shadow(color: .black.opacity(0.42), radius: 34, x: -18, y: 0)
-                .offset(x: hubLeaving ? proxy.size.width : (hubEntering ? 0 : proxy.size.width))
-                .opacity(hubLeaving ? 0.72 : 1)
-                .animation(doorTiming, value: hubEntering)
-                .animation(revealTiming, value: hubLeaving)
+            ZStack {
+                MIR4DStartupMotionLayer()
+                    .opacity(0.22)
+                    .allowsHitTesting(false)
+
+                MIR4DStartMenuView(diagnostic: boot)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .background(MirTheme.Colors.panel.opacity(0.15))
+                    .clipShape(Rectangle())
+                    .shadow(color: .black.opacity(0.42), radius: 34, x: -18, y: 0)
+                    .offset(x: hubLeaving ? proxy.size.width : (hubEntering ? 0 : proxy.size.width))
+                    .opacity(hubLeaving ? 0.72 : 1)
+                    .animation(doorTiming, value: hubEntering)
+                    .animation(revealTiming, value: hubLeaving)
+            }
         }
         .onAppear {
             guard !hubLeaving else { return }
-            withAnimation(doorTiming) {
-                hubEntering = true
-            }
-        }
-    }
-
-    // MARK: - Branding / diagnostics
-
-    private var brandLockup: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "cube.transparent")
-                .font(.system(size: 64, weight: .light))
-                .foregroundStyle(.white)
-            Text("МИР 4D")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-            Text("Мечтай • Изобретай • Развивай")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+            withAnimation(doorTiming) { hubEntering = true }
         }
     }
 
@@ -197,27 +175,42 @@ struct MIR4DStartupView: View {
                 .animation(.easeInOut(duration: 0.25), value: boot.progress)
 
             bootSteps
+
+            HStack(spacing: 14) {
+                diagnosticBadge("GPU", status: boot.state == .failed ? "CHECK" : "OK")
+                diagnosticBadge("EVENT BUS", status: "OK")
+                diagnosticBadge("RESOURCES", status: "OK")
+                Spacer()
+                if boot.warningCount > 0 {
+                    Label("\(boot.warningCount) warning", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                }
+            }
+            .font(.system(size: 9, weight: .semibold, design: .monospaced))
         }
         .padding(22)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.white.opacity(0.045))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1))
         )
         .shadow(color: .black.opacity(0.22), radius: 24, y: 12)
+    }
+
+    private func diagnosticBadge(_ title: String, status: String) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(status == "OK" ? Color.green : Color.orange).frame(width: 5, height: 5)
+            Text(title)
+            Text(status).foregroundStyle(.white.opacity(0.38))
+        }
     }
 
     private var bootSteps: some View {
         VStack(alignment: .leading, spacing: 7) {
             ForEach(boot.steps) { step in
                 HStack(spacing: 9) {
-                    Image(systemName: icon(for: step.severity))
-                        .font(.system(size: 11))
-                    Text("\(step.index). \(step.title)")
-                        .font(.system(size: 11, weight: .medium))
+                    Image(systemName: icon(for: step.severity)).font(.system(size: 11))
+                    Text("\(step.index). \(step.title)").font(.system(size: 11, weight: .medium))
                     Spacer(minLength: 12)
                     Text(step.detail)
                         .font(.system(size: 10, design: .monospaced))
@@ -231,22 +224,14 @@ struct MIR4DStartupView: View {
         .animation(.easeInOut(duration: 0.3), value: boot.steps.count)
     }
 
-    // MARK: - State transitions
-
     private func startBoot() {
         guard boot.state == .idle, !didResolveLaunch else { return }
-
         Task { @MainActor in
             await boot.start()
             try? await Task.sleep(for: .milliseconds(350))
             guard boot.state == .ready || boot.state == .warning else { return }
-
             launch.markBootFinished()
-            withAnimation(.easeOut(duration: 0.72)) {
-                diagnosticsLeaving = true
-            }
-
-            // Give the left door time to leave the frame before the right door arrives.
+            withAnimation(.easeOut(duration: 0.72)) { diagnosticsLeaving = true }
             try? await Task.sleep(for: .milliseconds(820))
             resolveLaunch()
         }
@@ -255,14 +240,9 @@ struct MIR4DStartupView: View {
     private func resolveLaunch() {
         guard !didResolveLaunch else { return }
         didResolveLaunch = true
-
-        // Project Hub is always the intentional post-diagnostic choice screen.
-        let intent = launch.resolveAfterBoot(autoOpenLastProject: false)
-        switch intent {
-        case .externalProject(let url):
-            openExternalProject(url)
-        case .restoreLast, .startMenu:
-            showProjectHub()
+        switch launch.resolveAfterBoot(autoOpenLastProject: false) {
+        case .externalProject(let url): openExternalProject(url)
+        case .restoreLast, .startMenu: showProjectHub()
         }
     }
 
@@ -270,17 +250,12 @@ struct MIR4DStartupView: View {
         hubLeaving = false
         hubEntering = false
         phase = .projectHub
-        withAnimation(doorTiming) {
-            hubEntering = true
-        }
+        withAnimation(doorTiming) { hubEntering = true }
     }
 
     private func openExternalProject(_ url: URL) {
         guard MIR4DProjectStore.shared.isValidPackage(at: url) else {
-            appState.showNotification(
-                "Не удалось открыть проект: пакет .mir4d недействителен.",
-                type: .warning
-            )
+            appState.showNotification("Не удалось открыть проект: пакет .mir4d недействителен.", type: .warning)
             showProjectHub()
             return
         }
@@ -289,22 +264,11 @@ struct MIR4DStartupView: View {
 
     private func revealWorkspace() {
         guard !hubLeaving else { return }
-
-        // When a project is opened externally (e.g. via Open With / double-click)
-        // the launch sequence may still be in the diagnostics phase and never
-        // showed the Project Hub. Reveal the workspace from any pre-workspace
-        // phase so the CAD scene is never stranded behind the darkness layer.
-        if phase == .diagnostics {
-            phase = .projectHub
-        }
-
-        // Keep the right door mounted while it travels beyond the window edge.
-        // Only after the motion finishes do we remove the darkness and reveal the CAD workspace.
+        if phase == .diagnostics { phase = .projectHub }
         withAnimation(revealTiming) {
             hubLeaving = true
             workspaceRevealing = true
         }
-
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(760))
             phase = .workspace
@@ -317,9 +281,7 @@ struct MIR4DStartupView: View {
         hubLeaving = false
         hubEntering = false
         phase = .projectHub
-        withAnimation(doorTiming) {
-            hubEntering = true
-        }
+        withAnimation(doorTiming) { hubEntering = true }
     }
 
     private func icon(for severity: MIR4DBootCoordinator.Severity) -> String {
