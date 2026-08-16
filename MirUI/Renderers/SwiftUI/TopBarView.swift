@@ -39,22 +39,12 @@ struct TopBarView: View {
             applicationMenu(russian ? "Правка" : "Edit", icon: "pencil") {
                 Button(russian ? "Отменить" : "Undo") { execute("history.undo") }
                 Button(russian ? "Повторить" : "Redo") { execute("history.redo") }
-                Divider()
-                Button(russian ? "Палитра команд…" : "Command Palette…") { commandPalettePresented = true }
             }
             applicationMenu(russian ? "Вид" : "View", icon: "eye") {
                 Button(russian ? "Сетка" : "Grid") { appState.toggleGrid() }
                 Button(russian ? "Оси" : "Axes") { appState.toggleAxes() }
                 Divider()
                 Button(russian ? "Настроить интерфейс…" : "Customize Interface…") { interfaceCustomizationPresented = true }
-            }
-            applicationMenu(russian ? "Создание" : "Create", icon: "plus.circle") {
-                Button(russian ? "Эскиз" : "Sketch") { execute("create.sketch") }
-                Button(russian ? "Тело" : "Body") { execute("create.body") }
-            }
-            applicationMenu(russian ? "Инструменты" : "Tools", icon: "wrench.and.screwdriver") {
-                Button(russian ? "Измерить" : "Measure") { execute("inspect.measure") }
-                Button(russian ? "Палитра команд…" : "Command Palette…") { commandPalettePresented = true }
             }
             Spacer(minLength: MirTheme.Spacing.lg)
             HStack(spacing: 7) {
@@ -89,9 +79,6 @@ struct TopBarView: View {
             historyButtons
             Divider().frame(height: 26)
             toolbarAction("doc.badge.plus", russian ? "Новый" : "New", "document.new")
-            toolbarAction("pencil.and.ruler", russian ? "Эскиз" : "Sketch", "create.sketch")
-            toolbarAction("cube.transparent", russian ? "Тело" : "Body", "create.body")
-            toolbarAction("ruler", russian ? "Измерить" : "Measure", "inspect.measure")
             Spacer(minLength: MirTheme.Spacing.md)
             Button { appState.toggleExperience() } label: {
                 HStack(spacing: 5) { Image(systemName: "slider.horizontal.3"); Text(appState.ui.experience == .expert ? "EXP" : "BAS") }

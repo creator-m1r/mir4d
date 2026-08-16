@@ -32,41 +32,36 @@ struct CADRibbonToolGroupsView: View {
             return [
                 RibbonGroup("Создание", "Create", ["create.body", "model.extrude", "model.revolve"]),
                 RibbonGroup("Выбор", "Selection", ["viewport.select", "viewport.pan", "viewport.fit"]),
-                RibbonGroup("Измерение", "Inspect", ["measure.distance", "viewport.section"]),
-                RibbonGroup("Вид", "View", ["viewport.grid", "viewport.axes"])
+                RibbonGroup("Измерение", "Inspect", ["measure.distance"])
             ]
         case .sketch:
             return [
                 RibbonGroup("Геометрия", "Geometry", ["sketch.line", "sketch.rectangle", "sketch.circle"]),
                 RibbonGroup("Ограничения", "Constraints", ["sketch.constraint", "sketch.dimension"]),
-                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.zoom", "viewport.fit"]),
-                RibbonGroup("Вид", "View", ["viewport.grid", "viewport.axes"])
+                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.zoom", "viewport.fit"])
             ]
         case .assembly:
             return [
                 RibbonGroup("Сборка", "Assembly", ["assembly.mate", "assembly.interference"]),
-                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"]),
-                RibbonGroup("Вид", "View", ["viewport.axes", "viewport.section"])
+                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"])
             ]
         case .simulation:
             return [
                 RibbonGroup("Расчёт", "Solve", ["simulation.solve", "simulation.results"]),
-                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"]),
-                RibbonGroup("Вид", "View", ["viewport.section", "viewport.axes"])
+                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"])
             ]
         case .fourD:
             return [
                 RibbonGroup("Время", "Time", ["fourD.play", "fourD.branch"]),
                 RibbonGroup("Анализ", "Analysis", ["fourD.compare", "fourD.whatIf"]),
-                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"]),
-                RibbonGroup("Вид", "View", ["viewport.axes", "viewport.section"])
+                RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"])
             ]
         case .drawing:
-            return [RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"]), RibbonGroup("Вид", "View", ["viewport.grid", "viewport.axes"])]
+            return [RibbonGroup("Навигация", "Navigation", ["viewport.select", "viewport.pan", "viewport.fit"])]
         case .collaboration:
             return [RibbonGroup("Ревью", "Review", ["viewport.select", "viewport.pan", "viewport.fit"])]
         case .visualization:
-            return [RibbonGroup("Сцена", "Scene", ["viewport.select", "viewport.pan", "viewport.fit"]), RibbonGroup("Вид", "View", ["viewport.axes", "viewport.section"])]
+            return [RibbonGroup("Сцена", "Scene", ["viewport.select", "viewport.pan", "viewport.fit"])]
         }
     }
 

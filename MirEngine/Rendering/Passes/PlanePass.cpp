@@ -136,53 +136,80 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
         verts.push_back(v);
     };
 
-    uint32_t base = 0;
-    for (const auto& p : planes)
+    // Индексы группируются ПО ТИПАМ примитивов: сначала все треугольники
+    // поверхностей, затем все линии (оси + рамки). Иначе glDrawElements для
+    // треугольников и линий читают пересекающиеся диапазоны индексов, и вершины
+    // осей/рамок попадают в треугольники -> "иглы"/"клинья".
+
+    // Pass 1: поверхности (2 треугольника на плоскость).
     {
-        const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
-        const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
-        const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
-        const mir::Vector3 n = mir::Vector3{p.normal[0], p.normal[1], p.normal[2]}.normalized();
-        const float s = sizeScale;
-        const float surfaceA = p.active ? 0.16f : (p.selected ? 0.12f : 0.05f);
-        const float r = p.color[0], g = p.color[1], b = p.color[2];
-
-        // Рабочая поверхность (2 треугольника).
-        const mir::Vector3 c00 = o - nx * s - ny * s;
-        const mir::Vector3 c10 = o + nx * s - ny * s;
-        const mir::Vector3 c11 = o + nx * s + ny * s;
-        const mir::Vector3 c01 = o - nx * s + ny * s;
-        push(c00.x, c00.y, c00.z, r, g, b, surfaceA);
-        push(c10.x, c10.y, c10.z, r, g, b, surfaceA);
-        push(c11.x, c11.y, c11.z, r, g, b, surfaceA);
-        push(c01.x, c01.y, c01.z, r, g, b, surfaceA);
-        indices.push_back(base + 0); indices.push_back(base + 1); indices.push_back(base + 2);
-        indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 3);
-        base += 4;
-
-        // Оси и нормаль (линии).
-        const float axisLen = s * 1.1f;
-        const float nLen = s * 0.5f;
-        const mir::Vector3 ox = o + nx * axisLen;
-        const mir::Vector3 oy = o + ny * axisLen;
-        const mir::Vector3 on = o + n * nLen;
-
-        push(o.x, o.y, o.z, 0.90f, 0.22f, 0.18f, 1.0f);
-        push(ox.x, ox.y, ox.z, 0.90f, 0.22f, 0.18f, 1.0f);
-        push(o.x, o.y, o.z, 0.20f, 0.70f, 0.30f, 1.0f);
-        push(oy.x, oy.y, oy.z, 0.20f, 0.70f, 0.30f, 1.0f);
-        push(o.x, o.y, o.z, 0.22f, 0.34f, 0.95f, 1.0f);
-        push(on.x, on.y, on.z, 0.22f, 0.34f, 0.95f, 1.0f);
-        // 3 отрезка осей: (o->ox), (o->oy), (o->on) = 6 вершин.
-        uint32_t lineBase = base;
-        for (int i = 0; i < 6; ++i)
-            indices.push_back(lineBase + static_cast<uint32_t>(i));
-        base += 6;
-
-        // Контур плоскости рисуется всегда (промышленный стиль), активная/
-        // выбранная — ярче.
+        uint32_t base = 0;
+        for (const auto& p : planes)
         {
+            const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
+            const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
+            const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
+            const float s = sizeScale;
+            const float surfaceA = p.active ? 0.16f : (p.selected ? 0.12f : 0.05f);
+            const float r = p.color[0], g = p.color[1], b = p.color[2];
+
+            const mir::Vector3 c00 = o - nx * s - ny * s;
+            const mir::Vector3 c10 = o + nx * s - ny * s;
+            const mir::Vector3 c11 = o + nx * s + ny * s;
+            const mir::Vector3 c01 = o - nx * s + ny * s;
+            push(c00.x, c00.y, c00.z, r, g, b, surfaceA);
+            push(c10.x, c10.y, c10.z, r, g, b, surfaceA);
+            push(c11.x, c11.y, c11.z, r, g, b, surfaceA);
+            push(c01.x, c01.y, c01.z, r, g, b, surfaceA);
+            indices.push_back(base + 0); indices.push_back(base + 1); indices.push_back(base + 2);
+            indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 3);
+            base += 4;
+        }
+    }
+
+    // Pass 2: оси (X красная, Y зелёная, нормаль синяя) — 3 отрезка = 6 вершин.
+    {
+        uint32_t base = static_cast<uint32_t>(verts.size());
+        for (const auto& p : planes)
+        {
+            const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
+            const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
+            const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
+            const mir::Vector3 n = mir::Vector3{p.normal[0], p.normal[1], p.normal[2]}.normalized();
+            const float s = sizeScale;
+            const float axisLen = s * 1.1f;
+            const float nLen = s * 0.5f;
+            const mir::Vector3 ox = o + nx * axisLen;
+            const mir::Vector3 oy = o + ny * axisLen;
+            const mir::Vector3 on = o + n * nLen;
+            push(o.x, o.y, o.z, 0.90f, 0.22f, 0.18f, 1.0f);
+            push(ox.x, ox.y, ox.z, 0.90f, 0.22f, 0.18f, 1.0f);
+            push(o.x, o.y, o.z, 0.20f, 0.70f, 0.30f, 1.0f);
+            push(oy.x, oy.y, oy.z, 0.20f, 0.70f, 0.30f, 1.0f);
+            push(o.x, o.y, o.z, 0.22f, 0.34f, 0.95f, 1.0f);
+            push(on.x, on.y, on.z, 0.22f, 0.34f, 0.95f, 1.0f);
+            indices.push_back(base + 0); indices.push_back(base + 1);
+            indices.push_back(base + 2); indices.push_back(base + 3);
+            indices.push_back(base + 4); indices.push_back(base + 5);
+            base += 6;
+        }
+    }
+
+    // Pass 3: рамки плоскостей (всегда, активная/выбранная — ярче).
+    {
+        uint32_t base = static_cast<uint32_t>(verts.size());
+        for (const auto& p : planes)
+        {
+            const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
+            const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
+            const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
+            const float s = sizeScale;
+            const float r = p.color[0], g = p.color[1], b = p.color[2];
             const float borderA = p.active ? 1.0f : (p.selected ? 0.95f : 0.7f);
+            const mir::Vector3 c00 = o - nx * s - ny * s;
+            const mir::Vector3 c10 = o + nx * s - ny * s;
+            const mir::Vector3 c11 = o + nx * s + ny * s;
+            const mir::Vector3 c01 = o - nx * s + ny * s;
             push(c00.x, c00.y, c00.z, r, g, b, borderA);
             push(c10.x, c10.y, c10.z, r, g, b, borderA);
             push(c10.x, c10.y, c10.z, r, g, b, borderA);
@@ -191,9 +218,10 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
             push(c01.x, c01.y, c01.z, r, g, b, borderA);
             push(c01.x, c01.y, c01.z, r, g, b, borderA);
             push(c00.x, c00.y, c00.z, r, g, b, borderA);
-            uint32_t b2 = base;
-            for (int i = 0; i < 8; ++i)
-                indices.push_back(b2 + static_cast<uint32_t>(i));
+            indices.push_back(base + 0); indices.push_back(base + 1);
+            indices.push_back(base + 2); indices.push_back(base + 3);
+            indices.push_back(base + 4); indices.push_back(base + 5);
+            indices.push_back(base + 6); indices.push_back(base + 7);
             base += 8;
         }
     }

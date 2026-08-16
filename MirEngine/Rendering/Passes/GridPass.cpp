@@ -61,6 +61,8 @@ uniform vec3 u_uDir;
 uniform vec3 u_vDir;
 uniform float u_step;
 uniform float u_fade;
+uniform float u_fadeInner;
+uniform vec3 u_fadeCenter;
 uniform vec3 u_minorColor;
 uniform vec3 u_majorColor;
 uniform float u_axesEnabled;
@@ -100,8 +102,11 @@ void main()
 
     vec3 hit = ro + rd * t;
 
-    float dist = length(hit - ro);
-    float fade = 1.0 - clamp(dist / max(u_fade, 1.0), 0.0, 1.0);
+    // Плавный «туман сокрытия»: сетка всегда рисуется, но затухает по
+    // расстоянию от центра сцены, начиная за пределами самого крупного
+    // объекта (u_fadeInner) и полностью исчезая на дальности u_fade.
+    float dist = length(hit - u_fadeCenter);
+    float fade = 1.0 - smoothstep(u_fadeInner, max(u_fade, u_fadeInner + 1.0), dist);
     if (fade <= 0.0) discard;
 
     vec2 coord = vec2(dot(hit - u_planePoint, u_uDir),
@@ -151,7 +156,12 @@ uniform vec3 u_bottomColor;
 void main()
 {
     float t = clamp(v_uv.y, 0.0, 1.0);
-    FragColor = vec4(mix(u_bottomColor, u_topColor, t), 1.0);
+    vec3 col = mix(u_bottomColor, u_topColor, t);
+    // Дизеринг убирает видимые горизонтальные полосы (color banding) тёмного
+    // вертикального градиента на 8-битном выводе.
+    float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    col += (dither - 0.5) / 255.0;
+    FragColor = vec4(col, 1.0);
 }
 )GLSL";
 
@@ -198,6 +208,63 @@ Matrix4Raw matrixToRaw(const mir::Matrix4& m)
         for (int row = 0; row < 4; ++row)
             r[row + c * 4] = static_cast<float>(m(row, c));
     return r;
+}
+
+// Агрегированный охват сцены: центр и радиус описывающей сферы самого
+// крупного объекта (по всем мешего-несущим узлам). Используется, чтобы
+// «туман сокрытия» сетки начинался за пределами геометрии, а не за
+// пределами плоскости отсечения камеры.
+void computeSceneExtent(mir::Scene& scene, float center[3], float& radius) noexcept
+{
+    double minX = 0.0, maxX = 0.0, minY = 0.0, maxY = 0.0, minZ = 0.0, maxZ = 0.0;
+    bool has = false;
+    for (const auto& node : scene.nodes())
+    {
+        if (!node || !node->model() || !node->model()->hasMesh())
+            continue;
+        const auto& mesh = node->model()->mesh();
+        if (mesh.empty())
+            continue;
+        const auto m = node->transform().matrix();
+        for (const auto& v : mesh.vertices)
+        {
+            const double x = static_cast<double>(m(0, 0)) * v.x +
+                             static_cast<double>(m(0, 1)) * v.y +
+                             static_cast<double>(m(0, 2)) * v.z +
+                             static_cast<double>(m(0, 3));
+            const double y = static_cast<double>(m(1, 0)) * v.x +
+                             static_cast<double>(m(1, 1)) * v.y +
+                             static_cast<double>(m(1, 2)) * v.z +
+                             static_cast<double>(m(1, 3));
+            const double z = static_cast<double>(m(2, 0)) * v.x +
+                             static_cast<double>(m(2, 1)) * v.y +
+                             static_cast<double>(m(2, 2)) * v.z +
+                             static_cast<double>(m(2, 3));
+            if (!has)
+            {
+                minX = maxX = x; minY = maxY = y; minZ = maxZ = z; has = true;
+            }
+            else
+            {
+                minX = std::min(minX, x); maxX = std::max(maxX, x);
+                minY = std::min(minY, y); maxY = std::max(maxY, y);
+                minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
+            }
+        }
+    }
+    if (!has)
+    {
+        center[0] = center[1] = center[2] = 0.0f;
+        radius = 0.0f;
+        return;
+    }
+    center[0] = static_cast<float>((minX + maxX) * 0.5);
+    center[1] = static_cast<float>((minY + maxY) * 0.5);
+    center[2] = static_cast<float>((minZ + maxZ) * 0.5);
+    const double dx = (maxX - minX) * 0.5;
+    const double dy = (maxY - minY) * 0.5;
+    const double dz = (maxZ - minZ) * 0.5;
+    radius = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz));
 }
 
 } // namespace
@@ -365,8 +432,8 @@ bool GridPass::initialize(RenderDevice& device)
 }
 
 void GridPass::execute(RenderContext& context,
-                       mir::Scene& /*scene*/,
-                       RenderDevice& device)
+                        mir::Scene& scene,
+                        RenderDevice& device)
 {
     if (!m_initialized) return;
 
@@ -410,11 +477,29 @@ void GridPass::execute(RenderContext& context,
         std::pow(camPos[0] - point[0], 2.0) +
         std::pow(camPos[1] - point[1], 2.0) +
         std::pow(camPos[2] - point[2], 2.0));
-    const float stepVal = static_cast<float>(niceStep(camDist * 0.1));
+    float fadeCenter[3] = {0.0f, 0.0f, 0.0f};
+    float sceneRadius = 0.0f;
+    computeSceneExtent(scene, fadeCenter, sceneRadius);
 
-    float fade = m_fadeDistanceOverride;
-    if (fade <= 0.0f)
-        fade = std::max(context.farPlane * 0.6f, 40.0f);
+    const float stepVal = static_cast<float>(
+        niceStep(std::max(camDist, static_cast<double>(sceneRadius)) * 0.08));
+
+    float fadeInner = 0.0f;
+    float fade = 0.0f;
+    if (m_fadeDistanceOverride > 0.0f)
+    {
+        // Явное переопределение (например, из UI) имеет приоритет.
+        fade = m_fadeDistanceOverride;
+        fadeInner = 0.0f;
+    }
+    else
+    {
+        // Сетка всегда рисуется дальше самого крупного объекта с запасом,
+        // а «туман сокрытия» плавно нарастает за его пределами. При пустой
+        // сцене — разумный минимум дальности.
+        fadeInner = sceneRadius;
+        fade = std::max(sceneRadius * 3.0f, 150.0f);
+    }
 
     const float minorCol[3] = {m_showGrid ? 0.22f : 0.0f,
                                 m_showGrid ? 0.24f : 0.0f,
@@ -436,6 +521,8 @@ void GridPass::execute(RenderContext& context,
     m_gridShader->setVec3("u_vDir", vDir[0], vDir[1], vDir[2]);
     m_gridShader->setFloat("u_step", stepVal);
     m_gridShader->setFloat("u_fade", fade);
+    m_gridShader->setFloat("u_fadeInner", fadeInner);
+    m_gridShader->setVec3("u_fadeCenter", fadeCenter[0], fadeCenter[1], fadeCenter[2]);
     m_gridShader->setVec3("u_minorColor", minorCol[0], minorCol[1], minorCol[2]);
     m_gridShader->setVec3("u_majorColor", majorCol[0], majorCol[1], majorCol[2]);
     m_gridShader->setFloat("u_axesEnabled", m_showAxes ? 1.0f : 0.0f);
