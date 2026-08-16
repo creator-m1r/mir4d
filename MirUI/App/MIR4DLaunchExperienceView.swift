@@ -2,10 +2,7 @@ import SwiftUI
 import AppKit
 
 /// Full launch choreography based on the MIR 4D reference storyboard:
-/// 1) branded card arrives from the left;
-/// 2) self-diagnostics run inside the card;
-/// 3) the project-selection door opens from the right;
-/// 4) selecting a project reveals the CAD workspace.
+/// branded card -> diagnostics -> project door -> CAD workspace.
 struct MIR4DLaunchExperienceView: View {
     @EnvironmentObject private var appState: CADAppState
     @EnvironmentObject private var launch: MIR4DLaunchCoordinator
@@ -18,6 +15,7 @@ struct MIR4DLaunchExperienceView: View {
     @State private var workspaceVisible = false
     @State private var launchResolved = false
     @State private var hubVisible = false
+    @State private var hubLeaving = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -30,8 +28,7 @@ struct MIR4DLaunchExperienceView: View {
                         .scaleEffect(workspaceVisible ? 1 : 1.015)
                         .animation(.easeOut(duration: 0.65), value: workspaceVisible)
                 } else {
-                    MIR4DStartupMotionLayer()
-                        .opacity(phase == .projectHub ? 0.16 : 0.35)
+                    MIR4DStartupMotionLayer().opacity(phase == .projectHub ? 0.16 : 0.35)
                 }
 
                 if phase == .diagnostics {
@@ -43,7 +40,7 @@ struct MIR4DLaunchExperienceView: View {
                 }
 
                 if phase == .projectHub {
-                    MIR4DLaunchProjectSelectionView(diagnostic: boot)
+                    MIR4DLaunchProjectSelectionView(diagnostic: boot, isLeaving: $hubLeaving)
                         .opacity(hubVisible ? 1 : 0)
                         .transition(.move(edge: .trailing))
                         .animation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.80), value: hubVisible)
@@ -67,6 +64,7 @@ struct MIR4DLaunchExperienceView: View {
             revealWorkspace()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
+            hubLeaving = false
             showProjectHub()
         }
     }
@@ -74,61 +72,29 @@ struct MIR4DLaunchExperienceView: View {
     private var diagnosticsCard: some View {
         VStack(spacing: 0) {
             Spacer()
-
             VStack(spacing: 12) {
                 MIR4DLaunchGeometricMark()
-                Text("МИР 4D")
-                    .font(.system(size: 38, weight: .medium, design: .rounded))
-                    .tracking(1.8)
-                    .foregroundStyle(.white)
-                Text("Мечтай · Изобретай · Развивай")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.52))
+                Text("МИР 4D").font(.system(size: 38, weight: .medium, design: .rounded)).tracking(1.8).foregroundStyle(.white)
+                Text("Мечтай · Изобретай · Развивай").font(.system(size: 12)).foregroundStyle(.white.opacity(0.52))
             }
-
             Spacer()
-
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     Circle().fill(.blue).frame(width: 6, height: 6)
-                    Text("САМОИАГНОСТИКА")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.55))
+                    Text("САМОИАГНОСТИКА").font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
                     Spacer()
-                    Text("\(Int(boot.progress * 100))%")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.65))
+                    Text("\(Int(boot.progress * 100))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
                 }
-
-                Text(boot.currentTitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(1)
-
-                ProgressView(value: boot.progress, total: 1)
-                    .tint(.blue)
-                    .animation(.easeInOut(duration: 0.2), value: boot.progress)
+                Text(boot.currentTitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78)).lineLimit(1)
+                ProgressView(value: boot.progress, total: 1).tint(.blue).animation(.easeInOut(duration: 0.2), value: boot.progress)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 34)
+            .padding(.horizontal, 32).padding(.bottom, 34)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.035, green: 0.055, blue: 0.085), Color(red: 0.008, green: 0.012, blue: 0.020)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
+        .background(RoundedRectangle(cornerRadius: 12).fill(
+            LinearGradient(colors: [Color(red: 0.035, green: 0.055, blue: 0.085), Color(red: 0.008, green: 0.012, blue: 0.020)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        ))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.20), lineWidth: 1))
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.blue.opacity(0.80))
-                .frame(width: 2)
-                .blur(radius: 4)
-        }
+        .overlay(alignment: .trailing) { Rectangle().fill(Color.blue.opacity(0.80)).frame(width: 2).blur(radius: 4) }
         .shadow(color: .blue.opacity(0.13), radius: 35, x: 14, y: 0)
         .offset(x: diagnosticsLeaving ? -70 : 0)
         .opacity(diagnosticsLeaving ? 0.15 : 1)
@@ -138,7 +104,6 @@ struct MIR4DLaunchExperienceView: View {
     private func startBoot() {
         guard boot.state == .idle, !launchResolved else { return }
         withAnimation(.easeOut(duration: 0.55)) { cardVisible = true }
-
         Task { @MainActor in
             await boot.start()
             try? await Task.sleep(for: .milliseconds(350))
@@ -161,10 +126,9 @@ struct MIR4DLaunchExperienceView: View {
 
     private func showProjectHub() {
         phase = .projectHub
+        hubLeaving = false
         hubVisible = false
-        withAnimation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.80)) {
-            hubVisible = true
-        }
+        withAnimation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.80)) { hubVisible = true }
     }
 
     private func openExternalProject(_ url: URL) {
@@ -177,12 +141,14 @@ struct MIR4DLaunchExperienceView: View {
     }
 
     private func revealWorkspace() {
-        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1, duration: 0.82)) {
+        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1, duration: 0.78)) {
+            hubLeaving = true
             workspaceVisible = true
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(760))
+            try? await Task.sleep(for: .milliseconds(720))
             phase = .workspace
+            hubLeaving = false
         }
     }
 }
