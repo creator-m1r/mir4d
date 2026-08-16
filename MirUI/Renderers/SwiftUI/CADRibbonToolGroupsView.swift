@@ -111,7 +111,7 @@ struct CADRibbonToolGroupsView: View {
                     .frame(maxWidth: 64)
             }
             .foregroundStyle(available ? MirTheme.Colors.textSecondary : MirTheme.Colors.textDisabled)
-            .frame(minWidth: 48, height: 46)
+            .frame(minWidth: 48, minHeight: 46)
             .background(available ? MirTheme.Colors.surface : MirTheme.Colors.surface.opacity(0.45), in: RoundedRectangle(cornerRadius: MirTheme.Radius.small))
             .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.small).stroke(MirTheme.Colors.border.opacity(0.55), lineWidth: 1))
         }

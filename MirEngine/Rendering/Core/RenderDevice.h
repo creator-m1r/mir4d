@@ -121,6 +121,10 @@ public:
     virtual void setWireframe(bool enabled) = 0;
     virtual void setLineWidth(float width) = 0;
 
+    // Back-face culling (CCW front faces). Overlay passes (grid, axes)
+    // must disable it because their quads are double-sided.
+    virtual void setCullFace(bool enabled) = 0;
+
     // Depth comparison function (coverage / overlay rendering).
     enum class DepthFunc : std::uint8_t {
         Less = 0,       // default: front-most surfaces win

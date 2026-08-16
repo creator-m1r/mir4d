@@ -33,7 +33,14 @@ let package = Package(
                 "App/UIConfig/TopBar.ui.json",
                 "App/UIConfig/MIR4DUIConfig.json",
                 "Renderers/SwiftUI/Resources/ru.lproj/Localizable.strings",
-                "Renderers/SwiftUI/Resources/en.lproj/Localizable.strings"
+                "Renderers/SwiftUI/Resources/en.lproj/Localizable.strings",
+                "Renderers/SwiftUI/ViewportSelectionBridge.swift",
+                "Renderers/SwiftUI/ViewportSelectionState.swift",
+                "Renderers/SwiftUI/ViewportSelectionEventAdapter.swift",
+                "Renderers/SwiftUI/CADViewportInteractionOverlay.swift",
+                "Renderers/SwiftUI/SelectionFilterBar.swift",
+                "Renderers/SwiftUI/CADViewportContextBar.swift",
+                "Renderers/SwiftUI/ViewportHoverState.swift"
             ],
             sources: [
                 "App",

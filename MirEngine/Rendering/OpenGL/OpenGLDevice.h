@@ -51,6 +51,7 @@ public:
     void setBlend(bool enabled) override { m_state.setBlend(enabled); }
     void setWireframe(bool enabled) override { m_state.setWireframe(enabled); }
     void setLineWidth(float width) override { m_state.setLineWidth(width); }
+    void setCullFace(bool enabled) override { m_state.setCullFace(enabled); }
     void setDepthFunc(DepthFunc func) override { m_state.setDepthFunc(func); }
 
     std::shared_ptr<VertexBuffer> createVertexBuffer() override;

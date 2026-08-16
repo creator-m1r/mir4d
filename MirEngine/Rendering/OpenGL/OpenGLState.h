@@ -39,6 +39,7 @@ public:
     void setDepthTest(bool enabled);
     void setBlend(bool enabled);
     void setLineWidth(float width);
+    void setCullFace(bool enabled);
     void setDepthFunc(RenderDevice::DepthFunc func);
 
     // Current viewport dimensions.
@@ -51,6 +52,7 @@ private:
     bool m_wireframe{false};
     bool m_depthTest{true};
     bool m_blend{false};
+    bool m_cullFace{true};
     RenderDevice::DepthFunc m_depthFunc{RenderDevice::DepthFunc::Less};
     bool m_initialized{false};
 };

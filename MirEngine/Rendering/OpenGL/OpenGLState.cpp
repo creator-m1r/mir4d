@@ -138,6 +138,18 @@ void OpenGLState::setLineWidth(float width)
     glLineWidth(clamped);
 }
 
+void OpenGLState::setCullFace(bool enabled)
+{
+    if (m_cullFace == enabled)
+        return;
+
+    m_cullFace = enabled;
+    if (enabled)
+        glEnable(GL_CULL_FACE);
+    else
+        glDisable(GL_CULL_FACE);
+}
+
 void OpenGLState::setDepthFunc(RenderDevice::DepthFunc func)
 {
     if (m_depthFunc == func)

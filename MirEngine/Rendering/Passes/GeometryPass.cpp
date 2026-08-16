@@ -123,7 +123,10 @@ vec3 shadeDirectional(vec3 N, vec3 V, vec3 Ldir, vec3 lightColor, float lightInt
     vec3 F = F_Schlick(clamp(dot(V, H), 0.0, 1.0), F0);
 
     vec3 spec = D * Vis * F;
-    vec3 kd = (1.0 - F) * (1.0 - metallic);
+    // Metals keep a reduced diffuse term so CAD faces stay readable
+    // without an image-based lighting environment.
+    float diffuseStrength = mix(1.0, 0.45, metallic);
+    vec3 kd = (1.0 - F) * diffuseStrength;
     return (kd * baseColor / PI + spec) * lightColor * lightIntensity * NoL;
 }
 
@@ -142,9 +145,16 @@ void main() {
     Lo += shadeDirectional(N, V, u_fillDir, u_fillColor, u_fillIntensity,
                            u_baseColor, u_metallic, u_roughness, F0);
 
-    vec3 ambient = u_ambientColor * u_ambientIntensity * u_baseColor;
+    // View-dependent ambient: faces facing the camera read brighter, which
+    // keeps every face of a metallic solid distinguishable.
+    float ambientFactor = 0.40 + 0.60 * NoV;
+    vec3 ambient = u_ambientColor * u_ambientIntensity * ambientFactor * u_baseColor;
 
-    vec3 color = ambient + Lo + u_emission;
+    // Subtle rim light outlines the silhouette of the solid.
+    float rim = pow(1.0 - NoV, 3.0);
+    vec3 rimLight = u_ambientColor * 0.35 * rim * u_baseColor;
+
+    vec3 color = ambient + rimLight + Lo + u_emission;
     color = max(color, vec3(0.0));
     color = color / (color + vec3(1.0)); // soft tone mapping
     color = pow(color, vec3(1.0 / 2.2)); // gamma

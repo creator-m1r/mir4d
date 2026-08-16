@@ -247,6 +247,7 @@ void GridPass::execute(RenderContext& context,
     // ------------------------------------------------------------------
     device.setDepthTest(false);
     device.setBlend(true);
+    device.setCullFace(false); // line quads are double-sided
 
     rebuildLines(context, device);
 
@@ -276,6 +277,15 @@ void GridPass::execute(RenderContext& context,
                        static_cast<GLsizei>(m_gridIBO->getIndexCount()),
                        GL_UNSIGNED_INT,
                        nullptr);
+        static int s_diag2 = 0;
+        if (++s_diag2 % 60 == 0)
+        {
+            GLenum err = glGetError();
+            std::cerr << "[GridPass] draw idx=" << m_gridIBO->getIndexCount()
+                      << " verts=" << m_gridVBO->getVertexCount()
+                      << " glError=0x" << std::hex << err << std::dec
+                      << " vp0=" << viewProj[0] << " vp5=" << viewProj[5] << " vp10=" << viewProj[10] << " vp15=" << viewProj[15] << "\n";
+        }
         m_gridVAO->unbind();
         m_lineShader->unbind();
     }
@@ -283,6 +293,7 @@ void GridPass::execute(RenderContext& context,
     // Restore defaults for the geometry pass.
     device.setDepthTest(true);
     device.setBlend(false);
+    device.setCullFace(true);
 }
 
 void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
@@ -318,44 +329,113 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
     const double distPlane = std::abs(normal[0] * eye[0] +
                                       normal[1] * eye[1] +
                                       normal[2] * eye[2]);
-    if (distPlane < 1e-6)
+    if (distPlane < 1e-9)
     {
+        // Camera lies exactly on the grid plane: the frustum does not
+        // intersect the plane at a well-defined extent. Skip this frame.
         m_gridVBO.reset();
         m_gridIBO.reset();
         m_gridVAO.reset();
         return;
     }
 
-    // Visible half-extents of the plane.
-    const double halfH = distPlane * std::tan(fov * 0.5);
-    const double halfW = halfH * aspect;
+    // Camera basis in world space from the rotation-only view matrix
+    // (column-major: right = rows 0-2, up = rows 4-6, forward = -rows 8-10).
+    const double forward[3] = {
+        -static_cast<double>(context.viewMatrix[8]),
+        -static_cast<double>(context.viewMatrix[9]),
+        -static_cast<double>(context.viewMatrix[10])};
+    const double up[3] = {
+        static_cast<double>(context.viewMatrix[4]),
+        static_cast<double>(context.viewMatrix[5]),
+        static_cast<double>(context.viewMatrix[6])};
+    const double right[3] = {
+        static_cast<double>(context.viewMatrix[0]),
+        static_cast<double>(context.viewMatrix[1]),
+        static_cast<double>(context.viewMatrix[2])};
 
-    // Adaptive step: ~18 px per cell, 1/2/5 x 10^n, capped line count.
-    double step = niceStep(2.0 * halfH * 18.0 / viewportHeight);
-    while ((2.0 * halfH / step) > kMaxLinesPerAxis)
+    const auto dot3 = [](const double a[3], const double b[3]) -> double
+    {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    };
+    const double nrm[3] = {
+        static_cast<double>(normal[0]),
+        static_cast<double>(normal[1]),
+        static_cast<double>(normal[2])};
+    const double nF = dot3(forward, nrm);
+    const double nU = dot3(up, nrm);
+    const double nR = dot3(right, nrm);
+    const double viewDist = distPlane / std::max(std::abs(nF), 1e-4);
+
+    // Frustum half-extents projected onto the grid plane. The visible region
+    // grows as the camera looks along the plane; the naive
+    // distPlane * tan(fov / 2) estimate would shrink the grid while orbiting
+    // (the "collapsing grid" artifact).
+    const double aV = fov * 0.5;
+    const double cosV = std::cos(aV);
+    const double sinV = std::sin(aV);
+    const double denomHiV = std::max(std::abs(nF * cosV + nU * sinV), 1e-6);
+    const double denomLoV = std::max(std::abs(nF * cosV - nU * sinV), 1e-6);
+    const double tHiV = distPlane / denomHiV;
+    const double tLoV = distPlane / denomLoV;
+    // Cap the frustum extents at the fade distance: beyond it every line is
+    // invisible anyway, and an unbounded extent (a frustum edge parallel to
+    // the plane) would overflow the line counters below.
+    const double halfH = std::min(
+        0.5 * std::sqrt((tHiV - tLoV) * (tHiV - tLoV) * cosV * cosV +
+                        (tHiV + tLoV) * (tHiV + tLoV) * sinV * sinV),
+        fade);
+
+    const double aH = std::atan(std::tan(aV) * aspect);
+    const double cosH = std::cos(aH);
+    const double sinH = std::sin(aH);
+    const double denomHiH = std::max(std::abs(nF * cosH + nR * sinH), 1e-6);
+    const double denomLoH = std::max(std::abs(nF * cosH - nR * sinH), 1e-6);
+    const double tHiH = distPlane / denomHiH;
+    const double tLoH = distPlane / denomLoH;
+    const double halfW = std::min(
+        0.5 * std::sqrt((tHiH - tLoH) * (tHiH - tLoH) * cosH * cosH +
+                        (tHiH + tLoH) * (tHiH + tLoH) * sinH * sinH),
+        fade);
+
+    // Adaptive step: ~18 px per cell at the viewed distance, which stays
+    // constant while orbiting, so the grid scale no longer jumps with the
+    // view angle; 1/2/5 x 10^n; capped line count.
+    double step = niceStep(2.0 * viewDist * std::tan(aV) * 18.0 / viewportHeight);
+    while ((2.0 * std::max(halfH, halfW) / step) > kMaxLinesPerAxis)
         step *= 2.0;
     const double majorStep = step * 5.0;
 
+    // The anchor snaps to the current step, so the grid shifts by a single
+    // line while panning instead of jumping by five lines at a time.
     double anchor[3] = {0.0, 0.0, 0.0};
-    planeBasis(m_plane, normal, uDir, vDir, anchor, eye, majorStep);
+    planeBasis(m_plane, normal, uDir, vDir, anchor, eye, step);
 
     std::vector<GridSegment> segments;
     segments.reserve(600);
 
+    int countU = 0;
+    int countV = 0;
+
     if (m_showGrid)
     {
         // Coordinates along the plane axes, anchored at the camera.
-        const int countU = static_cast<int>(std::floor(halfW * kExtendFactor / step));
-        const int countV = static_cast<int>(std::floor(halfH * kExtendFactor / step));
+        countU = std::min(
+            static_cast<int>(std::floor(halfW * kExtendFactor / step)),
+            static_cast<int>(kMaxLinesPerAxis));
+        countV = std::min(
+            static_cast<int>(std::floor(halfH * kExtendFactor / step)),
+            static_cast<int>(kMaxLinesPerAxis));
 
         const double extendU = halfW * kExtendFactor;
         const double extendV = halfH * kExtendFactor;
 
-        // Lines of constant u (running along v).
+        // Lines of constant u (running along v). Coordinates are measured
+        // from the anchor (the grid cell under the camera), so the grid
+        // follows the camera and always covers the viewport.
         for (int k = -countU; k <= countU; ++k)
         {
-            const double u = anchor[0] * uDir[0] + anchor[1] * uDir[1] + anchor[2] * uDir[2] +
-                             static_cast<double>(k) * step;
+            const double u = static_cast<double>(k) * step;
             const bool major = (std::abs(k) % 5 == 0);
 
             GridSegment segment;
@@ -368,13 +448,13 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             {
                 segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
                 segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
-                segment.widthPx = 1.4f;
+                segment.widthPx = 3.0f;
             }
             else
             {
                 segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
                 segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
-                segment.widthPx = 1.0f;
+                segment.widthPx = 2.5f;
             }
             segments.push_back(segment);
         }
@@ -382,8 +462,7 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         // Lines of constant v (running along u).
         for (int k = -countV; k <= countV; ++k)
         {
-            const double v = anchor[0] * vDir[0] + anchor[1] * vDir[1] + anchor[2] * vDir[2] +
-                             static_cast<double>(k) * step;
+            const double v = static_cast<double>(k) * step;
             const bool major = (std::abs(k) % 5 == 0);
 
             GridSegment segment;
@@ -396,13 +475,13 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             {
                 segment.color[0] = 0.38f; segment.color[1] = 0.42f; segment.color[2] = 0.50f;
                 segment.alpha0 = 0.9f; segment.alpha1 = 0.9f;
-                segment.widthPx = 1.4f;
+                segment.widthPx = 3.0f;
             }
             else
             {
                 segment.color[0] = 0.22f; segment.color[1] = 0.25f; segment.color[2] = 0.30f;
                 segment.alpha0 = 0.55f; segment.alpha1 = 0.55f;
-                segment.widthPx = 1.0f;
+                segment.widthPx = 2.5f;
             }
             segments.push_back(segment);
         }
@@ -446,32 +525,12 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
     vertices.reserve(segments.size() * 4);
     indices.reserve(segments.size() * 6);
 
+    const double fadeStart = fade * 0.55;
+    const double range = std::max(fade - fadeStart, 1e-9);
+    const double tanHalfFov = std::tan(fov * 0.5);
+
     for (const GridSegment& segment : segments)
     {
-        const double d0 = std::sqrt((segment.p0[0] - eye[0]) * (segment.p0[0] - eye[0]) +
-                                    (segment.p0[1] - eye[1]) * (segment.p0[1] - eye[1]) +
-                                    (segment.p0[2] - eye[2]) * (segment.p0[2] - eye[2]));
-        const double d1 = std::sqrt((segment.p1[0] - eye[0]) * (segment.p1[0] - eye[0]) +
-                                    (segment.p1[1] - eye[1]) * (segment.p1[1] - eye[1]) +
-                                    (segment.p1[2] - eye[2]) * (segment.p1[2] - eye[2]));
-        const double fadeStart = fade * 0.55;
-        const double range = std::max(fade - fadeStart, 1e-9);
-        const float a0 = segment.alpha0 * static_cast<float>(1.0 - std::clamp((d0 - fadeStart) / range, 0.0, 1.0));
-        const float a1 = segment.alpha1 * static_cast<float>(1.0 - std::clamp((d1 - fadeStart) / range, 0.0, 1.0));
-        if (a0 <= 0.004f && a1 <= 0.004f)
-            continue;
-
-        // Screen-space width: ~widthPx pixels at the segment distance.
-        const double mid[3] = {
-            (segment.p0[0] + segment.p1[0]) * 0.5,
-            (segment.p0[1] + segment.p1[1]) * 0.5,
-            (segment.p0[2] + segment.p1[2]) * 0.5};
-        const double dMid = std::sqrt(mid[0] * mid[0] + mid[1] * mid[1] + mid[2] * mid[2]);
-        const double pxToWorld = 2.0 * dMid * std::tan(fov * 0.5) / viewportHeight;
-        const double halfWidth = pxToWorld * static_cast<double>(segment.widthPx) * 0.5;
-
-        // Perpendicular in screen space: perpendicular to the line direction
-        // and the view ray.
         double segDir[3] = {
             segment.p1[0] - segment.p0[0],
             segment.p1[1] - segment.p0[1],
@@ -481,6 +540,53 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
             continue;
         segDir[0] /= segLen; segDir[1] /= segLen; segDir[2] /= segLen;
 
+        // Perpendicular distance from the camera to the infinite line. This
+        // is the correct quantity for both fade and screen-space width: a
+        // line passing close to the camera stays 1 px, no matter how far its
+        // endpoints are (the "thick line" artifact).
+        const double d0 = std::sqrt((segment.p0[0] - eye[0]) * (segment.p0[0] - eye[0]) +
+                                    (segment.p0[1] - eye[1]) * (segment.p0[1] - eye[1]) +
+                                    (segment.p0[2] - eye[2]) * (segment.p0[2] - eye[2]));
+        const double proj = (segment.p0[0] - eye[0]) * segDir[0] +
+                            (segment.p0[1] - eye[1]) * segDir[1] +
+                            (segment.p0[2] - eye[2]) * segDir[2];
+        const double dPerpSq = d0 * d0 - proj * proj;
+        const double dPerp = (dPerpSq > 0.0) ? std::sqrt(dPerpSq) : 0.0;
+
+        float a0;
+        float a1;
+        if (segment.alpha0 == segment.alpha1)
+        {
+            // Grid lines: fade by the line distance, so lines at the
+            // horizon vanish smoothly and lines under the camera never
+            // disappear because their endpoints are far away.
+            const float aLine = segment.alpha0 * static_cast<float>(
+                1.0 - std::clamp((dPerp - fadeStart) / range, 0.0, 1.0));
+            if (aLine <= 0.004f)
+                continue;
+            a0 = aLine;
+            a1 = aLine;
+        }
+        else
+        {
+            // Workspace axes keep their per-vertex gradient.
+            const double d1 = std::sqrt((segment.p1[0] - eye[0]) * (segment.p1[0] - eye[0]) +
+                                        (segment.p1[1] - eye[1]) * (segment.p1[1] - eye[1]) +
+                                        (segment.p1[2] - eye[2]) * (segment.p1[2] - eye[2]));
+            a0 = segment.alpha0 * static_cast<float>(1.0 - std::clamp((d0 - fadeStart) / range, 0.0, 1.0));
+            a1 = segment.alpha1 * static_cast<float>(1.0 - std::clamp((d1 - fadeStart) / range, 0.0, 1.0));
+            if (a0 <= 0.004f && a1 <= 0.004f)
+                continue;
+        }
+
+        // Screen-space width: ~widthPx pixels at the perpendicular distance.
+        const double pxToWorld = 2.0 * dPerp * tanHalfFov / viewportHeight;
+        const double halfWidth = pxToWorld * static_cast<double>(segment.widthPx) * 0.5;
+
+        const double mid[3] = {
+            (segment.p0[0] + segment.p1[0]) * 0.5,
+            (segment.p0[1] + segment.p1[1]) * 0.5,
+            (segment.p0[2] + segment.p1[2]) * 0.5};
         double viewDir[3] = {-mid[0], -mid[1], -mid[2]};
         double viewLen = std::sqrt(viewDir[0] * viewDir[0] + viewDir[1] * viewDir[1] + viewDir[2] * viewDir[2]);
         if (viewLen < 1e-9)
@@ -545,6 +651,17 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         m_gridIBO.reset();
         m_gridVAO.reset();
         return;
+    }
+
+    static int s_diagFrames = 0;
+    if (++s_diagFrames % 60 == 0)
+    {
+        std::cerr << "[GridPass] step=" << step
+                  << " halfH=" << halfH << " halfW=" << halfW
+                  << " countU=" << countU << " countV=" << countV
+                  << " segs=" << segments.size()
+                  << " verts=" << vertices.size()
+                  << " anchor=" << anchor[0] << "," << anchor[1] << "," << anchor[2] << "\n";
     }
 
     if (!m_gridVBO)
