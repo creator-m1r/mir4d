@@ -162,13 +162,13 @@ constexpr char kAxisVertSrc[] = R"GLSL(
 #version 410 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
-uniform mat4 u_invViewProj;
+uniform mat4 u_viewProj;
 uniform float u_scale;
 out vec3 v_color;
 void main()
 {
     v_color = aColor;
-    gl_Position = u_invViewProj * vec4(aPos * u_scale, 1.0);
+    gl_Position = u_viewProj * vec4(aPos * u_scale, 1.0);
 }
 )GLSL";
 
@@ -457,7 +457,7 @@ void GridPass::execute(RenderContext& context,
         device.setDepthTest(false);
         device.setBlend(false);
         m_axisShader->bind();
-        m_axisShader->setMatrix("u_invViewProj", invRaw);
+        m_axisShader->setMatrix("u_viewProj", matrixToRaw(vp));
         m_axisShader->setFloat("u_scale", axisLen);
         m_axisVAO->bind();
         glDrawArrays(GL_LINES, 0, 6);

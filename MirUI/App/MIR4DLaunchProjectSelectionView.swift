@@ -169,7 +169,7 @@ struct MIR4DLaunchProjectSelectionView: View {
             scenario("Программирование\nи Скрипты", icon: "chevron.left.forwardslash.chevron.right")
             Spacer()
         }
-        .padding(.horizontal, 24).padding(.vertical, 26).frame(width: 220, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 24).padding(.vertical, 26).frame(width: 220, height: .infinity, alignment: .topLeading)
     }
 
     private func scenario(_ text: String, icon: String) -> some View {

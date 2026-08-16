@@ -228,6 +228,9 @@ target_link_libraries(MIR4D_SketchRectangleSolver PRIVATE MirEngine)
 add_executable(MIR4D_WorkPlane MirEngine/Tests/Planes/WorkPlaneTest.cpp)
 target_link_libraries(MIR4D_WorkPlane PRIVATE MirEngine)
 
+add_executable(MIR4D_SketchDocumentSolver MirEngine/Tests/Sketch/SketchDocumentSolverTest.cpp)
+target_link_libraries(MIR4D_SketchDocumentSolver PRIVATE MirEngine)
+
 add_executable(MIR4D_ViewportFoundation MirEngine/Tests/Render/ViewportFoundation.cpp)
 target_link_libraries(MIR4D_ViewportFoundation PRIVATE MirEngineViewport)
 
@@ -273,6 +276,7 @@ add_test(NAME MIR4D_GeometryQuery COMMAND MIR4D_GeometryQuery)
 add_test(NAME MIR4D_SketchRectangleProfile COMMAND MIR4D_SketchRectangleProfile)
 add_test(NAME MIR4D_SketchRectangleSolver COMMAND MIR4D_SketchRectangleSolver)
 add_test(NAME MIR4D_WorkPlane COMMAND MIR4D_WorkPlane)
+add_test(NAME MIR4D_SketchDocumentSolver COMMAND MIR4D_SketchDocumentSolver)
 add_test(NAME MIR4D_ViewportFoundation COMMAND MIR4D_ViewportFoundation)
 add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)
