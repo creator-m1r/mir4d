@@ -2,8 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Owns floating windows for dockable panels placed in `.floating` zone.
-/// Panel windows follow the panel state and use restrained CAD-style motion:
-/// they enter from their docking direction and leave toward it.
+/// Panel windows are movable and resizable macOS panels.
 @MainActor
 final class FloatingPanelManager: NSObject, NSWindowDelegate {
     static let shared = FloatingPanelManager()
@@ -12,30 +11,26 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
     private var appState: CADAppState?
     private var closingPanels: Set<CADPanel> = []
 
-    private override init() {
-        super.init()
-    }
+    private override init() { super.init() }
 
     func sync(appState: CADAppState) {
         self.appState = appState
-
         for panel in Array(windows.keys) {
-            if !isFloatingActive(panel, in: appState) {
-                close(panel, animated: true)
-            }
+            if !isFloatingActive(panel, in: appState) { close(panel, animated: true) }
         }
-
         for panel in appState.visiblePanels where appState.panelPlacement(for: panel) == .floating {
-            if windows[panel] == nil && !closingPanels.contains(panel) {
-                show(panel, in: appState)
-            }
+            if windows[panel] == nil && !closingPanels.contains(panel) { show(panel, in: appState) }
         }
     }
 
     func closeAll() {
-        for panel in Array(windows.keys) {
-            close(panel, animated: false)
-        }
+        for panel in Array(windows.keys) { close(panel, animated: false) }
+    }
+
+    /// Applies a common live size to all currently floating panels.
+    func applySizeToAll(width: Double, height: Double) {
+        let size = NSSize(width: max(300, width), height: max(280, height))
+        for window in windows.values { window.setContentSize(size) }
     }
 
     private func isFloatingActive(_ panel: CADPanel, in appState: CADAppState) -> Bool {
@@ -44,8 +39,9 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
 
     private func show(_ panel: CADPanel, in appState: CADAppState) {
         let title = appState.ui.language == .russian ? panel.titleRU : panel.titleEN
+        let preferences = MIR4DWorkspaceCustomizationStore.shared
         let window = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 440),
+            contentRect: NSRect(x: 0, y: 0, width: preferences.floatingWidth, height: preferences.floatingHeight),
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -60,8 +56,8 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.alphaValue = 0
-        window.minSize = NSSize(width: 300, height: 320)
-        window.contentMinSize = NSSize(width: 300, height: 320)
+        window.minSize = NSSize(width: 300, height: 280)
+        window.contentMinSize = NSSize(width: 300, height: 280)
         window.delegate = self
 
         let hosting = NSHostingController(rootView: CADPanelView(panel: panel, appState: appState))
@@ -70,11 +66,7 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
 
         let targetOrigin = cascadeOrigin(for: panel, window: window)
         let direction = motionDirection(for: panel, appState: appState)
-        let startOrigin = NSPoint(
-            x: targetOrigin.x + direction.dx * 34,
-            y: targetOrigin.y + direction.dy * 34
-        )
-
+        let startOrigin = NSPoint(x: targetOrigin.x + direction.dx * 34, y: targetOrigin.y + direction.dy * 34)
         window.setFrameOrigin(startOrigin)
         window.makeKeyAndOrderFront(nil)
         windows[panel] = window
@@ -89,7 +81,6 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
 
     private func close(_ panel: CADPanel, animated: Bool) {
         guard let window = windows[panel], !closingPanels.contains(panel) else { return }
-
         guard animated else {
             window.delegate = nil
             windows.removeValue(forKey: panel)
@@ -97,12 +88,10 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
             window.close()
             return
         }
-
         closingPanels.insert(panel)
         let origin = window.frame.origin
         let direction = motionDirection(for: panel, appState: appState)
         let target = NSPoint(x: origin.x + direction.dx * 30, y: origin.y + direction.dy * 30)
-
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.22
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -126,40 +115,26 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
             let offset = CGFloat(max(0, windows.count - 1)) * 26
             return NSPoint(x: base.x + 40 + offset, y: base.y + 40 - offset)
         }
-
-        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let index = CGFloat(windows.count)
-        return NSPoint(
-            x: visible.maxX - 380 - index * 26,
-            y: visible.maxY - 460 - index * 26
-        )
+        return NSPoint(x: visible.maxX - 380 - index * 26, y: visible.maxY - 460 - index * 26)
     }
 
     private func motionDirection(for panel: CADPanel, appState: CADAppState?) -> CGVector {
         guard let appState else { return CGVector(dx: 1, dy: 0) }
-
         switch appState.panelPlacement(for: panel) {
-        case .left:
-            return CGVector(dx: -1, dy: 0)
-        case .right:
-            return CGVector(dx: 1, dy: 0)
-        case .bottom:
-            return CGVector(dx: 0, dy: -1)
-        case .floating:
-            return CGVector(dx: 0.65, dy: -0.35)
+        case .left: return CGVector(dx: -1, dy: 0)
+        case .right: return CGVector(dx: 1, dy: 0)
+        case .bottom: return CGVector(dx: 0, dy: -1)
+        case .floating: return CGVector(dx: 0.65, dy: -0.35)
         }
     }
-
-    // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard let panel = windows.first(where: { $0.value === window })?.key else { return }
         windows.removeValue(forKey: panel)
         closingPanels.remove(panel)
-        if let appState, !isFloatingActive(panel, in: appState) {
-            appState.togglePanel(panel)
-        }
+        if let appState, !isFloatingActive(panel, in: appState) { appState.togglePanel(panel) }
     }
 }
