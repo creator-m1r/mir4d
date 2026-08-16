@@ -41,6 +41,7 @@ if(APPLE)
         MirEngine/Rendering/Passes/GeometryPass.cpp
         MirEngine/Rendering/Passes/GridPass.cpp
         MirEngine/Rendering/Passes/PlanePass.cpp
+        MirEngine/Rendering/Passes/SketchPass.cpp
         MirEngine/Rendering/Resources/ShaderLibrary.cpp
         MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
         MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp

@@ -172,6 +172,66 @@ int main()
         std::cout << "[PASS] Scenario 5: coincident line join\n";
     }
 
+    // Scenario 6: closed rectangle (4 lines, full loop, length anchored).
+    {
+        mir::SketchDocument doc2;
+        auto& g = doc2.geometry();
+        auto& c = doc2.constraints();
+
+        const auto l1 = g.addLine({0.0, 0.0}, {4.0, 0.0});
+        const auto l2 = g.addLine({4.0, 0.0}, {4.0, 3.0});
+        const auto l3 = g.addLine({4.0, 3.0}, {0.0, 3.0});
+        const auto l4 = g.addLine({0.0, 3.0}, {0.0, 0.0});
+
+        c.add(mir::SketchConstraintType::Horizontal, l1);
+        c.add(mir::SketchConstraintType::Vertical, l2);
+        c.add(mir::SketchConstraintType::Horizontal, l3);
+        c.add(mir::SketchConstraintType::Vertical, l4);
+        c.add(mir::SketchConstraintType::Distance, l1, 0, 4.0);
+        c.add(mir::SketchConstraintType::Equal, l1, l2);
+        c.add(mir::SketchConstraintType::Equal, l1, l3);
+        c.add(mir::SketchConstraintType::Equal, l1, l4);
+        c.add(mir::SketchConstraintType::Perpendicular, l1, l2);
+        c.add(mir::SketchConstraintType::Coincident, l1, l2);
+        c.add(mir::SketchConstraintType::Coincident, l2, l3);
+        c.add(mir::SketchConstraintType::Coincident, l3, l4);
+        c.add(mir::SketchConstraintType::Coincident, l4, l1);
+
+        const auto result = mir::SketchDocumentSolver::solve(doc2);
+        assert(result.converged);
+
+        const auto gl = getLine(g, l1);
+        const auto g2 = getLine(g, l2);
+        const auto g3 = getLine(g, l3);
+        const auto g4 = getLine(g, l4);
+
+        const double len1 = lineLength(gl);
+        const double len2 = lineLength(g2);
+        const double len3 = lineLength(g3);
+        const double len4 = lineLength(g4);
+        checkNear(len1, 4.0, 1.0e-4, "rect L1 length");
+        checkNear(len2, 4.0, 1.0e-4, "rect L2 length");
+        checkNear(len3, 4.0, 1.0e-4, "rect L3 length");
+        checkNear(len4, 4.0, 1.0e-4, "rect L4 length");
+
+        auto dot = [](const mir::SketchLine2D& a, const mir::SketchLine2D& b) {
+            const double ax = a.end.x - a.start.x;
+            const double ay = a.end.y - a.start.y;
+            const double bx = b.end.x - b.start.x;
+            const double by = b.end.y - b.start.y;
+            return ax * bx + ay * by;
+        };
+        checkNear(dot(gl, g2), 0.0, 1.0e-4, "rect L1.L2 perpendicular");
+        checkNear(dot(g2, g3), 0.0, 1.0e-4, "rect L2.L3 perpendicular");
+        checkNear(dot(g3, g4), 0.0, 1.0e-4, "rect L3.L4 perpendicular");
+        checkNear(dot(g4, gl), 0.0, 1.0e-4, "rect L4.L1 perpendicular");
+
+        // closure: L4.end == L1.start
+        checkNear(g4.end.x, gl.start.x, 1.0e-4, "rect closed x");
+        checkNear(g4.end.y, gl.start.y, 1.0e-4, "rect closed y");
+        std::cout << "[PASS] Scenario 6: closed rectangle (4 lines, loop)\n";
+    }
+
     std::cout << "All SketchDocumentSolver tests passed.\n";
     return 0;
 }

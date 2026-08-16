@@ -81,6 +81,13 @@ bool OpenGLRenderer::initialize()
         m_planePass.reset();
     }
 
+    m_sketchPass = std::make_unique<SketchPass>();
+    if (!m_sketchPass->initialize(*m_device))
+    {
+        std::cerr << "[OpenGLRenderer] SketchPass initialization failed; continuing without sketch overlay.\n";
+        m_sketchPass.reset();
+    }
+
     // OpenGL diagnostics: context, limits, extensions.
     OpenGLDebug::resetErrors();
     OpenGLDebug::logReport();
@@ -129,6 +136,15 @@ void OpenGLRenderer::render(mir::Scene& scene,
 
     if (m_planePass && m_planePass->isInitialized())
         m_planePass->execute(context, scene, *m_device);
+
+    // 2D sketch overlay (ТЗ Этап 2): feed the renderer's sketch and draw it.
+    if (!m_sketches.empty())
+        context.sketches = m_sketches;
+    else
+        context.sketches.clear();
+
+    if (m_sketchPass && m_sketchPass->isInitialized())
+        m_sketchPass->execute(context, scene, *m_device);
 
     if (m_geometryPass)
         m_geometryPass->execute(context, scene, *m_device);

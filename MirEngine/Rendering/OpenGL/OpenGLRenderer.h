@@ -11,6 +11,7 @@
 #include "../Passes/GridPass.h"
 #include "../Passes/GeometryPass.h"
 #include "../Passes/PlanePass.h"
+#include "../Passes/SketchPass.h"
 #include "../Resources/ShaderLibrary.h"
 
 namespace MirEngine::Rendering
@@ -49,6 +50,13 @@ public:
         m_planes = planes;
     }
 
+    /// Sets the 2D sketch overlay drawn on a work plane (ТЗ Этап 2). The
+    /// renderer copies it into the per-frame context so SketchPass can draw it.
+    void setSketch(const std::vector<SketchRenderData>& sketches) noexcept
+    {
+        m_sketches = sketches;
+    }
+
     /// Text report about the OpenGL context (requires the current context;
     /// performs makeCurrent itself).
     std::string diagnosticsReport();
@@ -64,7 +72,9 @@ private:
     std::unique_ptr<GridPass> m_gridPass;
     std::unique_ptr<GeometryPass> m_geometryPass;
     std::unique_ptr<PlanePass> m_planePass;
+    std::unique_ptr<SketchPass> m_sketchPass;
     std::vector<PlaneRenderData> m_planes;
+    std::vector<SketchRenderData> m_sketches;
     bool m_initialized{false};
 };
 

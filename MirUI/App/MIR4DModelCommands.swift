@@ -63,4 +63,28 @@ final class MIR4DModelCommands {
             ]
         )
     }
+
+    /// ТЗ Этап 2: создать эскиз-прямоугольник через универсальный решатель ограничений.
+    func createSketchRectangle(
+        appState: CADAppState,
+        width: Double = 40.0,
+        height: Double = 25.0
+    ) {
+        guard session.projectURL != nil else {
+            appState.showNotification("Сначала создайте или откройте проект MIR 4D", type: .warning)
+            return
+        }
+        let corners = SketchController.shared.createSolvedRectangle(width: Float(width), height: Float(height))
+        guard let corners else {
+            appState.showNotification("Не удалось решить эскиз: ограничения противоречивы", type: .error)
+            return
+        }
+        NotificationCenter.default.post(
+            name: .mir4DSketchSolved,
+            object: nil,
+            userInfo: ["corners": corners, "width": width, "height": height]
+        )
+        appState.showNotification("Эскиз построен решателем ограничений: \(corners.count) углов", type: .success)
+    }
+
 }

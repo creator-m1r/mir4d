@@ -100,11 +100,32 @@ public struct MirEnginePlane {
     }
 }
 public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ planes: [MirEnginePlane]) {}
+
+public struct MirEngineSketchSegment {
+    public var ax: Float
+    public var ay: Float
+    public var bx: Float
+    public var by: Float
+    public var color: (Float, Float, Float)
+    public init(ax: Float, ay: Float, bx: Float, by: Float, color: (Float, Float, Float)) {
+        self.ax = ax; self.ay = ay; self.bx = bx; self.by = by; self.color = color
+    }
+}
+public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments: [MirEngineSketchSegment]) {}
 public func MirEngineCreatePlaneStore() -> UnsafeMutableRawPointer? { nil }
 public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?) {}
 public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?) {}
 public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32 { 0 }
 public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32 { 0 }
+public func MirEngineSketchCreateDocument() -> UnsafeMutableRawPointer? { nil }
+public func MirEngineSketchDestroyDocument(_ doc: UnsafeMutableRawPointer?) {}
+public func MirEngineSketchAddLine(_ doc: UnsafeMutableRawPointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32 { 0 }
+public func MirEngineSketchAddCircle(_ doc: UnsafeMutableRawPointer?, _ cx: Float, _ cy: Float, _ r: Float) -> UInt32 { 0 }
+public func MirEngineSketchAddConstraint(_ doc: UnsafeMutableRawPointer?, _ type: Int32, _ g1: UInt32, _ g2: UInt32, _ value: Double) -> UInt32 { 0 }
+public func MirEngineSketchSolve(_ doc: UnsafeMutableRawPointer?) -> Bool { false }
+public func MirEngineSketchGetLine(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool { false }
+
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyOpenGLContext") public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?)
@@ -153,6 +174,12 @@ public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ max
     _ normals: UnsafePointer<Float>?, _ xAxes: UnsafePointer<Float>?,
     _ yAxes: UnsafePointer<Float>?, _ colors: UnsafePointer<Float>?,
     _ sizes: UnsafePointer<Float>?, _ active: UnsafePointer<Bool>?, _ selected: UnsafePointer<Bool>?)
+
+@_silgen_name("MirEngineSetSketch") public func MirEngineSetSketch(_ renderer: UnsafeMutableRawPointer?,
+    _ segmentCount: Int32, _ ax: UnsafePointer<Float>?, _ ay: UnsafePointer<Float>?,
+    _ bx: UnsafePointer<Float>?, _ by: UnsafePointer<Float>?,
+    _ colors: UnsafePointer<Float>?, _ origin: UnsafePointer<Float>?,
+    _ xAxis: UnsafePointer<Float>?, _ yAxis: UnsafePointer<Float>?)
 
 // Work planes (ТЗ Этап 1) — helper that flattens Swift planes to flat arrays.
 public struct MirEnginePlane {
@@ -226,12 +253,92 @@ public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ plan
     }
 }
 
+
+// 2D sketch overlay (ТЗ Этап 2) — flattened push helper.
+public struct MirEngineSketchSegment {
+    public var ax: Float
+    public var ay: Float
+    public var bx: Float
+    public var by: Float
+    public var color: (Float, Float, Float)
+    public init(ax: Float, ay: Float, bx: Float, by: Float, color: (Float, Float, Float)) {
+        self.ax = ax; self.ay = ay; self.bx = bx; self.by = by; self.color = color
+    }
+}
+
+public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments: [MirEngineSketchSegment]) {
+    guard let renderer else {
+        MirEngineSetSketch(nil, 0, nil, nil, nil, nil, nil, nil, nil, nil)
+        return
+    }
+    let count = segments.count
+    var ax = [Float](); ax.reserveCapacity(count)
+    var ay = [Float](); ay.reserveCapacity(count)
+    var bx = [Float](); bx.reserveCapacity(count)
+    var by = [Float](); by.reserveCapacity(count)
+    var colors = [Float](); colors.reserveCapacity(count * 3)
+    for seg in segments {
+        ax.append(seg.ax); ay.append(seg.ay); bx.append(seg.bx); by.append(seg.by)
+        colors.append(contentsOf: [seg.color.0, seg.color.1, seg.color.2])
+    }
+    // Plane basis for the active work plane (XY base plane by default).
+    let origin: [Float] = [0, 0, 0]
+    let xAxis: [Float] = [1, 0, 0]
+    let yAxis: [Float] = [0, 1, 0]
+    ax.withUnsafeBufferPointer { axP in
+        ay.withUnsafeBufferPointer { ayP in
+            bx.withUnsafeBufferPointer { bxP in
+                by.withUnsafeBufferPointer { byP in
+                    colors.withUnsafeBufferPointer { cP in
+                        origin.withUnsafeBufferPointer { oP in
+                            xAxis.withUnsafeBufferPointer { xP in
+                                yAxis.withUnsafeBufferPointer { yP in
+                                    MirEngineSetSketch(renderer, Int32(count),
+                                        axP.baseAddress, ayP.baseAddress, bxP.baseAddress, byP.baseAddress,
+                                        cP.baseAddress, oP.baseAddress, xP.baseAddress, yP.baseAddress)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @_silgen_name("MirEngineCreatePlaneStore") public func MirEngineCreatePlaneStore() -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyPlaneStore") public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?)
 @_silgen_name("MirEnginePlaneStoreAddBasePlanes") public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?)
 @_silgen_name("MirEnginePlaneStoreCreateOffsetPlane") public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32
 @_silgen_name("MirEnginePlaneStoreSnapshot") public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32
+@_silgen_name("MirEngineSketchCreateDocument") public func MirEngineSketchCreateDocument() -> UnsafeMutableRawPointer?
+@_silgen_name("MirEngineSketchDestroyDocument") public func MirEngineSketchDestroyDocument(_ doc: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineSketchAddLine") public func MirEngineSketchAddLine(_ doc: UnsafeMutableRawPointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32
+@_silgen_name("MirEngineSketchAddCircle") public func MirEngineSketchAddCircle(_ doc: UnsafeMutableRawPointer?, _ cx: Float, _ cy: Float, _ r: Float) -> UInt32
+@_silgen_name("MirEngineSketchAddConstraint") public func MirEngineSketchAddConstraint(_ doc: UnsafeMutableRawPointer?, _ type: Int32, _ g1: UInt32, _ g2: UInt32, _ value: Double) -> UInt32
+@_silgen_name("MirEngineSketchSolve") public func MirEngineSketchSolve(_ doc: UnsafeMutableRawPointer?) -> Bool
+@_silgen_name("MirEngineSketchGetLine") public func MirEngineSketchGetLine(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchGetCircle") public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool
+
 #endif
+
+// Sketch constraint kinds (match MirEngineSketchConstraint in C ABI).
+public enum MirEngineSketchConstraint: Int32 {
+    case coincident = 0
+    case horizontal
+    case vertical
+    case parallel
+    case perpendicular
+    case tangent
+    case concentric
+    case equal
+    case symmetric
+    case distance
+    case angle
+    case radius
+    case diameter
+}
+
 
 // MARK: - Live document bridge
 #if !MIR4D_SWIFTPM

@@ -48,6 +48,25 @@ struct PlaneRenderData
     bool selected{false};  // currently selected in the UI
 };
 
+struct SketchSegment2D
+{
+    float ax{0.0f};        // local x of start point (plane frame)
+    float ay{0.0f};        // local y of start point
+    float bx{0.0f};        // local x of end point
+    float by{0.0f};        // local y of end point
+    float color[3]{0.95f, 0.85f, 0.25f}; // amber sketch stroke
+};
+
+// 2D-эскиз, заданный в локальной СК рабочей плоскости (ТЗ Этап 2).
+struct SketchRenderData
+{
+    float origin[3]{0.0f, 0.0f, 0.0f};
+    float xAxis[3]{1.0f, 0.0f, 0.0f};
+    float yAxis[3]{0.0f, 1.0f, 0.0f};
+    std::vector<SketchSegment2D> segments;
+};
+
+
 // -----------------------------------------------------------------------------
 // Per-frame rendering context.
 // -----------------------------------------------------------------------------
@@ -128,6 +147,9 @@ public:
     // Planes to overlay in the viewport. Populated by the renderer from the
     // document's PlaneStore (via setPlanes). Empty when no planes are shown.
     std::vector<PlaneRenderData> planes;
+
+    // 2D sketches overlaid on work planes (ТЗ Этап 2)
+    std::vector<SketchRenderData> sketches;
 
     // ==========================================================================
     // Methods

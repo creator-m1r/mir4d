@@ -17,6 +17,9 @@
 #include "../IO/ExportOptions.hpp"
 #include "../IO/ImportOptions.hpp"
 #include "../IO/ImportService.hpp"
+#include <variant>
+#include "../../Sketch/SketchDocument.hpp"
+#include "../../Sketch/SketchDocumentSolver.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -197,6 +200,50 @@ void MirEngineSetPlanes(void* renderer,
         }
     }
     native->setPlanes(data);
+}
+
+
+// ------------------------------------------------------------
+// Sketch overlay (ТЗ Этап 2)
+// ------------------------------------------------------------
+
+void MirEngineSetSketch(void* renderer,
+                        int segmentCount,
+                        const float* ax,
+                        const float* ay,
+                        const float* bx,
+                        const float* by,
+                        const float* colors,
+                        const float* origin,
+                        const float* xAxis,
+                        const float* yAxis)
+{
+    auto* native = static_cast<OpenGLRenderer*>(renderer);
+    if (!native)
+        return;
+
+    std::vector<MirEngine::Rendering::SketchRenderData> data;
+    if (segmentCount > 0 && ax && ay && bx && by && colors && origin && xAxis && yAxis)
+    {
+        MirEngine::Rendering::SketchRenderData sk;
+        sk.origin[0] = origin[0]; sk.origin[1] = origin[1]; sk.origin[2] = origin[2];
+        sk.xAxis[0] = xAxis[0]; sk.xAxis[1] = xAxis[1]; sk.xAxis[2] = xAxis[2];
+        sk.yAxis[0] = yAxis[0]; sk.yAxis[1] = yAxis[1]; sk.yAxis[2] = yAxis[2];
+        sk.segments.reserve(static_cast<std::size_t>(segmentCount));
+        for (int i = 0; i < segmentCount; ++i)
+        {
+            MirEngine::Rendering::SketchSegment2D seg;
+            seg.ax = ax[i]; seg.ay = ay[i];
+            seg.bx = bx[i]; seg.by = by[i];
+            const int c = i * 3;
+            seg.color[0] = colors[c + 0];
+            seg.color[1] = colors[c + 1];
+            seg.color[2] = colors[c + 2];
+            sk.segments.push_back(seg);
+        }
+        data.push_back(sk);
+    }
+    native->setSketch(data);
 }
 
 
@@ -1248,6 +1295,83 @@ const char* MirEngineGetLastError(
 )
 {
     return errorMessage(asViewport(viewport));
+}
+
+// ------------------------------------------------------------
+// Sketch solver (universal constraint solver)
+// ------------------------------------------------------------
+
+void* MirEngineSketchCreateDocument(void)
+{
+    return reinterpret_cast<void*>(new mir::SketchDocument());
+}
+
+void MirEngineSketchDestroyDocument(void* doc)
+{
+    delete reinterpret_cast<mir::SketchDocument*>(doc);
+}
+
+uint32_t MirEngineSketchAddLine(void* doc, float x1, float y1, float x2, float y2)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    return d->geometry().addLine({x1, y1}, {x2, y2});
+}
+
+uint32_t MirEngineSketchAddCircle(void* doc, float cx, float cy, float r)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    return d->geometry().addCircle({cx, cy}, r);
+}
+
+uint32_t MirEngineSketchAddConstraint(void* doc, int type, uint32_t g1, uint32_t g2, double value)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    const auto ct = static_cast<mir::SketchConstraintType>(type);
+    return d->constraints().add(ct, g1, g2, value);
+}
+
+bool MirEngineSketchSolve(void* doc)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto result = mir::SketchDocumentSolver::solve(*d);
+    return result.converged;
+}
+
+bool MirEngineSketchGetLine(void* doc, uint32_t id, float* x1, float* y1, float* x2, float* y2)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto* g = d->geometry().find(id);
+    if (!g) return false;
+    if (const auto* l = std::get_if<mir::SketchLine2D>(g))
+    {
+        if (x1) *x1 = static_cast<float>(l->start.x);
+        if (y1) *y1 = static_cast<float>(l->start.y);
+        if (x2) *x2 = static_cast<float>(l->end.x);
+        if (y2) *y2 = static_cast<float>(l->end.y);
+        return true;
+    }
+    return false;
+}
+
+bool MirEngineSketchGetCircle(void* doc, uint32_t id, float* cx, float* cy, float* r)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto* g = d->geometry().find(id);
+    if (!g) return false;
+    if (const auto* cc = std::get_if<mir::SketchCircle2D>(g))
+    {
+        if (cx) *cx = static_cast<float>(cc->center.x);
+        if (cy) *cy = static_cast<float>(cc->center.y);
+        if (r) *r = static_cast<float>(cc->radius);
+        return true;
+    }
+    return false;
 }
 
 }

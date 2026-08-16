@@ -73,6 +73,24 @@ void MirEngineSetPlanes(
     const bool* selected
 );
 
+/// Pushes a 2D sketch overlay (ТЗ Этап 2) drawn on a work plane. Segment
+/// endpoints are in the plane's local frame. Pass count==0 to clear. Arrays:
+///   ax,ay,bx,by : segmentCount floats each (local coords)
+///   colors      : 3*segmentCount floats (rgb per segment)
+///   origin/xAxis/yAxis : 3 floats each, the plane basis in world space
+void MirEngineSetSketch(
+    void* renderer,
+    int segmentCount,
+    const float* ax,
+    const float* ay,
+    const float* bx,
+    const float* by,
+    const float* colors,
+    const float* origin,
+    const float* xAxis,
+    const float* yAxis
+);
+
 // ------------------------------------------------------------
 // Work plane store (ТЗ Этап 1) — owns the document's planes.
 // ------------------------------------------------------------
@@ -339,6 +357,38 @@ bool MirEngineGetOpenGLDiagnostics(
     size_t bufferSize
 );
 
+
+// ------------------------------------------------------------
+// Sketch solver (universal constraint solver)
+// ------------------------------------------------------------
+
+typedef struct MirEngineSketchDocument MirEngineSketchDocument;
+
+typedef enum MirEngineSketchConstraint
+{
+    MirEngineSketchCoincident = 0,
+    MirEngineSketchHorizontal,
+    MirEngineSketchVertical,
+    MirEngineSketchParallel,
+    MirEngineSketchPerpendicular,
+    MirEngineSketchTangent,
+    MirEngineSketchConcentric,
+    MirEngineSketchEqual,
+    MirEngineSketchSymmetric,
+    MirEngineSketchDistance,
+    MirEngineSketchAngle,
+    MirEngineSketchRadius,
+    MirEngineSketchDiameter
+} MirEngineSketchConstraint;
+
+void* MirEngineSketchCreateDocument(void);
+void MirEngineSketchDestroyDocument(void* doc);
+uint32_t MirEngineSketchAddLine(void* doc, float x1, float y1, float x2, float y2);
+uint32_t MirEngineSketchAddCircle(void* doc, float cx, float cy, float r);
+uint32_t MirEngineSketchAddConstraint(void* doc, int type, uint32_t g1, uint32_t g2, double value);
+bool MirEngineSketchSolve(void* doc);
+bool MirEngineSketchGetLine(void* doc, uint32_t id, float* x1, float* y1, float* x2, float* y2);
+bool MirEngineSketchGetCircle(void* doc, uint32_t id, float* cx, float* cy, float* r);
 
 // ------------------------------------------------------------
 // Error handling

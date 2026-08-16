@@ -336,7 +336,7 @@ struct MIR4DStartMenuView: View {
                 Spacer()
                 Image(systemName: available ? "arrow.up.right" : "exclamationmark.triangle")
                     .font(.system(size: 10))
-                    .foregroundStyle(available ? .secondary : .orange)
+                    .foregroundStyle(available ? Color.secondary : Color.orange)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

@@ -11,6 +11,9 @@ extension Notification.Name {
     static let mir4DFitViewport = Notification.Name("MIR4D.FitViewport")
     static let mir4DCameraProjectionRequested = Notification.Name("MIR4D.CameraProjectionRequested")
     static let mir4DCreateWorkPlane = Notification.Name("MIR4D.CreateWorkPlane")
+    static let mir4DOpenProject = Notification.Name("MIR4D.OpenProject")
+    static let mir4DStartWorkspace = Notification.Name("MIR4D.StartWorkspace")
+    static let mir4DSketchSolved = Notification.Name("MIR4D.SketchSolved")
 }
 
 // MARK: - OpenGL / MirEngine View
@@ -68,6 +71,7 @@ final class MirGLCustomView: NSView {
     private var cameraPresetObserver: NSObjectProtocol?
     private var cameraProjectionObserver: NSObjectProtocol?
     private var workPlaneObserver: NSObjectProtocol?
+    private var sketchObserver: NSObjectProtocol?
 
     // MARK: Mouse interaction
 
@@ -120,6 +124,7 @@ final class MirGLCustomView: NSView {
             observeCameraPresetRequests()
             observeCameraProjectionRequests()
             observeWorkPlaneRequests()
+            observeSketchSolvedRequests()
 
             setupEngine()
             startDisplayLink()
@@ -675,6 +680,47 @@ final class MirGLCustomView: NSView {
         print("MIR4D: work plane created (id=\(newId))")
     }
 
+
+    // MARK: Sketch overlay (ТЗ Этап 2)
+
+    private func observeSketchSolvedRequests() {
+        guard sketchObserver == nil else { return }
+        sketchObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DSketchSolved,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard
+                    let corners = notification.userInfo?["corners"] as? [CGPoint],
+                    corners.count >= 2
+                else { return }
+
+                var segments: [MirEngineSketchSegment] = []
+                let amber: (Float, Float, Float) = (0.95, 0.85, 0.25)
+                for i in 0..<corners.count {
+                    let a = corners[i]
+                    let b = corners[(i + 1) % corners.count]
+                    segments.append(
+                        MirEngineSketchSegment(
+                            ax: Float(a.x), ay: Float(a.y),
+                            bx: Float(b.x), by: Float(b.y),
+                            color: amber
+                        )
+                    )
+                }
+
+                MirGLCustomView.engineLock.lock()
+                let activeRenderer = renderer
+                if let activeRenderer {
+                    MirEnginePushSketch(activeRenderer, segments)
+                }
+                MirGLCustomView.engineLock.unlock()
+
+                print("MIR4D: sketch overlay pushed (\(segments.count) segments)")
+            }
+    }
+
     private func applyCameraProjection(_ projection: Int32) {
 
         MirGLCustomView.engineLock.lock()
@@ -694,6 +740,12 @@ final class MirGLCustomView: NSView {
             NotificationCenter.default.removeObserver(observer)
             workPlaneObserver = nil
         }
+
+        if let observer = sketchObserver {
+            NotificationCenter.default.removeObserver(observer)
+            sketchObserver = nil
+        }
+
 
         if let observer = importObserver {
             NotificationCenter.default.removeObserver(
