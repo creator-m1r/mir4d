@@ -259,6 +259,8 @@ void GridPass::execute(RenderContext& context,
         viewRelative[14] = 0.0f;
 
         Matrix4Raw viewProj{};
+        // Matrix4Raw is column-major: element (row, col) sits at row + col * 4.
+        // Compute viewProj = proj * view in column-major indexing.
         const float* proj = context.projectionMatrix.data();
         const float* view = viewRelative.data();
         for (int row = 0; row < 4; ++row)
@@ -266,8 +268,8 @@ void GridPass::execute(RenderContext& context,
             {
                 float sum = 0.0f;
                 for (int k = 0; k < 4; ++k)
-                    sum += proj[row * 4 + k] * view[k * 4 + column];
-                viewProj[row * 4 + column] = sum;
+                    sum += proj[row + k * 4] * view[k + column * 4];
+                viewProj[row + column * 4] = sum;
             }
 
         m_lineShader->bind();
@@ -277,15 +279,6 @@ void GridPass::execute(RenderContext& context,
                        static_cast<GLsizei>(m_gridIBO->getIndexCount()),
                        GL_UNSIGNED_INT,
                        nullptr);
-        static int s_diag2 = 0;
-        if (++s_diag2 % 60 == 0)
-        {
-            GLenum err = glGetError();
-            std::cerr << "[GridPass] draw idx=" << m_gridIBO->getIndexCount()
-                      << " verts=" << m_gridVBO->getVertexCount()
-                      << " glError=0x" << std::hex << err << std::dec
-                      << " vp0=" << viewProj[0] << " vp5=" << viewProj[5] << " vp10=" << viewProj[10] << " vp15=" << viewProj[15] << "\n";
-        }
         m_gridVAO->unbind();
         m_lineShader->unbind();
     }
@@ -651,17 +644,6 @@ void GridPass::rebuildLines(RenderContext& context, RenderDevice& device)
         m_gridIBO.reset();
         m_gridVAO.reset();
         return;
-    }
-
-    static int s_diagFrames = 0;
-    if (++s_diagFrames % 60 == 0)
-    {
-        std::cerr << "[GridPass] step=" << step
-                  << " halfH=" << halfH << " halfW=" << halfW
-                  << " countU=" << countU << " countV=" << countV
-                  << " segs=" << segments.size()
-                  << " verts=" << vertices.size()
-                  << " anchor=" << anchor[0] << "," << anchor[1] << "," << anchor[2] << "\n";
     }
 
     if (!m_gridVBO)
