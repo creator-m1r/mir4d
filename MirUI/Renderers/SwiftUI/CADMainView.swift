@@ -28,6 +28,7 @@ struct CADMainView: View {
     @State private var radialCenter: CGPoint = .zero
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
+    @State private var resizeBaseline: [ResizeEdge: Double] = [:]
 
     var body: some View {
         ZStack {
@@ -35,12 +36,8 @@ struct CADMainView: View {
             if radialMenuPresented { radialMenuOverlay }
         }
         .background(MirTheme.Colors.background)
-        .sheet(isPresented: $commandPalettePresented) {
-            CommandPaletteView(appState: appState, registry: registry)
-        }
-        .sheet(isPresented: $radialSettingsPresented) {
-            RadialMenuSettingsView(store: RadialMenuSettingsStore.shared)
-        }
+        .sheet(isPresented: $commandPalettePresented) { CommandPaletteView(appState: appState, registry: registry) }
+        .sheet(isPresented: $radialSettingsPresented) { RadialMenuSettingsView(store: RadialMenuSettingsStore.shared) }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: mir4DImportTypes, allowsMultipleSelection: false) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
             NotificationCenter.default.post(name: .mir4DImportMesh, object: url.path)
@@ -59,9 +56,7 @@ struct CADMainView: View {
             radialMenuPresented = false
             radialVector = .zero
         }
-        .onChange(of: appState.panelState) { _, _ in
-            FloatingPanelManager.shared.sync(appState: appState)
-        }
+        .onChange(of: appState.panelState) { _, _ in FloatingPanelManager.shared.sync(appState: appState) }
         .onAppear {
             registry.registerDefaults(appState: appState)
             registry.registerExtendedScenarioCommands(appState: appState)
@@ -85,10 +80,7 @@ struct CADMainView: View {
     private var leftPanelColumn: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                ForEach(dockedPanels(.left)) { panel in
-                    CADPanelView(panel: panel, appState: appState)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                ForEach(dockedPanels(.left)) { panel in CADPanelView(panel: panel, appState: appState).frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
             .background(MirTheme.Colors.panel)
             .frame(width: workspace.leftWidth)
@@ -100,10 +92,7 @@ struct CADMainView: View {
         HStack(spacing: 0) {
             resizeHandle(edge: .right)
             VStack(spacing: 0) {
-                ForEach(dockedPanels(.right)) { panel in
-                    CADPanelView(panel: panel, appState: appState)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                ForEach(dockedPanels(.right)) { panel in CADPanelView(panel: panel, appState: appState).frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
             .background(MirTheme.Colors.panel)
             .frame(width: workspace.rightWidth)
@@ -117,10 +106,7 @@ struct CADMainView: View {
             VStack(spacing: 0) {
                 resizeHandle(edge: .bottom)
                 HStack(spacing: 0) {
-                    ForEach(panels) { panel in
-                        CADPanelView(panel: panel, appState: appState)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                    ForEach(panels) { panel in CADPanelView(panel: panel, appState: appState).frame(maxWidth: .infinity, maxHeight: .infinity) }
                 }
             }
             .frame(height: workspace.bottomHeight)
@@ -128,36 +114,44 @@ struct CADMainView: View {
         }
     }
 
-    private enum ResizeEdge { case left, right, bottom }
+    private enum ResizeEdge: Hashable { case left, right, bottom }
 
     private func resizeHandle(edge: ResizeEdge) -> some View {
         Rectangle()
             .fill(MirTheme.Colors.border.opacity(0.8))
             .frame(width: edge == .bottom ? nil : 5, height: edge == .bottom ? 5 : nil)
-            .overlay {
-                Rectangle().fill(MirTheme.Colors.accent.opacity(0.0))
-            }
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
+                        if resizeBaseline[edge] == nil {
+                            resizeBaseline[edge] = currentDimension(for: edge)
+                        }
+                        let baseline = resizeBaseline[edge] ?? currentDimension(for: edge)
                         switch edge {
                         case .left:
-                            workspace.leftWidth = min(420, max(180, workspace.leftWidth + value.translation.width))
+                            workspace.leftWidth = min(420, max(180, baseline + value.translation.width))
                         case .right:
-                            workspace.rightWidth = min(480, max(220, workspace.rightWidth - value.translation.width))
+                            workspace.rightWidth = min(480, max(220, baseline - value.translation.width))
                         case .bottom:
-                            workspace.bottomHeight = min(420, max(140, workspace.bottomHeight - value.translation.height))
+                            workspace.bottomHeight = min(420, max(140, baseline - value.translation.height))
                         }
                     }
+                    .onEnded { _ in resizeBaseline.removeValue(forKey: edge) }
             )
             .help(edge == .bottom ? "Изменить высоту панели" : "Изменить ширину панели")
     }
 
+    private func currentDimension(for edge: ResizeEdge) -> Double {
+        switch edge {
+        case .left: return workspace.leftWidth
+        case .right: return workspace.rightWidth
+        case .bottom: return workspace.bottomHeight
+        }
+    }
+
     private func dockedPanels(_ placement: PanelPlacement) -> [CADPanel] {
-        appState.visiblePanels
-            .filter { appState.panelPlacement(for: $0) == placement }
-            .sorted { $0.rawValue < $1.rawValue }
+        appState.visiblePanels.filter { appState.panelPlacement(for: $0) == placement }.sorted { $0.rawValue < $1.rawValue }
     }
 
     private var centerColumn: some View {
@@ -176,9 +170,7 @@ struct CADMainView: View {
     private var viewport: some View {
         GeometryReader { proxy in
             ViewportRepresentable(
-                onSelectionChanged: { objectID in
-                    appState.setSelection(ids: objectID > 0 ? ["\(objectID)"] : [], kind: objectID > 0 ? .body : .none)
-                },
+                onSelectionChanged: { objectID in appState.setSelection(ids: objectID > 0 ? ["\(objectID)"] : [], kind: objectID > 0 ? .body : .none) },
                 onIOError: { message in appState.showNotification(message, type: .error) },
                 onCameraOrientationChanged: { theta, phi, distance in
                     DispatchQueue.main.async {
@@ -202,8 +194,7 @@ struct CADMainView: View {
                 .allowsHitTesting(false)
             if appState.workbench == .fourD {
                 DigitalWorldHUD(appState: appState, store: productionStore)
-                ProductionWorldView(appState: appState, store: productionStore)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                ProductionWorldView(appState: appState, store: productionStore).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
     }
@@ -211,32 +202,21 @@ struct CADMainView: View {
     private var navigationOverlay: some View {
         NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(.top, 92)
-            .padding(.trailing, 10)
+            .padding(.top, 92).padding(.trailing, 10)
     }
 
     @ViewBuilder
     private var emptyStateHint: some View {
         if showEmptyState, appState.treeData.first?.children.isEmpty ?? true {
             VStack(spacing: 16) {
-                Image(systemName: "cube.transparent")
-                    .font(.system(size: 42, weight: .light))
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
-                Text(appState.ui.language == .russian ? "Рабочая область свободна" : "Workspace is empty")
-                    .font(MirTheme.Typography.title)
-                    .foregroundStyle(MirTheme.Colors.textSecondary)
-                Text(appState.ui.language == .russian ? "Создайте первый инженерный объект или импортируйте модель." : "Create your first engineering object or import a model.")
-                    .font(MirTheme.Typography.caption)
-                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                Image(systemName: "cube.transparent").font(.system(size: 42, weight: .light)).foregroundStyle(MirTheme.Colors.textTertiary)
+                Text(appState.ui.language == .russian ? "Рабочая область свободна" : "Workspace is empty").font(MirTheme.Typography.title).foregroundStyle(MirTheme.Colors.textSecondary)
+                Text(appState.ui.language == .russian ? "Создайте первый инженерный объект или импортируйте модель." : "Create your first engineering object or import a model.").font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textTertiary)
                 HStack(spacing: 10) {
-                    Button { createDefaultBox() } label {
-                        Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent")
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.small).tint(MirTheme.Colors.accent)
-                    Button { showImporter = true } label {
-                        Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down")
-                    }
-                    .buttonStyle(.bordered).controlSize(.small)
+                    Button { createDefaultBox() } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }
+                        .buttonStyle(.borderedProminent).controlSize(.small).tint(MirTheme.Colors.accent)
+                    Button { showImporter = true } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }
+                        .buttonStyle(.bordered).controlSize(.small)
                 }
             }
             .padding(28)
@@ -248,20 +228,12 @@ struct CADMainView: View {
     }
 
     private var radialMenuOverlay: some View {
-        RadialMenuView(
-            store: RadialMenuSettingsStore.shared,
-            center: radialCenter,
-            vector: radialVector,
-            onToolActivated: { _ in radialMenuPresented = false },
-            onSettings: { radialSettingsPresented = true }
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.10).allowsHitTesting(false))
+        RadialMenuView(store: RadialMenuSettingsStore.shared, center: radialCenter, vector: radialVector, onToolActivated: { _ in radialMenuPresented = false }, onSettings: { radialSettingsPresented = true })
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.10).allowsHitTesting(false))
     }
 
-    private func createDefaultBox() {
-        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40)
-    }
+    private func createDefaultBox() { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
 }
 
 private struct ViewportRepresentable: NSViewRepresentable {
@@ -291,27 +263,16 @@ struct CADViewportChrome: View {
     @Binding var cameraDistance: Double
     @State private var isOrthographic: Bool = false
 
-    var body: some View {
-        ZStack {
-            viewportBadge
-            viewportControls
-            viewportReadout
-        }
-    }
+    var body: some View { ZStack { viewportBadge; viewportControls; viewportReadout } }
 
     private var viewportBadge: some View {
         HStack(spacing: 7) {
             Image(systemName: "cube.transparent").font(.system(size: 11, weight: .semibold)).foregroundStyle(MirTheme.Colors.accentBright)
-            Text(appState.ui.language == .russian ? "3D ВИД" : "3D VIEW")
-                .font(.system(size: 10, weight: .semibold)).tracking(0.6).foregroundStyle(MirTheme.Colors.textSecondary)
+            Text(appState.ui.language == .russian ? "3D ВИД" : "3D VIEW").font(.system(size: 10, weight: .semibold)).tracking(0.6).foregroundStyle(MirTheme.Colors.textSecondary)
         }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(MirTheme.Colors.surfaceRaised)
-        .clipShape(Capsule())
+        .padding(.horizontal, 10).padding(.vertical, 7).background(MirTheme.Colors.surfaceRaised).clipShape(Capsule())
         .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1))
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(10)
-        .allowsHitTesting(false)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(10).allowsHitTesting(false)
     }
 
     private var viewportControls: some View {
@@ -322,27 +283,18 @@ struct CADViewportChrome: View {
                 isOrthographic.toggle()
                 NotificationCenter.default.post(name: .mir4DCameraProjectionRequested, object: nil, userInfo: ["projection": isOrthographic ? 1 : 0])
             }
-            viewportButton("cube.transparent", "Новое тело") { createDefaultBox() }
+            viewportButton("cube.transparent", "Новое тело") { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
         }
-        .padding(8)
-        .background(MirTheme.Colors.surfaceRaised)
-        .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
+        .padding(8).background(MirTheme.Colors.surfaceRaised).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
         .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.panelBorder, lineWidth: 1))
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(10)
     }
 
     private func viewportButton(_ image: String, _ help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: image)
-                .font(.system(size: 11, weight: .medium))
-                .frame(width: 26, height: 26)
-                .foregroundStyle(MirTheme.Colors.textSecondary)
-                .background(MirTheme.Colors.surface)
-                .clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
+            Image(systemName: image).font(.system(size: 11, weight: .medium)).frame(width: 26, height: 26).foregroundStyle(MirTheme.Colors.textSecondary).background(MirTheme.Colors.surface).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
         }
-        .buttonStyle(.plain)
-        .help(help)
+        .buttonStyle(.plain).help(help)
     }
 
     private var viewportReadout: some View {
@@ -353,25 +305,15 @@ struct CADViewportChrome: View {
                 Label("Y\(format(cameraPhi))", systemImage: "arrow.up.and.down")
                 Label("D\(format(cameraDistance))", systemImage: "ruler")
                 Spacer()
-                Text(appState.ui.language == .russian
-                    ? "\(isOrthographic ? "Ортографическая" : "Перспектива") · Колесо — масштаб · ПКМ — панорама"
-                    : "\(isOrthographic ? "Orthographic" : "Perspective") · Wheel — zoom · RMB — pan")
+                Text(appState.ui.language == .russian ? "\(isOrthographic ? "Ортографическая" : "Перспектива") · Колесо — масштаб · ПКМ — панорама" : "\(isOrthographic ? "Orthographic" : "Perspective") · Wheel — zoom · RMB — pan")
                     .font(.system(size: 9)).foregroundStyle(MirTheme.Colors.textTertiary)
             }
-            .font(.system(size: 9, weight: .medium, design: .monospaced))
-            .foregroundStyle(MirTheme.Colors.textSecondary)
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(MirTheme.Colors.surfaceRaised)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1))
-            .padding(10)
+            .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(MirTheme.Colors.textSecondary)
+            .padding(.horizontal, 10).padding(.vertical, 6).background(MirTheme.Colors.surfaceRaised).clipShape(Capsule())
+            .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1)).padding(10)
         }
         .allowsHitTesting(false)
     }
 
     private func format(_ value: Double) -> String { String(format: "%.1f", value) }
-
-    private func createDefaultBox() {
-        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40)
-    }
 }
