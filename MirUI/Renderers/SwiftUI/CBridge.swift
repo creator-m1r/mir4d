@@ -101,7 +101,7 @@ public struct MirEnginePlane {
 }
 public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ planes: [MirEnginePlane]) {}
 
-public struct MirEngineSketchSegment {
+public struct MirEngineSketchSegment: Sendable {
     public var ax: Float
     public var ay: Float
     public var bx: Float
@@ -255,7 +255,7 @@ public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ plan
 
 
 // 2D sketch overlay (ТЗ Этап 2) — flattened push helper.
-public struct MirEngineSketchSegment {
+public struct MirEngineSketchSegment: Sendable {
     public var ax: Float
     public var ay: Float
     public var bx: Float

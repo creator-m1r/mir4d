@@ -28,18 +28,18 @@ final class SketchController {
         let l4 = MirEngineSketchAddLine(doc, 0, h, 0, 0) // лево
 
         let c = MirEngineSketchConstraint.self
-        MirEngineSketchAddConstraint(doc, Int32(c.horizontal.rawValue), l1, 0, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.vertical.rawValue), l2, 0, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.horizontal.rawValue), l3, 0, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.vertical.rawValue), l4, 0, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l2, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l3, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l4, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.perpendicular.rawValue), l1, l2, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l1, l2, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l2, l3, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l3, l4, 0)
-        MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l4, l1, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.horizontal.rawValue), l1, 0, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.vertical.rawValue), l2, 0, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.horizontal.rawValue), l3, 0, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.vertical.rawValue), l4, 0, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l2, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l3, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.equal.rawValue), l1, l4, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.perpendicular.rawValue), l1, l2, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l1, l2, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l2, l3, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l3, l4, 0)
+        _ = MirEngineSketchAddConstraint(doc, Int32(c.coincident.rawValue), l4, l1, 0)
 
         guard MirEngineSketchSolve(doc) else { return nil }
 
@@ -51,7 +51,7 @@ final class SketchController {
         }
 
         guard let a = readLine(l1), let b = readLine(l2),
-              let cc = readLine(l3), let d = readLine(l4) else { return nil }
+              let cc = readLine(l3), readLine(l4) != nil else { return nil }
 
         // Углы: BL, BR, TR, TL
         return [a.0, a.1, b.1, cc.1]

@@ -426,7 +426,7 @@ final class MirGLCustomView: NSView {
                 forName: .mir4DImportMesh,
                 object: nil,
                 queue: .main
-            ) { [weak self] notification in
+            ) { notification in
 
                 guard
                     let path =
@@ -710,15 +710,19 @@ final class MirGLCustomView: NSView {
                     )
                 }
 
-                MirGLCustomView.engineLock.lock()
-                let activeRenderer = renderer
-                if let activeRenderer {
-                    MirEnginePushSketch(activeRenderer, segments)
+                DispatchQueue.main.async { [weak self] in
+                    self?.renderSketchOverlay(segments)
                 }
-                MirGLCustomView.engineLock.unlock()
-
-                print("MIR4D: sketch overlay pushed (\(segments.count) segments)")
             }
+    }
+
+    private func renderSketchOverlay(_ segments: [MirEngineSketchSegment]) {
+        MirGLCustomView.engineLock.lock()
+        if let activeRenderer = renderer {
+            MirEnginePushSketch(activeRenderer, segments)
+        }
+        MirGLCustomView.engineLock.unlock()
+        print("MIR4D: sketch overlay pushed (\(segments.count) segments)")
     }
 
     private func applyCameraProjection(_ projection: Int32) {
