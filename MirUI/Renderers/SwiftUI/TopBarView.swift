@@ -16,6 +16,7 @@ struct TopBarView: View {
             workspaceMenu
             Spacer(minLength: 8)
             context
+            aiInspector
             commandPalette
             moreMenu
         }
@@ -78,6 +79,24 @@ struct TopBarView: View {
             Text(appState.documentDirty ? (russian ? "Есть изменения" : "Unsaved") : (appState.selectionCount > 0 ? (russian ? "Выбрано: \(appState.selectionCount)" : "Selected: \(appState.selectionCount)") : (russian ? "Сохранено" : "Saved")))
                 .font(.system(size: 9, weight: .medium)).foregroundStyle(MirTheme.Colors.textTertiary).lineLimit(1)
         }.padding(.horizontal, 9).frame(height: 30).background(MirTheme.Colors.surface, in: Capsule()).overlay(Capsule().stroke(MirTheme.Colors.border, lineWidth: 1))
+    }
+
+    private var aiInspector: some View {
+        Button {
+            appState.togglePanel(.aiInspector)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                Text(russian ? "AI" : "AI")
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(MirTheme.Colors.accentBright)
+            .padding(.horizontal, 10).frame(height: 30)
+            .background(MirTheme.Colors.accentSoft, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(MirTheme.Colors.accentBright.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help(russian ? "Открыть AI Inspector" : "Open AI Inspector")
     }
 
     private var commandPalette: some View {
