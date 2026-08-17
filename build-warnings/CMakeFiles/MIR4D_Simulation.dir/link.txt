@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wall -Wextra -Wpedantic -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/MIR4D_Simulation.dir/MirEngine/Tests/Simulation/SimulationTest.cpp.o -o MIR4D_Simulation

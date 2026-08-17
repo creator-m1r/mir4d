@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/Users/sergejstepovoj/Desktop/mir4d/GitHubMir4D/build-warnings/cmake_install.cmake",
-		"/Users/sergejstepovoj/Desktop/mir4d/GitHubMir4D/build-warnings/MirUI/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
