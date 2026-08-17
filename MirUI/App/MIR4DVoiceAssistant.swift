@@ -1,0 +1,238 @@
+import Foundation
+import AVFoundation
+import Speech
+
+/// Local voice interface for the engineer.
+/// No chat window and no microphone control are exposed in the creative workspace.
+/// Recognition is explicitly requested on-device and commands are executed through CADAppState/EventBus.
+@MainActor
+final class MIR4DVoiceAssistant: NSObject, ObservableObject {
+    enum State: Equatable {
+        case idle
+        case listening
+        case processing
+        case unavailable(String)
+    }
+
+    @Published private(set) var state: State = .idle
+    @Published private(set) var lastTranscript = ""
+
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ru-RU"))
+    private let audioEngine = AVAudioEngine()
+    private let synthesizer = AVSpeechSynthesizer()
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private weak var appState: CADAppState?
+    private var restarting = false
+
+    func start(appState: CADAppState) {
+        self.appState = appState
+        Task { await requestPermissionsAndListen() }
+    }
+
+    func stop() {
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        state = .idle
+    }
+
+    private func requestPermissionsAndListen() async {
+        let speechStatus = await requestSpeechAuthorization()
+        guard speechStatus == .authorized else {
+            state = .unavailable("Для голосового управления требуется разрешение на распознавание речи.")
+            return
+        }
+
+        let micGranted = await requestMicrophonePermission()
+        guard micGranted else {
+            state = .unavailable("Для голосового управления требуется доступ к микрофону.")
+            return
+        }
+
+        guard let recognizer, recognizer.supportsOnDeviceRecognition else {
+            state = .unavailable("Локальное распознавание речи недоступно для выбранного языка на этом Mac.")
+            return
+        }
+
+        beginRecognition()
+    }
+
+    private func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
+    private func requestMicrophonePermission() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
+            }
+        }
+    }
+
+    private func beginRecognition() {
+        guard !audioEngine.isRunning, let recognizer, recognizer.isAvailable else { return }
+        recognitionTask?.cancel()
+        recognitionTask = nil
+
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.requiresOnDeviceRecognition = true
+        recognitionRequest = request
+
+        let inputNode = audioEngine.inputNode
+        inputNode.removeTap(onBus: 0)
+        let format = inputNode.outputFormat(forBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            self?.recognitionRequest?.append(buffer)
+        }
+
+        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            Task { @MainActor in
+                if let result {
+                    self.lastTranscript = result.bestTranscription.formattedString
+                    if result.isFinal { self.handleCommand(self.lastTranscript) }
+                }
+                if error != nil || result?.isFinal == true {
+                    self.restartRecognitionIfNeeded()
+                }
+            }
+        }
+
+        do {
+            audioEngine.prepare()
+            try audioEngine.start()
+            state = .listening
+        } catch {
+            state = .unavailable("Не удалось запустить локальное распознавание речи.")
+        }
+    }
+
+    private func restartRecognitionIfNeeded() {
+        guard !restarting else { return }
+        restarting = true
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest = nil
+        recognitionTask = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            self.restarting = false
+            self.beginRecognition()
+        }
+    }
+
+    private func handleCommand(_ raw: String) {
+        let command = normalized(raw)
+        guard !command.isEmpty else { return }
+        state = .processing
+
+        guard let appState else {
+            speak("Я не вижу рабочую сцену.")
+            return
+        }
+
+        if command.contains("новый проект") || command.contains("новый документ") {
+            appState.newDocument()
+            speak("Создаю новый проект.")
+            return
+        }
+        if command.contains("создай тело") || command.contains("создать тело") || command.contains("создай куб") || command.contains("создать куб") {
+            _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 100, depth: 60, height: 40)
+            speak("Создаю тело.")
+            return
+        }
+        if command.contains("отмени") || command.contains("отменить") {
+            MirEventBus.shared.publish(.undoRequested)
+            speak("Отменяю последнее действие.")
+            return
+        }
+        if command.contains("повтори") || command.contains("повторить") {
+            MirEventBus.shared.publish(.redoRequested)
+            speak("Повторяю действие.")
+            return
+        }
+        if command.contains("покажи всё") || command.contains("показать всё") || command.contains("покажи все") {
+            MirEventBus.shared.publish(.commandRequested("viewport.fit"))
+            speak("Показываю всю сцену.")
+            return
+        }
+        if command.contains("включи сетку") {
+            appState.toggleGrid()
+            speak("Сетка включена.")
+            return
+        }
+        if command.contains("выключи сетку") {
+            appState.toggleGrid()
+            speak("Готово.")
+            return
+        }
+        if command.contains("включи оси") {
+            appState.toggleAxes()
+            speak("Оси включены.")
+            return
+        }
+        if command.contains("выключи оси") {
+            appState.toggleAxes()
+            speak("Готово.")
+            return
+        }
+        if command.contains("эскиз") {
+            appState.selectWorkbench(.sketch)
+            if command.contains("лини") { appState.selectedTool = "line"; speak("Открываю эскиз и инструмент линии.") }
+            else if command.contains("прямоуголь") { appState.selectedTool = "rectangle"; speak("Открываю эскиз и прямоугольник.") }
+            else if command.contains("окруж") || command.contains("круг") { appState.selectedTool = "circle"; speak("Открываю эскиз и окружность.") }
+            else { speak("Открываю эскиз.") }
+            return
+        }
+        if command.contains("измер") {
+            appState.selectedTool = "measure"
+            speak("Инструмент измерения готов.")
+            return
+        }
+        if command.contains("выдавлив") {
+            MirEventBus.shared.publish(.commandRequested("model.extrude"))
+            speak("Запускаю выдавливание.")
+            return
+        }
+        if command.contains("вращен") {
+            MirEventBus.shared.publish(.commandRequested("model.revolve"))
+            speak("Запускаю вращение.")
+            return
+        }
+
+        speak("Я услышал: \(raw). Команда пока не распознана.")
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.lowercased()
+            .replacingOccurrences(of: "ё", with: "е")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func speak(_ text: String) {
+        state = .processing
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "ru-RU")
+        utterance.rate = 0.48
+        synthesizer.speak(utterance)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.8, Double(text.count) * 0.045)) { [weak self] in
+            guard let self, !self.synthesizer.isSpeaking else { return }
+            self.beginRecognition()
+        }
+    }
+}
