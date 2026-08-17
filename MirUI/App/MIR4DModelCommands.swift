@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(MirServer)
+import MirServer
+#endif
+
 /// CAD model commands are the single entry point from UI actions into the
 /// parameter/document model. Views do not mutate MIR4DModelDocument directly.
 @MainActor
@@ -9,7 +13,19 @@ final class MIR4DModelCommands {
     private let runtime = MIR4DModelRuntime.shared
     private let session = MIR4DProjectSession.shared
 
-    private init() {}
+    private var observers: [NSObjectProtocol] = []
+
+    private init() {
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: .mir4DRunCAECampaign, object: nil, queue: .main) { [weak self] note in
+            let payload = note.userInfo?["definition"] as? String
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let definition = payload ?? MIR4DModelCommands.builtInCAEDefinition
+                self.handleCAE(definition: definition)
+            }
+        })
+    }
 
     @discardableResult
     func createBox(
@@ -31,6 +47,12 @@ final class MIR4DModelCommands {
         let bodyID = runtime.addBox(width: width, depth: depth, height: height)
         appState.documentDirty = true
         session.scheduleAutoSave()
+
+        #if canImport(MirServer)
+        // Транслировать создание примитива команде при совместной работе.
+        let params = (try? JSONEncoder().encode(["width": width, "depth": depth, "height": height])) ?? Data()
+        MirCollaborationController.shared.applyLocal(kind: .create, entityID: bodyID.uuidString, parameters: params)
+        #endif
 
         NotificationCenter.default.post(
             name: .mir4DCreateBox,
@@ -86,5 +108,52 @@ final class MIR4DModelCommands {
         )
         appState.showNotification("Эскиз построен решателем ограничений: \(corners.count) углов", type: .success)
     }
+
+    /// ТЗ CAE: запустить встроенную комплексную мультифизическую кампанию
+    /// испытаний через Event Bus. Результат приходит в `.mir4DCAEResult`.
+    func runBuiltInCAECampaign() {
+        NotificationCenter.default.post(
+            name: .mir4DRunCAECampaign,
+            object: nil,
+            userInfo: ["definition": MIR4DModelCommands.builtInCAEDefinition]
+        )
+    }
+
+    // MARK: - CAE Event Bus handler
+
+    private func handleCAE(definition: String) {
+
+        guard let report = MIR4DRunCAECampaign(definition: definition) else {
+            NotificationCenter.default.post(
+                name: .mir4DCAEResult,
+                object: nil,
+                userInfo: ["error": "CAE-движок недоступен"]
+            )
+            return
+        }
+
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cae_campaign_report.json")
+        try? report.write(to: url, atomically: true, encoding: .utf8)
+
+        NotificationCenter.default.post(
+            name: .mir4DCAEResult,
+            object: nil,
+            userInfo: ["report": report, "path": url.path]
+        )
+    }
+
+    /// Встроенное определение кампании испытаний (текстовый грамматикой CAECampaign).
+    nonisolated static let builtInCAEDefinition = """
+    case hot
+      material temperature 350
+      initial flowRate 5
+      criterion temperature 0 400
+      criterion stress 0 1e9
+    case soft
+      material youngModulus 1e11
+      initial flowRate 5
+      criterion stress 0 1e11
+    """
 
 }

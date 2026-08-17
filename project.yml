@@ -4,12 +4,12 @@ name: MIR4D
 options:
   bundleIdPrefix: com.mir4d
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
     CLANG_CXX_LANGUAGE_STANDARD: "c++23"
     CLANG_CXX_LIBRARY: "libc++"
     HEADER_SEARCH_PATHS:
@@ -28,15 +28,68 @@ settings:
     GCC_PREPROCESSOR_DEFINITIONS:
       - "MIR_ENABLE_OCCT=0"
     OTHER_LDFLAGS:
-      - "-lc++"
       - "-L/opt/homebrew/lib"
       - "-lassimp"
 targets:
+  MirServer:
+    type: framework
+    platform: macOS
+    sources:
+      - path: MirServer
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.mir4d.server
+        GENERATE_INFOPLIST_FILE: YES
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "MIR4D_SWIFTPM=1"
   MIR4DApp:
     type: application
     platform: macOS
     sources:
-      # ── Swift UI ─────────────────────────────────────────────
+      # ── Корневые файлы и документация (дерево, без компиляции) ──
+      - path: AGENTS.md
+        buildPhase: none
+      - path: CMakeLists.txt
+        buildPhase: none
+      - path: Package.swift
+        buildPhase: none
+      - path: project.yml
+        buildPhase: none
+      - path: MIR4D_ARCHITECTURE.md
+        buildPhase: none
+      - path: MIR4D_PROJECT_MAP.md
+        buildPhase: none
+      - path: docs
+        buildPhase: none
+      - path: Tests
+        buildPhase: none
+      # ── MirEngine: всё дерево видно в проекте; компилируются только явные файлы ниже ──
+      - path: MirEngine
+        buildPhase: none
+      # ── MirUI: некомпилируемые части C++-слоя (дерево) ──
+      - path: MirUI/Core
+        buildPhase: none
+      - path: MirUI/Designer
+        buildPhase: none
+      - path: MirUI/Exports
+        buildPhase: none
+      - path: MirUI/Foundation
+        buildPhase: none
+      - path: MirUI/Interop
+        buildPhase: none
+      - path: MirUI/Schema
+        buildPhase: none
+      - path: MirUI/Swift
+        buildPhase: none
+      - path: MirUI/Widgets
+        buildPhase: none
+      - path: MirUI/Workspace
+        buildPhase: none
+      - path: MirUI/CMakeLists.txt
+        buildPhase: none
+      # ── Swift UI (компилируются) ─────────────────────────────
       - path: MirUI/App
         excludes:
           - "UIConfig/*.json"
@@ -45,11 +98,36 @@ targets:
           - MirEngineApp.swift
           - MirUICppBridge.mm
           - SwiftUIRenderer.mm
-          - "*.hpp"
-          - "*.h"
-          - "README_BUILD.md"
           - "Resources"
-      # ── C++ engine sources ───────────────────────────────────
+          - ViewportSelectionBridge.swift
+          - ViewportSelectionState.swift
+          - ViewportSelectionEventAdapter.swift
+          - CADViewportInteractionOverlay.swift
+          - SelectionFilterBar.swift
+          - CADViewportContextBar.swift
+          - ViewportHoverState.swift
+      # ── Legacy / bridge-файлы SwiftUI (видимы в дереве, НЕ компилируются) ──
+      - path: MirUI/Renderers/SwiftUI/MirEngineApp.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/MirUICppBridge.mm
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/SwiftUIRenderer.mm
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/ViewportSelectionBridge.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/ViewportSelectionState.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/ViewportSelectionEventAdapter.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/CADViewportInteractionOverlay.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/SelectionFilterBar.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/CADViewportContextBar.swift
+        buildPhase: none
+      - path: MirUI/Renderers/SwiftUI/ViewportHoverState.swift
+        buildPhase: none
+      # ── C++ engine sources (компилируются) ───────────────────
       - path: MirEngine/Core/Exports/MirEngineExports.cpp
       - path: MirEngine/Core/Logging/Logger.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
@@ -59,40 +137,31 @@ targets:
       - path: MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLShader.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLState.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLTexture.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLFrameBuffer.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLVertexArray.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
       - path: MirEngine/Rendering/Passes/GridPass.cpp
       - path: MirEngine/Rendering/Passes/GeometryPass.cpp
+      - path: MirEngine/Rendering/Passes/PlanePass.cpp
+      - path: MirEngine/Rendering/Passes/SketchPass.cpp
       - path: MirEngine/Rendering/Resources/ShaderLibrary.cpp
-      - path: MirEngine/Rendering/Camera/RenderCamera.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLShaderProgram.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLFrameRenderer.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLMeshRenderer.cpp
-      - path: MirEngine/Rendering/OpenGL/OpenGLRenderMeshUploader.cpp
-      - path: MirEngine/Rendering/Selection/OpenGLSelectionRenderer.cpp
-      - path: MirEngine/Rendering/Selection/RenderScreenRay.cpp
-      - path: MirEngine/Rendering/Selection/RenderSelectionController.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
-      - path: MirEngine/Rendering/Viewport/RenderViewport.cpp
       - path: MirEngine/Platform/macOS/OpenGL/MacOpenGLContext.mm
+      - path: MirEngine/Simulation/CAEExports.cpp
       - path: MirEngine/IO/ImportService.cpp
       - path: MirEngine/IO/ExportService.cpp
       - path: MirEngine/IO/Mesh/StlImporter.cpp
       - path: MirEngine/IO/Mesh/AssimpImporter.cpp
       - path: MirEngine/IO/Mesh/StlExporter.cpp
       - path: MirEngine/IO/Commands/MeshImportCommandHandler.cpp
-      - path: MirEngine/IO/Step/OcctBridge.cpp
       - path: MirEngine/IO/Step/StepImporter.cpp
       - path: MirEngine/IO/Step/StepExporter.cpp
+      - path: MirEngine/IO/Step/BRepStepBridge.cpp
       - path: MirEngine/Rendering/DocumentSceneRenderBridge.cpp
       # ── C++ UI core + bridge ─────────────────────────────────
       - path: MirUI/Core/Transform/TransformAdapter.cpp
       - path: MirUI/Core/Widget/Widget.cpp
       - path: MirUI/Interop/MIR4DEngineDocumentBridge.cpp
-      - path: MirUI/Interop/SelectionEventBridge.cpp
       - path: MirUI/Interop/SelectionInspectorBridge.cpp
       - path: MirUI/Widgets/PropertyGrid/RenderSelectionPropertyAdapter.cpp
       - path: MirUI/Widgets/PropertyGrid/SelectionInspectorModel.cpp
@@ -118,8 +187,9 @@ targets:
       properties:
         CFBundleDisplayName: MIR 4D
         NSHumanReadableCopyright: "© MIR 4D"
-        LSMinimumSystemVersion: "14.0"
+        LSMinimumSystemVersion: "15.0"
     dependencies:
+      - target: MirServer
       - sdk: OpenGL.framework
       - sdk: Cocoa.framework
       - sdk: QuartzCore.framework

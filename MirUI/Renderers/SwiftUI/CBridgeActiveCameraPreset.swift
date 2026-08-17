@@ -2,7 +2,7 @@ import Foundation
 
 #if MIR4D_SWIFTPM
 /// SwiftPM is a source-only UI smoke target; native camera control is exercised by Xcode.
-public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset) {
+public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset, animated: Bool = false) {
     _ = preset
 }
 #else
@@ -12,11 +12,17 @@ public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset) {
 /// requires the viewport handle, which lives in MirGLView. The sphere has no
 /// viewport, so it publishes a notification; MirGLView observes it and forwards
 /// the request to MirEngine with the correct handle.
-public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset) {
+///
+/// When `animated` is true, MirGLView resolves the preset orbit through
+/// `MirEngineGetCameraPresetOrientation` and smoothly interpolates to it.
+public func Mir4DSetActiveCameraPreset(_ preset: MirCameraPreset, animated: Bool = false) {
     NotificationCenter.default.post(
         name: .mir4DCameraPresetRequested,
         object: nil,
-        userInfo: ["preset": preset.rawValue]
+        userInfo: [
+            "preset": String(preset.presetIndex),
+            "animated": animated
+        ]
     )
 }
 #endif

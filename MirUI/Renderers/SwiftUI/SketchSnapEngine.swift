@@ -83,3 +83,10 @@ struct SketchSnapEngine {
         )
     }
 }
+
+/// Legacy UI presentation model for snap feedback used by the standalone
+/// overlay views. MirEngine remains the authoritative geometry solver.
+struct SketchSnapUI {
+    let point: CGPoint
+    let title: String
+}

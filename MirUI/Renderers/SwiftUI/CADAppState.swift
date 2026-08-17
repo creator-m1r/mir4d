@@ -111,6 +111,38 @@ struct CADNotification: Identifiable {
 /// This is a projection of engine state plus presentation state.
 /// Engineering truth remains in MirEngine.
 @MainActor
+/// Якорь эскиза: плоскость построения и её базис в мировых координатах.
+/// `id` совпадает с базовым id плоскости в MirEngine (1=XY, 2=YZ, 3=ZX).
+struct SketchPlaneAnchor: Identifiable, Equatable {
+    let id: UInt32
+    let name: String
+    let preset: MirCameraPreset
+    let origin: (x: Double, y: Double, z: Double)
+    let normal: (x: Double, y: Double, z: Double)
+    let xAxis: (x: Double, y: Double, z: Double)
+    let yAxis: (x: Double, y: Double, z: Double)
+
+    /// Ручная реализация: кортежи не синтезируют `Equatable`, а `onChange`
+    /// требует соответствия протоколу. Плоскость однозначно задаётся `id`.
+    static func == (lhs: SketchPlaneAnchor, rhs: SketchPlaneAnchor) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    /// Три стандартные базовые плоскости (нормаль совпадает с осью, пресет —
+    /// вид спереди/справа/сверху, перпендикулярный плоскости).
+    static let xy = SketchPlaneAnchor(
+        id: 1, name: "XY", preset: .front,
+        origin: (0, 0, 0), normal: (0, 0, 1), xAxis: (1, 0, 0), yAxis: (0, 1, 0))
+    static let yz = SketchPlaneAnchor(
+        id: 2, name: "YZ", preset: .right,
+        origin: (0, 0, 0), normal: (1, 0, 0), xAxis: (0, 1, 0), yAxis: (0, 0, 1))
+    static let zx = SketchPlaneAnchor(
+        id: 3, name: "ZX", preset: .top,
+        origin: (0, 0, 0), normal: (0, 1, 0), xAxis: (0, 0, 1), yAxis: (1, 0, 0))
+
+    static let standard: [SketchPlaneAnchor] = [.xy, .yz, .zx]
+}
+
 final class CADAppState: ObservableObject {
     @Published var workbench: CADWorkbench = .model
     @Published var subMode: CADSubMode = .modelFeature
@@ -128,6 +160,10 @@ final class CADAppState: ObservableObject {
     @Published var gridVisible: Bool = true
     @Published var axesVisible: Bool = true
     @Published var sectionMode: Bool = false
+
+    /// Выбранная плоскость построения эскиза. `nil` означает, что пользователь
+    /// ещё не выбрал плоскость — в этом случае показывается выборщик плоскости.
+    @Published var sketchPlane: SketchPlaneAnchor?
 
     let time = TimeCoordinator()
     private var cancellables = Set<AnyCancellable>()
@@ -191,6 +227,9 @@ final class CADAppState: ObservableObject {
         panelState = .forWorkbench(value)
         interaction = .forWorkbench(value)
         activePropTab = 0
+        if value == .sketch {
+            sketchPlane = nil
+        }
         MirEventBus.shared.publish(.workbenchChanged(value))
         MirEventBus.shared.publish(.subModeChanged(subMode))
         showNotification(ui.language == .russian ? "Рабочая среда: \(value.titleRU)" : "Workbench: \(value.titleEN)", type: .success)
@@ -278,8 +317,7 @@ final class CADAppState: ObservableObject {
     }
 
     func exportModel() {
-        MirEventBus.shared.publish(.commandRequested("document.export"))
-        showNotification(ui.language == .russian ? "Экспорт модели подготовлен" : "Model export prepared", type: .success)
+        MIR4DProjectCommands.shared.exportStep(appState: self)
     }
 
     func loadModel(url: URL) { importModel(url: url) }
@@ -327,6 +365,211 @@ final class CADAppState: ObservableObject {
         simulation.phase = .results
         simulation.solverStatus = ui.language == .russian ? "Расчёт завершён" : "Solve completed"
         MirEventBus.shared.publish(.simulationChanged(simulation))
+    }
+
+    func runSimulation() {
+        let ru = ui.language == .russian
+        simulation.phase = .solve
+        simulation.isRunning = true
+        simulation.progress = 0
+        simulation.solverStatus = ru ? "Расчёт выполняется…" : "Solving…"
+        simulation.lastReport = nil
+        simulation.lastPassed = nil
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+
+        let definition = caeDefinition(for: simulation.physics)
+        guard let report = MIR4DRunCAECampaign(definition: definition) else {
+            simulation.isRunning = false
+            simulation.progress = 0
+            simulation.solverStatus = ru ? "CAE-движок недоступен" : "CAE engine unavailable"
+            MirEventBus.shared.publish(.simulationChanged(simulation))
+            showNotification(ru ? "CAE-движок недоступен" : "CAE engine unavailable", type: .error)
+            return
+        }
+
+        let passed = ((try? JSONSerialization.jsonObject(with: Data(report.utf8), options: [])) as? [String: Any])?["passed"] as? Bool ?? false
+
+        simulation.lastReport = report
+        simulation.lastPassed = passed
+        simulation.isRunning = false
+        simulation.progress = 1
+        simulation.resultSetID = "cae-\(UUID().uuidString.prefix(8).lowercased())"
+        simulation.phase = .results
+        simulation.solverStatus = passed ? (ru ? "Пройдено" : "Passed") : (ru ? "Не пройдено" : "Failed")
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+        showNotification(ru ? "Испытание завершено: \(simulation.solverStatus)" : "Test finished: \(simulation.solverStatus)", type: passed ? .success : .warning)
+    }
+
+    private func criterionLine(for physics: CADSimulationState.PhysicsType) -> String {
+        switch physics {
+        case .structural, .multiphysics:
+            return "criterion stress 0 1e9"
+        case .thermal:
+            return "criterion temperature 0 400"
+        case .fluid:
+            return "criterion density 500 2000"
+        case .acoustic:
+            return "criterion acoustic 0 1"
+        case .chemical:
+            return "criterion composition 0 1"
+        case .electromagnetic:
+            return "criterion temperature 0 400"
+        }
+    }
+
+    private func caeDefinition(for physics: CADSimulationState.PhysicsType) -> String {
+        let criterion = criterionLine(for: physics)
+        var body = """
+        case specimen
+          material temperature 350
+          initial flowRate 5
+          initial composition reactant 1
+          \(criterion)
+        """
+        if simulation.useGeometry {
+            body += "  load fixed 1\n"
+        }
+        return body
+    }
+
+    func fetchSelectedGeometry() {
+        let ru = ui.language == .russian
+        guard let viewport = MIR4DModelRuntime.shared.viewport else {
+            showNotification(ru ? "Вьюпорт недоступен" : "Viewport unavailable", type: .warning)
+            return
+        }
+        var buffer = [CChar](repeating: 0, count: 1024)
+        guard MirEngineGetSelectedObjectMetrics(viewport, &buffer, buffer.count) else {
+            showNotification(ru ? "Не удалось получить геометрию" : "Could not read geometry", type: .error)
+            return
+        }
+        let json = String(cString: buffer)
+        guard let data = json.data(using: .utf8),
+              let dict = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any],
+              (dict["hasGeometry"] as? Bool) == true else {
+            simulation.geometry = nil
+            showNotification(ru ? "Объект не выбран" : "No object selected", type: .warning)
+            return
+        }
+        let geo = CADObjectMetrics(
+            objectId: (dict["objectId"] as? NSNumber)?.uint64Value ?? 0,
+            sizeX: dict["sizeX"] as? Double ?? 0,
+            sizeY: dict["sizeY"] as? Double ?? 0,
+            sizeZ: dict["sizeZ"] as? Double ?? 0,
+            volume: dict["volume"] as? Double ?? 0,
+            surfaceArea: dict["surfaceArea"] as? Double ?? 0,
+            vertexCount: dict["vertexCount"] as? Int ?? 0,
+            faceCount: dict["faceCount"] as? Int ?? 0
+        )
+        simulation.geometry = geo
+        simulation.useGeometry = true
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+        showNotification(ru ? "Геометрия: V=\(String(format: "%.3g", geo.volume))" : "Geometry: V=\(String(format: "%.3g", geo.volume))", type: .success)
+    }
+
+    func runSweep(parameter: CAESweepParameter, from: Double, to: Double, steps: Int) {
+        let ru = ui.language == .russian
+        let count = max(1, min(steps, 200))
+        let definition = sweepDefinition(parameter: parameter, from: from, to: to, steps: count)
+        simulation.phase = .solve
+        simulation.isRunning = true
+        simulation.progress = 0
+        simulation.solverStatus = ru ? "Параметрический прогон…" : "Parametric sweep…"
+        simulation.sweepResults = []
+        simulation.sweepParameter = parameter
+        simulation.sweepFrom = from
+        simulation.sweepTo = to
+        simulation.sweepSteps = count
+        simulation.compareA = nil
+        simulation.compareB = nil
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+
+        guard let report = MIR4DRunCAECampaign(definition: definition) else {
+            simulation.isRunning = false
+            simulation.progress = 0
+            simulation.solverStatus = ru ? "CAE-движок недоступен" : "CAE engine unavailable"
+            MirEventBus.shared.publish(.simulationChanged(simulation))
+            showNotification(ru ? "CAE-движок недоступен" : "CAE engine unavailable", type: .error)
+            return
+        }
+
+        let rows = parseSweepRows(from: report, from: from, to: to, steps: count)
+        simulation.sweepResults = rows
+        simulation.lastReport = report
+        simulation.isRunning = false
+        simulation.progress = 1
+        simulation.phase = .results
+        let passedCount = rows.filter { $0.passed }.count
+        simulation.lastPassed = rows.allSatisfy { $0.passed }
+        simulation.solverStatus = ru
+            ? "Прогон: \(passedCount)/\(rows.count) пройдено"
+            : "Sweep: \(passedCount)/\(rows.count) passed"
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+        showNotification(ru ? "Прогон завершён: \(passedCount)/\(rows.count)" : "Sweep done: \(passedCount)/\(rows.count)", type: passedCount == rows.count ? .success : .warning)
+    }
+
+    func setCompareA(_ row: Int?) {
+        simulation.compareA = row
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+    }
+
+    func setCompareB(_ row: Int?) {
+        simulation.compareB = row
+        MirEventBus.shared.publish(.simulationChanged(simulation))
+    }
+
+    private func fmt(_ value: Double) -> String {
+        String(format: "%.4g", value)
+    }
+
+    private func sweepDefinition(parameter: CAESweepParameter, from: Double, to: Double, steps: Int) -> String {
+        var lines: [String] = []
+        for i in 0..<steps {
+            let t = steps > 1 ? Double(i) / Double(steps - 1) : 0
+            let raw = from + (to - from) * t
+            var value = raw
+            if parameter == .load, simulation.useGeometry, let geo = simulation.geometry, geo.surfaceArea > 0 {
+                // raw интерпретируется как приложенная сила (Н); переводим в давление через площадь
+                value = raw / geo.surfaceArea
+            }
+            var body = """
+            case \(parameter.rawValue)_\(i)
+              \(parameter.commandTemplate) \(fmt(value))
+              initial flowRate 5
+              initial composition reactant 1
+              \(criterionLine(for: simulation.physics))
+            """
+            if simulation.useGeometry {
+                body += "  load fixed 1\n"
+            }
+            lines.append(body)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func parseSweepRows(from report: String, from: Double, to: Double, steps: Int) -> [CAESweepRow] {
+        guard let dict = (try? JSONSerialization.jsonObject(with: Data(report.utf8), options: [])) as? [String: Any],
+              let cases = dict["cases"] as? [[String: Any]] else { return [] }
+        var rows: [CAESweepRow] = []
+        for (i, item) in cases.enumerated() {
+            let t = steps > 1 ? Double(i) / Double(steps - 1) : 0
+            let paramValue = from + (to - from) * t
+            let name = item["name"] as? String ?? "case_\(i)"
+            let passed = item["passed"] as? Bool ?? false
+            var metrics: [String: CAETelemetryMetric] = [:]
+            if let result = item["result"] as? [String: Any],
+               let telemetry = result["telemetry"] as? [String: Any] {
+                for (key, val) in telemetry {
+                    if let m = val as? [String: Any],
+                       let mn = m["min"] as? Double,
+                       let mx = m["max"] as? Double {
+                        metrics[key] = CAETelemetryMetric(min: mn, max: mx)
+                    }
+                }
+            }
+            rows.append(CAESweepRow(index: i, parameterValue: paramValue, caseName: name, passed: passed, metrics: metrics))
+        }
+        return rows
     }
 
     // MARK: Notifications

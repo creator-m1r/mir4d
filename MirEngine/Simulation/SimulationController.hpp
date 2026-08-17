@@ -9,13 +9,12 @@ namespace mir
 class SimulationController
 {
 public:
-    void start() noexcept { world_.settings().running = true; }
-    void pause() noexcept { world_.settings().running = false; }
+    void start() noexcept { world_.start(); }
+    void pause() noexcept { world_.pause(); }
 
     void reset() noexcept
     {
-        world_.settings().running = false;
-        world_.settings().time = 0.0;
+        world_.reset();
         telemetry_ = {};
     }
 
@@ -25,7 +24,7 @@ public:
             return;
 
         world_.step(world, deltaSeconds);
-        world.advance(Time(world_.settings().time));
+        world.advance(mir4d::Time(world_.settings().time));
         refreshTelemetry(world);
     }
 
@@ -36,9 +35,21 @@ public:
 private:
     void refreshTelemetry(const World& world) noexcept
     {
-        telemetry_.time = world_.settings().time;
-        telemetry_.running = world_.settings().running;
-        telemetry_.objects = world.size();
+        (void)world;
+        const auto& source = world_.telemetry();
+        telemetry_.time = source.time;
+        telemetry_.running = source.running;
+        telemetry_.objects = source.objects;
+        telemetry_.totalFlowRate = source.totalFlowRate;
+        telemetry_.averageTemperature = source.averageTemperature;
+        telemetry_.averagePressure = source.averagePressure;
+        telemetry_.totalDrag = source.totalDrag;
+        telemetry_.maxTemperature = source.maxTemperature;
+        telemetry_.minTemperature = source.minTemperature;
+        telemetry_.maxPressure = source.maxPressure;
+        telemetry_.maxStress = source.maxStress;
+        telemetry_.maxVelocity = source.maxVelocity;
+        telemetry_.maxAcoustic = source.maxAcoustic;
     }
 
     SimulationWorld world_{};

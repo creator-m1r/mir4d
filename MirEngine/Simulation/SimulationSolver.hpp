@@ -45,8 +45,6 @@ class SimulationSolverStack
 public:
     void add(ISimulationSolver& solver)
     {
-        if (&solver == nullptr)
-            return;
         solvers_.push_back(&solver);
     }
 

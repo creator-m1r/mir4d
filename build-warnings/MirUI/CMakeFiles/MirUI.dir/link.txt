@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libMirUI.a CMakeFiles/MirUI.dir/Core/Transform/TransformAdapter.cpp.o CMakeFiles/MirUI.dir/Interop/MIR4DEngineDocumentBridge.cpp.o CMakeFiles/MirUI.dir/Interop/SelectionInspectorBridge.cpp.o CMakeFiles/MirUI.dir/Widgets/PropertyGrid/RenderSelectionPropertyAdapter.cpp.o CMakeFiles/MirUI.dir/Widgets/PropertyGrid/SelectionInspectorModel.cpp.o
+/usr/bin/ranlib ../lib/libMirUI.a

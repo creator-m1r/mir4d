@@ -14,10 +14,18 @@
 #include "../Document/Document.hpp"
 #include "../IO/Mesh/StlImporter.hpp"
 #include "../IO/Mesh/StlExporter.hpp"
+#include "../IO/Step/StepImporter.hpp"
+#include "../IO/Step/StepExporter.hpp"
+#include "../IO/Step/BRepStepBridge.hpp"
+#include "../BRep/Converters/BRepToModel.hpp"
+#include "../BRep/Converters/BRepMerge.hpp"
 #include "../IO/ExportOptions.hpp"
 #include "../IO/ImportOptions.hpp"
 #include "../IO/ImportService.hpp"
 #include <variant>
+#include <chrono>
+#include <cstdio>
+#include <iostream>
 #include "../../Sketch/SketchDocument.hpp"
 #include "../../Sketch/SketchDocumentSolver.hpp"
 
@@ -202,6 +210,14 @@ void MirEngineSetPlanes(void* renderer,
     native->setPlanes(data);
 }
 
+void MirEngineSetCursor(void* renderer, float ndcX, float ndcY, bool active)
+{
+    if (!renderer)
+        return;
+    auto* native = static_cast<OpenGLRenderer*>(renderer);
+    native->setCursor(ndcX, ndcY, active);
+}
+
 
 // ------------------------------------------------------------
 // Sketch overlay (ТЗ Этап 2)
@@ -378,15 +394,17 @@ void* MirEngineCreateViewport(
     const uint32_t safeHeight =
         std::max(height, 1u);
 
-    auto native =
+auto native =
         std::make_unique<NativeViewport>();
 
+    std::fprintf(stderr, "[MIR4D-DBG %lldms] %s\n", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(), "CreateViewport: scene");
     native->scene =
         std::make_unique<mir::Scene>();
 
     auto* nativeRenderer =
         static_cast<OpenGLRenderer*>(renderer);
 
+    std::fprintf(stderr, "[MIR4D-DBG %lldms] %s\n", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(), "CreateViewport: runtime");
     native->runtime =
         std::make_unique<mir::ViewportRuntime>(
             nativeRenderer
@@ -396,10 +414,12 @@ void* MirEngineCreateViewport(
         native->scene.get()
     );
 
+    std::fprintf(stderr, "[MIR4D-DBG %lldms] %s\n", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(), "CreateViewport: resize");
     native->runtime->resize(
         safeWidth,
         safeHeight
     );
+    std::fprintf(stderr, "[MIR4D-DBG %lldms] %s\n", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(), "CreateViewport: resize done");
 
     auto& camera =
         native->runtime->state().camera;
@@ -423,6 +443,7 @@ void* MirEngineCreateViewport(
         mir::Scalar(1.2),
         mir::Scalar(12.0)
     );
+    std::fprintf(stderr, "[MIR4D-DBG %lldms] %s\n", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(), "CreateViewport: DONE");
 
     return native.release();
 }
@@ -580,6 +601,83 @@ namespace
 {
 constexpr double kPresetPhi = 1.1;
 constexpr double kPresetDistance = 12.0;
+
+// Resolves a camera preset into an orbit (theta, phi, distance).
+// Single source of truth for presets: used both by
+// MirEngineSetActiveCameraPreset and MirEngineGetCameraPresetOrientation
+// (the latter feeds the animated transitions of the navigation sphere).
+bool resolveCameraPreset(
+    int preset,
+    double& theta,
+    double& phi,
+    double& distance
+)
+{
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kThetaFront = 0.0;
+    constexpr double kThetaBack = kPi;
+    constexpr double kThetaLeft = -kPi * 0.5;
+    constexpr double kThetaRight = kPi * 0.5;
+    constexpr double kThetaIsometric = kPi * 0.25;
+
+    // Diagonal directions of the navigation cube (edges and corners).
+    // Direction (x, y, z): x right, y up, z forward.
+    // theta = atan2(x, z); phi = acos(y / |v|).
+    constexpr double kPhiCornerUp = 0.95531661812450927816;    // acos(1/sqrt(3))
+    constexpr double kPhiCornerDown = 2.18627603546528397433;  // pi - acos(1/sqrt(3))
+    constexpr double kPhiEdgeUp = kPi * 0.25;                  // acos(1/sqrt(2))
+    constexpr double kPhiEdgeDown = kPi * 0.75;
+    constexpr double kTheta45 = kPi * 0.25;
+    constexpr double kTheta135 = kPi * 0.75;
+    constexpr double kThetaM45 = -kPi * 0.25;
+    constexpr double kThetaM135 = -kPi * 0.75;
+
+    theta = 0.0;
+    phi = kPresetPhi;
+    distance = kPresetDistance;
+
+    switch (preset)
+    {
+    // Faces (standard views)
+    case 0: theta = kThetaFront;      phi = kPresetPhi; break;
+    case 1: theta = kThetaBack;       phi = kPresetPhi; break;
+    case 2: theta = kThetaLeft;       phi = kPresetPhi; break;
+    case 3: theta = kThetaRight;      phi = kPresetPhi; break;
+    case 4: theta = kThetaFront;      phi = 1e-4; break;
+    case 5: theta = kThetaFront;      phi = kPi - 1e-4; break;
+    case 6: theta = kThetaIsometric;  phi = 0.61547970867038739117; break;
+
+    // Corners
+    case 7:  theta = kThetaM45; phi = kPhiCornerUp;   break; // top-front-left
+    case 8:  theta = kTheta45;  phi = kPhiCornerUp;   break; // top-front-right
+    case 9:  theta = kThetaM135; phi = kPhiCornerUp;  break; // top-back-left
+    case 10: theta = kTheta135; phi = kPhiCornerUp;   break; // top-back-right
+    case 11: theta = kThetaM45; phi = kPhiCornerDown; break; // bottom-front-left
+    case 12: theta = kTheta45;  phi = kPhiCornerDown; break; // bottom-front-right
+    case 13: theta = kThetaM135; phi = kPhiCornerDown; break; // bottom-back-left
+    case 14: theta = kTheta135; phi = kPhiCornerDown; break; // bottom-back-right
+
+    // Horizontal edges (diagonal side views)
+    case 15: theta = kThetaM45; phi = kPresetPhi; break; // front-left
+    case 16: theta = kTheta45;  phi = kPresetPhi; break; // front-right
+    case 17: theta = kThetaM135; phi = kPresetPhi; break; // back-left
+    case 18: theta = kTheta135; phi = kPresetPhi; break; // back-right
+
+    // Vertical edges
+    case 19: theta = kThetaFront;  phi = kPhiEdgeUp;   break; // top-front
+    case 20: theta = kThetaBack;   phi = kPhiEdgeUp;   break; // top-back
+    case 21: theta = kThetaLeft;   phi = kPhiEdgeUp;   break; // top-left
+    case 22: theta = kThetaRight;  phi = kPhiEdgeUp;   break; // top-right
+    case 23: theta = kThetaFront;  phi = kPhiEdgeDown; break; // bottom-front
+    case 24: theta = kThetaBack;   phi = kPhiEdgeDown; break; // bottom-back
+    case 25: theta = kThetaLeft;   phi = kPhiEdgeDown; break; // bottom-left
+    case 26: theta = kThetaRight;  phi = kPhiEdgeDown; break; // bottom-right
+
+    default: return false;
+    }
+
+    return true;
+}
 } // namespace
 
 void MirEngineSetActiveCameraPreset(
@@ -596,35 +694,44 @@ void MirEngineSetActiveCameraPreset(
     auto& camera =
         native->runtime->state().camera;
 
-    constexpr double kThetaFront = 0.0;
-    constexpr double kThetaBack = 3.14159265358979323846;
-    constexpr double kThetaLeft = -3.14159265358979323846 * 0.5;
-    constexpr double kThetaRight = 3.14159265358979323846 * 0.5;
-    constexpr double kThetaTop = 0.0;
-    constexpr double kThetaBottom = 3.14159265358979323846 * 0.0;
-    constexpr double kThetaIsometric = 0.78539816339744830962;
-
     double theta = 0.0;
     double phi = kPresetPhi;
     double distance = kPresetDistance;
 
-    switch (preset)
-    {
-    case 0: theta = kThetaFront;      phi = kPresetPhi; break;
-    case 1: theta = kThetaBack;       phi = kPresetPhi; break;
-    case 2: theta = kThetaLeft;       phi = kPresetPhi; break;
-    case 3: theta = kThetaRight;      phi = kPresetPhi; break;
-    case 4: theta = kThetaTop;        phi = 1e-4; break;
-    case 5: theta = kThetaBottom;     phi = 3.14159265358979323846 - 1e-4; break;
-    case 6: theta = kThetaIsometric;  phi = 0.61547970867038739117; break;
-    default: return;
-    }
+    if (!resolveCameraPreset(preset, theta, phi, distance))
+        return;
 
     camera.setOrbit(
         mir::Scalar(theta),
         mir::Scalar(phi),
         mir::Scalar(distance)
     );
+}
+
+// Returns the orbit angles of a preset without touching the viewport.
+// Used by the navigation sphere to animate camera transitions.
+void MirEngineGetCameraPresetOrientation(
+    int preset,
+    float* theta,
+    float* phi,
+    float* distance
+)
+{
+    double thetaOut = 0.0;
+    double phiOut = kPresetPhi;
+    double distanceOut = kPresetDistance;
+
+    if (!resolveCameraPreset(preset, thetaOut, phiOut, distanceOut))
+        return;
+
+    if (theta)
+        *theta = static_cast<float>(thetaOut);
+
+    if (phi)
+        *phi = static_cast<float>(phiOut);
+
+    if (distance)
+        *distance = static_cast<float>(distanceOut);
 }
 
 
@@ -911,6 +1018,66 @@ uint64_t MirEngineGetSelectedObjectId(
     );
 }
 
+/// Real CAD geometry bridge: extracts bounding box, volume, surface area and
+/// topology counts from the selected object's tessellated mesh.
+bool MirEngineGetSelectedObjectMetrics(
+    void* viewport,
+    char* outJson,
+    size_t outCapacity
+)
+{
+    if (!outJson || outCapacity == 0)
+        return false;
+
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+    {
+        std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
+        return true;
+    }
+
+    const mir4d::ObjectId selected = native->runtime->state().selection.primary();
+    const auto node = native->scene->find(selected);
+    if (!node || !node->model() || node->model()->mesh().empty())
+    {
+        std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
+        return true;
+    }
+
+    const mir::TriangleMesh3& mesh = node->model()->mesh();
+    const mir::Point3 bmin = mesh.boundsMin();
+    const mir::Point3 bmax = mesh.boundsMax();
+
+    double volume = 0.0;
+    double surfaceArea = 0.0;
+    for (const auto& tri : mesh.triangles)
+    {
+        const mir::Point3 v0 = mesh.vertices[tri.a];
+        const mir::Point3 v1 = mesh.vertices[tri.b];
+        const mir::Point3 v2 = mesh.vertices[tri.c];
+        const mir::Vector3 e1 = v1 - v0;
+        const mir::Vector3 e2 = v2 - v0;
+        const mir::Vector3 cross = mir::Vector3::cross(e1, e2);
+        volume += double(v0.x) * cross.x + double(v0.y) * cross.y + double(v0.z) * cross.z;
+        surfaceArea += 0.5 * cross.length();
+    }
+    volume = std::fabs(volume) / 6.0;
+
+    std::snprintf(outJson, outCapacity,
+        "{\"hasGeometry\":true,\"objectId\":%llu,"
+        "\"sizeX\":%.6g,\"sizeY\":%.6g,\"sizeZ\":%.6g,"
+        "\"volume\":%.6g,\"surfaceArea\":%.6g,"
+        "\"vertexCount\":%zu,\"faceCount\":%zu,"
+        "\"boundsMin\":{\"x\":%.6g,\"y\":%.6g,\"z\":%.6g},"
+        "\"boundsMax\":{\"x\":%.6g,\"y\":%.6g,\"z\":%.6g}}",
+        static_cast<unsigned long long>(selected),
+        double(bmax.x - bmin.x), double(bmax.y - bmin.y), double(bmax.z - bmin.z),
+        volume, surfaceArea,
+        mesh.vertices.size(), mesh.triangles.size(),
+        double(bmin.x), double(bmin.y), double(bmin.z),
+        double(bmax.x), double(bmax.y), double(bmax.z));
+    return true;
+}
 
 // Deletes the primary selection through the canonical Scene API.
 // The renderer observes the scene change; nothing is removed from the
@@ -1203,6 +1370,275 @@ bool MirEngineExportStl(
 }
 
 
+bool MirEngineImportStep(
+    void* viewport,
+    const char* path
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->scene)
+    {
+        setLastError(native, "MIR4D STEP import: viewport is not ready");
+        return false;
+    }
+
+    if (path == nullptr || *path == '\0')
+    {
+        setLastError(native, "MIR4D STEP import: path is empty");
+        return false;
+    }
+
+    const mir::io::ImportResult imported =
+        mir::io::step::StepImporter{}.importFile(path);
+
+    if (!imported.ok())
+    {
+        setLastError(
+            native,
+            imported.error.empty()
+                ? "MIR4D STEP import: parsing failed"
+                : imported.error.c_str());
+        return false;
+    }
+
+    auto model = std::make_shared<mir::Model>();
+    model->setMesh(*imported.mesh);
+
+    const auto node = native->scene->createNode(std::move(model));
+    if (!node)
+    {
+        setLastError(native, "MIR4D STEP import: failed to add mesh to scene");
+        return false;
+    }
+
+    setLastError(native, nullptr);
+    return true;
+}
+
+
+bool MirEngineImportStepBRep(
+    void* viewport,
+    const char* path
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->scene)
+    {
+        setLastError(native, "MIR4D STEP B-Rep import: viewport is not ready");
+        return false;
+    }
+
+    if (path == nullptr || *path == '\0')
+    {
+        setLastError(native, "MIR4D STEP B-Rep import: path is empty");
+        return false;
+    }
+
+    std::string error;
+    std::shared_ptr<mir::BRepModel> brep =
+        mir::io::step::BRepStepBridge::read(path, error);
+
+    if (!brep)
+    {
+        setLastError(
+            native,
+            error.empty()
+                ? "MIR4D STEP B-Rep import: parsing failed"
+                : error.c_str());
+        return false;
+    }
+
+    if (brep->rootSolids().empty())
+    {
+        setLastError(native, "MIR4D STEP B-Rep import: no B-Rep solids found");
+        return false;
+    }
+
+    const mir::TriangleMesh3 mesh =
+        mir::BRepTessellator::tessellateModel(*brep);
+
+    if (mesh.vertices.empty() || mesh.triangles.empty() || !mesh.isValid())
+    {
+        setLastError(native, "MIR4D STEP B-Rep import: tessellation failed");
+        return false;
+    }
+
+    auto model = std::make_shared<mir::Model>();
+    model->setMesh(mesh);
+
+    const auto node = native->scene->createNode(std::move(model));
+    if (!node)
+    {
+        setLastError(native, "MIR4D STEP B-Rep import: failed to add mesh to scene");
+        return false;
+    }
+
+    node->setBrep(brep);
+
+    setLastError(native, nullptr);
+    return true;
+}
+
+
+bool MirEngineExportStep(
+    void* viewport,
+    const char* path,
+    bool selectionOnly
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->scene)
+    {
+        setLastError(native, "MIR4D STEP export: viewport is not ready");
+        return false;
+    }
+
+    if (path == nullptr || *path == '\0')
+    {
+        setLastError(native, "MIR4D STEP export: path is empty");
+        return false;
+    }
+
+    mir4d::Document document{"MIR4D Viewport STEP Export"};
+    mir::Scene& targetScene = document.scene();
+
+    mir::io::ExportOptions options;
+    options.selectionOnly = selectionOnly;
+    if (selectionOnly)
+        options.selection =
+            native->runtime->state().selection.ids();
+
+    for (const auto& node : native->scene->nodes())
+    {
+        if (!node || !node->model())
+            continue;
+
+        if (selectionOnly)
+        {
+            bool included = false;
+            for (const mir4d::ObjectId selected : options.selection)
+            {
+                if (selected == node->id())
+                {
+                    included = true;
+                    break;
+                }
+            }
+            if (!included)
+                continue;
+        }
+
+        auto copy =
+            std::make_shared<mir::ModelNode>(node->model());
+
+        copy->setTransform(node->transform());
+        const auto added = targetScene.add(copy);
+
+        if (!added)
+        {
+            setLastError(
+                native,
+                "MIR4D STEP export: failed to stage scene object");
+            return false;
+        }
+    }
+
+    const mir::io::ExportResult result =
+        mir::io::step::StepExporter{}.exportTo(
+            path,
+            document,
+            options
+        );
+
+    if (!result.error.empty())
+    {
+        setLastError(native, result.error.c_str());
+        return false;
+    }
+
+    setLastError(native, nullptr);
+    return true;
+}
+
+
+bool MirEngineExportStepBRep(
+    void* viewport,
+    const char* path,
+    bool selectionOnly
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->scene)
+    {
+        setLastError(native, "MIR4D STEP B-Rep export: viewport is not ready");
+        return false;
+    }
+
+    if (path == nullptr || *path == '\0')
+    {
+        setLastError(native, "MIR4D STEP B-Rep export: path is empty");
+        return false;
+    }
+
+    std::vector<std::shared_ptr<mir::BRepModel>> sources;
+    std::vector<mir4d::ObjectId> selection;
+
+    if (selectionOnly && native->runtime)
+        selection = native->runtime->state().selection.ids();
+
+    for (const auto& node : native->scene->nodes())
+    {
+        if (!node)
+            continue;
+        if (!node->brep())
+            continue;
+        if (selectionOnly)
+        {
+            bool included = false;
+            for (mir4d::ObjectId selected : selection)
+                if (selected == node->id())
+                {
+                    included = true;
+                    break;
+                }
+            if (!included)
+                continue;
+        }
+        sources.push_back(node->brep());
+    }
+
+    if (sources.empty())
+    {
+        setLastError(native, "MIR4D STEP B-Rep export: no exact B-Rep sources in scene");
+        return false;
+    }
+
+    std::shared_ptr<mir::BRepModel> merged = mir::mergeBRepModels(sources);
+
+    std::string error;
+    if (!mir::io::step::BRepStepBridge::write(path, *merged, error))
+    {
+        setLastError(
+            native,
+            error.empty()
+                ? "MIR4D STEP B-Rep export: write failed"
+                : error.c_str());
+        return false;
+    }
+
+    setLastError(native, nullptr);
+    return true;
+}
+
+
 // ------------------------------------------------------------
 // Materials (procedural MaterialLibrary, no textures)
 // ------------------------------------------------------------
@@ -1374,6 +1810,194 @@ bool MirEngineSketchGetCircle(void* doc, uint32_t id, float* cx, float* cy, floa
         return true;
     }
     return false;
+}
+
+uint32_t MirEngineSketchAddArc(void* doc, float cx, float cy, float r, float startAngle, float endAngle)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    return d->geometry().addArc({cx, cy}, r, startAngle, endAngle);
+}
+
+uint32_t MirEngineSketchAddSpline(void* doc, const float* xs, const float* ys, uint32_t count, bool closed)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d || !xs || !ys || count < 2) return 0;
+    std::vector<mir::SketchPoint2D> pts(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        pts[i].x = static_cast<double>(xs[i]);
+        pts[i].y = static_cast<double>(ys[i]);
+    }
+    return d->geometry().addSpline(std::move(pts), closed);
+}
+
+uint32_t MirEngineSketchSplineCount(void* doc)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    uint32_t n = 0;
+    for (const auto& g : d->geometry().all())
+    {
+        if (std::holds_alternative<mir::SketchSpline2D>(g)) ++n;
+    }
+    return n;
+}
+
+bool MirEngineSketchSplineAt(void* doc, uint32_t index, float* xs, float* ys, uint32_t* count, bool* closed)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d || !count) return false;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return false;
+    const auto* s = std::get_if<mir::SketchSpline2D>(&all[index]);
+    if (!s) return false;
+    const uint32_t available = static_cast<uint32_t>(s->controlPoints.size());
+    if (closed) *closed = s->closed;
+    if (xs && ys)
+    {
+        const uint32_t toCopy = std::min(*count, available);
+        for (uint32_t i = 0; i < toCopy; ++i)
+        {
+            xs[i] = static_cast<float>(s->controlPoints[i].x);
+            ys[i] = static_cast<float>(s->controlPoints[i].y);
+        }
+    }
+    *count = available;
+    return true;
+}
+
+uint32_t MirEngineSketchGeometryCount(void* doc)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    return static_cast<uint32_t>(d->geometry().all().size());
+}
+
+int MirEngineSketchGeometryTypeAt(void* doc, uint32_t index)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return -1;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return -1;
+    return static_cast<int>(all[index].index());
+}
+
+bool MirEngineSketchLineAt(void* doc, uint32_t index, float* x1, float* y1, float* x2, float* y2)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return false;
+    if (const auto* l = std::get_if<mir::SketchLine2D>(&all[index]))
+    {
+        if (x1) *x1 = static_cast<float>(l->start.x);
+        if (y1) *y1 = static_cast<float>(l->start.y);
+        if (x2) *x2 = static_cast<float>(l->end.x);
+        if (y2) *y2 = static_cast<float>(l->end.y);
+        return true;
+    }
+    return false;
+}
+
+bool MirEngineSketchArcAt(void* doc, uint32_t index, float* cx, float* cy, float* r, float* sa, float* ea)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return false;
+    if (const auto* a = std::get_if<mir::SketchArc2D>(&all[index]))
+    {
+        if (cx) *cx = static_cast<float>(a->center.x);
+        if (cy) *cy = static_cast<float>(a->center.y);
+        if (r) *r = static_cast<float>(a->radius);
+        if (sa) *sa = static_cast<float>(a->startAngle);
+        if (ea) *ea = static_cast<float>(a->endAngle);
+        return true;
+    }
+    return false;
+}
+
+bool MirEngineSketchCircleAt(void* doc, uint32_t index, float* cx, float* cy, float* r)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return false;
+    if (const auto* cc = std::get_if<mir::SketchCircle2D>(&all[index]))
+    {
+        if (cx) *cx = static_cast<float>(cc->center.x);
+        if (cy) *cy = static_cast<float>(cc->center.y);
+        if (r) *r = static_cast<float>(cc->radius);
+        return true;
+    }
+    return false;
+}
+
+bool MirEngineSketchRemoveGeometry(void* doc, uint32_t id)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    return d->geometry().remove(id);
+}
+
+void MirEngineSketchClear(void* doc)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (d) d->clear();
+}
+
+void MirEngineSketchSetPlane(void* doc, uint32_t planeId,
+                             float ox, float oy, float oz,
+                             float nx, float ny, float nz,
+                             float xx, float xy, float xz,
+                             float yx, float yy, float yz)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return;
+    mir::Matrix4 m = mir::Matrix4::identity();
+    m(0, 0) = xx; m(1, 0) = xy; m(2, 0) = xz;
+    m(0, 1) = yx; m(1, 1) = yy; m(2, 1) = yz;
+    m(0, 2) = nx; m(1, 2) = ny; m(2, 2) = nz;
+    m(0, 3) = ox; m(1, 3) = oy; m(2, 3) = oz;
+    d->setPlane(planeId, m);
+}
+
+uint32_t MirEngineSketchGeometryIdAt(void* doc, uint32_t index)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    const auto& all = d->geometry().all();
+    if (index >= all.size()) return 0;
+    return std::visit([](const auto& g) { return g.id; }, all[index]);
+}
+
+bool MirEngineSketchRemoveConstraint(void* doc, uint32_t id)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    return d->constraints().remove(id);
+}
+
+uint32_t MirEngineSketchConstraintCount(void* doc)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return 0;
+    return static_cast<uint32_t>(d->constraints().all().size());
+}
+
+bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value)
+{
+    auto* d = reinterpret_cast<mir::SketchDocument*>(doc);
+    if (!d) return false;
+    const auto& all = d->constraints().all();
+    if (index >= all.size()) return false;
+    const auto& c = all[index];
+    if (type) *type = static_cast<int32_t>(c.type);
+    if (g1) *g1 = c.firstGeometry;
+    if (g2) *g2 = c.secondGeometry;
+    if (value) *value = c.value;
+    return true;
 }
 
 }

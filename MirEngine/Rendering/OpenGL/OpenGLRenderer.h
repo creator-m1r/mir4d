@@ -57,9 +57,24 @@ public:
         m_sketches = sketches;
     }
 
+    /// Sets the cursor position in normalized device coordinates for plane
+    /// hover picking. active=false clears the hover when the pointer leaves.
+    void setCursor(float ndcX, float ndcY, bool active) noexcept
+    {
+        m_cursorNDC[0] = ndcX;
+        m_cursorNDC[1] = ndcY;
+        m_cursorActive = active;
+    }
+
     /// Text report about the OpenGL context (requires the current context;
     /// performs makeCurrent itself).
     std::string diagnosticsReport();
+
+    /// TEMP DIAGNOSTIC: renders one frame into an offscreen FBO and writes a
+    /// PPM so the output can be inspected headlessly (MIR4D_SCREENSHOT=1).
+    void captureDiagnosticFrame(RenderContext& context,
+                                mir::Scene& scene,
+                                RenderDevice& device);
 
     [[nodiscard]] OpenGLDevice* device() noexcept { return m_device.get(); }
     [[nodiscard]] const OpenGLDevice* device() const noexcept { return m_device.get(); }
@@ -75,6 +90,8 @@ private:
     std::unique_ptr<SketchPass> m_sketchPass;
     std::vector<PlaneRenderData> m_planes;
     std::vector<SketchRenderData> m_sketches;
+    float m_cursorNDC[2]{0.0f, 0.0f};
+    bool m_cursorActive{false};
     bool m_initialized{false};
 };
 

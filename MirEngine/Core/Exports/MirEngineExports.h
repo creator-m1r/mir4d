@@ -73,6 +73,10 @@ void MirEngineSetPlanes(
     const bool* selected
 );
 
+/// Sets the cursor position in normalized device coordinates for work-plane
+/// hover picking. active=false clears the hover when the pointer leaves.
+void MirEngineSetCursor(void* renderer, float ndcX, float ndcY, bool active);
+
 /// Pushes a 2D sketch overlay (ТЗ Этап 2) drawn on a work plane. Segment
 /// endpoints are in the plane's local frame. Pass count==0 to clear. Arrays:
 ///   ax,ay,bx,by : segmentCount floats each (local coords)
@@ -180,6 +184,15 @@ void MirEngineSetCameraFov(
 void MirEngineSetActiveCameraPreset(
     void* viewport,
     int preset
+);
+
+// Returns the orbit angles (theta, phi, distance) of a camera preset
+// without touching the viewport. Used to animate preset transitions.
+void MirEngineGetCameraPresetOrientation(
+    int preset,
+    float* theta,
+    float* phi,
+    float* distance
 );
 
 void MirEngineFitViewport(
@@ -316,12 +329,53 @@ bool MirEngineCreateBox(
     uint64_t* objectId
 );
 
+// Extracts real geometry metrics (bounding box, size, volume, surface area,
+// vertex/face counts) from the primary selected object in the viewport scene.
+// Writes a JSON document into outJson (capacity outCapacity) and returns true
+// when the buffer was written. When nothing is selected or the object has no
+// tessellated mesh, writes {"hasGeometry":false}.
+bool MirEngineGetSelectedObjectMetrics(
+    void* viewport,
+    char* outJson,
+    size_t outCapacity
+);
+
 bool MirEngineImportMesh(
     void* viewport,
     const char* path
 );
 
 bool MirEngineExportStl(
+    void* viewport,
+    const char* path,
+    bool selectionOnly
+);
+
+// Opens a STEP (.step / .stp) model and inserts its tessellated geometry
+// into the viewport scene as a render mesh.
+bool MirEngineImportStep(
+    void* viewport,
+    const char* path
+);
+
+// Opens a STEP (.step / .stp) model and inserts its exact B-Rep geometry
+// (native BRepStepBridge) tessellated into the viewport scene as a render mesh.
+bool MirEngineImportStepBRep(
+    void* viewport,
+    const char* path
+);
+
+// Saves the exact B-Rep sources of the viewport scene (or the current
+// selection) to a STEP model using the native BRepStepBridge writer.
+bool MirEngineExportStepBRep(
+    void* viewport,
+    const char* path,
+    bool selectionOnly
+);
+
+// Saves the viewport scene (or the current selection) as a STEP model using
+// the native faceted_brep writer.
+bool MirEngineExportStep(
     void* viewport,
     const char* path,
     bool selectionOnly
@@ -389,6 +443,26 @@ uint32_t MirEngineSketchAddConstraint(void* doc, int type, uint32_t g1, uint32_t
 bool MirEngineSketchSolve(void* doc);
 bool MirEngineSketchGetLine(void* doc, uint32_t id, float* x1, float* y1, float* x2, float* y2);
 bool MirEngineSketchGetCircle(void* doc, uint32_t id, float* cx, float* cy, float* r);
+uint32_t MirEngineSketchAddArc(void* doc, float cx, float cy, float r, float startAngle, float endAngle);
+uint32_t MirEngineSketchAddSpline(void* doc, const float* xs, const float* ys, uint32_t count, bool closed);
+uint32_t MirEngineSketchSplineCount(void* doc);
+bool MirEngineSketchSplineAt(void* doc, uint32_t index, float* xs, float* ys, uint32_t* count, bool* closed);
+uint32_t MirEngineSketchGeometryCount(void* doc);
+int MirEngineSketchGeometryTypeAt(void* doc, uint32_t index);
+bool MirEngineSketchLineAt(void* doc, uint32_t index, float* x1, float* y1, float* x2, float* y2);
+bool MirEngineSketchArcAt(void* doc, uint32_t index, float* cx, float* cy, float* r, float* sa, float* ea);
+bool MirEngineSketchCircleAt(void* doc, uint32_t index, float* cx, float* cy, float* r);
+bool MirEngineSketchRemoveGeometry(void* doc, uint32_t id);
+void MirEngineSketchClear(void* doc);
+uint32_t MirEngineSketchGeometryIdAt(void* doc, uint32_t index);
+void MirEngineSketchSetPlane(void* doc, uint32_t planeId,
+                             float ox, float oy, float oz,
+                             float nx, float ny, float nz,
+                             float xx, float xy, float xz,
+                             float yx, float yy, float yz);
+bool MirEngineSketchRemoveConstraint(void* doc, uint32_t id);
+uint32_t MirEngineSketchConstraintCount(void* doc);
+bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
 
 // ------------------------------------------------------------
 // Error handling

@@ -174,7 +174,7 @@ int main()
     // ══ Fuse: невалидные аргументы ═══════════════════════════
     {
         mir::BRepModel argument;
-        const auto box1 = box(argument, 2.0, 2.0, 2.0, mir::Vector3::zero());
+        (void)box(argument, 2.0, 2.0, 2.0, mir::Vector3::zero());
 
         mir::BRepModel tool;
         const auto box2 = box(tool, 2.0, 2.0, 2.0, mir::Vector3(10.0, 0.0, 0.0));

@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wall -Wextra -Wpedantic -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/MIR4D_RayPicker.dir/MirEngine/Tests/Interaction/RayPickerTest.cpp.o -o MIR4D_RayPicker  libMirEngineMacOpenGL.a libMirEngineIO.a -framework OpenGL -framework Cocoa

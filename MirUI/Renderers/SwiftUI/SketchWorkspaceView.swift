@@ -356,7 +356,7 @@ struct SketchWorkspaceView: View {
 }
 
 enum SketchTool: CaseIterable {
-    case select, line, arc, circle, rectangle, trim, offset, dimension, mirror, pattern
+    case select, line, arc, circle, rectangle, trim, offset, dimension, mirror, pattern, spline
 
     var title: String {
         switch self {
@@ -370,6 +370,7 @@ enum SketchTool: CaseIterable {
         case .dimension: return "Размер"
         case .mirror: return "Зеркало"
         case .pattern: return "Массив"
+        case .spline: return "Сплайн"
         }
     }
 }

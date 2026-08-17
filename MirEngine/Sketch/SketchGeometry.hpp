@@ -40,7 +40,19 @@ struct SketchCircle2D
     bool construction{false};
 };
 
-using SketchGeometry = std::variant<SketchLine2D, SketchArc2D, SketchCircle2D>;
+/// True spline primitive. Control points define a natural cubic spline built
+/// through them (see mir::math::buildCubicSpline). The curve is a decorative /
+/// driven geometry: the constraint solver preserves it as-is and does not move
+/// its control points, so it never introduces under-constrained variables.
+struct SketchSpline2D
+{
+    std::uint32_t id{0};
+    std::vector<SketchPoint2D> controlPoints{};
+    bool closed{false};
+    bool construction{false};
+};
+
+using SketchGeometry = std::variant<SketchLine2D, SketchArc2D, SketchCircle2D, SketchSpline2D>;
 
 class SketchGeometryStore
 {
@@ -74,6 +86,21 @@ public:
             startAngle,
             endAngle,
             construction});
+        return id;
+    }
+
+    std::uint32_t addSpline(
+        std::vector<SketchPoint2D> controlPoints,
+        bool closed = false,
+        bool construction = false)
+    {
+        const auto id = nextId_++;
+        SketchSpline2D spline;
+        spline.id = id;
+        spline.controlPoints = std::move(controlPoints);
+        spline.closed = closed;
+        spline.construction = construction;
+        geometries_.emplace_back(std::move(spline));
         return id;
     }
 

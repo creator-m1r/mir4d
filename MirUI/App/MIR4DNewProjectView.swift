@@ -5,9 +5,22 @@ struct MIR4DNewProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: CADAppState
 
-    @State private var projectName = "Мой проект"
+    /// Optional workbench preset chosen on the start centre. When set, the
+    /// created project opens directly in the matching engineering environment.
+    var presetWorkbench: CADWorkbench? = nil
+    var defaultName: String? = nil
+
+    @State private var projectName: String
     @State private var parentURL: URL?
     @State private var errorMessage: String?
+
+    init(presetWorkbench: CADWorkbench? = nil, defaultName: String? = nil) {
+        self.presetWorkbench = presetWorkbench
+        self.defaultName = defaultName
+        _projectName = State(initialValue: defaultName ?? "Мой проект")
+        _parentURL = State(initialValue: nil)
+        _errorMessage = State(initialValue: nil)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -106,6 +119,6 @@ struct MIR4DNewProjectView: View {
         }
 
         errorMessage = nil
-        appState.createMIR4DProject(name: trimmedName, parentURL: parentURL)
+        appState.createMIR4DProject(name: trimmedName, parentURL: parentURL, workbench: presetWorkbench)
     }
 }

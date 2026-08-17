@@ -5,6 +5,8 @@ import SwiftUI
 extension Notification.Name {
     static let mir4DModelChanged = Notification.Name("MIR4D.ModelChanged")
     static let mir4DEngineDocumentChanged = Notification.Name("MIR4D.EngineDocumentChanged")
+    static let mir4DRunCAECampaign = Notification.Name("MIR4D.RunCAECampaign")
+    static let mir4DCAEResult = Notification.Name("MIR4D.CAEResult")
 }
 
 /// Live parameter/document model used by the SwiftUI workspace.
@@ -27,6 +29,10 @@ final class MIR4DModelRuntime: ObservableObject {
     // process-lifetime singleton, so no cross-thread access can occur.
     nonisolated(unsafe) private var engineDocument: UnsafeMutableRawPointer?
 #endif
+
+    /// Live viewport engine handle published by MirGLView. Used by the CAE
+    /// geometry bridge to read real metrics of the selected CAD object.
+    nonisolated(unsafe) var viewport: UnsafeMutableRawPointer?
 
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
@@ -90,6 +96,27 @@ final class MIR4DModelRuntime: ObservableObject {
         return true
     }
 
+    /// Переименовывает тело модели по его идентификатору (для совместной работы).
+    func renameBody(_ bodyID: UUID, to name: String) {
+        guard let index = document.bodies.firstIndex(where: { $0.id == bodyID }) else { return }
+        document.bodies[index].name = name
+        if let nodeIndex = document.root.children.firstIndex(where: { $0.id == bodyID }) {
+            document.root.children[nodeIndex].title = name
+        }
+        revision &+= 1
+        publishChange()
+    }
+
+    /// Применяет матрицу преобразования (4x4, построчно) к телу модели.
+    /// Матрица хранится в CRDT совместной работы; здесь фиксируется факт
+    /// изменения для синхронизации дерева проекта.
+    func applyCollaborationTransform(bodyID: UUID, matrix: [Double]) {
+        _ = matrix
+        guard document.operations.contains(where: { $0.bodyID == bodyID }) else { return }
+        revision &+= 1
+        publishChange()
+    }
+
     private init() {
         document = MIR4DModelDocument.newProject(name: "Новый проект")
 #if !MIR4D_SWIFTPM
@@ -147,7 +174,7 @@ final class MIR4DModelRuntime: ObservableObject {
     }
 
     @discardableResult
-    func addBox(width: Double, depth: Double, height: Double, engineObjectID: UInt64? = nil) -> UUID {
+    func addBox(width: Double, depth: Double, height: Double, engineObjectID: UInt64? = nil, bodyID: UUID? = nil) -> UUID {
         var resolvedEngineObjectID = engineObjectID
 #if !MIR4D_SWIFTPM
         if resolvedEngineObjectID == nil {
@@ -158,7 +185,7 @@ final class MIR4DModelRuntime: ObservableObject {
             resolvedEngineObjectID = objectID
         }
 #endif
-        let bodyID = UUID()
+        let bodyID = bodyID ?? UUID()
         let operationID = UUID()
         let geometryID = UUID()
         let body = MIR4DBody(id: bodyID, name: "Тело \(document.bodies.count + 1)")

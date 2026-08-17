@@ -39,13 +39,18 @@ struct WorldObjectState
     bool selectable{true};
 };
 
-struct MaterialProperties
+struct WorldMaterialDescriptor
 {
     std::string name{};
     std::string formula{};
     Scalar density{0.0};
     Scalar temperature{293.15};
     Scalar pressure{101325.0};
+    Scalar youngModulus{2.0e11};
+    Scalar thermalExpansion{1.2e-5};
+    Scalar poissonRatio{0.3};
+    Scalar specificHeat{4181.0};
+    Scalar thermalConductivity{0.6};
 };
 
 struct WorldSettings

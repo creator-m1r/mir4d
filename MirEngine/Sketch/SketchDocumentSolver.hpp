@@ -208,6 +208,15 @@ private:
         std::vector<SketchEquation> out;
         std::uint32_t eid = con.id * 16;
 
+        // Defensive: never let a constraint referencing a geometry that is not
+        // part of the solver binding (e.g. a spline, or a stale/removed id)
+        // throw std::out_of_range across the C ABI. Skip such equations.
+        if (binding.base.find(con.firstGeometry) == binding.base.end())
+            return out;
+        if (con.secondGeometry != 0 &&
+            binding.base.find(con.secondGeometry) == binding.base.end())
+            return out;
+
         auto push = [&](std::uint32_t localId,
                         std::function<double(const std::vector<double>&)> f)
         {

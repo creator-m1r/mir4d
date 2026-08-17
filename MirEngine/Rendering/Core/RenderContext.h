@@ -46,6 +46,7 @@ struct PlaneRenderData
     float size{10.0f};     // half-extent of the drawn working surface
     bool active{false};    // the plane a new sketch would attach to
     bool selected{false};  // currently selected in the UI
+    bool hovered{false};   // under the cursor (hover highlight)
 };
 
 struct SketchSegment2D
@@ -139,6 +140,12 @@ public:
     // Object id currently under the cursor (hover). The geometry pass applies
     // a subtler tint than the selection highlight. Zero means no hover.
     std::uint64_t hoverObjectId{0};
+
+    // Cursor position in normalized device coordinates (x,y in [-1,1]) used to
+    // pick the work plane under the pointer. cursorActive is false when the
+    // pointer left the viewport.
+    float cursorNDC[2]{0.0f, 0.0f};
+    bool cursorActive{false};
 
     // ==========================================================================
     // Work planes (ТЗ Этап 1)

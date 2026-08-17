@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 private enum MIR4DPaths {
     static let modelRelativePath = "Scenes/model.mir4d.json"
@@ -104,7 +105,75 @@ final class MIR4DProjectStore {
                 withIntermediateDirectories: true
             )
         }
+        writeDefaultThumbnail(to: projectURL, title: trimmed)
         return projectURL
+    }
+
+    /// Generates a self-describing placeholder preview for a freshly created
+    /// package. A real viewport snapshot is captured later from the running
+    /// renderer and overwrites this file.
+    private func writeDefaultThumbnail(to projectURL: URL, title: String) {
+        let size = NSSize(width: 512, height: 320)
+        let image = NSImage(size: size)
+        image.lockFocus()
+
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            image.unlockFocus()
+            return
+        }
+
+        let colors = [
+            NSColor(red: 0.035, green: 0.055, blue: 0.085, alpha: 1).cgColor,
+            NSColor(red: 0.010, green: 0.020, blue: 0.040, alpha: 1).cgColor
+        ] as CFArray
+        if let gradient = CGGradient(colorsSpace: nil, colors: colors, locations: [0, 1]) {
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 0, y: size.height),
+                end: CGPoint(x: size.width, y: 0),
+                options: []
+            )
+        }
+
+        // Branded geometric mark.
+        context.setStrokeColor(NSColor(red: 0.20, green: 0.55, blue: 1.0, alpha: 0.9).cgColor)
+        context.setLineWidth(6)
+        let markRect = CGRect(x: size.width / 2 - 46, y: size.height / 2 - 10, width: 92, height: 92)
+        context.stroke(CGRect(x: markRect.midX - 30, y: markRect.midY - 30, width: 60, height: 60))
+        context.stroke(CGRect(x: markRect.midX - 21, y: markRect.midY - 21, width: 42, height: 42))
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 22, weight: .bold),
+            .foregroundColor: NSColor.white
+        ]
+        let text = "МИР 4D"
+        let textSize = (text as NSString).size(withAttributes: attributes)
+        (text as NSString).draw(
+            at: NSPoint(x: (size.width - textSize.width) / 2, y: size.height - 56),
+            withAttributes: attributes
+        )
+
+        let subtitle = (title as NSString)
+        let subtitleAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.6)
+        ]
+        let subtitleSize = subtitle.size(withAttributes: subtitleAttributes)
+        subtitle.draw(
+            at: NSPoint(x: (size.width - subtitleSize.width) / 2, y: 28),
+            withAttributes: subtitleAttributes
+        )
+
+        image.unlockFocus()
+
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            return
+        }
+
+        let thumbnailURL = projectURL.appendingPathComponent("Thumbnails/preview.png")
+        try? png.write(to: thumbnailURL, options: .atomic)
     }
 
     func isValidPackage(at projectURL: URL) -> Bool {

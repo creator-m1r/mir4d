@@ -116,11 +116,11 @@ final class MIR4DProjectSession {
 
     // MARK: - Create / Open
 
-    func createProject(appState: CADAppState, name: String, parentURL: URL) {
+    func createProject(appState: CADAppState, name: String, parentURL: URL, workbench: CADWorkbench? = nil) {
         do {
             let url = try MIR4DProjectStore.shared.createProject(name: name, in: parentURL)
             projectUUID = UUID()
-            activate(url: url, name: name, appState: appState)
+            activate(url: url, name: name, appState: appState, workbench: workbench)
             modelRuntime.reset(projectName: appState.documentName)
             try save(appState: appState)
             startAutoSave(for: appState)
@@ -354,7 +354,7 @@ final class MIR4DProjectSession {
 
     // MARK: - Private
 
-    private func activate(url: URL, name: String, appState: CADAppState) {
+    private func activate(url: URL, name: String, appState: CADAppState, workbench: CADWorkbench? = nil) {
         projectURL = url.standardizedFileURL
         projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         appState.documentName = projectName
@@ -363,8 +363,9 @@ final class MIR4DProjectSession {
         appState.gridVisible = true
         appState.axesVisible = true
         appState.sectionMode = false
-        appState.workbench = .fourD
-        appState.subMode = .modelFeature
+        let targetWorkbench = workbench ?? .fourD
+        appState.workbench = targetWorkbench
+        appState.subMode = targetWorkbench.defaultSubMode
         appState.time.reset()
     }
 
@@ -390,8 +391,15 @@ final class MIR4DProjectSession {
             axesVisible: appState.axesVisible,
             sectionMode: appState.sectionMode,
             currentTime: appState.currentTime,
+            appVersion: Self.appVersion,
             uuid: projectUUID
         )
+    }
+
+    private static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        ?? Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        ?? "0.0"
     }
 
     private func existingCreationDate(in projectURL: URL) -> Date {
@@ -441,8 +449,8 @@ final class MIR4DProjectSession {
 }
 
 extension CADAppState {
-    func createMIR4DProject(name: String, parentURL: URL) {
-        MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL)
+    func createMIR4DProject(name: String, parentURL: URL, workbench: CADWorkbench? = nil) {
+        MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL, workbench: workbench)
     }
 
     func openMIR4DProject(url: URL) {

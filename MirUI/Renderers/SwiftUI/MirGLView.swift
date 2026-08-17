@@ -6,7 +6,10 @@ import QuartzCore
 
 extension Notification.Name {
     static let mir4DImportMesh = Notification.Name("MIR4D.ImportMesh")
+    static let mir4DImportStepBRep = Notification.Name("MIR4D.ImportStepBRep")
+    static let mir4DExportStepBRep = Notification.Name("MIR4D.ExportStepBRep")
     static let mir4DExportStl = Notification.Name("MIR4D.ExportSTL")
+    static let mir4DExportStep = Notification.Name("MIR4D.ExportSTEP")
     static let mir4DCreateBox = Notification.Name("MIR4D.CreateBox")
     static let mir4DFitViewport = Notification.Name("MIR4D.FitViewport")
     static let mir4DCameraProjectionRequested = Notification.Name("MIR4D.CameraProjectionRequested")
@@ -26,6 +29,11 @@ final class MirGLCustomView: NSView {
     var onIOError: ((String) -> Void)?
     var onCameraOrientationChanged:
         ((Double, Double, Double) -> Void)?
+
+    // MARK: Work plane gating (ТЗ: цветные плоскости — только при создании эскиза)
+
+    var appState: CADAppState?
+    private var lastSyncedWorkbench: CADWorkbench? = nil
 
     // MARK: MirEngine objects
 
@@ -62,16 +70,39 @@ final class MirGLCustomView: NSView {
         MirGLCustomView.engineLock.unlock()
     }
 
-    // MARK: Notifications
+    // Renders the very first frame synchronously right after engine setup, so
+    // the startup scene is visible immediately even before the display link
+    // fires (also lets the MIR4D_SCREENSHOT=1 FBO capture run headlessly).
+    private func renderFirstFrameIfNeeded() {
+
+        guard viewport != nil else {
+            return
+        }
+
+        MirGLCustomView.engineLock.lock()
+        MirEngineRender(viewport)
+        MirGLCustomView.engineLock.unlock()
+    }
 
     private var importObserver: NSObjectProtocol?
+    private var importStepBRepObserver: NSObjectProtocol?
+    private var exportStepBRepObserver: NSObjectProtocol?
     private var exportObserver: NSObjectProtocol?
+    private var exportStepObserver: NSObjectProtocol?
     private var createBoxObserver: NSObjectProtocol?
     private var fitViewportObserver: NSObjectProtocol?
     private var cameraPresetObserver: NSObjectProtocol?
     private var cameraProjectionObserver: NSObjectProtocol?
+    private var cameraOrbitObserver: NSObjectProtocol?
+    private var cameraAnimationTimer: Timer?
+    private var cameraTransitionStart: (theta: Double, phi: Double, distance: Double)?
+    private var cameraTransitionTarget: (theta: Double, phi: Double, distance: Double)?
+    private var cameraTransitionStartTime: CFTimeInterval = 0
+    private var cameraTransitionDeltaTheta: Double = 0
+    private let cameraTransitionDuration: CFTimeInterval = 0.38
     private var workPlaneObserver: NSObjectProtocol?
     private var sketchObserver: NSObjectProtocol?
+    private var workbenchObserverToken: UUID?
 
     // MARK: Mouse interaction
 
@@ -112,23 +143,33 @@ final class MirGLCustomView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        print("TRACE: MirGLCustomView viewDidMoveToWindow window=\(window != nil)")
 
         if window != nil {
 
             window?.makeFirstResponder(self)
 
+            print("TRACE: observers...")
             observeImportRequests()
             observeExportRequests()
+            observeExportStepRequests()
             observeCreateBoxRequests()
             observeFitViewportRequests()
             observeCameraPresetRequests()
             observeCameraProjectionRequests()
+            observeCameraOrbitRequests()
             observeWorkPlaneRequests()
             observeSketchSolvedRequests()
+            observeWorkbenchChanges()
+            print("TRACE: observers done")
 
+            print("TRACE: setupEngine...")
             setupEngine()
+            print("TRACE: setupEngine done")
+            syncWorkPlanesIfNeeded()
             startDisplayLink()
             publishCameraOrientation()
+            renderFirstFrameIfNeeded()
 
         } else {
 
@@ -207,10 +248,12 @@ final class MirGLCustomView: NSView {
         let viewPointer =
             Unmanaged.passUnretained(self).toOpaque()
 
+        print("TRACE: setupEngine acquiring lock")
         MirGLCustomView.engineLock.lock()
         defer {
             MirGLCustomView.engineLock.unlock()
         }
+        print("TRACE: setupEngine lock ok")
 
         // IMPORTANT:
         // OpenGL context belongs to MirEngine.
@@ -221,6 +264,7 @@ final class MirGLCustomView: NSView {
                 height: size.height
             )
         )
+        print("TRACE: setupEngine context ok: \(context != nil)")
 
         guard let context else {
 
@@ -233,6 +277,7 @@ final class MirGLCustomView: NSView {
 
         renderer =
             MirEngineCreateOpenGLRenderer(context)
+        print("TRACE: setupEngine renderer ok: \(renderer != nil)")
 
         guard let renderer else {
 
@@ -248,7 +293,7 @@ final class MirGLCustomView: NSView {
         }
 
         guard MirEngineInitializeRenderer(renderer) else {
-
+            print("TRACE: setupEngine renderer init FAILED")
             print(
                 "❌ MIR4D: renderer initialization failed"
             )
@@ -268,17 +313,24 @@ final class MirGLCustomView: NSView {
                 size.width,
                 size.height
             )
+        MIR4DModelRuntime.shared.viewport = self.viewport
+        print("TRACE: setupEngine viewport ok: \(viewport != nil)")
 
         if let startupViewport = viewport {
+            print("TRACE: setupEngine creating box...")
             var startupBoxID: UInt64 = 0
             if MirEngineCreateBox(startupViewport, 2.0, 2.0, 2.0, &startupBoxID) {
                 print("MIR4D: startup cube created (objectID=\(startupBoxID))")
             }
+            print("TRACE: setupEngine box done")
         }
 
         // ТЗ Этап 1: опубликовать базовые рабочие плоскости в оверлее вьюпорта.
-        WorkPlaneController.shared.push(to: renderer)
-
+        // Показываем их только в режиме создания эскиза; в остальных режимах
+        // видна только серая горизонтальная сетка (GridPass).
+        // ВАЖНО: syncWorkPlanesIfNeeded() берёт engineLock, поэтому вызывать
+        // его можно только вне критической секции setupEngine (NSLock не
+        // реентерабелен). Вызов перенесён в viewDidMoveToWindow после setupEngine().
         guard viewport != nil else {
 
             print(
@@ -439,6 +491,51 @@ final class MirGLCustomView: NSView {
                     self?.importMesh(path: path)
                 }
             }
+
+        importStepBRepObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DImportStepBRep,
+                object: nil,
+                queue: .main
+            ) { notification in
+
+                guard
+                    let path =
+                        notification.object as? String
+                else {
+                    return
+                }
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.importStepBRep(path: path)
+                }
+            }
+
+        exportStepBRepObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DExportStepBRep,
+                object: nil,
+                queue: .main
+            ) { notification in
+
+                guard
+                    let payload =
+                        notification.object as? [String: Any],
+                    let path = payload["path"] as? String
+                else {
+                    return
+                }
+
+                let selectionOnly =
+                    (payload["selectionOnly"] as? Bool) ?? false
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.exportStep(
+                        path: path,
+                        selectionOnly: selectionOnly
+                    )
+                }
+            }
     }
 
     private func observeExportRequests() {
@@ -470,6 +567,42 @@ final class MirGLCustomView: NSView {
                 DispatchQueue.main.async { [weak self] in
 
                     self?.exportStl(
+                        path: path,
+                        selectionOnly: selectionOnly
+                    )
+                }
+            }
+    }
+
+    private func observeExportStepRequests() {
+
+        guard exportStepObserver == nil else {
+            return
+        }
+
+        exportStepObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DExportStep,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+
+                guard
+                    let payload =
+                        notification.object as? [String: Any],
+                    let path =
+                        payload["path"] as? String
+                else {
+                    return
+                }
+
+                let selectionOnly =
+                    (payload["selectionOnly"] as? Bool)
+                    ?? false
+
+                DispatchQueue.main.async { [weak self] in
+
+                    self?.exportStep(
                         path: path,
                         selectionOnly: selectionOnly
                     )
@@ -562,15 +695,46 @@ final class MirGLCustomView: NSView {
                     return
                 }
 
+                let animated =
+                    (payload["animated"] as? Bool) ?? false
+
                 DispatchQueue.main.async { [weak self] in
-                    self?.applyCameraPreset(preset)
+                    self?.applyCameraPreset(preset, animated: animated)
                 }
             }
     }
 
-    private func applyCameraPreset(_ preset: Int32) {
+    private func applyCameraPreset(_ preset: Int32, animated: Bool) {
 
         NSLog("MIR4D camera preset requested: %d", preset)
+
+        if animated {
+            var targetTheta: Float = 0
+            var targetPhi: Float = 0
+            var targetDistance: Float = 12
+            MirEngineGetCameraPresetOrientation(
+                preset,
+                &targetTheta,
+                &targetPhi,
+                &targetDistance
+            )
+
+            MirGLCustomView.engineLock.lock()
+            let hasViewport = viewport != nil
+            MirGLCustomView.engineLock.unlock()
+
+            guard hasViewport else {
+                return
+            }
+
+            applyCameraOrbit(
+                theta: Double(targetTheta),
+                phi: Double(targetPhi),
+                distance: Double(targetDistance),
+                animated: true
+            )
+            return
+        }
 
         MirGLCustomView.engineLock.lock()
         let activeViewport = viewport
@@ -617,6 +781,160 @@ final class MirGLCustomView: NSView {
                     self?.applyCameraProjection(Int32(raw))
                 }
             }
+    }
+
+    // MARK: Camera orbit (navigation sphere)
+
+    private func observeCameraOrbitRequests() {
+
+        guard cameraOrbitObserver == nil else {
+            return
+        }
+
+        cameraOrbitObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DCameraOrbitRequested,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+
+                guard
+                    let payload = notification.userInfo,
+                    let theta = payload["theta"] as? Double,
+                    let phi = payload["phi"] as? Double
+                else {
+                    return
+                }
+
+                let distance =
+                    (payload["distance"] as? Double) ?? 12.0
+                let animated =
+                    (payload["animated"] as? Bool) ?? true
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.applyCameraOrbit(
+                        theta: theta,
+                        phi: phi,
+                        distance: distance,
+                        animated: animated
+                    )
+                }
+            }
+    }
+
+    private func applyCameraOrbit(
+        theta: Double,
+        phi: Double,
+        distance: Double,
+        animated: Bool
+    ) {
+        cameraAnimationTimer?.invalidate()
+        cameraAnimationTimer = nil
+
+        MirGLCustomView.engineLock.lock()
+        let activeViewport = viewport
+        if let activeViewport {
+            if animated {
+                var startTheta: Float = 0
+                var startPhi: Float = 0
+                var startDistance: Float = 0
+                MirEngineGetCameraOrientation(
+                    activeViewport,
+                    &startTheta,
+                    &startPhi,
+                    &startDistance
+                )
+                startCameraTransition(
+                    from: (
+                        Double(startTheta),
+                        Double(startPhi),
+                        Double(startDistance)
+                    ),
+                    to: (theta, phi, distance)
+                )
+            } else {
+                MirEngineSetCameraOrientation(
+                    activeViewport,
+                    Float(theta),
+                    Float(phi),
+                    Float(distance)
+                )
+            }
+        }
+        MirGLCustomView.engineLock.unlock()
+
+        // publishCameraOrientation() takes engineLock itself, so it must be
+        // called outside the critical section above: NSLock is not
+        // reentrant, and locking it twice from the same thread deadlocks.
+        if !animated, activeViewport != nil {
+            publishCameraOrientation()
+        }
+    }
+
+    /// Smoothly interpolates the camera orbit to the target orientation.
+    /// Runs on the main thread; the display link render thread only reads
+    /// the camera state (which is written under engineLock by
+    /// MirEngineSetCameraOrientation).
+    private func startCameraTransition(
+        from start: (theta: Double, phi: Double, distance: Double),
+        to target: (theta: Double, phi: Double, distance: Double)
+    ) {
+        cameraAnimationTimer?.invalidate()
+
+        cameraTransitionStart = start
+        cameraTransitionTarget = target
+        cameraTransitionStartTime = CACurrentMediaTime()
+        // Unwrap the theta delta so the camera turns the short way around.
+        cameraTransitionDeltaTheta = atan2(
+            sin(target.theta - start.theta),
+            cos(target.theta - start.theta)
+        )
+
+        let timer = Timer.scheduledTimer(
+            timeInterval: 1.0 / 60.0,
+            target: self,
+            selector: #selector(cameraTransitionTick(_:)),
+            userInfo: nil,
+            repeats: true
+        )
+        cameraAnimationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @objc
+    private func cameraTransitionTick(_ timer: Timer) {
+        guard let start = cameraTransitionStart,
+              let target = cameraTransitionTarget else {
+            timer.invalidate()
+            cameraAnimationTimer = nil
+            return
+        }
+
+        let t = min(1.0, (CACurrentMediaTime() - cameraTransitionStartTime) / cameraTransitionDuration)
+        let eased = t * t * (3.0 - 2.0 * t)
+
+        let theta = start.theta + cameraTransitionDeltaTheta * eased
+        let phi = start.phi + (target.phi - start.phi) * eased
+        let distance = start.distance + (target.distance - start.distance) * eased
+
+        MirGLCustomView.engineLock.lock()
+        if let viewport {
+            MirEngineSetCameraOrientation(
+                viewport,
+                Float(theta),
+                Float(phi),
+                Float(distance)
+            )
+        }
+        MirGLCustomView.engineLock.unlock()
+
+        if t >= 1.0 {
+            timer.invalidate()
+            cameraAnimationTimer = nil
+            cameraTransitionStart = nil
+            cameraTransitionTarget = nil
+            publishCameraOrientation()
+        }
     }
 
     // MARK: Work planes (ТЗ Этап 1)
@@ -672,7 +990,7 @@ final class MirGLCustomView: NSView {
 
         MirGLCustomView.engineLock.lock()
         let activeRenderer = renderer
-        if let activeRenderer {
+        if let activeRenderer, appState?.workbench == .sketch {
             WorkPlaneController.shared.push(to: activeRenderer)
         }
         MirGLCustomView.engineLock.unlock()
@@ -680,6 +998,35 @@ final class MirGLCustomView: NSView {
         print("MIR4D: work plane created (id=\(newId))")
     }
 
+    // ТЗ: рабочие плоскости (цветные) показываем только в режиме создания
+    // эскиза. В остальных режимах — только серая горизонтальная сетка.
+    func syncWorkPlanesIfNeeded() {
+        MirGLCustomView.engineLock.lock()
+        defer { MirGLCustomView.engineLock.unlock() }
+        guard let activeRenderer = renderer else { return }
+        let wb = appState?.workbench
+        if wb == lastSyncedWorkbench { return }
+        lastSyncedWorkbench = wb
+        if wb == .sketch {
+            WorkPlaneController.shared.push(to: activeRenderer)
+        } else {
+            MirEnginePushWorkPlanes(activeRenderer, [])
+        }
+    }
+
+
+    // ТЗ: при смене рабочего стола (в т.ч. вход в «Эскиз») заново
+    // синхронизируем видимость рабочих плоскостей с гейтом режима.
+    private func observeWorkbenchChanges() {
+        guard workbenchObserverToken == nil else {
+            return
+        }
+        workbenchObserverToken = MirEventBus.shared.subscribe { [weak self] event in
+            if case .workbenchChanged = event {
+                self?.syncWorkPlanesIfNeeded()
+            }
+        }
+    }
 
     // MARK: Sketch overlay (ТЗ Этап 2)
 
@@ -750,6 +1097,11 @@ final class MirGLCustomView: NSView {
             sketchObserver = nil
         }
 
+        if let token = workbenchObserverToken {
+            MirEventBus.shared.unsubscribe(token)
+            workbenchObserverToken = nil
+        }
+
 
         if let observer = importObserver {
             NotificationCenter.default.removeObserver(
@@ -763,6 +1115,20 @@ final class MirGLCustomView: NSView {
                 observer
             )
             exportObserver = nil
+        }
+
+        if let observer = importStepBRepObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            importStepBRepObserver = nil
+        }
+
+        if let observer = exportStepBRepObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            exportStepBRepObserver = nil
         }
 
         if let observer = createBoxObserver {
@@ -792,6 +1158,16 @@ final class MirGLCustomView: NSView {
             )
             cameraProjectionObserver = nil
         }
+
+        if let observer = cameraOrbitObserver {
+            NotificationCenter.default.removeObserver(
+                observer
+            )
+            cameraOrbitObserver = nil
+        }
+
+        cameraAnimationTimer?.invalidate()
+        cameraAnimationTimer = nil
     }
 
     // MARK: Engine shutdown
@@ -863,10 +1239,21 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        let success =
+        let isStep =
+            path.lowercased().hasSuffix(".step") ||
+            path.lowercased().hasSuffix(".stp")
+
+        let success: Bool =
             path.withCString { cPath in
 
-                MirEngineImportMesh(
+                if isStep {
+                    return MirEngineImportStepBRep(
+                        viewport,
+                        cPath
+                    )
+                }
+
+                return MirEngineImportMesh(
                     viewport,
                     cPath
                 )
@@ -887,6 +1274,100 @@ final class MirGLCustomView: NSView {
 
             print(
                 "❌ MIR4D import: \(message)"
+            )
+        }
+    }
+
+    // MARK: Import STEP (exact B-Rep)
+
+    private func importStepBRep(path: String) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+
+            onIOError?(
+                "MIR4D STEP B-Rep import: viewport is not ready"
+            )
+
+            return
+        }
+
+        let success: Bool =
+            path.withCString { cPath in
+                MirEngineImportStepBRep(
+                    viewport,
+                    cPath
+                )
+            }
+
+        if success {
+
+            print(
+                "✅ MIR4D STEP B-Rep import: \(path)"
+            )
+
+        } else {
+
+            let message =
+                engineErrorMessage(viewport)
+
+            onIOError?(message)
+
+            print(
+                "❌ MIR4D STEP B-Rep import: \(message)"
+            )
+        }
+    }
+
+    // MARK: Export STEP (exact B-Rep)
+
+    private func exportStepBRep(
+        path: String,
+        selectionOnly: Bool
+    ) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+
+            onIOError?(
+                "MIR4D STEP B-Rep export: viewport is not ready"
+            )
+
+            return
+        }
+
+        let success: Bool =
+            path.withCString { cPath in
+                MirEngineExportStepBRep(
+                    viewport,
+                    cPath,
+                    selectionOnly
+                )
+            }
+
+        if success {
+
+            print(
+                "✅ MIR4D STEP B-Rep export: \(path)"
+            )
+
+        } else {
+
+            let message =
+                engineErrorMessage(viewport)
+
+            onIOError?(message)
+
+            print(
+                "❌ MIR4D STEP B-Rep export: \(message)"
             )
         }
     }
@@ -937,6 +1418,56 @@ final class MirGLCustomView: NSView {
 
             print(
                 "❌ MIR4D export STL: \(message)"
+            )
+        }
+    }
+
+    // MARK: Export STEP
+
+    private func exportStep(
+        path: String,
+        selectionOnly: Bool
+    ) {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        guard let viewport else {
+
+            onIOError?(
+                "MIR4D STEP export: viewport is not ready"
+            )
+
+            return
+        }
+
+        let success =
+            path.withCString { cPath in
+
+                MirEngineExportStep(
+                    viewport,
+                    cPath,
+                    selectionOnly
+                )
+            }
+
+        if success {
+
+            print(
+                "✅ MIR4D export STEP: \(path)"
+            )
+
+        } else {
+
+            let message =
+                engineErrorMessage(viewport)
+
+            onIOError?(message)
+
+            print(
+                "❌ MIR4D export STEP: \(message)"
             )
         }
     }
@@ -1511,6 +2042,16 @@ final class MirGLCustomView: NSView {
             point.0,
             point.1
         )
+
+        // Передаём курсор в renderer для подсветки плоскости под указателем.
+        let scale = backingScale()
+        let w = bounds.width * scale
+        let h = bounds.height * scale
+        if w > 0, h > 0, let activeRenderer = renderer {
+            let ndcX = point.0 / Float(w) * 2.0 - 1.0
+            let ndcY = point.1 / Float(h) * 2.0 - 1.0
+            MirEngineSetCursor(activeRenderer, ndcX, ndcY, true)
+        }
     }
 
     override func mouseExited(
@@ -1527,6 +2068,9 @@ final class MirGLCustomView: NSView {
         }
 
         MirEngineViewportHoverClear(viewport)
+        if let activeRenderer = renderer {
+            MirEngineSetCursor(activeRenderer, 0, 0, false)
+        }
     }
 
     override func rightMouseDown(

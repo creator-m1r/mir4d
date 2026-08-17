@@ -134,6 +134,7 @@ void SketchPass::buildDynamicGeometry(RenderDevice& device,
 
 bool SketchPass::initialize(RenderDevice& device)
 {
+    (void)device;
     if (m_initialized)
         return true;
     if (!createShaders())

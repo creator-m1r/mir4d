@@ -12,8 +12,6 @@
 namespace
 {
 
-constexpr double kEps = 1.0e-6;
-
 void checkNear(double actual, double expected, double eps, const char* label)
 {
     if (std::fabs(actual - expected) > eps)

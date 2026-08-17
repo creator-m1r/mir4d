@@ -10,13 +10,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(MIR_ENABLE_OCCT "Enable OpenCASCADE-backed STEP/IGES IO" OFF)
 option(MIR_ENABLE_ASSIMP "Enable optional Assimp asset/mesh importer" OFF)
 
 add_library(MirEngine INTERFACE)
 target_include_directories(MirEngine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(MirEngine INTERFACE cxx_std_23)
-target_compile_definitions(MirEngine INTERFACE MIR_ENABLE_OCCT=$<BOOL:${MIR_ENABLE_OCCT}>)
 
 if(APPLE)
     target_compile_definitions(MirEngine INTERFACE MIR_PLATFORM_MACOS=1)
@@ -28,6 +26,7 @@ if(APPLE)
 
     add_library(MirEngineMacOpenGL STATIC
         MirEngine/Core/Exports/MirEngineExports.cpp
+        MirEngine/Simulation/CAEExports.cpp
         MirEngine/Core/Logging/Logger.cpp
         MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
         MirEngine/Rendering/OpenGL/OpenGLCapabilities.cpp
@@ -125,18 +124,14 @@ add_library(MirEngineIO STATIC
     MirEngine/IO/ImportService.cpp
     MirEngine/IO/ExportService.cpp
     MirEngine/IO/Commands/MeshImportCommandHandler.cpp
-    MirEngine/IO/Step/OcctBridge.cpp
     MirEngine/IO/Step/StepImporter.cpp
     MirEngine/IO/Step/StepExporter.cpp
+    MirEngine/IO/Step/BRepStepBridge.cpp
     MirEngine/Rendering/DocumentSceneRenderBridge.cpp
 )
 target_link_libraries(MirEngineIO PUBLIC MirEngineRuntime MirEngineBRep)
 target_include_directories(MirEngineIO PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(MirEngineIO PUBLIC cxx_std_23)
-
-if(MIR_ENABLE_OCCT)
-    message(STATUS "MIR_ENABLE_OCCT=ON: OpenCASCADE discovery/linking is required before STEP mapping is enabled.")
-endif()
 
 if(MIR_ENABLE_ASSIMP)
     find_package(assimp CONFIG REQUIRED)
@@ -153,6 +148,9 @@ endif()
 add_executable(MIR4D_BuildCheck MirEngine/Tests/Core/BuildCheck.cpp)
 target_link_libraries(MIR4D_BuildCheck PRIVATE MirEngine)
 
+add_executable(MIR4D_MathNumeric MirEngine/Tests/Math/NumericTest.cpp)
+target_link_libraries(MIR4D_MathNumeric PRIVATE MirEngine)
+
 add_executable(MIR4D_Integration4D MirEngine/Tests/Integration/Integration4D.cpp)
 target_link_libraries(MIR4D_Integration4D PRIVATE MirEngine)
 
@@ -162,9 +160,11 @@ target_link_libraries(MIR4D_StlRoundTrip PRIVATE MirEngineIO)
 add_executable(MIR4D_StepImporter MirEngine/Tests/IO/Step/StepImporterTest.cpp)
 target_link_libraries(MIR4D_StepImporter PRIVATE MirEngineIO)
 
-add_executable(MIR4D_AssimpImport MirEngine/Tests/IO/AssimpImport.cpp)
-target_include_directories(MIR4D_AssimpImport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(MIR4D_AssimpImport PRIVATE MirEngineIO)
+if(MIR_ENABLE_ASSIMP)
+    add_executable(MIR4D_AssimpImport MirEngine/Tests/IO/AssimpImport.cpp)
+    target_include_directories(MIR4D_AssimpImport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(MIR4D_AssimpImport PRIVATE MirEngineIO)
+endif()
 
 if(MIR_ENABLE_ASSIMP)
     # AssimpImporter registers itself through a static initializer in AssimpImporter.cpp.
@@ -217,6 +217,12 @@ target_link_libraries(MIR4D_BRepHeaderCheck PRIVATE MirEngineBRep)
 add_executable(MIR4D_BRepBoolean MirEngine/Tests/BRep/BRepBoolean.cpp)
 target_link_libraries(MIR4D_BRepBoolean PRIVATE MirEngineBRep)
 
+add_executable(MIR4D_BRepStep MirEngine/Tests/BRep/BRepStep.cpp MirEngine/IO/Step/BRepStepBridge.cpp)
+target_include_directories(MIR4D_BRepStep PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_executable(MIR4D_BRepStepExport MirEngine/Tests/BRep/BRepStepExport.cpp MirEngine/IO/Step/BRepStepBridge.cpp)
+target_include_directories(MIR4D_BRepStepExport PRIVATE ${CMAKE_SOURCE_DIR})
+
 add_executable(MIR4D_GeometryQuery MirEngine/Tests/Geometry/GeometryQueryTest.cpp)
 target_link_libraries(MIR4D_GeometryQuery PRIVATE MirEngineGeometry)
 
@@ -247,6 +253,27 @@ target_link_libraries(MIR4D_Count PRIVATE MirEngine)
 add_executable(MIR4D_Simulation MirEngine/Tests/Simulation/SimulationTest.cpp)
 target_link_libraries(MIR4D_Simulation PRIVATE MirEngineSimulation)
 
+add_executable(MIR4D_CAESimulation MirEngine/Tests/Simulation/CAESolversTest.cpp)
+target_link_libraries(MIR4D_CAESimulation PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAETest MirEngine/Tests/Simulation/CAETestTest.cpp)
+target_link_libraries(MIR4D_CAETest PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAECampaign MirEngine/Tests/Simulation/CAECampaignTest.cpp)
+target_link_libraries(MIR4D_CAECampaign PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAEController MirEngine/Tests/Simulation/CAEControllerTest.cpp)
+target_link_libraries(MIR4D_CAEController PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAEJson MirEngine/Tests/Simulation/CAEJsonTest.cpp)
+target_link_libraries(MIR4D_CAEJson PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAELoad MirEngine/Tests/Simulation/CAELoadTest.cpp)
+target_link_libraries(MIR4D_CAELoad PRIVATE MirEngineSimulation)
+
+add_executable(MIR4D_CAEExport MirEngine/Tests/Simulation/CAEExportTest.cpp MirEngine/Simulation/CAEExports.cpp)
+target_link_libraries(MIR4D_CAEExport PRIVATE MirEngineSimulation)
+
 add_executable(MIR4D_ExtendedDomains MirEngine/Tests/Domains/ExtendedDomainsTest.cpp)
 target_link_libraries(MIR4D_ExtendedDomains PRIVATE MirEngineDomains)
 
@@ -261,7 +288,9 @@ add_test(NAME MIR4D_BuildCheck COMMAND MIR4D_BuildCheck)
 add_test(NAME MIR4D_Integration4D COMMAND MIR4D_Integration4D)
 add_test(NAME MIR4D_StlRoundTrip COMMAND MIR4D_StlRoundTrip)
 add_test(NAME MIR4D_StepImporter COMMAND MIR4D_StepImporter)
-add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
+if(MIR_ENABLE_ASSIMP)
+    add_test(NAME MIR4D_AssimpImport COMMAND MIR4D_AssimpImport)
+endif()
 add_test(NAME MIR4D_DocumentRenderBridge COMMAND MIR4D_DocumentRenderBridge)
 add_test(NAME MIR4D_RenderCamera COMMAND MIR4D_RenderCamera)
 add_test(NAME MIR4D_RayPicker COMMAND MIR4D_RayPicker)
@@ -273,6 +302,8 @@ add_test(NAME MIR4D_BRepTopology COMMAND MIR4D_BRepTopology)
 add_test(NAME MIR4D_BRepProfileExtrude COMMAND MIR4D_BRepProfileExtrude)
 add_test(NAME MIR4D_BRepHeaderCheck COMMAND MIR4D_BRepHeaderCheck)
 add_test(NAME MIR4D_BRepBoolean COMMAND MIR4D_BRepBoolean)
+add_test(NAME MIR4D_BRepStep COMMAND MIR4D_BRepStep)
+add_test(NAME MIR4D_BRepStepExport COMMAND MIR4D_BRepStepExport)
 add_test(NAME MIR4D_GeometryQuery COMMAND MIR4D_GeometryQuery)
 add_test(NAME MIR4D_SketchRectangleProfile COMMAND MIR4D_SketchRectangleProfile)
 add_test(NAME MIR4D_SketchRectangleSolver COMMAND MIR4D_SketchRectangleSolver)
@@ -283,6 +314,14 @@ add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)
 add_test(NAME MIR4D_Count COMMAND MIR4D_Count)
 add_test(NAME MIR4D_Simulation COMMAND MIR4D_Simulation)
+add_test(NAME MIR4D_CAESimulation COMMAND MIR4D_CAESimulation)
+add_test(NAME MIR4D_CAETest COMMAND MIR4D_CAETest)
+add_test(NAME MIR4D_CAECampaign COMMAND MIR4D_CAECampaign)
+add_test(NAME MIR4D_CAEController COMMAND MIR4D_CAEController)
+add_test(NAME MIR4D_CAEJson COMMAND MIR4D_CAEJson)
+add_test(NAME MIR4D_CAELoad COMMAND MIR4D_CAELoad)
+add_test(NAME MIR4D_CAEExport COMMAND MIR4D_CAEExport)
 add_test(NAME MIR4D_ExtendedDomains COMMAND MIR4D_ExtendedDomains)
 add_test(NAME MIR4D_SceneCommandHistory COMMAND MIR4D_SceneCommandHistory)
 add_test(NAME MIR4D_SelectionState COMMAND MIR4D_SelectionState)
+add_test(NAME MIR4D_MathNumeric COMMAND MIR4D_MathNumeric)

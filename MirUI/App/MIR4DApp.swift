@@ -54,7 +54,21 @@ struct MIR4DApp: App {
                 }
                 .keyboardShortcut("w", modifiers: [.command])
             }
+
+            #if canImport(MirServer)
+            MIR4DServerCommands()
+            #endif
         }
+
+        #if canImport(MirServer)
+        Window("Сервер MIR 4D", id: "mir4d-server") {
+            MIR4DTeamServerView()
+        }
+
+        Window("Совместная работа MIR 4D", id: "mir4d-collab") {
+            MIR4DCollaborationView()
+        }
+        #endif
     }
 }
 

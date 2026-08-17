@@ -63,6 +63,13 @@ public:
     [[nodiscard]] Time time() const noexcept { return time_; }
     [[nodiscard]] std::size_t size() const noexcept { return objects_.size(); }
 
+    template <typename F>
+    void forEach(F&& fn) const
+    {
+        for (const auto& [id, object] : objects_)
+            fn(id, object);
+    }
+
 private:
     Id nextId_{1};
     Time time_{};

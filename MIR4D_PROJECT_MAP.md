@@ -58,6 +58,18 @@ SwiftUI
 - `Time/` — модель времени и 4D-данные.
 - Научные модули: `Simulation/`, `Physics/`, `Mechanics/`, `Materials/`, `Chemistry/`, `Acoustics/`, `World/`, `Interaction/`, `Platform/`, `Config/` — развиваются отдельно от геометрического ядра.
 - `MirUI/` — presentation/interoperability layer: `Foundation/` (без зависимостей), `Core/` (виджеты, состояние, темы, команды), `Schema/`, `Widgets/`, `Workspace/`, `Designer/` (визуальный редактор), `Interop/` (CBridge), `Renderers/`, `Swift/`, `App/`, `Viewport/`.
+- `MirServer/` — подсистема совместной работы и обмена с сервером MIR 4D (Swift, независимый library target):
+  - `Models/` — `MirServerModels.swift` (MirTeamMember, MirTeamMessage, MirProjectExportRequest/Result, MirServerConnectionStatus) — все `Sendable`/`Codable`.
+  - `Core/` — `MirServerConfiguration.swift` (конфигурация подключения к сайту/API) и `MirServerTransport.swift` (сетевой `actor`: REST-экспорт проекта, WebSocket-поток сообщений команды).
+  - `Events/` — `MirServerEvents.swift` (Event Bus: `.mir4DServerStatusChanged`, `.mir4DTeamMessageReceived`, `.mir4DTeamUpdated`, `.mir4DProjectExported`, `.mir4DServerError`).
+  - `Export/` — `MirProjectExporter.swift` (упаковка каталога проекта в переносимый `Data`-архив без зависимости от UI/CAD-ядра).
+  - `Chat/` — `MirTeamChat.swift` (`@MainActor` надстройка: лента сообщений, подписка на Event Bus).
+  - `Collaboration/` — подсистема совместной работы инженеров над одним проектом:
+    - `Models/MirCollaborationModels.swift` — `MirOperationClock` (Lamport-часы), `MirCollaborator` (presence), `MirCollaborationOperation`, `MirProjectSnapshot`, `MirConflict`, `MirCollaborationEnvelope`/`MirCollaborationWireMessage` (Wire-формат WebSocket).
+    - `MirCollaborationController.swift` — `@MainActor ObservableObject` координатор: присоединение к общему проекту, локальные/входящие операции, Lamport-синхронизация, presence, разрешение конфликтов (last-writer-wins по часам), протокол `MirCollaborativeDocument` для применения операций к геометрии (адаптер предоставляет уровень приложения).
+  - `MirServer.swift` — `MirServerManager` (`@MainActor` координатор: connect/disconnect, отправка сообщений, экспорт, broadcastCollaboration, открытие проекта в браузере).
+  - Интеграция UI (`MirUI/App`): `MIR4DTeamServerView.swift` (чат/экспорт), `MIR4DCollaborationView.swift` (совместная работа), команды меню и окна `mir4d-server` / `mir4d-collab`. Создание примитива в `MIR4DModelCommands` транслируется в операцию совместной работы.
+  - Зависимости: Foundation, AppKit (только `NSWorkspace` для открытия сайта). MirEngine и SwiftUI не требуются; модуль изолирован от CAD-ядра.
 
 ## 3. Канон B-Rep
 

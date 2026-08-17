@@ -75,36 +75,3 @@ struct MIR4DStartupMotionLayer: View {
         }
     }
 }
-
-struct MIR4DStartupBrandMark: View {
-    @State private var glow = false
-
-    var body: some View {
-        VStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .stroke(.white.opacity(glow ? 0.18 : 0.07), lineWidth: 1)
-                    .frame(width: 102, height: 102)
-                    .scaleEffect(glow ? 1.08 : 0.96)
-
-                Image(systemName: "cube.transparent")
-                    .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(.white)
-                    .shadow(color: .white.opacity(glow ? 0.30 : 0.08), radius: 18)
-            }
-
-            Text("МИР 4D")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("Мечтай • Изобретай • Развивай")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
-                glow = true
-            }
-        }
-    }
-}

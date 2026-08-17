@@ -79,7 +79,7 @@ final class MIR4DBootCoordinator: ObservableObject {
 
     private var hasStarted = false
 
-    private let totalSteps = 9
+    private let totalSteps = 11
 
     // MARK: - Start
 
@@ -211,6 +211,32 @@ final class MIR4DBootCoordinator: ObservableObject {
 
         await execute(
             index: 9,
+            title: "Проверка файловой системы",
+            detail:
+                "Проверяем каталоги для проектов MIR 4D."
+        ) {
+            self.checkFileSystem()
+        }
+
+        // -------------------------------------------------
+        // 10
+        // -------------------------------------------------
+
+        await execute(
+            index: 10,
+            title: "Проверка целостности приложения",
+            detail:
+                "Проверяем Bundle и исполняемый файл."
+        ) {
+            self.checkApplicationIntegrity()
+        }
+
+        // -------------------------------------------------
+        // 11
+        // -------------------------------------------------
+
+        await execute(
+            index: 11,
             title: "Финальная проверка",
             detail:
                 "Определяем готовность приложения."
@@ -565,6 +591,98 @@ final class MIR4DBootCoordinator: ObservableObject {
                     "Физическая память: %.1f GB.",
                 gb
             )
+        )
+    }
+
+    // MARK: - File system
+
+    private func checkFileSystem()
+        -> StepResult
+    {
+
+        let fileManager =
+            FileManager.default
+
+        let home =
+            fileManager.homeDirectoryForCurrentUser
+
+        let documents =
+            home.appendingPathComponent(
+                "Documents",
+                isDirectory: true
+            )
+
+        let temporary =
+            URL(
+                fileURLWithPath:
+                    NSTemporaryDirectory(),
+                isDirectory: true
+            )
+
+        var missing: [String] = []
+
+        if !fileManager.fileExists(
+            atPath: home.path
+        ) {
+            missing.append("Домашний каталог")
+        }
+
+        if !fileManager.fileExists(
+            atPath: documents.path
+        ) {
+            missing.append("Documents")
+        }
+
+        if !fileManager.fileExists(
+            atPath: temporary.path
+        ) {
+            missing.append("Temporary")
+        }
+
+        guard missing.isEmpty else {
+
+            return .warning(
+                "Отсутствуют: " +
+                missing.joined(separator: ", ") +
+                "."
+            )
+        }
+
+        return .success(
+            "Каталоги проектов доступны."
+        )
+    }
+
+    // MARK: - Application integrity
+
+    private func checkApplicationIntegrity()
+        -> StepResult
+    {
+
+        let bundle =
+            Bundle.main
+
+        let bundleID =
+            bundle.bundleIdentifier
+
+        guard bundleID != nil,
+              !bundleID!.isEmpty
+        else {
+
+            return .warning(
+                "Bundle identifier отсутствует."
+            )
+        }
+
+        guard bundle.executablePath != nil else {
+
+            return .failure(
+                "Исполняемый файл приложения не найден."
+            )
+        }
+
+        return .success(
+            "Bundle: \(bundleID ?? "unknown")."
         )
     }
 

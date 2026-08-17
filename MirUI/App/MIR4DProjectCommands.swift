@@ -50,6 +50,48 @@ final class MIR4DProjectCommands {
         appState.closeMIR4DProject()
     }
 
+    /// Saves the current viewport scene to a STEP file. The renderer writes a
+    /// native faceted_brep representation through the C ABI.
+    func exportStep(appState: CADAppState) {
+        let panel = NSSavePanel()
+        panel.title = "Сохранить модель как STEP"
+        panel.message = "Экспорт созданных моделей в формат STEP."
+        panel.nameFieldStringValue = "\(appState.documentName).step"
+        panel.allowedContentTypes = [UTType(filenameExtension: "step")].compactMap { $0 }
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        NotificationCenter.default.post(
+            name: .mir4DExportStep,
+            object: [
+                "path": url.path,
+                "selectionOnly": false
+            ]
+        )
+    }
+
+    /// Saves the exact B-Rep sources of the current scene to a STEP file using
+    /// the native BRepStepBridge writer (round-trip of imported exact B-Rep).
+    func exportStepBRep(appState: CADAppState) {
+        let panel = NSSavePanel()
+        panel.title = "Сохранить точный B-Rep как STEP"
+        panel.message = "Экспорт точной B-Rep геометрии в формат STEP."
+        panel.nameFieldStringValue = "\(appState.documentName).step"
+        panel.allowedContentTypes = [UTType(filenameExtension: "step")].compactMap { $0 }
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        NotificationCenter.default.post(
+            name: .mir4DExportStepBRep,
+            object: [
+                "path": url.path,
+                "selectionOnly": false
+            ]
+        )
+    }
+
     /// User-initiated Hub action. This is independent from the launch preference.
     func restoreLastProject(appState: CADAppState) -> Bool {
         MIR4DProjectSession.shared.continueLastProject(appState: appState)

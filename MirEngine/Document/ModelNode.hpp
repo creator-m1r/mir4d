@@ -3,6 +3,7 @@
 #include "../Geometry/Model/Model.hpp"
 #include "../Core/Identity/ObjectId.hpp"
 #include "../Math/Transform.hpp"
+#include "../BRep/Core/BRepModel.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -58,6 +59,19 @@ public:
         touch();
     }
 
+    /// Optional exact B-Rep source for round-tripping through native STEP.
+    /// Null for nodes that were created without an exact B-Rep origin.
+    [[nodiscard]] const std::shared_ptr<mir::BRepModel>& brep() const noexcept
+    {
+        return brep_;
+    }
+
+    void setBrep(std::shared_ptr<mir::BRepModel> brep) noexcept
+    {
+        brep_ = std::move(brep);
+        touch();
+    }
+
     [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
 
     void touch() noexcept { ++revision_; }
@@ -73,6 +87,7 @@ public:
 private:
     ObjectId id_{InvalidObjectId};
     std::shared_ptr<mir::Model> model_;
+    std::shared_ptr<mir::BRepModel> brep_;
     Transform transform_{Transform::identity()};
     std::uint64_t revision_{0};
 };

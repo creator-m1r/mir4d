@@ -38,6 +38,13 @@ struct BRepTopoHandle
     {
         return !(a == b);
     }
+
+    [[nodiscard]] friend constexpr bool operator<(
+        BRepTopoHandle a,
+        BRepTopoHandle b) noexcept
+    {
+        return a.index < b.index;
+    }
 };
 
 using BRepVertexHandle = BRepTopoHandle<BRepShapeType::Vertex>;
@@ -69,6 +76,13 @@ struct BRepCurveHandle
     {
         return !(a == b);
     }
+
+    [[nodiscard]] friend constexpr bool operator<(
+        BRepCurveHandle a,
+        BRepCurveHandle b) noexcept
+    {
+        return a.index < b.index;
+    }
 };
 
 struct BRepSurfaceHandle
@@ -93,6 +107,13 @@ struct BRepSurfaceHandle
     {
         return !(a == b);
     }
+
+    [[nodiscard]] friend constexpr bool operator<(
+        BRepSurfaceHandle a,
+        BRepSurfaceHandle b) noexcept
+    {
+        return a.index < b.index;
+    }
 };
 
 struct BRepPointHandle
@@ -116,6 +137,13 @@ struct BRepPointHandle
         BRepPointHandle b) noexcept
     {
         return !(a == b);
+    }
+
+    [[nodiscard]] friend constexpr bool operator<(
+        BRepPointHandle a,
+        BRepPointHandle b) noexcept
+    {
+        return a.index < b.index;
     }
 };
 

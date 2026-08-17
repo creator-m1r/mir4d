@@ -99,6 +99,7 @@ struct CADPanelView: View {
     }
 
     private var simulationPanel: some View {
+        let ru = appState.ui.language == .russian
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 panelSection(title: appState.ui.language == .russian ? "ФИЗИКА" : "PHYSICS") {
@@ -113,6 +114,32 @@ struct CADPanelView: View {
                     .pickerStyle(.menu)
                 }
 
+                panelSection(title: ru ? "ГЕОМЕТРИЯ (CAD)" : "GEOMETRY (CAD)") {
+                    Button {
+                        appState.fetchSelectedGeometry()
+                    } label: {
+                        Text(ru ? "Взять из viewport" : "Take from viewport")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    if let geo = appState.simulation.geometry {
+                        Toggle(ru ? "Учитывать геометрию" : "Use geometry", isOn: Binding(
+                            get: { appState.simulation.useGeometry },
+                            set: { appState.simulation.useGeometry = $0 }
+                        ))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Размеры: \(String(format: "%.4g", geo.sizeX)) × \(String(format: "%.4g", geo.sizeY)) × \(String(format: "%.4g", geo.sizeZ))").font(.caption)
+                            Text("Объём: \(String(format: "%.4g", geo.volume))").font(.caption)
+                            Text("Площадь: \(String(format: "%.4g", geo.surfaceArea))").font(.caption)
+                            Text("Вершин: \(geo.vertexCount)  Граней: \(geo.faceCount)").font(.caption)
+                        }
+                        .foregroundStyle(.secondary)
+                    } else {
+                        Text(ru ? "Объект не выбран" : "No object selected").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+
                 panelSection(title: appState.ui.language == .russian ? "СОСТОЯНИЕ РЕШАТЕЛЯ" : "SOLVER STATUS") {
                     HStack(spacing: 10) {
                         Circle().fill(appState.simulation.isRunning ? MirTheme.Colors.accent : .green).frame(width: 8, height: 8)
@@ -123,13 +150,93 @@ struct CADPanelView: View {
                     ProgressView(value: appState.simulation.progress).tint(MirTheme.Colors.accent)
                 }
 
+                if let report = appState.simulation.lastReport, !report.isEmpty {
+                    panelSection(title: appState.ui.language == .russian ? "ОТЧЁТ CAE" : "CAE REPORT") {
+                        ScrollView {
+                            Text(report)
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 180)
+                    }
+                }
+
+                panelSection(title: ru ? "ПАРАМЕТРИЧЕСКОЕ ИСПЫТАНИЕ" : "PARAMETRIC STUDY") {
+                    Picker(ru ? "Параметр" : "Parameter", selection: Binding(
+                        get: { appState.simulation.sweepParameter },
+                        set: { appState.simulation.sweepParameter = $0 }
+                    )) {
+                        ForEach(CAESweepParameter.allCases) { p in
+                            Text(ru ? p.titleRU : p.titleEN).tag(p)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack(spacing: 8) {
+                        sweepNumberField(ru ? "От" : "From", value: Binding(
+                            get: { appState.simulation.sweepFrom },
+                            set: { appState.simulation.sweepFrom = $0 }))
+                        sweepNumberField(ru ? "До" : "To", value: Binding(
+                            get: { appState.simulation.sweepTo },
+                            set: { appState.simulation.sweepTo = $0 }))
+                        sweepNumberField(ru ? "Шаги" : "Steps", value: Binding(
+                            get: { Double(appState.simulation.sweepSteps) },
+                            set: { appState.simulation.sweepSteps = max(1, min(200, Int($0))) }))
+                    }
+
+                    Button {
+                        appState.runSweep(parameter: appState.simulation.sweepParameter,
+                                          from: appState.simulation.sweepFrom,
+                                          to: appState.simulation.sweepTo,
+                                          steps: appState.simulation.sweepSteps)
+                    } label: {
+                        Text(ru ? "Запустить прогон" : "Run sweep")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(appState.simulation.isRunning)
+                    .buttonStyle(.borderedProminent)
+                }
+
+                if !appState.simulation.sweepResults.isEmpty {
+                    panelSection(title: ru ? "РЕЗУЛЬТАТЫ ПРОГОНА" : "SWEEP RESULTS") {
+                        ForEach(appState.simulation.sweepResults) { row in
+                            HStack(spacing: 6) {
+                                Image(systemName: row.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(row.passed ? .green : .red)
+                                Text("\(appState.simulation.sweepParameter.titleRU): \(String(format: "%.4g", row.parameterValue))")
+                                    .font(.caption)
+                                Spacer()
+                                compareButton("A", selected: appState.simulation.compareA == row.index) { appState.setCompareA(row.index) }
+                                compareButton("B", selected: appState.simulation.compareB == row.index) { appState.setCompareB(row.index) }
+                            }
+                        }
+                    }
+                }
+
+                if let a = appState.simulation.compareA,
+                   let b = appState.simulation.compareB,
+                   let ra = appState.simulation.sweepResults.first(where: { $0.index == a }),
+                   let rb = appState.simulation.sweepResults.first(where: { $0.index == b }) {
+                    panelSection(title: ru ? "СРАВНЕНИЕ A/B" : "COMPARE A/B") {
+                        let keys = Array(ra.metrics.keys).sorted()
+                        ForEach(keys, id: \.self) { key in
+                            if let ma = ra.metrics[key], let mb = rb.metrics[key] {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(key).font(.caption2).foregroundStyle(.secondary)
+                                    Text("\(String(format: "%.4g", ma.max)) → \(String(format: "%.4g", mb.max))   Δ \(String(format: "%.4g", mb.max - ma.max))")
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 HStack(spacing: 8) {
                     simulationAction(appState.ui.language == .russian ? "Настроить" : "Setup", icon: "slider.horizontal.3") {
                         appState.simulation.phase = .setup
                     }
                     simulationAction(appState.ui.language == .russian ? "Расчёт" : "Solve", icon: "play.fill") {
-                        appState.simulation.phase = .solve
-                        appState.showNotification(appState.ui.language == .russian ? "Запуск расчёта передан решателю" : "Solve request sent to solver", type: .info)
+                        appState.runSimulation()
                     }
                     simulationAction(appState.ui.language == .russian ? "Результаты" : "Results", icon: "chart.xyaxis.line") {
                         appState.simulation.phase = .results
@@ -216,6 +323,27 @@ struct CADPanelView: View {
     private func simulationAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
             .buttonStyle(.bordered).controlSize(.small)
+    }
+
+    private func sweepNumberField(_ title: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            TextField(title, value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 80)
+        }
+    }
+
+    private func compareButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .frame(width: 22, height: 22)
+                .background(selected ? MirTheme.Colors.accent : MirTheme.Colors.surfaceRaised)
+                .foregroundStyle(selected ? .white : MirTheme.Colors.textSecondary)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func historyRow(icon: String, title: String, detail: String) -> some View {

@@ -36,6 +36,20 @@ struct SimulationState
     Scalar aerodynamicPressure{0.0};
     Scalar aerodynamicDrag{0.0};
 
+    Scalar stress{0.0};
+    Scalar strain{0.0};
+    Scalar displacement{0.0};
+
+    Scalar youngModulus{2.0e11};
+    Scalar thermalExpansion{1.2e-5};
+    Scalar poissonRatio{0.3};
+    Scalar specificHeat{4181.0};
+    Scalar thermalConductivity{0.6};
+    Scalar referenceDensity{1000.0};
+    Scalar heatFlux{0.0};
+    Scalar pressureLoad{0.0};
+    bool fixed{false};
+
     std::unordered_map<std::string, Scalar> composition;
 
     bool running{false};
@@ -124,6 +138,20 @@ public:
 
         value->deltaTime = std::max(0.0, deltaTime);
         value->time += value->deltaTime;
+    }
+
+    template <typename F>
+    void forEach(F&& fn) noexcept
+    {
+        for (auto& [id, state] : states_)
+            fn(id, state);
+    }
+
+    template <typename F>
+    void forEach(F&& fn) const noexcept
+    {
+        for (const auto& [id, state] : states_)
+            fn(id, state);
     }
 
 private:

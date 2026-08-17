@@ -150,7 +150,7 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
             const mir::Vector3 nx = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
             const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
             const float s = sizeScale;
-            const float surfaceA = p.active ? 0.16f : (p.selected ? 0.12f : 0.05f);
+            const float surfaceA = p.hovered ? 0.34f : (p.active ? 0.16f : (p.selected ? 0.12f : 0.05f));
             const float r = p.color[0], g = p.color[1], b = p.color[2];
 
             const mir::Vector3 c00 = o - nx * s - ny * s;
@@ -205,7 +205,7 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
             const mir::Vector3 ny = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
             const float s = sizeScale;
             const float r = p.color[0], g = p.color[1], b = p.color[2];
-            const float borderA = p.active ? 1.0f : (p.selected ? 0.95f : 0.7f);
+            const float borderA = p.hovered ? 1.0f : (p.active ? 1.0f : (p.selected ? 0.95f : 0.7f));
             const mir::Vector3 c00 = o - nx * s - ny * s;
             const mir::Vector3 c10 = o + nx * s - ny * s;
             const mir::Vector3 c11 = o + nx * s + ny * s;
@@ -243,6 +243,7 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
 
 bool PlanePass::initialize(RenderDevice& device)
 {
+    (void)device;
     if (m_initialized)
         return true;
     if (!createShaders())
@@ -257,6 +258,57 @@ void PlanePass::execute(RenderContext& context,
 {
     if (!m_initialized || context.planes.empty())
         return;
+
+    // Hover picking: подсветить плоскость под курсором. Луч восстанавливается
+    // из NDC через обратную view-projection, выбирается плоскость, чей след
+    // луча попадает в её половинный размер и которая больше всего повёрнута
+    // к камере (верхняя из совпадающих у начала координат).
+    if (context.cursorActive)
+    {
+        const mir::Matrix4 invVP = rawToMatrix(context.viewProjectionMatrix).inverse();
+        const mir::Vector3 cam{context.cameraPosition[0], context.cameraPosition[1], context.cameraPosition[2]};
+        const float cx = context.cursorNDC[0];
+        const float cy = context.cursorNDC[1];
+        const mir::Vector4 nearH = invVP * mir::Vector4(cx, cy, -1.0f, 1.0f);
+        const mir::Vector4 farH = invVP * mir::Vector4(cx, cy, 1.0f, 1.0f);
+        if (nearH.w != 0.0 && farH.w != 0.0)
+        {
+            const mir::Vector3 nearP(nearH.x / nearH.w, nearH.y / nearH.w, nearH.z / nearH.w);
+            const mir::Vector3 farP(farH.x / farH.w, farH.y / farH.w, farH.z / farH.w);
+            const mir::Vector3 rd = farP - nearP;
+            const float s = adaptivePlaneHalfExtent(context);
+            int best = -1;
+            float bestFacing = 2.0f;
+            for (std::size_t i = 0; i < context.planes.size(); ++i)
+            {
+                const auto& p = context.planes[i];
+                const mir::Vector3 n = mir::Vector3{p.normal[0], p.normal[1], p.normal[2]}.normalized();
+                const float denom = rd.x * n.x + rd.y * n.y + rd.z * n.z;
+                if (std::abs(denom) < 1e-7f)
+                    continue;
+                const mir::Vector3 o{p.origin[0], p.origin[1], p.origin[2]};
+                const float num = (o.x - cam.x) * n.x + (o.y - cam.y) * n.y + (o.z - cam.z) * n.z;
+                const float tt = num / denom;
+                if (tt <= 0.0f)
+                    continue;
+                const mir::Vector3 hit = cam + rd * tt;
+                const mir::Vector3 nxA = mir::Vector3{p.xAxis[0], p.xAxis[1], p.xAxis[2]}.normalized();
+                const mir::Vector3 nyA = mir::Vector3{p.yAxis[0], p.yAxis[1], p.yAxis[2]}.normalized();
+                const float lu = (hit.x - o.x) * nxA.x + (hit.y - o.y) * nxA.y + (hit.z - o.z) * nxA.z;
+                const float lv = (hit.x - o.x) * nyA.x + (hit.y - o.y) * nyA.y + (hit.z - o.z) * nyA.z;
+                if (std::abs(lu) > s || std::abs(lv) > s)
+                    continue;
+                const float facing = n.x * rd.x + n.y * rd.y + n.z * rd.z;
+                if (best < 0 || facing < bestFacing)
+                {
+                    best = static_cast<int>(i);
+                    bestFacing = facing;
+                }
+            }
+            if (best >= 0)
+                context.planes[best].hovered = true;
+        }
+    }
 
     buildDynamicGeometry(device, context.planes, adaptivePlaneHalfExtent(context));
 

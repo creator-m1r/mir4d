@@ -29,15 +29,15 @@ public:
     [[nodiscard]] WorldObjectState& state() noexcept { return state_; }
     [[nodiscard]] const WorldObjectState& state() const noexcept { return state_; }
 
-    void setMaterial(const MaterialProperties& material) { material_ = material; }
-    [[nodiscard]] const MaterialProperties& material() const noexcept { return material_; }
+    void setMaterial(const WorldMaterialDescriptor& material) { material_ = material; }
+    [[nodiscard]] const WorldMaterialDescriptor& material() const noexcept { return material_; }
 
 private:
     Id id_{0};
     WorldObjectType type_{WorldObjectType::Marker};
     std::string name_{};
     WorldObjectState state_{};
-    MaterialProperties material_{};
+    WorldMaterialDescriptor material_{};
 };
 
 } // namespace mir

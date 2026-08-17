@@ -24,6 +24,7 @@ struct SketchToolPalette: View {
                 tool(.dimension, "ruler", "Размер")
                 tool(.mirror, "arrow.left.and.right", "Зеркало")
                 tool(.pattern, "square.grid.3x3", "Массив")
+                tool(.spline, "waveform.path", "Сплайн")
             }
         }
         .padding(10)

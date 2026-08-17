@@ -120,8 +120,20 @@ private:
             const auto component = key.substr(prefix.size());
             if (!component.empty())
             {
-                material.composition[std::string(component)] =
-                    std::max(0.0, number(value, 0.0));
+                const std::string name{component};
+                const Scalar fraction = std::max(0.0, number(value, 0.0));
+                bool found = false;
+                for (auto& entry : material.composition)
+                {
+                    if (entry.name == name)
+                    {
+                        entry.fraction = fraction;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    material.composition.push_back({name, fraction});
                 material.normalizeComposition();
                 return true;
             }

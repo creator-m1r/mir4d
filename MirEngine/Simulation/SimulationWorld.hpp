@@ -1,8 +1,11 @@
 #pragma once
 
 #include "SimulationTypes.hpp"
+#include "SimulationTelemetry.hpp"
 #include "SimulationClock.hpp"
 #include "SimulationScheduler.hpp"
+#include "SimulationSolver.hpp"
+#include "BasicSimulationSolvers.hpp"
 #include "MaterialLibrary.hpp"
 #include "MaterialRegion.hpp"
 #include "MaterialInterface.hpp"
@@ -10,7 +13,9 @@
 #include "../World/World.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace mir
 {
@@ -18,6 +23,11 @@ namespace mir
 class SimulationWorld
 {
 public:
+    SimulationWorld()
+    {
+        configureDefaultSolvers();
+    }
+
     void setSettings(const SimulationSettings& settings) noexcept
     {
         settings_ = settings;
@@ -49,6 +59,11 @@ public:
 
     [[nodiscard]] MaterialInteractionGraph& materialInteractions() noexcept { return materialInteractions_; }
     [[nodiscard]] const MaterialInteractionGraph& materialInteractions() const noexcept { return materialInteractions_; }
+
+    [[nodiscard]] const SimulationStateStore& states() const noexcept { return states_; }
+    [[nodiscard]] SimulationStateStore& states() noexcept { return states_; }
+
+    [[nodiscard]] const SimulationTelemetry& telemetry() const noexcept { return telemetry_; }
 
     void rebuildMaterialInteractions()
     {
@@ -99,7 +114,14 @@ public:
             return;
 
         scheduler_.step(clock_, states_);
-        world.update(dt);
+        world.advance(mir4d::Time(clock_.time()));
+
+        ensureStates(world);
+        SimulationSolveContext solveContext{clock_, states_, dt};
+        solvers_.initialize(solveContext);
+        solvers_.solve(solveContext);
+
+        refreshTelemetry();
 
         for (auto& [id, fluid] : fluid_)
         {
@@ -133,6 +155,93 @@ private:
         return it == map.end() ? nullptr : &it->second;
     }
 
+    void configureDefaultSolvers() noexcept
+    {
+        if (solvers_.size() > 0)
+            return;
+        solvers_.add(fluidSolver_);
+        solvers_.add(thermalSolver_);
+        solvers_.add(mechanicsSolver_);
+        solvers_.add(chemistrySolver_);
+        solvers_.add(aerodynamicsSolver_);
+        solvers_.add(acousticSolver_);
+    }
+
+    void ensureStates(const World& world) noexcept
+    {
+        world.forEach([this](WorldObject::Id id, const std::shared_ptr<WorldObject>& object)
+        {
+            if (initialized_.count(id) > 0)
+                return;
+            SimulationState& state = states_.state(id);
+            state.temperature = object->material().temperature;
+            state.density = object->material().density > 0.0
+                ? object->material().density
+                : 1000.0;
+            state.youngModulus = object->material().youngModulus;
+            state.thermalExpansion = object->material().thermalExpansion;
+            state.poissonRatio = object->material().poissonRatio;
+            state.specificHeat = object->material().specificHeat;
+            state.thermalConductivity = object->material().thermalConductivity;
+            state.referenceDensity = object->material().density > 0.0
+                ? object->material().density
+                : 1000.0;
+            initialized_.insert(id);
+        });
+    }
+
+    void refreshTelemetry() noexcept
+    {
+        telemetry_.time = clock_.time();
+        telemetry_.running = settings_.running;
+        telemetry_.objects = initialized_.size();
+
+        if (initialized_.empty())
+            return;
+
+        Scalar maxTemperature = std::numeric_limits<Scalar>::lowest();
+        Scalar minTemperature = std::numeric_limits<Scalar>::max();
+        Scalar maxPressure = std::numeric_limits<Scalar>::lowest();
+        Scalar maxStress = std::numeric_limits<Scalar>::lowest();
+        Scalar maxVelocity = 0.0;
+        Scalar maxAcoustic = 0.0;
+        Scalar totalFlow = 0.0;
+        Scalar totalDrag = 0.0;
+        Scalar sumTemperature = 0.0;
+        Scalar sumPressure = 0.0;
+        std::size_t count = 0;
+
+        states_.forEach([&](std::uint64_t, const SimulationState& s)
+        {
+            const Scalar speed = std::sqrt(
+                s.velocity.x * s.velocity.x
+                + s.velocity.y * s.velocity.y
+                + s.velocity.z * s.velocity.z);
+            maxTemperature = std::max(maxTemperature, s.temperature);
+            minTemperature = std::min(minTemperature, s.temperature);
+            maxPressure = std::max(maxPressure, s.pressure);
+            maxStress = std::max(maxStress, s.stress);
+            maxVelocity = std::max(maxVelocity, speed);
+            maxAcoustic = std::max(maxAcoustic, s.acousticLevel);
+            totalFlow += s.flowRate;
+            totalDrag += s.aerodynamicDrag;
+            sumTemperature += s.temperature;
+            sumPressure += s.pressure;
+            ++count;
+        });
+
+        telemetry_.maxTemperature = maxTemperature;
+        telemetry_.minTemperature = minTemperature;
+        telemetry_.maxPressure = maxPressure;
+        telemetry_.maxStress = maxStress;
+        telemetry_.maxVelocity = maxVelocity;
+        telemetry_.maxAcoustic = maxAcoustic;
+        telemetry_.totalFlowRate = totalFlow;
+        telemetry_.totalDrag = totalDrag;
+        telemetry_.averageTemperature = count > 0 ? sumTemperature / static_cast<Scalar>(count) : 293.15;
+        telemetry_.averagePressure = count > 0 ? sumPressure / static_cast<Scalar>(count) : 101325.0;
+    }
+
     [[nodiscard]] Scalar fluidDensity(WorldObject::Id id) const noexcept
     {
         const auto it = fluid_.find(id);
@@ -143,6 +252,16 @@ private:
     SimulationClock clock_{};
     SimulationScheduler scheduler_{};
     SimulationStateStore states_{};
+
+    SimulationSolverStack solvers_{};
+    FluidSolver fluidSolver_{};
+    ThermalSolver thermalSolver_{};
+    MechanicsSolver mechanicsSolver_{};
+    ChemistrySolver chemistrySolver_{};
+    AerodynamicsSolver aerodynamicsSolver_{};
+    AcousticSolver acousticSolver_{};
+    std::unordered_set<WorldObject::Id> initialized_{};
+    SimulationTelemetry telemetry_{};
 
     MaterialLibrary materials_{};
     MaterialRegionStore materialRegions_{};

@@ -438,6 +438,78 @@ struct CADSimulationState: Equatable {
     var progress: Double = 0
     var solverStatus: String = "Готов"
     var resultSetID: String?
+    var lastReport: String?
+    var lastPassed: Bool?
+    var sweepParameter: CAESweepParameter = .temperature
+    var sweepFrom: Double = 300
+    var sweepTo: Double = 600
+    var sweepSteps: Int = 5
+    var sweepResults: [CAESweepRow] = []
+    var compareA: Int?
+    var compareB: Int?
+    var useGeometry = false
+    var geometry: CADObjectMetrics?
+}
+
+struct CADObjectMetrics: Equatable {
+    var objectId: UInt64
+    var sizeX: Double
+    var sizeY: Double
+    var sizeZ: Double
+    var volume: Double
+    var surfaceArea: Double
+    var vertexCount: Int
+    var faceCount: Int
+}
+
+struct CAETelemetryMetric: Equatable {
+    var min: Double
+    var max: Double
+}
+
+struct CAESweepRow: Identifiable, Equatable {
+    var id = UUID()
+    var index: Int
+    var parameterValue: Double
+    var caseName: String
+    var passed: Bool
+    var metrics: [String: CAETelemetryMetric]
+}
+
+enum CAESweepParameter: String, CaseIterable, Identifiable {
+    case temperature
+    case load
+    case flowRate
+    case composition
+
+    var id: String { rawValue }
+
+    var titleRU: String {
+        switch self {
+        case .temperature: return "Температура"
+        case .load: return "Нагрузка"
+        case .flowRate: return "Расход"
+        case .composition: return "Концентрация"
+        }
+    }
+
+    var titleEN: String {
+        switch self {
+        case .temperature: return "Temperature"
+        case .load: return "Load"
+        case .flowRate: return "Flow rate"
+        case .composition: return "Concentration"
+        }
+    }
+
+    var commandTemplate: String {
+        switch self {
+        case .temperature: return "material temperature"
+        case .load: return "load pressure"
+        case .flowRate: return "initial flowRate"
+        case .composition: return "initial composition reactant"
+        }
+    }
 }
 
 // MARK: - Interaction

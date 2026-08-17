@@ -50,13 +50,26 @@ struct MIR4DLaunchExperienceView: View {
             .clipped()
         }
         .frame(minWidth: 1280, minHeight: 800)
-        .onAppear { startBoot() }
+        .onAppear {
+            startBoot()
+            // TEMP DEBUG: открыть CAD-воркспейс сразу, без ручного выбора.
+            if CommandLine.arguments.contains("--debug-cad") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    NotificationCenter.default.post(
+                        name: .mir4DStartWorkspace,
+                        object: nil,
+                        userInfo: ["workbench": "model"]
+                    )
+                }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in revealWorkspace() }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DExternalProjectURL)) { note in
             guard let url = note.object as? URL else { return }
             openExternalProject(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { note in
+            print("TRACE: mir4DStartWorkspace получена")
             if let raw = note.userInfo?["workbench"] as? String,
                let workbench = CADWorkbench(rawValue: raw) {
                 appState.selectWorkbench(workbench)
@@ -87,24 +100,30 @@ struct MIR4DLaunchExperienceView: View {
                     Text("\(Int(boot.progress * 100))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
                 }
 
-                ForEach(Array(boot.steps.prefix(4))) { step in
-                    HStack(spacing: 7) {
-                        Image(systemName: diagnosticIcon(step.severity))
-                            .font(.system(size: 9))
-                            .foregroundStyle(diagnosticColor(step.severity))
-                            .frame(width: 12)
-                        Text(step.title)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.white.opacity(0.66))
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        Text(step.detail)
-                            .font(.system(size: 8, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.42))
-                            .lineLimit(1)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(boot.steps) { step in
+                            HStack(spacing: 7) {
+                                Image(systemName: diagnosticIcon(step.severity))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(diagnosticColor(step.severity))
+                                    .frame(width: 12)
+                                Text(step.title)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.white.opacity(0.66))
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(step.detail)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.42))
+                                    .lineLimit(1)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxHeight: 230)
 
                 Text(boot.currentTitle)
                     .font(.system(size: 9))
@@ -114,6 +133,16 @@ struct MIR4DLaunchExperienceView: View {
                 ProgressView(value: boot.progress, total: 1)
                     .tint(.blue)
                     .animation(.easeInOut(duration: 0.2), value: boot.progress)
+
+                if boot.state == .ready || boot.state == .warning || boot.state == .failed {
+                    HStack(spacing: 6) {
+                        Circle().fill(bootStateColor).frame(width: 6, height: 6)
+                        Text(bootStateLabel)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(bootStateColor)
+                    }
+                    .transition(.opacity)
+                }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 34)
@@ -144,6 +173,24 @@ struct MIR4DLaunchExperienceView: View {
         case .warning: return .yellow
         case .error: return .red
         case .info: return .white.opacity(0.28)
+        }
+    }
+
+    private var bootStateColor: Color {
+        switch boot.state {
+        case .failed: return .red
+        case .warning: return .yellow
+        case .ready: return .green
+        default: return .white.opacity(0.40)
+        }
+    }
+
+    private var bootStateLabel: String {
+        switch boot.state {
+        case .ready: return "ГОТОВО"
+        case .warning: return "ГОТОВО С ПРЕДУПРЕЖДЕНИЯМИ"
+        case .failed: return "ОШИБКА ЗАПУСКА"
+        default: return ""
         }
     }
 

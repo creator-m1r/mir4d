@@ -50,9 +50,14 @@ public func MirEngineDestroyViewport(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineRender(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineResize(_ viewport: UnsafeMutableRawPointer?, _ width: UInt32, _ height: UInt32) {}
 public func MirEngineCreateBox(_ viewport: UnsafeMutableRawPointer?, _ width: Double, _ depth: Double, _ height: Double, _ objectId: UnsafeMutablePointer<UInt64>?) -> Bool { false }
+public func MirEngineGetSelectedObjectMetrics(_ viewport: UnsafeMutableRawPointer?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool { false }
 public func MirEngineImportMesh(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool { false }
 public func MirEngineGetLastError(_ viewport: UnsafeMutableRawPointer?) -> UnsafePointer<CChar>? { nil }
 public func MirEngineExportStl(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool { false }
+public func MirEngineImportStep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool { false }
+public func MirEngineImportStepBRep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool { false }
+public func MirEngineExportStep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool { false }
+public func MirEngineExportStepBRep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool { false }
 public func MirEngineGetSelectedObjectId(_ viewport: UnsafeMutableRawPointer?) -> UInt64 { 0 }
 public func MirEngineGetCameraOrientation(_ viewport: UnsafeMutableRawPointer?, _ theta: UnsafeMutablePointer<Float>?, _ phi: UnsafeMutablePointer<Float>?, _ distance: UnsafeMutablePointer<Float>?) {}
 public func MirEngineSetCameraOrientation(_ viewport: UnsafeMutableRawPointer?, _ theta: Float, _ phi: Float, _ distance: Float) {}
@@ -60,6 +65,7 @@ public func MirEngineSetCameraProjection(_ viewport: UnsafeMutableRawPointer?, _
 public func MirEngineGetCameraProjection(_ viewport: UnsafeMutableRawPointer?) -> Int32 { 0 }
 public func MirEngineSetCameraFov(_ viewport: UnsafeMutableRawPointer?, _ fovYRadians: Float) {}
 public func MirEngineSetActiveCameraPreset(_ viewport: UnsafeMutableRawPointer?, _ preset: Int32) {}
+public func MirEngineGetCameraPresetOrientation(_ preset: Int32, _ theta: UnsafeMutablePointer<Float>?, _ phi: UnsafeMutablePointer<Float>?, _ distance: UnsafeMutablePointer<Float>?) {}
 public func MirEngineFitViewport(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetOpenGLDiagnostics(_ renderer: UnsafeMutableRawPointer?, _ buffer: UnsafeMutablePointer<CChar>?, _ bufferSize: Int) -> Bool { false }
 public func MirEngineViewportMouseDown(_ viewport: UnsafeMutableRawPointer?, _ button: Int32, _ x: Float, _ y: Float) {}
@@ -72,6 +78,7 @@ public func MirEngineViewportOrbit(_ viewport: UnsafeMutableRawPointer?, _ dx: F
 public func MirEngineViewportClick(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ addToSelection: Bool) {}
 public func MirEngineViewportHover(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float) {}
 public func MirEngineViewportHoverClear(_ viewport: UnsafeMutableRawPointer?) {}
+public func MirEngineSetCursor(_ renderer: UnsafeMutableRawPointer?, _ ndcX: Float, _ ndcY: Float, _ active: Bool) {}
 public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineClearSelection(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineViewportDragCancel(_ viewport: UnsafeMutableRawPointer?) {}
@@ -125,6 +132,24 @@ public func MirEngineSketchAddConstraint(_ doc: UnsafeMutableRawPointer?, _ type
 public func MirEngineSketchSolve(_ doc: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineSketchGetLine(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool { false }
 public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchAddArc(_ doc: UnsafeMutableRawPointer?, _ cx: Float, _ cy: Float, _ r: Float, _ startAngle: Float, _ endAngle: Float) -> UInt32 { 0 }
+public func MirEngineSketchGeometryCount(_ doc: UnsafeMutableRawPointer?) -> UInt32 { 0 }
+public func MirEngineSketchGeometryTypeAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32) -> Int32 { -1 }
+public func MirEngineSketchLineAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchArcAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?, _ sa: UnsafeMutablePointer<Float>?, _ ea: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchAddSpline(_ doc: UnsafeMutableRawPointer?, _ xs: UnsafePointer<Float>?, _ ys: UnsafePointer<Float>?, _ count: UInt32, _ closed: Bool) -> UInt32 { 0 }
+public func MirEngineSketchSplineAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ xs: UnsafeMutablePointer<Float>?, _ ys: UnsafeMutablePointer<Float>?, _ count: UnsafeMutablePointer<UInt32>?, _ closed: UnsafeMutablePointer<Bool>?) -> Bool { false }
+public func MirEngineSketchCircleAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchRemoveGeometry(_ doc: UnsafeMutableRawPointer?, _ id: UInt32) -> Bool { false }
+public func MirEngineSketchClear(_ doc: UnsafeMutableRawPointer?) {}
+public func MirEngineSketchGeometryIdAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32) -> UInt32 { 0 }
+public func MirEngineSketchSetPlane(_ doc: UnsafeMutableRawPointer?, _ planeId: UInt32, _ ox: Float, _ oy: Float, _ oz: Float, _ nx: Float, _ ny: Float, _ nz: Float, _ xx: Float, _ xy: Float, _ xz: Float, _ yx: Float, _ yy: Float, _ yz: Float) {}
+public func MirEngineSketchRemoveConstraint(_ doc: UnsafeMutableRawPointer?, _ id: UInt32) -> Bool { false }
+public func MirEngineSketchConstraintCount(_ doc: UnsafeMutableRawPointer?) -> UInt32 { 0 }
+public func MirEngineSketchConstraintAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool { false }
+
+// CAE multiphysics campaign runner — SwiftPM stub (real symbol provided by MirEngineExports).
+public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool { false }
 
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
@@ -137,9 +162,14 @@ public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt
 @_silgen_name("MirEngineRender") public func MirEngineRender(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineResize") public func MirEngineResize(_ viewport: UnsafeMutableRawPointer?, _ width: UInt32, _ height: UInt32)
 @_silgen_name("MirEngineCreateBox") public func MirEngineCreateBox(_ viewport: UnsafeMutableRawPointer?, _ width: Double, _ depth: Double, _ height: Double, _ objectId: UnsafeMutablePointer<UInt64>?) -> Bool
+@_silgen_name("MirEngineGetSelectedObjectMetrics") public func MirEngineGetSelectedObjectMetrics(_ viewport: UnsafeMutableRawPointer?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool
 @_silgen_name("MirEngineImportMesh") public func MirEngineImportMesh(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool
 @_silgen_name("MirEngineGetLastError") public func MirEngineGetLastError(_ viewport: UnsafeMutableRawPointer?) -> UnsafePointer<CChar>?
 @_silgen_name("MirEngineExportStl") public func MirEngineExportStl(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool
+@_silgen_name("MirEngineImportStep") public func MirEngineImportStep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool
+@_silgen_name("MirEngineImportStepBRep") public func MirEngineImportStepBRep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?) -> Bool
+@_silgen_name("MirEngineExportStep") public func MirEngineExportStep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool
+@_silgen_name("MirEngineExportStepBRep") public func MirEngineExportStepBRep(_ viewport: UnsafeMutableRawPointer?, _ path: UnsafePointer<CChar>?, _ selectionOnly: Bool) -> Bool
 @_silgen_name("MirEngineMaterialCount") public func MirEngineMaterialCount() -> Int32
 @_silgen_name("MirEngineMaterialName") public func MirEngineMaterialName(_ materialId: Int32, _ buffer: UnsafeMutablePointer<CChar>?, _ bufferSize: Int) -> Bool
 @_silgen_name("MirEngineSetObjectMaterial") public func MirEngineSetObjectMaterial(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ materialId: Int32) -> Bool
@@ -151,6 +181,7 @@ public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt
 @_silgen_name("MirEngineGetCameraProjection") public func MirEngineGetCameraProjection(_ viewport: UnsafeMutableRawPointer?) -> Int32
 @_silgen_name("MirEngineSetCameraFov") public func MirEngineSetCameraFov(_ viewport: UnsafeMutableRawPointer?, _ fovYRadians: Float)
 @_silgen_name("MirEngineSetActiveCameraPreset") public func MirEngineSetActiveCameraPreset(_ viewport: UnsafeMutableRawPointer?, _ preset: Int32)
+@_silgen_name("MirEngineGetCameraPresetOrientation") public func MirEngineGetCameraPresetOrientation(_ preset: Int32, _ theta: UnsafeMutablePointer<Float>?, _ phi: UnsafeMutablePointer<Float>?, _ distance: UnsafeMutablePointer<Float>?)
 @_silgen_name("MirEngineFitViewport") public func MirEngineFitViewport(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineViewportMouseDown") public func MirEngineViewportMouseDown(_ viewport: UnsafeMutableRawPointer?, _ button: Int32, _ x: Float, _ y: Float)
 @_silgen_name("MirEngineViewportMouseUp") public func MirEngineViewportMouseUp(_ viewport: UnsafeMutableRawPointer?, _ button: Int32, _ x: Float, _ y: Float)
@@ -174,6 +205,8 @@ public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt
     _ normals: UnsafePointer<Float>?, _ xAxes: UnsafePointer<Float>?,
     _ yAxes: UnsafePointer<Float>?, _ colors: UnsafePointer<Float>?,
     _ sizes: UnsafePointer<Float>?, _ active: UnsafePointer<Bool>?, _ selected: UnsafePointer<Bool>?)
+
+@_silgen_name("MirEngineSetCursor") public func MirEngineSetCursor(_ renderer: UnsafeMutableRawPointer?, _ ndcX: Float, _ ndcY: Float, _ active: Bool)
 
 @_silgen_name("MirEngineSetSketch") public func MirEngineSetSketch(_ renderer: UnsafeMutableRawPointer?,
     _ segmentCount: Int32, _ ax: UnsafePointer<Float>?, _ ay: UnsafePointer<Float>?,
@@ -319,6 +352,21 @@ public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments
 @_silgen_name("MirEngineSketchSolve") public func MirEngineSketchSolve(_ doc: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineSketchGetLine") public func MirEngineSketchGetLine(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool
 @_silgen_name("MirEngineSketchGetCircle") public func MirEngineSketchGetCircle(_ doc: UnsafeMutableRawPointer?, _ id: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchAddArc") public func MirEngineSketchAddArc(_ doc: UnsafeMutableRawPointer?, _ cx: Float, _ cy: Float, _ r: Float, _ startAngle: Float, _ endAngle: Float) -> UInt32
+@_silgen_name("MirEngineSketchGeometryCount") public func MirEngineSketchGeometryCount(_ doc: UnsafeMutableRawPointer?) -> UInt32
+@_silgen_name("MirEngineSketchGeometryTypeAt") public func MirEngineSketchGeometryTypeAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32) -> Int32
+@_silgen_name("MirEngineSketchLineAt") public func MirEngineSketchLineAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchArcAt") public func MirEngineSketchArcAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?, _ sa: UnsafeMutablePointer<Float>?, _ ea: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchAddSpline") public func MirEngineSketchAddSpline(_ doc: UnsafeMutableRawPointer?, _ xs: UnsafePointer<Float>?, _ ys: UnsafePointer<Float>?, _ count: UInt32, _ closed: Bool) -> UInt32
+@_silgen_name("MirEngineSketchSplineAt") public func MirEngineSketchSplineAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ xs: UnsafeMutablePointer<Float>?, _ ys: UnsafeMutablePointer<Float>?, _ count: UnsafeMutablePointer<UInt32>?, _ closed: UnsafeMutablePointer<Bool>?) -> Bool
+@_silgen_name("MirEngineSketchCircleAt") public func MirEngineSketchCircleAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchRemoveGeometry") public func MirEngineSketchRemoveGeometry(_ doc: UnsafeMutableRawPointer?, _ id: UInt32) -> Bool
+@_silgen_name("MirEngineSketchClear") public func MirEngineSketchClear(_ doc: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineSketchGeometryIdAt") public func MirEngineSketchGeometryIdAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32) -> UInt32
+@_silgen_name("MirEngineSketchSetPlane") public func MirEngineSketchSetPlane(_ doc: UnsafeMutableRawPointer?, _ planeId: UInt32, _ ox: Float, _ oy: Float, _ oz: Float, _ nx: Float, _ ny: Float, _ nz: Float, _ xx: Float, _ xy: Float, _ xz: Float, _ yx: Float, _ yy: Float, _ yz: Float)
+@_silgen_name("MirEngineSketchRemoveConstraint") public func MirEngineSketchRemoveConstraint(_ doc: UnsafeMutableRawPointer?, _ id: UInt32) -> Bool
+@_silgen_name("MirEngineSketchConstraintCount") public func MirEngineSketchConstraintCount(_ doc: UnsafeMutableRawPointer?) -> UInt32
+@_silgen_name("MirEngineSketchConstraintAt") public func MirEngineSketchConstraintAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool
 
 #endif
 
@@ -353,6 +401,9 @@ public enum MirEngineSketchConstraint: Int32 {
 @_silgen_name("MIR4DDocumentRevision") public func MIR4DDocumentRevision(_ handle: UnsafeMutableRawPointer?) -> UInt64
 @_silgen_name("MIR4DDocumentIsModified") public func MIR4DDocumentIsModified(_ handle: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MIR4DDocumentIsValid") public func MIR4DDocumentIsValid(_ handle: UnsafeMutableRawPointer?) -> Bool
+
+// CAE multiphysics campaign runner (MIR 4D CAE module).
+@_silgen_name("MirEngineRunCAECampaign") public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool
 #endif
 
 public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
@@ -361,6 +412,16 @@ public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
     return value.isEmpty ? nil : value
 }
 public func cStrToStringDefault(_ pointer: UnsafePointer<CChar>?, _ defaultValue: String = "") -> String { cStrToString(pointer) ?? defaultValue }
+
+/// Runs a CAE multiphysics campaign from a text definition and returns the JSON
+/// report, or nil if the engine is unavailable / the definition is invalid.
+public func MIR4DRunCAECampaign(definition: String) -> String? {
+    let capacity = 1 << 16
+    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: capacity)
+    defer { buffer.deallocate() }
+    guard definition.withCString({ MirEngineRunCAECampaign($0, buffer, capacity) }) else { return nil }
+    return String(cString: buffer)
+}
 
 public extension Color {
     init(hex: String) {
