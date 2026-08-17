@@ -2,10 +2,14 @@ import SwiftUI
 
 /// Navigation Sphere МИР 4D.
 ///
-/// The sphere is a camera-orientation instrument. It does not maintain a
-/// second camera model: all direction projection is derived from the current
-/// viewport orbit (theta/phi), and all camera changes are delegated to the
-/// existing camera commands.
+/// The engine uses a Z-up world and an orbit camera whose position is:
+///   x = sin(phi) * sin(theta)
+///   y = sin(phi) * cos(theta)
+///   z = cos(phi)
+///
+/// The sphere therefore projects world directions using the same camera basis
+/// as MirEngine::Camera: forward, right and up. It deliberately does not keep
+/// a second camera model.
 struct NavigationSphereView: View {
     var theta: Double
     var phi: Double
@@ -82,26 +86,38 @@ struct NavigationSphereView: View {
 
     private func sphereLatitudeLongitude(radius: CGFloat) -> some View {
         ZStack {
-            Ellipse().stroke(.white.opacity(0.16), lineWidth: 0.8).frame(width: radius * 2, height: radius * 0.72)
-            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 2, height: radius * 0.42).offset(y: -radius * 0.36)
-            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 2, height: radius * 0.42).offset(y: radius * 0.36)
-            Ellipse().stroke(.white.opacity(0.11), lineWidth: 0.75).frame(width: radius * 0.62, height: radius * 2)
-            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 1.15, height: radius * 2)
-            Rectangle().fill(MirTheme.Colors.accentBright.opacity(0.20)).frame(width: 1, height: radius * 1.82)
+            // Equator and latitude rings for a Z-up world.
+            Ellipse().stroke(.white.opacity(0.16), lineWidth: 0.8)
+                .frame(width: radius * 2, height: radius * 0.72)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7)
+                .frame(width: radius * 2, height: radius * 0.42)
+                .offset(y: -radius * 0.36)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7)
+                .frame(width: radius * 2, height: radius * 0.42)
+                .offset(y: radius * 0.36)
+            Ellipse().stroke(.white.opacity(0.11), lineWidth: 0.75)
+                .frame(width: radius * 0.62, height: radius * 2)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7)
+                .frame(width: radius * 1.15, height: radius * 2)
+            Rectangle()
+                .fill(MirTheme.Colors.accentBright.opacity(0.20))
+                .frame(width: 1, height: radius * 1.82)
         }
         .allowsHitTesting(false)
     }
 
+    /// Directions are VIEW directions, not camera positions.
+    /// This is intentionally Z-up and matches MirEngine::Camera::forward().
     private var directionPresets: [(MirCameraPreset, SIMD3<Double>)] {
         [
-            (.front, SIMD3(0, 0, 1)),
-            (.frontRight, normalized(SIMD3(1, 0, 1))),
-            (.right, SIMD3(1, 0, 0)),
-            (.backRight, normalized(SIMD3(1, 0, -1))),
-            (.back, SIMD3(0, 0, -1)),
-            (.backLeft, normalized(SIMD3(-1, 0, -1))),
-            (.left, SIMD3(-1, 0, 0)),
-            (.frontLeft, normalized(SIMD3(-1, 0, 1)))
+            (.front, SIMD3(0, -1, 0)),
+            (.frontRight, normalized(SIMD3(-1, -1, 0))),
+            (.right, SIMD3(-1, 0, 0)),
+            (.backRight, normalized(SIMD3(-1, 1, 0))),
+            (.back, SIMD3(0, 1, 0)),
+            (.backLeft, normalized(SIMD3(1, 1, 0))),
+            (.left, SIMD3(1, 0, 0)),
+            (.frontLeft, normalized(SIMD3(1, -1, 0)))
         ]
     }
 
@@ -129,17 +145,17 @@ struct NavigationSphereView: View {
                 .accessibilityLabel(item.0.titleRU)
             }
 
-            compassLabel("С", direction: SIMD3(0, 0, 1), center: center, radius: radius * 0.92)
-            compassLabel("В", direction: SIMD3(1, 0, 0), center: center, radius: radius * 0.92)
-            compassLabel("Ю", direction: SIMD3(0, 0, -1), center: center, radius: radius * 0.92)
-            compassLabel("З", direction: SIMD3(-1, 0, 0), center: center, radius: radius * 0.92)
+            compassLabel("П", direction: SIMD3(0, -1, 0), center: center, radius: radius * 0.92)
+            compassLabel("ПР", direction: SIMD3(-1, 0, 0), center: center, radius: radius * 0.92)
+            compassLabel("З", direction: SIMD3(0, 1, 0), center: center, radius: radius * 0.92)
+            compassLabel("Л", direction: SIMD3(1, 0, 0), center: center, radius: radius * 0.92)
         }
     }
 
     private func compassLabel(_ text: String, direction: SIMD3<Double>, center: CGPoint, radius: CGFloat) -> some View {
         let p = project(direction, radius: radius)
         return Text(text)
-            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .font(.system(size: text.count > 1 ? 7 : 8, weight: .bold, design: .rounded))
             .foregroundStyle(.white.opacity(0.42 + 0.45 * ((p.depth + 1) * 0.5)))
             .position(x: center.x + p.x, y: center.y - p.y)
             .allowsHitTesting(false)
@@ -154,15 +170,19 @@ struct NavigationSphereView: View {
                 path.addLine(to: end)
             }
             .stroke(MirTheme.Colors.accentBright.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-            Circle().fill(MirTheme.Colors.accentBright).frame(width: 8, height: 8).overlay(Circle().stroke(.white.opacity(0.95), lineWidth: 1)).position(end)
+            Circle()
+                .fill(MirTheme.Colors.accentBright)
+                .frame(width: 8, height: 8)
+                .overlay(Circle().stroke(.white.opacity(0.95), lineWidth: 1))
+                .position(end)
         }
         .allowsHitTesting(false)
     }
 
     private func poleControls(center: CGPoint, radius: CGFloat) -> some View {
         ZStack {
-            pole("В", preset: .top, direction: SIMD3(0, 1, 0), center: center, radius: radius * 0.90)
-            pole("Н", preset: .bottom, direction: SIMD3(0, -1, 0), center: center, radius: radius * 0.90)
+            pole("В", preset: .top, direction: SIMD3(0, 0, -1), center: center, radius: radius * 0.90)
+            pole("Н", preset: .bottom, direction: SIMD3(0, 0, 1), center: center, radius: radius * 0.90)
         }
     }
 
@@ -251,15 +271,20 @@ struct NavigationSphereView: View {
         .help(help)
     }
 
+    /// MirEngine::Camera::forward() is target - eye. With the orbit model this
+    /// is the negative of the camera position vector relative to its target.
     private var cameraForward: SIMD3<Double> {
-        normalized(SIMD3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta)))
+        normalized(SIMD3(-sin(phi) * sin(theta), -sin(phi) * cos(theta), -cos(phi)))
     }
 
+    /// Projects a world direction into the current camera screen plane using
+    /// the exact Z-up basis used by MirEngine::Camera.
     private func project(_ world: SIMD3<Double>, radius: CGFloat) -> ProjectedDirection {
         let forward = cameraForward
-        let reference: SIMD3<Double> = abs(forward.y) > 0.94 ? SIMD3(0, 0, 1) : SIMD3(0, 1, 0)
-        let right = normalized(cross(reference, forward))
-        let up = normalized(cross(forward, right))
+        let worldUp = SIMD3<Double>(0, 0, 1)
+        let reference = abs(dot(forward, worldUp)) > 0.9999 ? SIMD3<Double>(0, 1, 0) : worldUp
+        let right = normalized(cross(forward, reference))
+        let up = normalized(cross(right, forward))
         let direction = normalized(world)
         return ProjectedDirection(
             x: CGFloat(dot(direction, right)) * radius,
