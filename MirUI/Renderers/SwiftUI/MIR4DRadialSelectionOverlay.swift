@@ -90,7 +90,10 @@ struct MIR4DRadialSelectionOverlay: View {
             Button(action: onSettings) { Image(systemName: "gearshape.fill") }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.7)).padding(10).background(.black.opacity(0.45), in: Circle()).position(x: center.x + 42, y: center.y + 42)
         }
         .allowsHitTesting(false)
-        .onChange(of: state) { _, newState in previousState = newState }
+        .onChange(of: state) { _, newState in
+            previousState = newState
+            publishSelectionIntent(for: newState)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { note in
             guard (note.userInfo?["commit"] as? Bool) == true, !isCommitting else { return }
             commitSelection()
@@ -99,14 +102,24 @@ struct MIR4DRadialSelectionOverlay: View {
         .onDisappear { previousState = .init(); committedTool = nil; isCommitting = false }
     }
 
+    private func publishSelectionIntent(for newState: MIR4DRadialSelectionState) {
+        guard let panelIndex = newState.panelIndex, panels.indices.contains(panelIndex) else { return }
+        let panel = panels[panelIndex]
+        if let toolIndex = newState.toolIndex, panel.tools.indices.contains(toolIndex) {
+            let tool = panel.tools[toolIndex]
+            MIRIntentRouter.shared.publish(MIRIntent(source: .trackpad, phase: .selection, action: tool.command, directionRadians: newState.angle, confidence: 0.92))
+        } else {
+            MIRIntentRouter.shared.publish(MIRIntent(source: .trackpad, phase: .preview, action: panel.title, directionRadians: newState.angle, confidence: 0.80))
+        }
+    }
+
     private func commitSelection() {
         guard let tool = selectedTool else { return }
         committedTool = tool
         isCommitting = true
-        withAnimation(.easeOut(duration: 0.16)) {
-            // Keep the selected tool visually anchored for the commit beat.
-        }
+        MIRIntentRouter.shared.publish(MIRIntent(source: .keyboard, phase: .confirmation, action: tool.command, directionRadians: state.angle, confidence: 1.0))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            MIRIntentRouter.shared.publish(MIRIntent(source: .keyboard, phase: .execution, action: tool.command, directionRadians: state.angle, confidence: 1.0))
             onToolActivated(tool)
             committedTool = nil
             isCommitting = false
