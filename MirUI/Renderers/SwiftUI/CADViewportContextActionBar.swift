@@ -1,48 +1,63 @@
 import SwiftUI
 
-/// Contextual actions for the object currently selected in the CAD viewport.
-/// The bar is intentionally transient: it appears only when the selection has
-/// a meaningful target, keeping the viewport free from permanent tool chrome.
+/// Transient action bar for the current CAD selection/context.
+///
+/// The viewport itself stays visually quiet. Commands are resolved through the
+/// existing CADCommandRegistry/EventBus instead of creating a second command system.
 struct CADViewportContextActionBar: View {
     @ObservedObject var appState: CADAppState
+    @ObservedObject var registry: CADCommandRegistry
     var onCommandPalette: (() -> Void)? = nil
 
     private var ru: Bool { appState.ui.language == .russian }
     private var hasSelection: Bool { appState.selection.hasSelection }
     private var count: Int { appState.selectionCount }
 
+    private var commands: [CADCommand] {
+        guard hasSelection else { return [] }
+        return Array(registry.availableCommands(for: appState.activeContext)
+            .filter { $0.workbenches.contains(appState.workbench) && $0.isAvailable(appState.activeContext) }
+            .prefix(4))
+    }
+
     var body: some View {
         if hasSelection {
             HStack(spacing: 6) {
                 selectionBadge
                 Divider().frame(height: 22)
-                actionButton("pencil", ru ? "Изменить" : "Edit", enabled: count == 1) {
-                    appState.selectedTool = ru ? "Изменить" : "Edit"
+
+                ForEach(commands) { command in
+                    commandButton(command)
                 }
-                actionButton("move.3d", ru ? "Переместить" : "Move") {
-                    appState.selectedTool = ru ? "Переместить" : "Move"
+
+                if commands.isEmpty == false {
+                    Divider().frame(height: 22)
                 }
-                actionButton("ruler", ru ? "Измерить" : "Measure") {
-                    appState.selectedTool = ru ? "Измерить" : "Measure"
-                }
-                Divider().frame(height: 22)
+
                 Menu {
-                    Button { appState.selectedTool = ru ? "Копировать" : "Copy" } label: {
-                        Label(ru ? "Копировать" : "Copy", systemImage: "plus.square.on.square")
-                    }
-                    Button { appState.selectedTool = ru ? "Скрыть" : "Hide" } label: {
-                        Label(ru ? "Скрыть" : "Hide", systemImage: "eye.slash")
-                    }
                     Button { onCommandPalette?() } label: {
                         Label(ru ? "Все действия…" : "All actions…", systemImage: "command")
                     }
+                    Button {
+                        appState.selectedTool = ru ? "Копировать" : "Copy"
+                    } label: {
+                        Label(ru ? "Копировать" : "Copy", systemImage: "plus.square.on.square")
+                    }
+                    Button {
+                        appState.selectedTool = ru ? "Скрыть" : "Hide"
+                    } label: {
+                        Label(ru ? "Скрыть" : "Hide", systemImage: "eye.slash")
+                    }
                 } label: {
-                    Image(systemName: "ellipsis").frame(width: 28, height: 28)
+                    Image(systemName: "ellipsis")
+                        .frame(width: 28, height: 28)
                 }
                 .menuStyle(.borderlessButton)
                 .foregroundStyle(MirTheme.Colors.textSecondary)
                 .background(MirTheme.Colors.surfaceRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 7))
+
                 Divider().frame(height: 22)
+
                 actionButton("trash", ru ? "Удалить" : "Delete", destructive: true) {
                     appState.selectedTool = ru ? "Удалить" : "Delete"
                 }
@@ -70,6 +85,25 @@ struct CADViewportContextActionBar: View {
                 .truncationMode(.middle)
         }
         .frame(maxWidth: 170)
+    }
+
+    private func commandButton(_ command: CADCommand) -> some View {
+        Button {
+            MirEventBus.shared.publish(.commandRequested(command.id))
+            MirEventBus.shared.publish(.commandStarted(command.id))
+            command.execute()
+            MirEventBus.shared.publish(.commandFinished(command.id))
+        } label: {
+            Label(command.localizedTitle(appState.ui.language), systemImage: command.icon)
+                .font(.system(size: 10, weight: .medium))
+                .labelStyle(.titleAndIcon)
+                .padding(.horizontal, 7)
+                .frame(height: 28)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(MirTheme.Colors.textSecondary)
+        .background(MirTheme.Colors.surfaceRaised.opacity(0.88), in: RoundedRectangle(cornerRadius: 7))
+        .help(command.shortcut.map { "\(command.localizedTitle(appState.ui.language)) · \($0)" } ?? command.localizedTitle(appState.ui.language))
     }
 
     private func actionButton(_ icon: String, _ title: String, enabled: Bool = true, destructive: Bool = false, action: @escaping () -> Void) -> some View {
