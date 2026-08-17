@@ -8,17 +8,20 @@ struct MIR4DInteractionSurface<Content: View>: View {
     @State private var gestureOrigin: CGPoint = .zero
     @State private var radialVisible = false
     @State private var lastMagnification: CGFloat = 1
-    @State private var lastRotation: Angle = .zero
+    @State private var lastDragTranslation: CGSize = .zero
 
     let content: Content
     let onRadialCommit: (CGVector) -> Void
+    let onCameraOrbitDelta: (Double, Double, Double) -> Void
 
     init(
         onRadialCommit: @escaping (CGVector) -> Void = { _ in },
+        onCameraOrbitDelta: @escaping (Double, Double, Double) -> Void = { _, _, _ in },
         @ViewBuilder content: () -> Content
     ) {
         _coordinator = StateObject(wrappedValue: MIR4DTouchInteractionCoordinator())
         self.onRadialCommit = onRadialCommit
+        self.onCameraOrbitDelta = onCameraOrbitDelta
         self.content = content()
     }
 
@@ -46,8 +49,6 @@ struct MIR4DInteractionSurface<Content: View>: View {
         #if os(iOS)
         return MIR4DTouchInteractionPolicy.metrics(for: .iPad, shortestSide: min(size.width, size.height))
         #else
-        // SwiftUI cannot reliably distinguish mouse and trackpad at this layer.
-        // The platform input adapter can later provide the precise pointer kind.
         return MIR4DTouchInteractionPolicy.metrics(for: .macTrackpad, shortestSide: min(size.width, size.height))
         #endif
     }
@@ -56,17 +57,31 @@ struct MIR4DInteractionSurface<Content: View>: View {
         SimultaneousGesture(
             DragGesture(minimumDistance: metrics.sceneGestureMinimumDistance, coordinateSpace: .local)
                 .onChanged { value in
-                    if !radialVisible {
-                        if gestureOrigin == .zero { gestureOrigin = value.startLocation }
-                        coordinator.updateOneFinger(
-                            translation: value.translation,
-                            longPressActive: radialVisible
-                        )
-                    }
+                    guard !radialVisible else { return }
+                    if gestureOrigin == .zero { gestureOrigin = value.startLocation }
+
+                    let deltaX = value.translation.width - lastDragTranslation.width
+                    let deltaY = value.translation.height - lastDragTranslation.height
+                    lastDragTranslation = value.translation
+
+                    coordinator.updateOneFinger(
+                        translation: value.translation,
+                        longPressActive: false
+                    )
+
+                    // Touch movement is expressed as camera-orbit intent. The
+                    // viewport remains the owner of actual camera state.
+                    let sensitivity = 0.008
+                    onCameraOrbitDelta(
+                        -Double(deltaX) * sensitivity,
+                        -Double(deltaY) * sensitivity,
+                        0
+                    )
                 }
                 .onEnded { _ in
                     if !radialVisible { coordinator.endGesture() }
                     gestureOrigin = .zero
+                    lastDragTranslation = .zero
                 },
             MagnificationGesture()
                 .onChanged { value in
@@ -78,6 +93,7 @@ struct MIR4DInteractionSurface<Content: View>: View {
                         scale: delta,
                         rotation: coordinator.rotation
                     )
+                    onCameraOrbitDelta(0, 0, Double(delta))
                 }
                 .onEnded { _ in
                     lastMagnification = 1
