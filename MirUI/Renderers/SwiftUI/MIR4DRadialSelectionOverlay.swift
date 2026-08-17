@@ -9,30 +9,56 @@ struct MIR4DRadialSelectionState: Equatable {
 
 enum MIR4DRadialSelectionEngine {
     static func state(vector: CGVector, settings: RadialMenuSettings) -> MIR4DRadialSelectionState {
+        state(vector: vector, settings: settings, previous: nil)
+    }
+
+    static func state(vector: CGVector, settings: RadialMenuSettings, previous: MIR4DRadialSelectionState?) -> MIR4DRadialSelectionState {
         let panels = settings.panels.filter(\.enabled)
         guard !panels.isEmpty else { return .init() }
         let distance = hypot(vector.dx, vector.dy)
         guard distance >= settings.deadZone else { return .init() }
 
-        let angle = normalizedAngle(atan2(vector.dy, vector.dx))
-        let panelIndex = nearestSector(angle, count: panels.count)
+        let rawAngle = normalizedAngle(atan2(vector.dy, vector.dx))
+        let panelIndex = hystereticSector(
+            angle: rawAngle,
+            count: panels.count,
+            previous: previous?.panelIndex,
+            hysteresis: 0.16
+        )
         guard panels.indices.contains(panelIndex) else { return .init() }
 
         let panel = panels[panelIndex]
         guard distance >= settings.activationRadius, !panel.tools.isEmpty else {
-            return .init(panelIndex: panelIndex, toolIndex: nil, orbit: 1, angle: angle)
+            return .init(panelIndex: panelIndex, toolIndex: nil, orbit: 1, angle: rawAngle)
         }
 
-        // The second orbit inherits the selected panel's direction. Continuing
-        // outward therefore feels like extending the same gesture, rather than
-        // opening an unrelated wheel around the screen center.
         let toolCount = panel.tools.count
         let panelCenter = sectorCenter(panelIndex, panels.count)
-        let relative = shortestSignedAngle(from: panelCenter, to: angle)
+        let relative = shortestSignedAngle(from: panelCenter, to: rawAngle)
         let toolAngle = normalizedAngle(panelCenter + relative)
-        let toolIndex = nearestSector(toolAngle, count: toolCount)
+        let toolIndex = hystereticSector(
+            angle: toolAngle,
+            count: toolCount,
+            previous: previous?.panelIndex == panelIndex ? previous?.toolIndex : nil,
+            hysteresis: 0.20
+        )
 
         return .init(panelIndex: panelIndex, toolIndex: toolIndex, orbit: 2, angle: toolAngle)
+    }
+
+    /// Keeps the previous sector while the pointer is only grazing its boundary.
+    /// The selection changes only after crossing the boundary plus a small margin.
+    static func hystereticSector(angle: Double, count: Int, previous: Int?, hysteresis: Double) -> Int {
+        guard count > 0 else { return 0 }
+        let sector = Double.pi * 2 / Double(count)
+        let candidate = nearestSector(angle, count: count)
+        guard let previous, previous >= 0, previous < count else { return candidate }
+        if candidate == previous { return previous }
+
+        let previousCenter = sectorCenter(previous, count)
+        let distance = abs(shortestSignedAngle(from: previousCenter, to: angle))
+        let threshold = sector * (0.5 + min(max(hysteresis, 0), 0.45))
+        return distance > threshold ? candidate : previous
     }
 
     static func normalizedAngle(_ value: Double) -> Double {
@@ -73,8 +99,12 @@ struct MIR4DRadialSelectionOverlay: View {
     let onToolActivated: (RadialMenuTool) -> Void
     let onSettings: () -> Void
 
+    @State private var previousState = MIR4DRadialSelectionState()
+
     private var panels: [RadialMenuPanel] { store.settings.panels.filter(\.enabled) }
-    private var state: MIR4DRadialSelectionState { MIR4DRadialSelectionEngine.state(vector: vector, settings: store.settings) }
+    private var state: MIR4DRadialSelectionState {
+        MIR4DRadialSelectionEngine.state(vector: vector, settings: store.settings, previous: previousState)
+    }
     private var selectedPanel: RadialMenuPanel? {
         guard let index = state.panelIndex, panels.indices.contains(index) else { return nil }
         return panels[index]
@@ -111,40 +141,22 @@ struct MIR4DRadialSelectionOverlay: View {
 
                 ForEach(Array(panels.enumerated()), id: \.element.id) { index, panel in
                     let selected = state.panelIndex == index
-                    radialNode(
-                        title: panel.title,
-                        icon: panel.icon,
-                        selected: selected,
-                        radius: store.settings.panelRadius,
-                        angle: sectorAngle(index, panels.count)
-                    )
+                    radialNode(title: panel.title, icon: panel.icon, selected: selected, radius: store.settings.panelRadius, angle: sectorAngle(index, panels.count))
                 }
 
                 if let panel = selectedPanel {
                     let submenuRadius = max(store.settings.submenuOffset, store.settings.panelRadius + 58)
-                    let submenuCenter = CGPoint(
-                        x: CGFloat(cos(direction) * submenuRadius),
-                        y: CGFloat(sin(direction) * submenuRadius)
-                    )
+                    let submenuCenter = CGPoint(x: CGFloat(cos(direction) * submenuRadius), y: CGFloat(sin(direction) * submenuRadius))
 
                     Circle()
                         .stroke(MirTheme.Colors.selection.opacity(0.35), lineWidth: 1)
                         .frame(width: CGFloat(store.settings.submenuOffset * 2), height: CGFloat(store.settings.submenuOffset * 2))
                         .position(x: 260 + submenuCenter.x, y: 260 + submenuCenter.y)
 
-                    // Tools are laid out as a fan centred on the selected panel's
-                    // direction, so dragging farther continues the same gesture.
                     ForEach(Array(panel.tools.enumerated()), id: \.element.id) { index, tool in
                         let selected = state.toolIndex == index
                         let toolAngle = submenuToolAngle(index, panel.tools.count, center: direction)
-                        radialNode(
-                            title: store.settings.showLabels ? tool.title : "",
-                            icon: tool.icon,
-                            selected: selected,
-                            radius: 62,
-                            angle: toolAngle,
-                            origin: submenuCenter
-                        )
+                        radialNode(title: store.settings.showLabels ? tool.title : "", icon: tool.icon, selected: selected, radius: 62, angle: toolAngle, origin: submenuCenter)
                     }
                 }
 
@@ -178,6 +190,9 @@ struct MIR4DRadialSelectionOverlay: View {
             }
         }
         .allowsHitTesting(false)
+        .onChange(of: state) { _, newState in previousState = newState }
+        .onAppear { previousState = .init() }
+        .onDisappear { previousState = .init() }
     }
 
     private func radialNode(title: String, icon: String, selected: Bool, radius: Double, angle: Double, origin: CGPoint = .zero) -> some View {
