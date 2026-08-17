@@ -27,6 +27,7 @@ final class RadialMenuContextStore: ObservableObject {
                     selectionCount: snapshot.selectionCount,
                     selectionKind: snapshot.selectionKind
                 )
+                applyVisibleContext()
             case .selectionChanged(let selection):
                 snapshot = RadialMenuContextSnapshot(
                     workbench: snapshot.workbench,
@@ -34,10 +35,24 @@ final class RadialMenuContextStore: ObservableObject {
                     selectionCount: selection.count,
                     selectionKind: selection.primaryKind
                 )
+                applyVisibleContext()
             default:
                 break
             }
         }
+        applyVisibleContext()
+    }
+
+    /// The visual radial menu is intentionally driven by the same context
+    /// policy as the availability layer. This keeps the scene, gesture and
+    /// command vocabulary synchronized without duplicating context logic in
+    /// RadialMenuView.
+    private func applyVisibleContext() {
+        let store = RadialMenuSettingsStore.shared
+        store.settings.panels = RadialMenuContextLayout.panels(
+            settings: store.settings,
+            context: snapshot
+        )
     }
 
     deinit {
@@ -64,7 +79,7 @@ enum RadialMenuContextLayout {
         case (.model, .body), (.model, .feature):
             primary = panel("Тело", "cube", [
                 tool("Изменить", "slider.horizontal.3", "modify.form"),
-                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.right", "transform.move"),
+                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.arrow.right", "transform.move"),
                 tool("Измерить", "ruler", "measure.distance"),
                 tool("Сечение", "rectangle.split.3x3", "viewport.section")
             ])
@@ -92,7 +107,7 @@ enum RadialMenuContextLayout {
         case (.assembly, .component), (.assembly, .body):
             primary = panel("Сборка", "square.stack.3d.up", [
                 tool("Соединить", "link", "assembly.mate"),
-                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.right", "transform.move"),
+                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.arrow.right", "transform.move"),
                 tool("Проверить", "exclamationmark.triangle", "assembly.interference"),
                 tool("Показать всё", "viewfinder", "view.fit")
             ])
@@ -117,8 +132,6 @@ enum RadialMenuContextLayout {
         var result: [RadialMenuPanel] = []
         if let primary { result.append(primary) }
 
-        // Keep the remaining engineering intentions after the contextual one.
-        // Universal actions are deliberately last so they never steal attention.
         for panel in base where panel.id != primary?.id && !universalIDs.contains(panel.id) {
             result.append(panel)
         }
