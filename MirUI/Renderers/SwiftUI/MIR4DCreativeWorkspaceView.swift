@@ -9,8 +9,8 @@ private let mir4DCreativeImportTypes: [UTType] = [
     UTType(filenameExtension: "step", conformingTo: .data), UTType(filenameExtension: "stp", conformingTo: .data)
 ].compactMap { $0 }
 
-/// Immersive MIR 4D workspace.
-/// The scene is the product. Navigation is a quiet bottom dock; tools appear only on demand.
+/// Immersive MIR 4D workspace. The scene is the product.
+/// Navigation is a quiet bottom dock; tools appear in the center only while held.
 /// Voice is an ambient system capability: there is deliberately no microphone button or chat window.
 struct MIR4DCreativeWorkspaceView: View {
     @ObservedObject var appState: CADAppState
@@ -25,7 +25,6 @@ struct MIR4DCreativeWorkspaceView: View {
     @State private var isOrthographic = false
     @State private var showEmptyState = true
     @State private var viewportSize: CGSize = .zero
-    @State private var radialCenter: CGPoint = .zero
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
 
@@ -47,14 +46,14 @@ struct MIR4DCreativeWorkspaceView: View {
             guard case .success(let urls) = result, let url = urls.first else { return }
             NotificationCenter.default.post(name: .mir4DImportMesh, object: url.path)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuBegan)) { note in
-            guard let x = note.userInfo?["x"] as? Double, let y = note.userInfo?["y"] as? Double else { return }
-            radialCenter = CGPoint(x: x * viewportSize.width, y: y * viewportSize.height)
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuBegan)) { _ in
             radialVector = .zero
             radialMenuPresented = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuMoved)) { note in
-            guard radialMenuPresented, let dx = note.userInfo?["dx"] as? Double, let dy = note.userInfo?["dy"] as? Double else { return }
+            guard radialMenuPresented,
+                  let dx = note.userInfo?["dx"] as? Double,
+                  let dy = note.userInfo?["dy"] as? Double else { return }
             radialVector = CGVector(dx: dx, dy: dy)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { _ in
@@ -66,9 +65,7 @@ struct MIR4DCreativeWorkspaceView: View {
             registry.registerExtendedScenarioCommands(appState: appState)
             voiceAssistant.start(appState: appState)
         }
-        .onDisappear {
-            voiceAssistant.stop()
-        }
+        .onDisappear { voiceAssistant.stop() }
     }
 
     private var viewport: some View {
@@ -123,22 +120,20 @@ struct MIR4DCreativeWorkspaceView: View {
     }
 
     private var bottomDock: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 4) {
-                dockItem("cube.transparent", russian ? "Модель" : "Model", active: appState.workbench == .model) { appState.selectWorkbench(.model) }
-                dockItem("pencil.and.ruler", russian ? "Эскиз" : "Sketch", active: appState.workbench == .sketch) { appState.selectWorkbench(.sketch) }
-                dockItem("square.stack.3d.up", russian ? "Сборка" : "Assembly", active: appState.workbench == .assembly) { appState.selectWorkbench(.assembly) }
-                dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
-                dockItem("waveform.path.ecg", russian ? "Расчёт" : "Simulation", active: appState.workbench == .simulation) { appState.selectWorkbench(.simulation) }
-                dockDivider
-                dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
-            .shadow(color: .black.opacity(0.48), radius: 24, y: 11)
+        HStack(spacing: 4) {
+            dockItem("cube.transparent", russian ? "Модель" : "Model", active: appState.workbench == .model) { appState.selectWorkbench(.model) }
+            dockItem("pencil.and.ruler", russian ? "Эскиз" : "Sketch", active: appState.workbench == .sketch) { appState.selectWorkbench(.sketch) }
+            dockItem("square.stack.3d.up", russian ? "Сборка" : "Assembly", active: appState.workbench == .assembly) { appState.selectWorkbench(.assembly) }
+            dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
+            dockItem("waveform.path.ecg", russian ? "Расчёт" : "Simulation", active: appState.workbench == .simulation) { appState.selectWorkbench(.simulation) }
+            dockDivider
+            dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+        .shadow(color: .black.opacity(0.48), radius: 24, y: 11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 14)
         .allowsHitTesting(true)
@@ -161,14 +156,15 @@ struct MIR4DCreativeWorkspaceView: View {
     }
 
     private var radialMenuOverlay: some View {
-        RadialMenuView(store: RadialMenuSettingsStore.shared, center: radialCenter, vector: radialVector, onToolActivated: { _ in radialMenuPresented = false }, onSettings: { radialSettingsPresented = true })
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.10).allowsHitTesting(false))
+        MIR4DRadialCenterOverlay(
+            store: RadialMenuSettingsStore.shared,
+            vector: radialVector,
+            onToolActivated: { _ in radialMenuPresented = false },
+            onSettings: { radialSettingsPresented = true }
+        )
     }
 
-    private func createDefaultBox() {
-        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40)
-    }
+    private func createDefaultBox() { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
 }
 
 private struct CreativeViewportRepresentable: NSViewRepresentable {
