@@ -31,11 +31,10 @@ struct CADMainView: View {
                 mainLayout
                 if radialMenuPresented { radialMenuOverlay }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuBegan)) { note in
+            .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuBegan)) { _ in
                 radialCenter = CGPoint(x: proxy.size.width * 0.5, y: proxy.size.height * 0.5)
                 radialVector = .zero
                 radialMenuPresented = true
-                _ = note
             }
             .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuMoved)) { note in
                 guard radialMenuPresented,
@@ -79,11 +78,14 @@ struct CADMainView: View {
     }
 
     private var centerColumn: some View {
-        MIR4DInteractionSurface(onRadialCommit: { vector in
-            radialCenter = CGPoint(x: viewportSize.width * 0.5, y: viewportSize.height * 0.5)
-            radialVector = vector
-            radialMenuPresented = true
-        }) {
+        MIR4DInteractionSurface(
+            onRadialCommit: { vector in
+                radialCenter = CGPoint(x: viewportSize.width * 0.5, y: viewportSize.height * 0.5)
+                radialVector = vector
+                radialMenuPresented = true
+            },
+            onCameraOrbitDelta: applyCameraIntent(deltaTheta:deltaPhi:deltaDistance:)
+        ) {
             ZStack {
                 viewport
                 viewportOverlay
@@ -218,6 +220,24 @@ struct CADMainView: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.10).allowsHitTesting(false))
+    }
+
+    private func applyCameraIntent(deltaTheta: Double, deltaPhi: Double, deltaDistance: Double) {
+        let nextTheta = cameraTheta + deltaTheta
+        let nextPhi = min(max(cameraPhi + deltaPhi, -1.52), 1.52)
+        let nextDistance = min(max(cameraDistance * (deltaDistance == 0 ? 1 : deltaDistance), 0.05), 10_000)
+
+        cameraTheta = nextTheta
+        cameraPhi = nextPhi
+        cameraDistance = nextDistance
+        showEmptyState = false
+
+        Mir4DSetCameraOrbit(
+            theta: nextTheta,
+            phi: nextPhi,
+            distance: nextDistance,
+            animated: false
+        )
     }
 
     private func createDefaultBox() {
