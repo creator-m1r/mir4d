@@ -11,11 +11,12 @@ private let mir4DCreativeImportTypes: [UTType] = [
 
 /// Immersive MIR 4D workspace.
 /// The scene is the product. Navigation is a quiet bottom dock; tools appear only on demand.
-/// There are no permanent side/top tool panels and no dedicated conversational window.
+/// Voice is an ambient system capability: there is deliberately no microphone button or chat window.
 struct MIR4DCreativeWorkspaceView: View {
     @ObservedObject var appState: CADAppState
     @StateObject private var registry = CADCommandRegistry()
     @StateObject private var productionStore = ProductionWorldStore()
+    @StateObject private var voiceAssistant = MIR4DVoiceAssistant()
     @State private var radialSettingsPresented = false
     @State private var showImporter = false
     @State private var cameraTheta = 0.0
@@ -27,7 +28,6 @@ struct MIR4DCreativeWorkspaceView: View {
     @State private var radialCenter: CGPoint = .zero
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
-    @State private var voiceActive = false
 
     private var russian: Bool { appState.ui.language == .russian }
 
@@ -64,6 +64,10 @@ struct MIR4DCreativeWorkspaceView: View {
         .onAppear {
             registry.registerDefaults(appState: appState)
             registry.registerExtendedScenarioCommands(appState: appState)
+            voiceAssistant.start(appState: appState)
+        }
+        .onDisappear {
+            voiceAssistant.stop()
         }
     }
 
@@ -127,8 +131,6 @@ struct MIR4DCreativeWorkspaceView: View {
                 dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
                 dockItem("waveform.path.ecg", russian ? "Расчёт" : "Simulation", active: appState.workbench == .simulation) { appState.selectWorkbench(.simulation) }
                 dockDivider
-                voiceDockItem
-                dockDivider
                 dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
             }
             .padding(.horizontal, 12)
@@ -140,29 +142,6 @@ struct MIR4DCreativeWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 14)
         .allowsHitTesting(true)
-    }
-
-    private var voiceDockItem: some View {
-        Button {
-            voiceActive.toggle()
-            NotificationCenter.default.post(name: .mir4DVoiceInteractionRequested, object: nil, userInfo: ["active": voiceActive])
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(voiceActive ? MirTheme.Colors.accent.opacity(0.30) : Color.white.opacity(0.07))
-                    .frame(width: 48, height: 48)
-                Circle()
-                    .stroke(voiceActive ? MirTheme.Colors.accent : Color.white.opacity(0.16), lineWidth: voiceActive ? 1.5 : 1)
-                    .frame(width: 48, height: 48)
-                Image(systemName: voiceActive ? "waveform" : "mic")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(voiceActive ? MirTheme.Colors.accentBright : .white.opacity(0.72))
-            }
-        }
-        .buttonStyle(.plain)
-        .frame(width: 58, height: 48)
-        .help(russian ? "Голосовое взаимодействие" : "Voice interaction")
-        .animation(.easeOut(duration: 0.18), value: voiceActive)
     }
 
     private var dockDivider: some View { Rectangle().fill(.white.opacity(0.10)).frame(width: 1, height: 28).padding(.horizontal, 4) }
