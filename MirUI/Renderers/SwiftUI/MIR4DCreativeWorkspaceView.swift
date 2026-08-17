@@ -9,9 +9,9 @@ private let mir4DCreativeImportTypes: [UTType] = [
     UTType(filenameExtension: "step", conformingTo: .data), UTType(filenameExtension: "stp", conformingTo: .data)
 ].compactMap { $0 }
 
-/// Immersive MIR 4D workspace. The scene is the product.
-/// Navigation is a quiet bottom dock; tools appear in the center only while held.
-/// Voice is an ambient system capability: there is deliberately no microphone button or chat window.
+/// Immersive MIR 4D workspace.
+/// The scene is the product. Navigation is deliberately reduced to a quiet bottom dock;
+/// tools appear in the center only while held. Voice is an ambient system capability.
 struct MIR4DCreativeWorkspaceView: View {
     @ObservedObject var appState: CADAppState
     @StateObject private var registry = CADCommandRegistry()
@@ -46,8 +46,10 @@ struct MIR4DCreativeWorkspaceView: View {
             NotificationCenter.default.post(name: .mir4DImportMesh, object: url.path)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuBegan)) { _ in
-            radialVector = .zero
-            radialMenuPresented = true
+            withAnimation(.easeOut(duration: 0.18)) {
+                radialVector = .zero
+                radialMenuPresented = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuMoved)) { note in
             guard radialMenuPresented,
@@ -62,8 +64,10 @@ struct MIR4DCreativeWorkspaceView: View {
                 dy: (note.userInfo?["dy"] as? Double) ?? radialVector.dy
             )
             if commit { commitRadialSelection(vector: finalVector) }
-            radialMenuPresented = false
-            radialVector = .zero
+            withAnimation(.easeIn(duration: 0.16)) {
+                radialMenuPresented = false
+                radialVector = .zero
+            }
         }
         .onAppear {
             registry.registerDefaults(appState: appState)
@@ -78,7 +82,7 @@ struct MIR4DCreativeWorkspaceView: View {
     }
 
     private var viewport: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             CreativeViewportRepresentable(appState: appState,
                 onSelectionChanged: { objectID in appState.setSelection(ids: objectID > 0 ? ["\(objectID)"] : [], kind: objectID > 0 ? .body : .none) },
                 onIOError: { message in appState.showNotification(message, type: .error) },
@@ -102,11 +106,16 @@ struct MIR4DCreativeWorkspaceView: View {
         }
     }
 
+    /// The sphere is a quiet spatial instrument, not a permanent toolbar.
     private var navigationSphere: some View {
         NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance, isOrthographic: isOrthographic)
-            .opacity(0.38).scaleEffect(0.52).fixedSize()
+            .opacity(0.16)
+            .scaleEffect(0.44)
+            .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(.top, 18).padding(.trailing, 18).allowsHitTesting(true)
+            .padding(.top, 12)
+            .padding(.trailing, 12)
+            .allowsHitTesting(true)
     }
 
     @ViewBuilder private var emptyState: some View {
@@ -126,37 +135,33 @@ struct MIR4DCreativeWorkspaceView: View {
         }
     }
 
+    /// The dock is navigation between worlds, not a command bar.
     private var bottomDock: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             dockItem("cube.transparent", russian ? "Модель" : "Model", active: appState.workbench == .model) { appState.selectWorkbench(.model) }
             dockItem("pencil.and.ruler", russian ? "Эскиз" : "Sketch", active: appState.workbench == .sketch) { appState.selectWorkbench(.sketch) }
-            dockItem("square.stack.3d.up", russian ? "Сборка" : "Assembly", active: appState.workbench == .assembly) { appState.selectWorkbench(.assembly) }
             dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
-            dockItem("waveform.path.ecg", russian ? "Расчёт" : "Simulation", active: appState.workbench == .simulation) { appState.selectWorkbench(.simulation) }
-            dockDivider
             dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
-        .shadow(color: .black.opacity(0.48), radius: 24, y: 11)
+        .overlay(Capsule().stroke(.white.opacity(0.11), lineWidth: 1))
+        .shadow(color: .black.opacity(0.42), radius: 20, y: 9)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .padding(.bottom, 14)
+        .padding(.bottom, 12)
         .allowsHitTesting(true)
     }
 
-    private var dockDivider: some View { Rectangle().fill(.white.opacity(0.10)).frame(width: 1, height: 28).padding(.horizontal, 4) }
-
     private func dockItem(_ icon: String, _ title: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Image(systemName: icon).font(.system(size: 14, weight: .semibold))
                 Text(title).font(.system(size: 8, weight: .medium))
             }
-            .foregroundStyle(active ? .white : .white.opacity(0.55))
-            .frame(width: 62, height: 42)
-            .background(active ? MirTheme.Colors.selection.opacity(0.72) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+            .foregroundStyle(active ? .white : .white.opacity(0.52))
+            .frame(width: 66, height: 40)
+            .background(active ? MirTheme.Colors.selection.opacity(0.68) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .help(title)
@@ -183,7 +188,6 @@ struct MIR4DCreativeWorkspaceView: View {
             return
         }
 
-        // Releasing on a first-orbit segment enters that work domain.
         switch panel.title {
         case "Модель": appState.selectWorkbench(.model)
         case "Сборка": appState.selectWorkbench(.assembly)
