@@ -48,6 +48,7 @@ struct CADMainView: View {
             }
         }
         .background(MirTheme.Colors.background)
+        .mir4DRadialKeyboardTrigger()
         .sheet(isPresented: $commandPalettePresented) { CommandPaletteView(appState: appState, registry: registry) }
         .sheet(isPresented: $radialSettingsPresented) { RadialMenuSettingsView(store: RadialMenuSettingsStore.shared) }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: mir4DImportTypes, allowsMultipleSelection: false) { result in
@@ -309,5 +310,7 @@ struct CADViewportChrome: View {
     @Binding var cameraDistance: Double
     @Binding var isOrthographic: Bool
 
-    var body: some View { EmptyView() }
+    var body: some View {
+        EmptyView()
+    }
 }
