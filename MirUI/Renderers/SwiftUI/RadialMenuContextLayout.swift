@@ -41,100 +41,73 @@ final class RadialMenuContextStore: ObservableObject {
     }
 
     deinit {
-        guard let subscription else {
-            return
-        }
-
-        Task { @MainActor in
-            MirEventBus.shared.unsubscribe(subscription)
-        }
+        guard let subscription else { return }
+        Task { @MainActor in MirEventBus.shared.unsubscribe(subscription) }
     }
 }
 
 enum RadialMenuContextLayout {
+    /// Builds the visible hierarchy without changing the user's saved menu.
+    /// The first position is always the most relevant action family for the
+    /// current engineering context; navigation and scene-wide actions remain
+    /// available at the outer edge.
     static func panels(settings: RadialMenuSettings, context: RadialMenuContextSnapshot) -> [RadialMenuPanel] {
         let base = settings.panels.filter(\.enabled)
-        let universalIDs: Set<String> = ["Файл", "Вид"]
-        let universal = base.filter { universalIDs.contains($0.title) }
+        guard !base.isEmpty else { return [] }
+
+        let universalTitles: Set<String> = ["Проект", "Посмотреть", "Назад", "Файл", "Вид"]
+        let universal = base.filter { universalTitles.contains($0.title) }
+        let universalIDs = Set(universal.map(\.id))
 
         let primary: RadialMenuPanel?
         switch (context.workbench, context.selectionKind) {
         case (.model, .body), (.model, .feature):
-            primary = panel(
-                title: "Тело",
-                icon: "cube",
-                tools: [
-                    tool("Выдавливание", "arrow.up.to.line", "model.extrude"),
-                    tool("Вращение", "arrow.triangle.2.circlepath", "model.revolve"),
-                    tool("Измерение", "ruler", "measure.distance"),
-                    tool("Сечение", "rectangle.split.3x3", "viewport.section")
-                ]
-            )
+            primary = panel("Тело", "cube", [
+                tool("Изменить", "slider.horizontal.3", "modify.form"),
+                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.right", "transform.move"),
+                tool("Измерить", "ruler", "measure.distance"),
+                tool("Сечение", "rectangle.split.3x3", "viewport.section")
+            ])
         case (.model, .face):
-            primary = panel(
-                title: "Поверхность",
-                icon: "square.3.layers.3d",
-                tools: [
-                    tool("Выдавливание", "arrow.up.to.line", "model.extrude"),
-                    tool("Измерение", "ruler", "measure.distance"),
-                    tool("Сечение", "rectangle.split.3x3", "viewport.section"),
-                    tool("Показать всё", "viewfinder", "viewport.fit")
-                ]
-            )
+            primary = panel("Поверхность", "square.3.layers.3d", [
+                tool("Изменить", "wand.and.stars", "modify.form"),
+                tool("Размер", "ruler", "measure.distance"),
+                tool("Сечение", "rectangle.split.3x3", "viewport.section"),
+                tool("Показать всё", "viewfinder", "view.fit")
+            ])
         case (.model, .edge), (.model, .vertex):
-            primary = panel(
-                title: "Геометрия",
-                icon: "point.3.connected.trianglepath.dotted",
-                tools: [
-                    tool("Измерение", "ruler", "measure.distance"),
-                    tool("Показать всё", "viewfinder", "viewport.fit"),
-                    tool("Сечение", "rectangle.split.3x3", "viewport.section")
-                ]
-            )
+            primary = panel("Геометрия", "point.3.connected.trianglepath.dotted", [
+                tool("Измерить", "ruler", "measure.distance"),
+                tool("Продолжить", "arrow.right", "geometry.continue"),
+                tool("Показать всё", "viewfinder", "view.fit")
+            ])
         case (.sketch, _):
-            primary = panel(
-                title: "Эскиз",
-                icon: "pencil.and.ruler",
-                tools: [
-                    tool("Линия", "line.diagonal", "sketch.line"),
-                    tool("Прямоугольник", "rectangle", "sketch.rectangle"),
-                    tool("Окружность", "circle", "sketch.circle"),
-                    tool("Размер", "ruler", "sketch.dimension"),
-                    tool("Ограничение", "link", "sketch.constraint")
-                ]
-            )
+            primary = panel("Эскиз", "pencil.and.ruler", [
+                tool("Нарисовать", "pencil", "sketch.line"),
+                tool("Размер", "ruler", "sketch.dimension"),
+                tool("Привязать", "scope", "sketch.constraint"),
+                tool("Изменить", "slider.horizontal.3", "sketch.edit"),
+                tool("Завершить", "checkmark", "mode.finish")
+            ])
         case (.assembly, .component), (.assembly, .body):
-            primary = panel(
-                title: "Сборка",
-                icon: "square.stack.3d.up",
-                tools: [
-                    tool("Связать", "link", "assembly.mate"),
-                    tool("Пересечения", "exclamationmark.triangle", "assembly.interference"),
-                    tool("Показать всё", "viewfinder", "viewport.fit")
-                ]
-            )
+            primary = panel("Сборка", "square.stack.3d.up", [
+                tool("Соединить", "link", "assembly.mate"),
+                tool("Переместить", "arrow.up.and.down.and.arrow.left.and.right", "transform.move"),
+                tool("Проверить", "exclamationmark.triangle", "assembly.interference"),
+                tool("Показать всё", "viewfinder", "view.fit")
+            ])
         case (.simulation, .simulationResult):
-            primary = panel(
-                title: "Расчёт",
-                icon: "waveform.path.ecg",
-                tools: [
-                    tool("Запуск", "play.circle", "simulation.solve"),
-                    tool("Результаты", "chart.xyaxis.line", "simulation.results")
-                ]
-            )
+            primary = panel("Расчёт", "waveform.path.ecg", [
+                tool("Запустить", "play.circle", "simulation.solve"),
+                tool("Результаты", "chart.xyaxis.line", "simulation.results")
+            ])
         case (.fourD, _):
-            primary = panel(
-                title: "4D",
-                icon: "clock.arrow.circlepath",
-                tools: [
-                    tool("Воспроизвести", "play.fill", "fourD.play"),
-                    tool("Ветка", "arrow.triangle.branch", "fourD.branch"),
-                    tool("Сравнить", "square.split.2x1", "fourD.compare"),
-                    tool("Что если", "questionmark.diamond", "fourD.whatIf")
-                ]
-            )
-        case (.drawing, .drawingView):
-            primary = base.first(where: { $0.title == "Чертёж" })
+            primary = panel("Время", "clock.arrow.circlepath", [
+                tool("Воспроизвести", "play.fill", "fourD.play"),
+                tool("Ветка", "arrow.triangle.branch", "fourD.branch"),
+                tool("Сравнить", "square.split.2x1", "fourD.compare"),
+                tool("Что если", "questionmark.diamond", "fourD.whatIf")
+            ])
         case (.drawing, _):
             primary = base.first(where: { $0.title == "Чертёж" })
         default:
@@ -144,15 +117,17 @@ enum RadialMenuContextLayout {
         var result: [RadialMenuPanel] = []
         if let primary { result.append(primary) }
 
-        for panel in base where !universalIDs.contains(panel.title) && panel.title != primary?.title {
+        // Keep the remaining engineering intentions after the contextual one.
+        // Universal actions are deliberately last so they never steal attention.
+        for panel in base where panel.id != primary?.id && !universalIDs.contains(panel.id) {
             result.append(panel)
         }
         result.append(contentsOf: universal)
 
-        return result.isEmpty ? base : result
+        return result
     }
 
-    private static func panel(title: String, icon: String, tools: [RadialMenuTool]) -> RadialMenuPanel {
+    private static func panel(_ title: String, _ icon: String, _ tools: [RadialMenuTool]) -> RadialMenuPanel {
         RadialMenuPanel(title: title, icon: icon, tools: tools)
     }
 
@@ -161,7 +136,6 @@ enum RadialMenuContextLayout {
     }
 }
 
-/// Small preview used by settings and future contextual-menu editors.
 struct RadialMenuContextPreview: View {
     let context: RadialMenuContextSnapshot
     let settings: RadialMenuSettings
