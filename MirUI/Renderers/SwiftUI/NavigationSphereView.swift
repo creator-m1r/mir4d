@@ -39,9 +39,7 @@ struct NavigationSphereView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .gesture(trackballGesture)
-                .overlay {
-                    azimuthRing(radius: radius)
-                }
+                .overlay { azimuthRing(radius: radius) }
             }
             .frame(width: sphereSize, height: 170)
 
@@ -53,8 +51,6 @@ struct NavigationSphereView: View {
         .accessibilityLabel("Навигационная сфера МИР 4D")
         .accessibilityValue(orientationDescription)
     }
-
-    // MARK: - Sphere rendering
 
     private func sphereBody(radius: CGFloat) -> some View {
         Circle()
@@ -72,9 +68,7 @@ struct NavigationSphereView: View {
             )
             .overlay(Circle().stroke(MirTheme.Colors.panelBorder.opacity(0.95), lineWidth: 1))
             .overlay {
-                Circle()
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
-                    .padding(radius * 0.08)
+                Circle().stroke(.white.opacity(0.08), lineWidth: 1).padding(radius * 0.08)
             }
             .overlay(alignment: .topLeading) {
                 Ellipse()
@@ -88,31 +82,12 @@ struct NavigationSphereView: View {
 
     private func sphereLatitudeLongitude(radius: CGFloat) -> some View {
         ZStack {
-            // Equator and two latitude bands.
-            Ellipse()
-                .stroke(.white.opacity(0.16), lineWidth: 0.8)
-                .frame(width: radius * 2, height: radius * 0.72)
-            Ellipse()
-                .stroke(.white.opacity(0.075), lineWidth: 0.7)
-                .frame(width: radius * 2, height: radius * 0.42)
-                .offset(y: -radius * 0.36)
-            Ellipse()
-                .stroke(.white.opacity(0.075), lineWidth: 0.7)
-                .frame(width: radius * 2, height: radius * 0.42)
-                .offset(y: radius * 0.36)
-
-            // Meridians.
-            Ellipse()
-                .stroke(.white.opacity(0.11), lineWidth: 0.75)
-                .frame(width: radius * 0.62, height: radius * 2)
-            Ellipse()
-                .stroke(.white.opacity(0.075), lineWidth: 0.7)
-                .frame(width: radius * 1.15, height: radius * 2)
-
-            // World vertical axis.
-            Rectangle()
-                .fill(MirTheme.Colors.accentBright.opacity(0.20))
-                .frame(width: 1, height: radius * 1.82)
+            Ellipse().stroke(.white.opacity(0.16), lineWidth: 0.8).frame(width: radius * 2, height: radius * 0.72)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 2, height: radius * 0.42).offset(y: -radius * 0.36)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 2, height: radius * 0.42).offset(y: radius * 0.36)
+            Ellipse().stroke(.white.opacity(0.11), lineWidth: 0.75).frame(width: radius * 0.62, height: radius * 2)
+            Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7).frame(width: radius * 1.15, height: radius * 2)
+            Rectangle().fill(MirTheme.Colors.accentBright.opacity(0.20)).frame(width: 1, height: radius * 1.82)
         }
         .allowsHitTesting(false)
     }
@@ -138,15 +113,11 @@ struct NavigationSphereView: View {
                 let active = nearestPreset == item.0
                 let hovered = hoveredPreset == item.0
 
-                Button {
-                    navigate(item.0)
-                } label: {
+                Button { navigate(item.0) } label: {
                     Circle()
                         .fill(active ? MirTheme.Colors.accentBright : .white.opacity(0.22 + 0.38 * depth))
                         .frame(width: active ? 12 : hovered ? 10 : 7, height: active ? 12 : hovered ? 10 : 7)
-                        .overlay {
-                            Circle().stroke(.white.opacity(active ? 0.95 : 0.35), lineWidth: active ? 1.1 : 0.6)
-                        }
+                        .overlay(Circle().stroke(.white.opacity(active ? 0.95 : 0.35), lineWidth: active ? 1.1 : 0.6))
                 }
                 .buttonStyle(.plain)
                 .position(x: center.x + projection.x, y: center.y - projection.y)
@@ -175,22 +146,15 @@ struct NavigationSphereView: View {
     }
 
     private func cameraDirection(center: CGPoint, radius: CGFloat) -> some View {
-        let forward = cameraForward
-        let projection = project(forward, radius: radius * 0.74)
+        let projection = project(cameraForward, radius: radius * 0.74)
         let end = CGPoint(x: center.x + projection.x, y: center.y - projection.y)
-
         return ZStack {
             Path { path in
                 path.move(to: center)
                 path.addLine(to: end)
             }
             .stroke(MirTheme.Colors.accentBright.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-
-            Circle()
-                .fill(MirTheme.Colors.accentBright)
-                .frame(width: 8, height: 8)
-                .overlay(Circle().stroke(.white.opacity(0.95), lineWidth: 1))
-                .position(end)
+            Circle().fill(MirTheme.Colors.accentBright).frame(width: 8, height: 8).overlay(Circle().stroke(.white.opacity(0.95), lineWidth: 1)).position(end)
         }
         .allowsHitTesting(false)
     }
@@ -204,9 +168,7 @@ struct NavigationSphereView: View {
 
     private func pole(_ label: String, preset: MirCameraPreset, direction: SIMD3<Double>, center: CGPoint, radius: CGFloat) -> some View {
         let p = project(direction, radius: radius)
-        return Button {
-            navigate(preset)
-        } label: {
+        return Button { navigate(preset) } label: {
             Circle()
                 .fill(MirTheme.Colors.accentBright.opacity(0.28))
                 .frame(width: 17, height: 17)
@@ -219,8 +181,6 @@ struct NavigationSphereView: View {
         .accessibilityLabel(preset.titleRU)
     }
 
-    // MARK: - Interaction
-
     private var trackballGesture: some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
@@ -230,7 +190,6 @@ struct NavigationSphereView: View {
                     dragStartPhi = phi
                     pushHistory()
                 }
-
                 let sensitivity = 0.0105
                 let newTheta = normalizeAngle(dragStartTheta + Double(value.translation.width) * sensitivity)
                 let newPhi = clamp(dragStartPhi - Double(value.translation.height) * sensitivity, min: 0.035, max: .pi - 0.035)
@@ -246,11 +205,7 @@ struct NavigationSphereView: View {
         Circle()
             .stroke(.white.opacity(0.045), lineWidth: 12)
             .frame(width: (radius + 10) * 2, height: (radius + 10) * 2)
-            .overlay {
-                Circle()
-                    .stroke(MirTheme.Colors.panelBorder.opacity(0.55), lineWidth: 1)
-                    .frame(width: (radius + 10) * 2, height: (radius + 10) * 2)
-            }
+            .overlay(Circle().stroke(MirTheme.Colors.panelBorder.opacity(0.55), lineWidth: 1).frame(width: (radius + 10) * 2, height: (radius + 10) * 2))
             .contentShape(Circle().strokeBorder(lineWidth: 12))
             .gesture(
                 DragGesture(minimumDistance: 2)
@@ -268,21 +223,16 @@ struct NavigationSphereView: View {
                         snapToNearestViewIfClose()
                     }
             )
-            .allowsHitTesting(true)
     }
 
     private var controls: some View {
         HStack(spacing: 5) {
-            sphereButton(icon: "cube", help: "Изометрия (F8)") {
-                navigate(.isometric)
-            }
+            sphereButton(icon: "cube", help: "Изометрия (F8)") { navigate(.isometric) }
             sphereButton(icon: "arrow.uturn.backward.circle", help: "Предыдущий вид", disabled: history.isEmpty) {
                 guard let snapshot = history.popLast() else { return }
                 Mir4DSetCameraOrbit(theta: snapshot.theta, phi: snapshot.phi, distance: snapshot.distance, animated: true)
             }
-            sphereButton(icon: "arrow.up.left.and.down.right.magnifyingglass", help: "Вписать всё") {
-                Mir4DRequestCameraFit()
-            }
+            sphereButton(icon: "arrow.up.left.and.down.right.magnifyingglass", help: "Вписать всё") { Mir4DRequestCameraFit() }
         }
         .frame(height: 20)
     }
@@ -301,14 +251,8 @@ struct NavigationSphereView: View {
         .help(help)
     }
 
-    // MARK: - Camera basis
-
     private var cameraForward: SIMD3<Double> {
-        normalized(SIMD3(
-            sin(phi) * sin(theta),
-            cos(phi),
-            sin(phi) * cos(theta)
-        ))
+        normalized(SIMD3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta)))
     }
 
     private func project(_ world: SIMD3<Double>, radius: CGFloat) -> ProjectedDirection {
@@ -317,7 +261,6 @@ struct NavigationSphereView: View {
         let right = normalized(cross(reference, forward))
         let up = normalized(cross(forward, right))
         let direction = normalized(world)
-
         return ProjectedDirection(
             x: CGFloat(dot(direction, right)) * radius,
             y: CGFloat(dot(direction, up)) * radius,
@@ -334,12 +277,8 @@ struct NavigationSphereView: View {
     private func snapToNearestViewIfClose() {
         let nearest = nearestPreset
         let similarity = dot(cameraForward, normalized(nearest.direction))
-        guard similarity >= cos(8.0 * .pi / 180), nearest != nearestPresetFromExactCurrent else { return }
+        guard similarity >= cos(8.0 * .pi / 180) else { return }
         Mir4DSetActiveCameraPreset(nearest, animated: true)
-    }
-
-    private var nearestPresetFromExactCurrent: MirCameraPreset {
-        nearestPreset
     }
 
     private func navigate(_ preset: MirCameraPreset) {
@@ -349,12 +288,8 @@ struct NavigationSphereView: View {
 
     private func pushHistory() {
         history.append(SphereCameraSnapshot(theta: theta, phi: phi, distance: distance))
-        if history.count > 24 {
-            history.removeFirst(history.count - 24)
-        }
+        if history.count > 24 { history.removeFirst(history.count - 24) }
     }
-
-    // MARK: - Context menu / accessibility
 
     @ViewBuilder
     private var contextMenu: some View {
@@ -377,15 +312,8 @@ struct NavigationSphereView: View {
     }
 
     private var orientationDescription: String {
-        String(
-            format: "Азимут %.0f°, наклон %.0f°, расстояние %.2f",
-            theta * 180 / .pi,
-            phi * 180 / .pi,
-            distance
-        )
+        String(format: "Азимут %.0f°, наклон %.0f°, расстояние %.2f", theta * 180 / .pi, phi * 180 / .pi, distance)
     }
-
-    // MARK: - Math
 
     private func normalized(_ value: SIMD3<Double>) -> SIMD3<Double> {
         let length = sqrt(value.x * value.x + value.y * value.y + value.z * value.z)
@@ -398,11 +326,7 @@ struct NavigationSphereView: View {
     }
 
     private func cross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
-        SIMD3(
-            a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x
-        )
+        SIMD3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
     }
 
     private func clamp(_ value: Double, min minimum: Double, max maximum: Double) -> Double {
