@@ -128,17 +128,12 @@ struct CADMainView: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        if resizeBaseline[edge] == nil {
-                            resizeBaseline[edge] = currentDimension(for: edge)
-                        }
+                        if resizeBaseline[edge] == nil { resizeBaseline[edge] = currentDimension(for: edge) }
                         let baseline = resizeBaseline[edge] ?? currentDimension(for: edge)
                         switch edge {
-                        case .left:
-                            workspace.leftWidth = min(420, max(180, baseline + value.translation.width))
-                        case .right:
-                            workspace.rightWidth = min(480, max(220, baseline - value.translation.width))
-                        case .bottom:
-                            workspace.bottomHeight = min(420, max(140, baseline - value.translation.height))
+                        case .left: workspace.leftWidth = min(420, max(180, baseline + value.translation.width))
+                        case .right: workspace.rightWidth = min(480, max(220, baseline - value.translation.width))
+                        case .bottom: workspace.bottomHeight = min(420, max(140, baseline - value.translation.height))
                         }
                     }
                     .onEnded { _ in resizeBaseline.removeValue(forKey: edge) }
@@ -147,11 +142,7 @@ struct CADMainView: View {
     }
 
     private func currentDimension(for edge: ResizeEdge) -> Double {
-        switch edge {
-        case .left: return workspace.leftWidth
-        case .right: return workspace.rightWidth
-        case .bottom: return workspace.bottomHeight
-        }
+        switch edge { case .left: return workspace.leftWidth; case .right: return workspace.rightWidth; case .bottom: return workspace.bottomHeight }
     }
 
     private func dockedPanels(_ placement: PanelPlacement) -> [CADPanel] {
@@ -162,26 +153,32 @@ struct CADMainView: View {
         ZStack {
             viewport
             viewportOverlay
-            CADViewportChrome(appState: appState, cameraTheta: $cameraTheta, cameraPhi: $cameraPhi, cameraDistance: $cameraDistance, isOrthographic: $isOrthographic)
             navigationOverlay
             emptyStateHint
+            if appState.selection.hasSelection {
+                ContextualToolbarView(
+                    appState: appState,
+                    registry: registry,
+                    onCommandPalette: { commandPalettePresented = true }
+                )
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if appState.workbench == .sketch {
                 sketchLayer
-                if appState.sketchPlane == nil {
-                    SketchPlaneChooser(onPick: { appState.sketchPlane = $0 })
-                }
+                if appState.sketchPlane == nil { SketchPlaneChooser(onPick: { appState.sketchPlane = $0 }) }
             }
         }
         .background(MirTheme.Colors.viewport)
         .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeOut(duration: 0.16), value: appState.selection.hasSelection)
     }
 
     private var sketchLayer: some View {
-        SketchViewportView()
-            .environmentObject(appState)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(true)
+        SketchViewportView().environmentObject(appState).frame(maxWidth: .infinity, maxHeight: .infinity).allowsHitTesting(true)
     }
 
     private var viewport: some View {
@@ -218,21 +215,13 @@ struct CADMainView: View {
     }
 
     private var navigationOverlay: some View {
-        NavigationSphereView(
-            theta: cameraTheta,
-            phi: cameraPhi,
-            distance: cameraDistance,
-            isOrthographic: isOrthographic
-        )
-        // 35% прозрачность: куб не должен перекрывать обзор модели.
-        .opacity(0.65)
-        // На 30% меньше базового размера, затем ещё на 20% (итого 0.56).
-        .scaleEffect(0.56)
-        .fixedSize()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        // Отступы от краёв по 5 мм (14 pt).
-        .padding(.top, 14)
-        .padding(.trailing, 14)
+        NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance, isOrthographic: isOrthographic)
+            .opacity(0.65)
+            .scaleEffect(0.56)
+            .fixedSize()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, 14)
+            .padding(.trailing, 14)
     }
 
     @ViewBuilder
@@ -243,10 +232,8 @@ struct CADMainView: View {
                 Text(appState.ui.language == .russian ? "Рабочая область свободна" : "Workspace is empty").font(MirTheme.Typography.title).foregroundStyle(MirTheme.Colors.textSecondary)
                 Text(appState.ui.language == .russian ? "Создайте первый инженерный объект или импортируйте модель." : "Create your first engineering object or import a model.").font(MirTheme.Typography.caption).foregroundStyle(MirTheme.Colors.textTertiary)
                 HStack(spacing: 10) {
-                    Button { createDefaultBox() } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }
-                        .buttonStyle(.borderedProminent).controlSize(.small).tint(MirTheme.Colors.accent)
-                    Button { showImporter = true } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }
-                        .buttonStyle(.bordered).controlSize(.small)
+                    Button { createDefaultBox() } label: { Label(appState.ui.language == .russian ? "Новое тело" : "New Body", systemImage: "cube.transparent") }.buttonStyle(.borderedProminent).controlSize(.small).tint(MirTheme.Colors.accent)
+                    Button { showImporter = true } label: { Label(appState.ui.language == .russian ? "Импорт" : "Import", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered).controlSize(.small)
                 }
             }
             .padding(28)
@@ -285,7 +272,6 @@ private struct ViewportRepresentable: NSViewRepresentable {
         view.onSelectionChanged = onSelectionChanged
         view.onIOError = onIOError
         view.onCameraOrientationChanged = onCameraOrientationChanged
-        // ТЗ: показываем цветные рабочие плоскости только в режиме эскиза.
         view.syncWorkPlanesIfNeeded()
     }
 }
@@ -297,112 +283,9 @@ struct CADViewportChrome: View {
     @Binding var cameraDistance: Double
     @Binding var isOrthographic: Bool
 
-    var body: some View { ZStack { viewportBadge; viewportControls; viewportReadout } }
-
-    private var viewportBadge: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "cube.transparent").font(.system(size: 11, weight: .semibold)).foregroundStyle(MirTheme.Colors.accentBright)
-            Text(appState.ui.language == .russian ? "3D ВИД" : "3D VIEW").font(.system(size: 10, weight: .semibold)).tracking(0.6).foregroundStyle(MirTheme.Colors.textSecondary)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7).background(MirTheme.Colors.surfaceRaised).clipShape(Capsule())
-        .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1))
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(10).allowsHitTesting(false)
-    }
-
-    private var viewportControls: some View {
-        Group {
-            if appState.workbench == .sketch {
-                // Режим эскиза имеет собственную панель инструментов.
-                EmptyView()
-            } else {
-                VStack(spacing: 6) {
-                    workbenchToolGroup
-                }
-                .padding(8)
-                .background(MirTheme.Colors.surfaceRaised.opacity(0.92), in: RoundedRectangle(cornerRadius: MirTheme.Radius.medium))
-                .overlay(RoundedRectangle(cornerRadius: MirTheme.Radius.medium).stroke(MirTheme.Colors.panelBorder, lineWidth: 1))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .padding(10)
-            }
-        }
-    }
-
-    /// Инструменты левой вертикальной панели: набор зависит от текущего
-    /// режима работы (workbench).
-    @ViewBuilder
-    private var workbenchToolGroup: some View {
-        switch appState.workbench {
-        case .model:
-            baseToolGroup
-            viewportButton("cube.transparent", "Новое тело") { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
-            viewportButton("square.2.layers.3d", "Рабочая плоскость (XY +10)") { MIR4DModelCommands.shared.createWorkPlane(basePlane: 1, offset: 10.0) }
-            viewportButton("pencil.tip", "Эскиз: прямоугольник (ограничения)") { MIR4DModelCommands.shared.createSketchRectangle(appState: appState) }
-        case .assembly:
-            baseToolGroup
-            viewportButton("link", "Связать детали") { MirEventBus.shared.publish(.commandRequested("assembly.mate")) }
-            viewportButton("exclamationmark.triangle", "Проверить пересечения") { MirEventBus.shared.publish(.commandRequested("assembly.interference")) }
-        case .simulation:
-            baseToolGroup
-            viewportButton("play.circle", "Запустить расчёт") {
-                MirEventBus.shared.publish(.commandRequested("simulation.solve"))
-                appState.runSimulation()
-            }
-            viewportButton("chart.xyaxis.line", "Показать результаты") {
-                appState.simulation.phase = .results
-                MirEventBus.shared.publish(.commandRequested("simulation.results"))
-            }
-        case .fourD:
-            baseToolGroup
-            viewportButton("play.fill", "Воспроизвести время") { appState.togglePlayback() }
-            viewportButton("arrow.triangle.branch", "Создать ветку сценария") { appState.createTimeBranch(); MirEventBus.shared.publish(.commandRequested("fourD.branch")) }
-            viewportButton("square.split.2x1", "Сравнить состояния") { appState.subMode = .fourDCompare; MirEventBus.shared.publish(.commandRequested("fourD.compare")) }
-            viewportButton("questionmark.diamond", "Что если") { appState.subMode = .fourDWhatIf; MirEventBus.shared.publish(.commandRequested("fourD.whatIf")) }
-        case .drawing:
-            baseToolGroup
-            viewportButton("ruler", "Измерение") { appState.selectedTool = "measure" }
-            viewportButton("grid", "Сетка") { appState.toggleGrid() }
-        case .collaboration, .visualization:
-            baseToolGroup
-        case .sketch:
-            EmptyView()
-        }
-    }
-
-    private var baseToolGroup: some View {
-        VStack(spacing: 6) {
-            viewportButton("arrow.up.left.and.arrow.down.right", "Подогнать модель") { NotificationCenter.default.post(name: .mir4DFitViewport, object: nil) }
-            viewportButton("viewfinder", "Центрировать") { NotificationCenter.default.post(name: .mir4DFitViewport, object: nil) }
-            viewportButton(isOrthographic ? "perspective" : "rectangle.on.rectangle", isOrthographic ? "Включить перспективу" : "Включить ортографическую проекцию") {
-                isOrthographic.toggle()
-                NotificationCenter.default.post(name: .mir4DCameraProjectionRequested, object: nil, userInfo: ["projection": isOrthographic ? 1 : 0])
-            }
-        }
-    }
-
-    private func viewportButton(_ image: String, _ help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: image).font(.system(size: 11, weight: .medium)).frame(width: 26, height: 26).foregroundStyle(MirTheme.Colors.textSecondary).background(MirTheme.Colors.surface).clipShape(RoundedRectangle(cornerRadius: MirTheme.Radius.small))
-        }
-        .buttonStyle(.plain).help(help)
-    }
-
-    private var viewportReadout: some View {
-        VStack {
-            Spacer()
-            HStack(spacing: 10) {
-                Label("X\(format(cameraTheta))", systemImage: "arrow.left.and.right")
-                Label("Y\(format(cameraPhi))", systemImage: "arrow.up.and.down")
-                Label("D\(format(cameraDistance))", systemImage: "ruler")
-                Spacer()
-                Text(appState.ui.language == .russian ? "\(isOrthographic ? "Ортографическая" : "Перспектива") · Колесо — масштаб · ПКМ — панорама" : "\(isOrthographic ? "Orthographic" : "Perspective") · Wheel — zoom · RMB — pan")
-                    .font(.system(size: 9)).foregroundStyle(MirTheme.Colors.textTertiary)
-            }
-            .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(MirTheme.Colors.textSecondary)
-            .padding(.horizontal, 10).padding(.vertical, 6).background(MirTheme.Colors.surfaceRaised).clipShape(Capsule())
-            .overlay(Capsule().stroke(MirTheme.Colors.panelBorder.opacity(0.7), lineWidth: 1)).padding(10)
-        }
-        .allowsHitTesting(false)
-    }
-
-    private func format(_ value: Double) -> String { String(format: "%.1f", value) }
+    /// Legacy compatibility shell. Viewport actions are now contextual and
+    /// rendered by CADMainView through ContextualToolbarView. Keeping this
+    /// type avoids breaking external references while removing the old
+    /// permanent chrome from the viewport.
+    var body: some View { EmptyView() }
 }
