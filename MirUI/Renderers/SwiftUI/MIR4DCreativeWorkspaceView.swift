@@ -11,11 +11,11 @@ private let mir4DCreativeImportTypes: [UTType] = [
 
 /// Immersive MIR 4D workspace.
 /// The scene is the product. Navigation is a quiet bottom dock; tools appear only on demand.
+/// There are no permanent side/top tool panels and no dedicated conversational window.
 struct MIR4DCreativeWorkspaceView: View {
     @ObservedObject var appState: CADAppState
     @StateObject private var registry = CADCommandRegistry()
     @StateObject private var productionStore = ProductionWorldStore()
-    @State private var commandPalettePresented = false
     @State private var radialSettingsPresented = false
     @State private var showImporter = false
     @State private var cameraTheta = 0.0
@@ -27,6 +27,7 @@ struct MIR4DCreativeWorkspaceView: View {
     @State private var radialCenter: CGPoint = .zero
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
+    @State private var voiceActive = false
 
     private var russian: Bool { appState.ui.language == .russian }
 
@@ -41,7 +42,6 @@ struct MIR4DCreativeWorkspaceView: View {
         }
         .background(Color.black)
         .ignoresSafeArea()
-        .sheet(isPresented: $commandPalettePresented) { CommandPaletteView(appState: appState, registry: registry) }
         .sheet(isPresented: $radialSettingsPresented) { RadialMenuSettingsView(store: RadialMenuSettingsStore.shared) }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: mir4DCreativeImportTypes, allowsMultipleSelection: false) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
@@ -119,42 +119,77 @@ struct MIR4DCreativeWorkspaceView: View {
     }
 
     private var bottomDock: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 5) {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
                 dockItem("cube.transparent", russian ? "Модель" : "Model", active: appState.workbench == .model) { appState.selectWorkbench(.model) }
                 dockItem("pencil.and.ruler", russian ? "Эскиз" : "Sketch", active: appState.workbench == .sketch) { appState.selectWorkbench(.sketch) }
                 dockItem("square.stack.3d.up", russian ? "Сборка" : "Assembly", active: appState.workbench == .assembly) { appState.selectWorkbench(.assembly) }
                 dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
                 dockItem("waveform.path.ecg", russian ? "Расчёт" : "Simulation", active: appState.workbench == .simulation) { appState.selectWorkbench(.simulation) }
                 dockDivider
+                voiceDockItem
+                dockDivider
                 dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
-                dockItem("magnifyingglass", "⌘K", active: false) { commandPalettePresented = true }
             }
-            .padding(.horizontal, 10).padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
             .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.13), lineWidth: 1))
-            .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
-            Text(russian ? "Два пальца · 2 сек   •   колесо   •   ]  — инструменты" : "Two fingers · 2 sec   •   middle mouse   •   ]  — tools")
-                .font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.white.opacity(0.24))
+            .overlay(Capsule().stroke(.white.opacity(0.14), lineWidth: 1))
+            .shadow(color: .black.opacity(0.48), radius: 24, y: 11)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).padding(.bottom, 12).allowsHitTesting(true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 14)
+        .allowsHitTesting(true)
     }
 
-    private var dockDivider: some View { Rectangle().fill(.white.opacity(0.10)).frame(width: 1, height: 26).padding(.horizontal, 4) }
+    private var voiceDockItem: some View {
+        Button {
+            voiceActive.toggle()
+            NotificationCenter.default.post(name: .mir4DVoiceInteractionRequested, object: nil, userInfo: ["active": voiceActive])
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(voiceActive ? MirTheme.Colors.accent.opacity(0.30) : Color.white.opacity(0.07))
+                    .frame(width: 48, height: 48)
+                Circle()
+                    .stroke(voiceActive ? MirTheme.Colors.accent : Color.white.opacity(0.16), lineWidth: voiceActive ? 1.5 : 1)
+                    .frame(width: 48, height: 48)
+                Image(systemName: voiceActive ? "waveform" : "mic")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(voiceActive ? MirTheme.Colors.accentBright : .white.opacity(0.72))
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 58, height: 48)
+        .help(russian ? "Голосовое взаимодействие" : "Voice interaction")
+        .animation(.easeOut(duration: 0.18), value: voiceActive)
+    }
+
+    private var dockDivider: some View { Rectangle().fill(.white.opacity(0.10)).frame(width: 1, height: 28).padding(.horizontal, 4) }
+
     private func dockItem(_ icon: String, _ title: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) { Image(systemName: icon).font(.system(size: 14, weight: .semibold)); Text(title).font(.system(size: 8, weight: .medium)) }
-                .foregroundStyle(active ? .white : .white.opacity(0.55)).frame(width: 62, height: 42)
-                .background(active ? MirTheme.Colors.selection.opacity(0.72) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
-        }.buttonStyle(.plain).help(title)
+            VStack(spacing: 3) {
+                Image(systemName: icon).font(.system(size: 14, weight: .semibold))
+                Text(title).font(.system(size: 8, weight: .medium))
+            }
+            .foregroundStyle(active ? .white : .white.opacity(0.55))
+            .frame(width: 62, height: 42)
+            .background(active ? MirTheme.Colors.selection.opacity(0.72) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .help(title)
     }
 
     private var radialMenuOverlay: some View {
         RadialMenuView(store: RadialMenuSettingsStore.shared, center: radialCenter, vector: radialVector, onToolActivated: { _ in radialMenuPresented = false }, onSettings: { radialSettingsPresented = true })
-            .frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black.opacity(0.10).allowsHitTesting(false))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.10).allowsHitTesting(false))
     }
 
-    private func createDefaultBox() { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
+    private func createDefaultBox() {
+        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40)
+    }
 }
 
 private struct CreativeViewportRepresentable: NSViewRepresentable {
