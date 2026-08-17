@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 
 /// Global application-local trigger for the immersive radial menu.
-/// The viewport remains responsible for mouse-wheel activation; this coordinator
-/// adds the MacBook `]` shortcut without stealing ordinary keyboard input.
+/// The radial menu is intentionally centred on the usable display rather than
+/// following the pointer. `]` is a hold gesture: key-down opens, key-up commits.
 @MainActor
 final class MIR4DRadialKeyboardTrigger: ObservableObject {
     static let shared = MIR4DRadialKeyboardTrigger()
@@ -21,14 +21,14 @@ final class MIR4DRadialKeyboardTrigger: ObservableObject {
             guard let self else { return event }
             guard event.charactersIgnoringModifiers == "]" else { return event }
             guard !event.isARepeat else { return nil }
-            self.beginAtCursor()
+            self.beginAtCenter()
             return nil
         }
 
         keyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
             guard let self else { return event }
             guard event.charactersIgnoringModifiers == "]" else { return event }
-            self.endAtCursor()
+            self.endAtCenter()
             return nil
         }
     }
@@ -45,37 +45,24 @@ final class MIR4DRadialKeyboardTrigger: ObservableObject {
         active = false
     }
 
-    private func beginAtCursor() {
+    private func beginAtCenter() {
         guard !active, RadialMenuSettingsStore.shared.settings.enabled else { return }
-        guard let payload = cursorPayload() else { return }
         active = true
-        NotificationCenter.default.post(name: .mir4DRadialMenuBegan, object: nil, userInfo: payload)
+        NotificationCenter.default.post(
+            name: .mir4DRadialMenuBegan,
+            object: nil,
+            userInfo: ["x": 0.5, "y": 0.5, "dx": 0.0, "dy": 0.0]
+        )
     }
 
-    private func endAtCursor() {
+    private func endAtCenter() {
         guard active else { return }
-        let payload = cursorPayload() ?? ["x": 0.5, "y": 0.5]
         active = false
-        NotificationCenter.default.post(name: .mir4DRadialMenuEnded, object: nil, userInfo: [
-            "commit": true,
-            "dx": 0.0,
-            "dy": 0.0,
-            "x": payload["x"] ?? 0.5,
-            "y": payload["y"] ?? 0.5
-        ])
-    }
-
-    private func cursorPayload() -> [String: Double]? {
-        guard let window = NSApp.keyWindow, let content = window.contentView else { return nil }
-        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let point = content.convert(windowPoint, from: nil)
-        guard content.bounds.width > 0, content.bounds.height > 0 else { return nil }
-        return [
-            "x": Double(point.x / content.bounds.width),
-            "y": Double(1.0 - point.y / content.bounds.height),
-            "dx": 0.0,
-            "dy": 0.0
-        ]
+        NotificationCenter.default.post(
+            name: .mir4DRadialMenuEnded,
+            object: nil,
+            userInfo: ["commit": true, "x": 0.5, "y": 0.5, "dx": 0.0, "dy": 0.0]
+        )
     }
 }
 
