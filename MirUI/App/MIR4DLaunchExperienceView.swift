@@ -1,8 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Full launch choreography based on the MIR 4D reference storyboard:
-/// branded card -> diagnostics -> project door -> CAD workspace.
+/// Full launch choreography: diagnostics -> project hub -> immersive CAD workspace.
 struct MIR4DLaunchExperienceView: View {
     @EnvironmentObject private var appState: CADAppState
     @EnvironmentObject private var launch: MIR4DLaunchCoordinator
@@ -23,7 +22,7 @@ struct MIR4DLaunchExperienceView: View {
                 Color.black.ignoresSafeArea()
 
                 if phase == .workspace {
-                    CADMainView(appState: appState)
+                    MIR4DCreativeWorkspaceView(appState: appState)
                         .opacity(workspaceVisible ? 1 : 0)
                         .scaleEffect(workspaceVisible ? 1 : 1.015)
                         .animation(.easeOut(duration: 0.65), value: workspaceVisible)
@@ -52,14 +51,9 @@ struct MIR4DLaunchExperienceView: View {
         .frame(minWidth: 1280, minHeight: 800)
         .onAppear {
             startBoot()
-            // TEMP DEBUG: открыть CAD-воркспейс сразу, без ручного выбора.
             if CommandLine.arguments.contains("--debug-cad") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    NotificationCenter.default.post(
-                        name: .mir4DStartWorkspace,
-                        object: nil,
-                        userInfo: ["workbench": "model"]
-                    )
+                    NotificationCenter.default.post(name: .mir4DStartWorkspace, object: nil, userInfo: ["workbench": "model"])
                 }
             }
         }
@@ -69,9 +63,7 @@ struct MIR4DLaunchExperienceView: View {
             openExternalProject(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { note in
-            print("TRACE: mir4DStartWorkspace получена")
-            if let raw = note.userInfo?["workbench"] as? String,
-               let workbench = CADWorkbench(rawValue: raw) {
+            if let raw = note.userInfo?["workbench"] as? String, let workbench = CADWorkbench(rawValue: raw) {
                 appState.selectWorkbench(workbench)
             }
             revealWorkspace()
@@ -91,7 +83,6 @@ struct MIR4DLaunchExperienceView: View {
                 Text("Мечтай · Изобретай · Развивай").font(.system(size: 12)).foregroundStyle(.white.opacity(0.52))
             }
             Spacer()
-
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     Circle().fill(.blue).frame(width: 6, height: 6)
@@ -99,57 +90,33 @@ struct MIR4DLaunchExperienceView: View {
                     Spacer()
                     Text("\(Int(boot.progress * 100))%").font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
                 }
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(boot.steps) { step in
                             HStack(spacing: 7) {
-                                Image(systemName: diagnosticIcon(step.severity))
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(diagnosticColor(step.severity))
-                                    .frame(width: 12)
-                                Text(step.title)
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.white.opacity(0.66))
-                                    .lineLimit(1)
+                                Image(systemName: diagnosticIcon(step.severity)).font(.system(size: 9)).foregroundStyle(diagnosticColor(step.severity)).frame(width: 12)
+                                Text(step.title).font(.system(size: 9)).foregroundStyle(.white.opacity(0.66)).lineLimit(1)
                                 Spacer(minLength: 4)
-                                Text(step.detail)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.42))
-                                    .lineLimit(1)
+                                Text(step.detail).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.42)).lineLimit(1)
                             }
-                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 230)
-
-                Text(boot.currentTitle)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.40))
-                    .lineLimit(1)
-
-                ProgressView(value: boot.progress, total: 1)
-                    .tint(.blue)
-                    .animation(.easeInOut(duration: 0.2), value: boot.progress)
-
+                Text(boot.currentTitle).font(.system(size: 9)).foregroundStyle(.white.opacity(0.40)).lineLimit(1)
+                ProgressView(value: boot.progress, total: 1).tint(.blue).animation(.easeInOut(duration: 0.2), value: boot.progress)
                 if boot.state == .ready || boot.state == .warning || boot.state == .failed {
                     HStack(spacing: 6) {
                         Circle().fill(bootStateColor).frame(width: 6, height: 6)
-                        Text(bootStateLabel)
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(bootStateColor)
+                        Text(bootStateLabel).font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(bootStateColor)
                     }
-                    .transition(.opacity)
                 }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 34)
         }
-        .background(RoundedRectangle(cornerRadius: 12).fill(
-            LinearGradient(colors: [Color(red: 0.035, green: 0.055, blue: 0.085), Color(red: 0.008, green: 0.012, blue: 0.020)], startPoint: .topLeading, endPoint: .bottomTrailing)
-        ))
+        .background(RoundedRectangle(cornerRadius: 12).fill(LinearGradient(colors: [Color(red: 0.035, green: 0.055, blue: 0.085), Color(red: 0.008, green: 0.012, blue: 0.020)], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.20), lineWidth: 1))
         .overlay(alignment: .trailing) { Rectangle().fill(Color.blue.opacity(0.80)).frame(width: 2).blur(radius: 4) }
         .shadow(color: .blue.opacity(0.13), radius: 35, x: 14, y: 0)
@@ -159,39 +126,16 @@ struct MIR4DLaunchExperienceView: View {
     }
 
     private func diagnosticIcon(_ severity: MIR4DBootCoordinator.Severity) -> String {
-        switch severity {
-        case .success: return "checkmark.circle.fill"
-        case .warning: return "exclamationmark.circle.fill"
-        case .error: return "xmark.circle.fill"
-        case .info: return "circle"
-        }
+        switch severity { case .success: return "checkmark.circle.fill"; case .warning: return "exclamationmark.circle.fill"; case .error: return "xmark.circle.fill"; case .info: return "circle" }
     }
-
     private func diagnosticColor(_ severity: MIR4DBootCoordinator.Severity) -> Color {
-        switch severity {
-        case .success: return .blue
-        case .warning: return .yellow
-        case .error: return .red
-        case .info: return .white.opacity(0.28)
-        }
+        switch severity { case .success: return .blue; case .warning: return .yellow; case .error: return .red; case .info: return .white.opacity(0.28) }
     }
-
     private var bootStateColor: Color {
-        switch boot.state {
-        case .failed: return .red
-        case .warning: return .yellow
-        case .ready: return .green
-        default: return .white.opacity(0.40)
-        }
+        switch boot.state { case .failed: return .red; case .warning: return .yellow; case .ready: return .green; default: return .white.opacity(0.40) }
     }
-
     private var bootStateLabel: String {
-        switch boot.state {
-        case .ready: return "ГОТОВО"
-        case .warning: return "ГОТОВО С ПРЕДУПРЕЖДЕНИЯМИ"
-        case .failed: return "ОШИБКА ЗАПУСКА"
-        default: return ""
-        }
+        switch boot.state { case .ready: return "ГОТОВО"; case .warning: return "ГОТОВО С ПРЕДУПРЕЖДЕНИЯМИ"; case .failed: return "ОШИБКА ЗАПУСКА"; default: return "" }
     }
 
     private func startBoot() {
