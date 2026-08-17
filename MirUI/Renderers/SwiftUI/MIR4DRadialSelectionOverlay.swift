@@ -8,36 +8,23 @@ struct MIR4DRadialSelectionState: Equatable {
 }
 
 enum MIR4DRadialSelectionEngine {
-    static func state(vector: CGVector, settings: RadialMenuSettings) -> MIR4DRadialSelectionState {
-        state(vector: vector, settings: settings, previous: nil)
-    }
+    static func state(vector: CGVector, settings: RadialMenuSettings) -> MIR4DRadialSelectionState { state(vector: vector, settings: settings, previous: nil) }
 
     static func state(vector: CGVector, settings: RadialMenuSettings, previous: MIR4DRadialSelectionState?) -> MIR4DRadialSelectionState {
         let panels = settings.panels.filter(\.enabled)
         guard !panels.isEmpty else { return .init() }
         let distance = hypot(vector.dx, vector.dy)
         guard distance >= settings.deadZone else { return .init() }
-
         let rawAngle = normalizedAngle(atan2(vector.dy, vector.dx))
         let panelIndex = hystereticSector(angle: rawAngle, count: panels.count, previous: previous?.panelIndex, hysteresis: 0.16)
         guard panels.indices.contains(panelIndex) else { return .init() }
-
         let panel = panels[panelIndex]
-        guard distance >= settings.activationRadius, !panel.tools.isEmpty else {
-            return .init(panelIndex: panelIndex, toolIndex: nil, orbit: 1, angle: rawAngle)
-        }
-
+        guard distance >= settings.activationRadius, !panel.tools.isEmpty else { return .init(panelIndex: panelIndex, toolIndex: nil, orbit: 1, angle: rawAngle) }
         let toolCount = panel.tools.count
         let panelCenter = sectorCenter(panelIndex, panels.count)
         let relative = shortestSignedAngle(from: panelCenter, to: rawAngle)
         let toolAngle = normalizedAngle(panelCenter + relative)
-        let toolIndex = hystereticSector(
-            angle: toolAngle,
-            count: toolCount,
-            previous: previous?.panelIndex == panelIndex ? previous?.toolIndex : nil,
-            hysteresis: 0.20
-        )
-
+        let toolIndex = hystereticSector(angle: toolAngle, count: toolCount, previous: previous?.panelIndex == panelIndex ? previous?.toolIndex : nil, hysteresis: 0.20)
         return .init(panelIndex: panelIndex, toolIndex: toolIndex, orbit: 2, angle: toolAngle)
     }
 
@@ -47,42 +34,17 @@ enum MIR4DRadialSelectionEngine {
         let candidate = nearestSector(angle, count: count)
         guard let previous, previous >= 0, previous < count else { return candidate }
         if candidate == previous { return previous }
-
         let previousCenter = sectorCenter(previous, count)
         let distance = abs(shortestSignedAngle(from: previousCenter, to: angle))
         let threshold = sector * (0.5 + min(max(hysteresis, 0), 0.45))
         return distance > threshold ? candidate : previous
     }
 
-    static func normalizedAngle(_ value: Double) -> Double {
-        let full = Double.pi * 2
-        let result = value.truncatingRemainder(dividingBy: full)
-        return result < 0 ? result + full : result
-    }
-
-    static func shortestSignedAngle(from: Double, to: Double) -> Double {
-        atan2(sin(to - from), cos(to - from))
-    }
-
-    static func sectorCenter(_ index: Int, _ count: Int) -> Double {
-        guard count > 0 else { return 0 }
-        return normalizedAngle((Double(index) + 0.5) * Double.pi * 2 / Double(count))
-    }
-
-    static func nearestSector(_ angle: Double, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        let sector = Double.pi * 2 / Double(count)
-        return Int(floor((normalizedAngle(angle) + sector / 2) / sector)) % count
-    }
-
-    static func snappedAngle(_ angle: Double, count: Int, strength: Double) -> Double {
-        guard count > 0 else { return angle }
-        let sector = Double.pi * 2 / Double(count)
-        let raw = normalizedAngle(angle)
-        let target = Double(nearestSector(raw, count: count)) * sector
-        let delta = atan2(sin(target - raw), cos(target - raw))
-        return normalizedAngle(raw + delta * min(max(strength, 0), 1))
-    }
+    static func normalizedAngle(_ value: Double) -> Double { let full = Double.pi * 2; let result = value.truncatingRemainder(dividingBy: full); return result < 0 ? result + full : result }
+    static func shortestSignedAngle(from: Double, to: Double) -> Double { atan2(sin(to - from), cos(to - from)) }
+    static func sectorCenter(_ index: Int, _ count: Int) -> Double { guard count > 0 else { return 0 }; return normalizedAngle((Double(index) + 0.5) * Double.pi * 2 / Double(count)) }
+    static func nearestSector(_ angle: Double, count: Int) -> Int { guard count > 0 else { return 0 }; let sector = Double.pi * 2 / Double(count); return Int(floor((normalizedAngle(angle) + sector / 2) / sector)) % count }
+    static func snappedAngle(_ angle: Double, count: Int, strength: Double) -> Double { guard count > 0 else { return angle }; let sector = Double.pi * 2 / Double(count); let raw = normalizedAngle(angle); let target = Double(nearestSector(raw, count: count)) * sector; let delta = atan2(sin(target - raw), cos(target - raw)); return normalizedAngle(raw + delta * min(max(strength, 0), 1)) }
 }
 
 struct MIR4DRadialSelectionOverlay: View {
@@ -95,32 +57,23 @@ struct MIR4DRadialSelectionOverlay: View {
     @State private var previousState = MIR4DRadialSelectionState()
 
     private var panels: [RadialMenuPanel] { store.settings.panels.filter(\.enabled) }
-    private var state: MIR4DRadialSelectionState {
-        MIR4DRadialSelectionEngine.state(vector: vector, settings: store.settings, previous: previousState)
-    }
-    private var selectedPanel: RadialMenuPanel? {
-        guard let index = state.panelIndex, panels.indices.contains(index) else { return nil }
-        return panels[index]
-    }
-    private var selectedTool: RadialMenuTool? {
-        guard let panel = selectedPanel, let index = state.toolIndex, panel.tools.indices.contains(index) else { return nil }
-        return panel.tools[index]
-    }
+    private var state: MIR4DRadialSelectionState { MIR4DRadialSelectionEngine.state(vector: vector, settings: store.settings, previous: previousState) }
+    private var selectedPanel: RadialMenuPanel? { guard let index = state.panelIndex, panels.indices.contains(index) else { return nil }; return panels[index] }
+    private var selectedTool: RadialMenuTool? { guard let panel = selectedPanel, let index = state.toolIndex, panel.tools.indices.contains(index) else { return nil }; return panel.tools[index] }
     private var distance: Double { hypot(vector.dx, vector.dy) }
     private var direction: Double { state.angle }
-    private var revealProgress: Double {
-        guard state.orbit == 2 else { return 0 }
-        let start = max(1, store.settings.activationRadius)
-        let travel = max(1, store.settings.submenuOffset - start)
-        return min(max((distance - start) / travel, 0), 1)
-    }
+    private var revealProgress: Double { guard state.orbit == 2 else { return 0 }; let start = max(1, store.settings.activationRadius); let travel = max(1, store.settings.submenuOffset - start); return min(max((distance - start) / travel, 0), 1) }
+    private var revealEased: Double { let x = revealProgress; return x * x * (3 - 2 * x) }
+    private var depthScale: Double { 0.92 + revealEased * 0.08 }
+    private var blurAmount: Double { 1.5 + revealEased * 3.5 }
 
     var body: some View {
         ZStack {
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
-                .overlay(Color.black.opacity(0.16).ignoresSafeArea())
+                .overlay(Color.black.opacity(0.14 + revealEased * 0.08).ignoresSafeArea())
+                .blur(radius: blurAmount)
                 .allowsHitTesting(false)
 
             ZStack {
@@ -130,13 +83,9 @@ struct MIR4DRadialSelectionOverlay: View {
                     .overlay(Circle().stroke(MirTheme.Colors.accentBright.opacity(0.75), lineWidth: 1.5))
                     .overlay {
                         VStack(spacing: 3) {
-                            Image(systemName: selectedTool?.icon ?? selectedPanel?.icon ?? "scope")
-                                .font(.system(size: 20, weight: .semibold))
-                            Text(selectedTool?.title ?? selectedPanel?.title ?? "МИР")
-                                .font(.system(size: 10, weight: .bold))
-                                .lineLimit(1)
-                        }
-                        .foregroundStyle(.white)
+                            Image(systemName: selectedTool?.icon ?? selectedPanel?.icon ?? "scope").font(.system(size: 20, weight: .semibold))
+                            Text(selectedTool?.title ?? selectedPanel?.title ?? "МИР").font(.system(size: 10, weight: .bold)).lineLimit(1)
+                        }.foregroundStyle(.white)
                     }
 
                 ForEach(Array(panels.enumerated()), id: \.element.id) { index, panel in
@@ -146,30 +95,20 @@ struct MIR4DRadialSelectionOverlay: View {
 
                 if let panel = selectedPanel {
                     let submenuRadius = max(store.settings.submenuOffset, store.settings.panelRadius + 58)
-                    let submenuCenter = CGPoint(x: CGFloat(cos(direction) * submenuRadius), y: CGFloat(sin(direction) * submenuRadius))
-                    let reveal = revealProgress
+                    let reveal = revealEased
+                    let submenuCenter = CGPoint(x: CGFloat(cos(direction) * submenuRadius * reveal), y: CGFloat(sin(direction) * submenuRadius * reveal))
                     let submenuScale = 0.72 + 0.28 * reveal
-                    let submenuOpacity = 0.18 + 0.82 * reveal
+                    let submenuOpacity = 0.16 + 0.84 * reveal
 
                     Circle()
                         .stroke(MirTheme.Colors.selection.opacity(0.35 * submenuOpacity), lineWidth: 1)
                         .frame(width: CGFloat(store.settings.submenuOffset * 2 * submenuScale), height: CGFloat(store.settings.submenuOffset * 2 * submenuScale))
-                        .position(x: 260 + submenuCenter.x * reveal, y: 260 + submenuCenter.y * reveal)
-                        .animation(.easeOut(duration: 0.16), value: reveal)
+                        .position(x: 260 + submenuCenter.x, y: 260 + submenuCenter.y)
 
                     ForEach(Array(panel.tools.enumerated()), id: \.element.id) { index, tool in
                         let selected = state.toolIndex == index
                         let toolAngle = submenuToolAngle(index, panel.tools.count, center: direction)
-                        radialNode(
-                            title: store.settings.showLabels ? tool.title : "",
-                            icon: tool.icon,
-                            selected: selected,
-                            radius: 62 * reveal,
-                            angle: toolAngle,
-                            origin: CGPoint(x: submenuCenter.x * reveal, y: submenuCenter.y * reveal),
-                            opacity: submenuOpacity,
-                            scale: submenuScale
-                        )
+                        radialNode(title: store.settings.showLabels ? tool.title : "", icon: tool.icon, selected: selected, radius: 62 * reveal, angle: toolAngle, origin: submenuCenter, opacity: submenuOpacity, scale: submenuScale)
                     }
                 }
 
@@ -181,6 +120,7 @@ struct MIR4DRadialSelectionOverlay: View {
             }
             .frame(width: 520, height: 520)
             .position(center)
+            .scaleEffect(depthScale)
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
             .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.78), value: state)
 
@@ -195,8 +135,7 @@ struct MIR4DRadialSelectionOverlay: View {
                 Text("Отпустите — \(tool.title)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: Capsule())
                     .position(x: center.x, y: center.y + 190)
                     .transition(.opacity)
@@ -224,14 +163,6 @@ struct MIR4DRadialSelectionOverlay: View {
         .position(x: x, y: y)
     }
 
-    private func sectorAngle(_ index: Int, _ count: Int) -> Double {
-        -Double.pi / 2 + Double.pi * 2 / Double(max(count, 1)) * Double(index)
-    }
-
-    private func submenuToolAngle(_ index: Int, _ count: Int, center: Double) -> Double {
-        guard count > 0 else { return center }
-        let spread = min(Double.pi * 0.9, max(Double.pi * 0.42, Double(count - 1) * Double.pi / 9))
-        if count == 1 { return center }
-        return center - spread / 2 + spread * Double(index) / Double(count - 1)
-    }
+    private func sectorAngle(_ index: Int, _ count: Int) -> Double { -Double.pi / 2 + Double.pi * 2 / Double(max(count, 1)) * Double(index) }
+    private func submenuToolAngle(_ index: Int, _ count: Int, center: Double) -> Double { guard count > 0 else { return center }; let spread = min(Double.pi * 0.9, max(Double.pi * 0.42, Double(count - 1) * Double.pi / 9)); if count == 1 { return center }; return center - spread / 2 + spread * Double(index) / Double(count - 1) }
 }
