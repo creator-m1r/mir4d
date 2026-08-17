@@ -23,6 +23,7 @@ struct MIR4DLaunchExperienceView: View {
 
                 if phase == .workspace {
                     MIR4DCreativeWorkspaceView(appState: appState)
+                        .mir4DRadialKeyboardTrigger()
                         .opacity(workspaceVisible ? 1 : 0)
                         .scaleEffect(workspaceVisible ? 1 : 1.015)
                         .animation(.easeOut(duration: 0.65), value: workspaceVisible)
@@ -63,9 +64,7 @@ struct MIR4DLaunchExperienceView: View {
             openExternalProject(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DStartWorkspace)) { note in
-            if let raw = note.userInfo?["workbench"] as? String, let workbench = CADWorkbench(rawValue: raw) {
-                appState.selectWorkbench(workbench)
-            }
+            if let raw = note.userInfo?["workbench"] as? String, let workbench = CADWorkbench(rawValue: raw) { appState.selectWorkbench(workbench) }
             revealWorkspace()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectClosed)) { _ in
