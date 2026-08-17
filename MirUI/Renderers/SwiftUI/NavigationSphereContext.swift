@@ -46,37 +46,37 @@ public enum MirCameraPreset: String, CaseIterable {
         }
     }
 
-    /// Unit direction (x right, y up, z forward) used by the navigation cube
-    /// to highlight the currently active view.
+    /// World-space VIEW direction. MirEngine uses a Z-up coordinate system.
+    /// These vectors represent target - eye, matching Camera::forward().
     var direction: SIMD3<Double> {
         switch self {
-        case .front: return SIMD3(0, 0, 1)
-        case .back: return SIMD3(0, 0, -1)
-        case .left: return SIMD3(-1, 0, 0)
-        case .right: return SIMD3(1, 0, 0)
-        case .top: return SIMD3(0, 1, 0)
-        case .bottom: return SIMD3(0, -1, 0)
-        case .isometric: return SIMD3(1, 1, 1).normalized
-        case .topFrontLeft: return SIMD3(-1, 1, 1).normalized
-        case .topFrontRight: return SIMD3(1, 1, 1).normalized
-        case .topBackLeft: return SIMD3(-1, 1, -1).normalized
-        case .topBackRight: return SIMD3(1, 1, -1).normalized
-        case .bottomFrontLeft: return SIMD3(-1, -1, 1).normalized
-        case .bottomFrontRight: return SIMD3(1, -1, 1).normalized
-        case .bottomBackLeft: return SIMD3(-1, -1, -1).normalized
-        case .bottomBackRight: return SIMD3(1, -1, -1).normalized
-        case .frontLeft: return SIMD3(-1, 0, 1).normalized
-        case .frontRight: return SIMD3(1, 0, 1).normalized
-        case .backLeft: return SIMD3(-1, 0, -1).normalized
-        case .backRight: return SIMD3(1, 0, -1).normalized
-        case .topFront: return SIMD3(0, 1, 1).normalized
+        case .front: return SIMD3(0, -1, 0)
+        case .back: return SIMD3(0, 1, 0)
+        case .left: return SIMD3(1, 0, 0)
+        case .right: return SIMD3(-1, 0, 0)
+        case .top: return SIMD3(0, 0, -1)
+        case .bottom: return SIMD3(0, 0, 1)
+        case .isometric: return SIMD3(-1, -1, -1).normalized
+        case .topFrontLeft: return SIMD3(1, -1, -1).normalized
+        case .topFrontRight: return SIMD3(-1, -1, -1).normalized
+        case .topBackLeft: return SIMD3(1, 1, -1).normalized
+        case .topBackRight: return SIMD3(-1, 1, -1).normalized
+        case .bottomFrontLeft: return SIMD3(1, -1, 1).normalized
+        case .bottomFrontRight: return SIMD3(-1, -1, 1).normalized
+        case .bottomBackLeft: return SIMD3(1, 1, 1).normalized
+        case .bottomBackRight: return SIMD3(-1, 1, 1).normalized
+        case .frontLeft: return SIMD3(1, -1, 0).normalized
+        case .frontRight: return SIMD3(-1, -1, 0).normalized
+        case .backLeft: return SIMD3(1, 1, 0).normalized
+        case .backRight: return SIMD3(-1, 1, 0).normalized
+        case .topFront: return SIMD3(0, -1, -1).normalized
         case .topBack: return SIMD3(0, 1, -1).normalized
-        case .topLeft: return SIMD3(-1, 1, 0).normalized
-        case .topRight: return SIMD3(1, 1, 0).normalized
+        case .topLeft: return SIMD3(1, 0, -1).normalized
+        case .topRight: return SIMD3(-1, 0, -1).normalized
         case .bottomFront: return SIMD3(0, -1, 1).normalized
-        case .bottomBack: return SIMD3(0, -1, -1).normalized
-        case .bottomLeft: return SIMD3(-1, -1, 0).normalized
-        case .bottomRight: return SIMD3(1, -1, 0).normalized
+        case .bottomBack: return SIMD3(0, 1, 1).normalized
+        case .bottomLeft: return SIMD3(1, 0, 1).normalized
+        case .bottomRight: return SIMD3(-1, 0, 1).normalized
         }
     }
 
