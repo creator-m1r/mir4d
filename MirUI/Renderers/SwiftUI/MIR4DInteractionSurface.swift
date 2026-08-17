@@ -23,23 +23,38 @@ struct MIR4DInteractionSurface<Content: View>: View {
     }
 
     var body: some View {
-        ZStack {
-            content
-                .contentShape(Rectangle())
-                .gesture(sceneGesture)
-
-            if radialVisible {
-                Color.clear
+        GeometryReader { proxy in
+            let metrics = metrics(for: proxy.size)
+            ZStack {
+                content
                     .contentShape(Rectangle())
-                    .gesture(radialGesture)
+                    .blur(radius: radialVisible ? metrics.blurRadius : 0)
+                    .animation(.easeOut(duration: 0.20), value: radialVisible)
+                    .gesture(sceneGesture(metrics: metrics))
+
+                if radialVisible {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(radialGesture(metrics: metrics))
+                }
             }
         }
         .onDisappear { coordinator.cancel() }
     }
 
-    private var sceneGesture: some Gesture {
+    private func metrics(for size: CGSize) -> MIR4DTouchInteractionPolicy.Metrics {
+        #if os(iOS)
+        return MIR4DTouchInteractionPolicy.metrics(for: .iPad, shortestSide: min(size.width, size.height))
+        #else
+        // SwiftUI cannot reliably distinguish mouse and trackpad at this layer.
+        // The platform input adapter can later provide the precise pointer kind.
+        return MIR4DTouchInteractionPolicy.metrics(for: .macTrackpad, shortestSide: min(size.width, size.height))
+        #endif
+    }
+
+    private func sceneGesture(metrics: MIR4DTouchInteractionPolicy.Metrics) -> some Gesture {
         SimultaneousGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .local)
+            DragGesture(minimumDistance: metrics.sceneGestureMinimumDistance, coordinateSpace: .local)
                 .onChanged { value in
                     if !radialVisible {
                         if gestureOrigin == .zero { gestureOrigin = value.startLocation }
@@ -71,21 +86,24 @@ struct MIR4DInteractionSurface<Content: View>: View {
         )
     }
 
-    private var radialGesture: some Gesture {
+    private func radialGesture(metrics: MIR4DTouchInteractionPolicy.Metrics) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
                 let vector = MIR4DTouchGeometry.clamped(
                     MIR4DTouchGeometry.radialVector(from: gestureOrigin, to: value.location),
-                    maximum: coordinator.maximumRadialDistance
+                    maximum: metrics.radialMaximum
                 )
+                coordinator.radialActivationDistance = metrics.radialDeadZone
+                coordinator.radialSubmenuDistance = metrics.radialSecondOrbit
+                coordinator.maximumRadialDistance = metrics.radialMaximum
                 coordinator.updateRadial(vector: vector)
             }
             .onEnded { value in
                 let vector = MIR4DTouchGeometry.clamped(
                     MIR4DTouchGeometry.radialVector(from: gestureOrigin, to: value.location),
-                    maximum: coordinator.maximumRadialDistance
+                    maximum: metrics.radialMaximum
                 )
-                if !MIR4DTouchGeometry.isInsideRadialDeadZone(vector, radius: coordinator.radialActivationDistance) {
+                if !MIR4DTouchGeometry.isInsideRadialDeadZone(vector, radius: metrics.radialDeadZone) {
                     onRadialCommit(vector)
                 }
                 radialVisible = false
@@ -94,8 +112,8 @@ struct MIR4DInteractionSurface<Content: View>: View {
             }
     }
 
-    /// Call from the platform input layer when a two-finger hold or `]` hold
-    /// requests the radial interface. The menu remains centered on the display.
+    /// Requests the radial interface. The gesture origin is the touch start,
+    /// while the rendered menu itself remains centred by the host viewport.
     func activateRadial(at location: CGPoint) {
         gestureOrigin = location
         radialVisible = true
