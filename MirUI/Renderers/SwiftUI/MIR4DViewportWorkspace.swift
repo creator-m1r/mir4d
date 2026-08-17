@@ -1,36 +1,46 @@
 import SwiftUI
 
 /// Unified viewport composition for MIR 4D.
-/// Keeps viewport-specific overlays out of CADMainView and makes the workspace
-/// extensible without introducing a second camera or selection state.
+/// Camera and selection remain owned by CADAppState / MirGLCustomView.
 struct MIR4DViewportWorkspace: View {
     @ObservedObject var appState: CADAppState
     let registry: CADCommandRegistry
+    @Binding var cameraTheta: Double
+    @Binding var cameraPhi: Double
+    @Binding var cameraDistance: Double
+    @Binding var isOrthographic: Bool
+    var onIOError: ((String) -> Void)? = nil
     var onCommandPalette: (() -> Void)? = nil
 
     var body: some View {
         ZStack(alignment: .bottom) {
             ViewportRepresentable(
                 appState: appState,
-                onModelDrop: { _ in }
+                onSelectionChanged: { objectID in
+                    appState.setSelection(ids: objectID > 0 ? ["\(objectID)"] : [], kind: objectID > 0 ? .body : .none)
+                },
+                onIOError: { message in onIOError?(message) },
+                onCameraOrientationChanged: { theta, phi, distance in
+                    cameraTheta = theta
+                    cameraPhi = phi
+                    cameraDistance = distance
+                }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            NavigationSphereView(appState: appState)
-                .padding(.trailing, 14)
-                .padding(.top, 14)
+            NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance, isOrthographic: isOrthographic)
+                .opacity(0.65)
+                .scaleEffect(0.56)
+                .fixedSize()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .allowsHitTesting(true)
+                .padding(.top, 14)
+                .padding(.trailing, 14)
 
             if appState.selection.hasSelection {
-                ContextualToolbarView(
-                    appState: appState,
-                    registry: registry,
-                    onCommandPalette: onCommandPalette
-                )
-                .padding(.horizontal, 18)
-                .padding(.bottom, 14)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                ContextualToolbarView(appState: appState, registry: registry, onCommandPalette: onCommandPalette)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .clipped()
