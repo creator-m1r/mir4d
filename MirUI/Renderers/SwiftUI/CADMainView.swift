@@ -226,7 +226,9 @@ struct CADMainView: View {
     private func executeRadialCommand(_ command: String) {
         let normalized = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
-        registry.execute(id: normalized, appState: appState)
+        guard registry.execute(id: normalized, context: appState.activeContext) else {
+            appState.showNotification("Команда недоступна в текущем контексте: \(normalized)", type: .warning)
+        }
     }
 
     private func applyCameraIntent(deltaTheta: Double, deltaPhi: Double, deltaDistance: Double) {
@@ -238,85 +240,11 @@ struct CADMainView: View {
         cameraPhi = nextPhi
         cameraDistance = nextDistance
         showEmptyState = false
-
-        Mir4DSetCameraOrbit(
-            theta: nextTheta,
-            phi: nextPhi,
-            distance: nextDistance,
-            animated: false
-        )
+        Mir4DSetCameraOrbit(theta: nextTheta, phi: nextPhi, distance: nextDistance)
     }
 
     private func createDefaultBox() {
-        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40)
-    }
-
-    private enum ResizeEdge: Hashable { case left, right, bottom }
-}
-
-private struct MinimalWorkspaceBar: View {
-    @ObservedObject var appState: CADAppState
-    let onCommandPalette: () -> Void
-    let onSettings: () -> Void
-    let onPanels: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onPanels) { Image(systemName: "sidebar.left") }
-                .help("Дополнительные панели")
-            Divider().frame(height: 20)
-            Text(appState.documentTitle)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-            Spacer(minLength: 16)
-            Button(action: onCommandPalette) { Image(systemName: "magnifyingglass") }
-                .help("Поиск команды")
-            Button(action: onSettings) { Image(systemName: "gearshape") }
-                .help("Настройки")
-        }
-        .foregroundStyle(.white.opacity(0.86))
-        .padding(.horizontal, 18)
-        .padding(.vertical, 11)
-        .frame(minHeight: 48)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
-        .shadow(radius: 16, y: 6)
-    }
-}
-
-private struct ViewportRepresentable: NSViewRepresentable {
-    var appState: CADAppState
-    var onSelectionChanged: (UInt64) -> Void
-    var onIOError: (String) -> Void
-    var onCameraOrientationChanged: (Double, Double, Double) -> Void
-
-    func makeNSView(context: Context) -> MirGLCustomView {
-        let view = MirGLCustomView()
-        apply(to: view)
-        return view
-    }
-
-    func updateNSView(_ nsView: MirGLCustomView, context: Context) {
-        apply(to: nsView)
-    }
-
-    private func apply(to view: MirGLCustomView) {
-        view.appState = appState
-        view.onSelectionChanged = onSelectionChanged
-        view.onIOError = onIOError
-        view.onCameraOrientationChanged = onCameraOrientationChanged
-        view.syncWorkPlanesIfNeeded()
-    }
-}
-
-struct CADViewportChrome: View {
-    @ObservedObject var appState: CADAppState
-    @Binding var cameraTheta: Double
-    @Binding var cameraPhi: Double
-    @Binding var cameraDistance: Double
-    @Binding var isOrthographic: Bool
-
-    var body: some View {
-        EmptyView()
+        _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 100, depth: 60, height: 40)
+        showEmptyState = false
     }
 }
