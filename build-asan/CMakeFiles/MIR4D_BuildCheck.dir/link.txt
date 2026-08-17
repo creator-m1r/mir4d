@@ -1,1 +1,0 @@
-/usr/bin/c++ -fsanitize=address -fno-omit-frame-pointer -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address CMakeFiles/MIR4D_BuildCheck.dir/MirEngine/Tests/Core/BuildCheck.cpp.o -o MIR4D_BuildCheck
