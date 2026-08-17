@@ -14,9 +14,11 @@ final class RadialMenuContextStore: ObservableObject {
         selectionKind: .none
     )
 
+    private let basePanels: [RadialMenuPanel]
     private var subscription: UUID?
 
     private init() {
+        basePanels = RadialMenuSettingsStore.shared.settings.panels
         subscription = MirEventBus.shared.subscribe { [weak self] event in
             guard let self else { return }
             switch event {
@@ -43,16 +45,19 @@ final class RadialMenuContextStore: ObservableObject {
         applyVisibleContext()
     }
 
-    /// The visual radial menu is intentionally driven by the same context
-    /// policy as the availability layer. This keeps the scene, gesture and
-    /// command vocabulary synchronized without duplicating context logic in
-    /// RadialMenuView.
+    /// Projects the stable user menu into the current engineering context.
+    /// RadialMenuView remains intentionally simple: it renders the same
+    /// settings object, while the event bus decides which intent families are
+    /// relevant right now.
     private func applyVisibleContext() {
         let store = RadialMenuSettingsStore.shared
-        store.settings.panels = RadialMenuContextLayout.panels(
-            settings: store.settings,
+        var contextualSettings = store.settings
+        contextualSettings.panels = RadialMenuContextLayout.panels(
+            settings: contextualSettings,
+            basePanels: basePanels,
             context: snapshot
         )
+        store.settings.panels = contextualSettings.panels
     }
 
     deinit {
@@ -62,12 +67,12 @@ final class RadialMenuContextStore: ObservableObject {
 }
 
 enum RadialMenuContextLayout {
-    /// Builds the visible hierarchy without changing the user's saved menu.
+    /// Builds the visible hierarchy without mutating the stable menu source.
     /// The first position is always the most relevant action family for the
     /// current engineering context; navigation and scene-wide actions remain
     /// available at the outer edge.
-    static func panels(settings: RadialMenuSettings, context: RadialMenuContextSnapshot) -> [RadialMenuPanel] {
-        let base = settings.panels.filter(\.enabled)
+    static func panels(settings: RadialMenuSettings, basePanels: [RadialMenuPanel]? = nil, context: RadialMenuContextSnapshot) -> [RadialMenuPanel] {
+        let base = (basePanels ?? settings.panels).filter(\.enabled)
         guard !base.isEmpty else { return [] }
 
         let universalTitles: Set<String> = ["Проект", "Посмотреть", "Назад", "Файл", "Вид"]
@@ -131,12 +136,10 @@ enum RadialMenuContextLayout {
 
         var result: [RadialMenuPanel] = []
         if let primary { result.append(primary) }
-
         for panel in base where panel.id != primary?.id && !universalIDs.contains(panel.id) {
             result.append(panel)
         }
         result.append(contentsOf: universal)
-
         return result
     }
 
