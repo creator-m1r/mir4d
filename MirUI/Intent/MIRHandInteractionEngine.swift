@@ -47,21 +47,21 @@ final class MIRHandInteractionEngine {
 
         if pose.pinchDistance <= configuration.pinchThreshold {
             mode = .sculpt
-            return MIRIntent(source: .touch, phase: .selection, action: "sculpt", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(pose.pinchDistance), confidence: pose.indexTip.confidence)
+            return MIRIntent(source: .spatial, phase: .selection, action: "sculpt", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(pose.pinchDistance), confidence: Double(pose.indexTip.confidence))
         }
 
         if pose.openness <= configuration.grabThreshold {
             mode = .grab
-            return MIRIntent(source: .touch, phase: .selection, action: "grab", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(velocity.magnitude), confidence: pose.wrist.confidence)
+            return MIRIntent(source: .spatial, phase: .selection, action: "grab", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(velocity.magnitude), confidence: Double(pose.wrist.confidence))
         }
 
         if velocity.magnitude >= configuration.minimumMotion {
             mode = .draw
-            return MIRIntent(source: .touch, phase: .preview, action: "draw", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(velocity.magnitude), confidence: pose.indexTip.confidence)
+            return MIRIntent(source: .spatial, phase: .preview, action: "draw", directionRadians: atan2(velocity.dy, velocity.dx), value: Double(velocity.magnitude), confidence: Double(pose.indexTip.confidence))
         }
 
         mode = .idle
-        return MIRIntent(source: .touch, phase: .attention, action: nil, directionRadians: nil, value: nil, confidence: pose.wrist.confidence)
+        return MIRIntent(source: .spatial, phase: .attention, confidence: Double(pose.wrist.confidence))
     }
 
     private func smooth(_ raw: CGPoint) -> CGPoint {
@@ -79,8 +79,4 @@ final class MIRHandInteractionEngine {
         let dy = (current.y - previous.y) / CGFloat(dt)
         return (dx, dy, hypot(dx, dy))
     }
-}
-
-private extension (dx: CGFloat, dy: CGFloat, magnitude: CGFloat) {
-    var magnitude: CGFloat { self.magnitude }
 }
