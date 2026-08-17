@@ -9,7 +9,6 @@ struct MIR4DRadialSelectionState: Equatable {
 
 enum MIR4DRadialSelectionEngine {
     static func state(vector: CGVector, settings: RadialMenuSettings) -> MIR4DRadialSelectionState { state(vector: vector, settings: settings, previous: nil) }
-
     static func state(vector: CGVector, settings: RadialMenuSettings, previous: MIR4DRadialSelectionState?) -> MIR4DRadialSelectionState {
         let panels = settings.panels.filter(\.enabled)
         guard !panels.isEmpty else { return .init() }
@@ -27,7 +26,6 @@ enum MIR4DRadialSelectionEngine {
         let toolIndex = hystereticSector(angle: toolAngle, count: toolCount, previous: previous?.panelIndex == panelIndex ? previous?.toolIndex : nil, hysteresis: 0.20)
         return .init(panelIndex: panelIndex, toolIndex: toolIndex, orbit: 2, angle: toolAngle)
     }
-
     static func hystereticSector(angle: Double, count: Int, previous: Int?, hysteresis: Double) -> Int {
         guard count > 0 else { return 0 }
         let sector = Double.pi * 2 / Double(count)
@@ -39,7 +37,6 @@ enum MIR4DRadialSelectionEngine {
         let threshold = sector * (0.5 + min(max(hysteresis, 0), 0.45))
         return distance > threshold ? candidate : previous
     }
-
     static func normalizedAngle(_ value: Double) -> Double { let full = Double.pi * 2; let result = value.truncatingRemainder(dividingBy: full); return result < 0 ? result + full : result }
     static func shortestSignedAngle(from: Double, to: Double) -> Double { atan2(sin(to - from), cos(to - from)) }
     static func sectorCenter(_ index: Int, _ count: Int) -> Double { guard count > 0 else { return 0 }; return normalizedAngle((Double(index) + 0.5) * Double.pi * 2 / Double(count)) }
@@ -53,8 +50,9 @@ struct MIR4DRadialSelectionOverlay: View {
     let vector: CGVector
     let onToolActivated: (RadialMenuTool) -> Void
     let onSettings: () -> Void
-
     @State private var previousState = MIR4DRadialSelectionState()
+    @State private var committedTool: RadialMenuTool?
+    @State private var isCommitting = false
 
     private var panels: [RadialMenuPanel] { store.settings.panels.filter(\.enabled) }
     private var state: MIR4DRadialSelectionState { MIR4DRadialSelectionEngine.state(vector: vector, settings: store.settings, previous: previousState) }
@@ -69,100 +67,57 @@ struct MIR4DRadialSelectionOverlay: View {
 
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .overlay(Color.black.opacity(0.14 + revealEased * 0.08).ignoresSafeArea())
-                .blur(radius: blurAmount)
-                .allowsHitTesting(false)
-
+            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().overlay(Color.black.opacity(0.14 + revealEased * 0.08).ignoresSafeArea()).blur(radius: blurAmount).allowsHitTesting(false)
             ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: 92, height: 92)
-                    .overlay(Circle().stroke(MirTheme.Colors.accentBright.opacity(0.75), lineWidth: 1.5))
-                    .overlay {
-                        VStack(spacing: 3) {
-                            Image(systemName: selectedTool?.icon ?? selectedPanel?.icon ?? "scope").font(.system(size: 20, weight: .semibold))
-                            Text(selectedTool?.title ?? selectedPanel?.title ?? "МИР").font(.system(size: 10, weight: .bold)).lineLimit(1)
-                        }.foregroundStyle(.white)
-                    }
-
+                Circle().fill(.ultraThinMaterial).frame(width: 92, height: 92).overlay(Circle().stroke(MirTheme.Colors.accentBright.opacity(0.75), lineWidth: 1.5)).overlay { VStack(spacing: 3) { Image(systemName: committedTool?.icon ?? selectedTool?.icon ?? selectedPanel?.icon ?? "scope").font(.system(size: 20, weight: .semibold)); Text(committedTool?.title ?? selectedTool?.title ?? selectedPanel?.title ?? "МИР").font(.system(size: 10, weight: .bold)).lineLimit(1) }.foregroundStyle(.white) }
                 ForEach(Array(panels.enumerated()), id: \.element.id) { index, panel in
-                    let selected = state.panelIndex == index
-                    radialNode(title: panel.title, icon: panel.icon, selected: selected, radius: store.settings.panelRadius, angle: sectorAngle(index, panels.count))
+                    radialNode(title: panel.title, icon: panel.icon, selected: state.panelIndex == index && !isCommitting, radius: store.settings.panelRadius, angle: sectorAngle(index, panels.count), opacity: isCommitting ? 0 : 1)
                 }
-
-                if let panel = selectedPanel {
+                if let panel = selectedPanel, !isCommitting {
                     let submenuRadius = max(store.settings.submenuOffset, store.settings.panelRadius + 58)
                     let reveal = revealEased
                     let submenuCenter = CGPoint(x: CGFloat(cos(direction) * submenuRadius * reveal), y: CGFloat(sin(direction) * submenuRadius * reveal))
                     let submenuScale = 0.72 + 0.28 * reveal
                     let submenuOpacity = 0.16 + 0.84 * reveal
-
-                    Circle()
-                        .stroke(MirTheme.Colors.selection.opacity(0.35 * submenuOpacity), lineWidth: 1)
-                        .frame(width: CGFloat(store.settings.submenuOffset * 2 * submenuScale), height: CGFloat(store.settings.submenuOffset * 2 * submenuScale))
-                        .position(x: 260 + submenuCenter.x, y: 260 + submenuCenter.y)
-
+                    Circle().stroke(MirTheme.Colors.selection.opacity(0.35 * submenuOpacity), lineWidth: 1).frame(width: CGFloat(store.settings.submenuOffset * 2 * submenuScale), height: CGFloat(store.settings.submenuOffset * 2 * submenuScale)).position(x: 260 + submenuCenter.x, y: 260 + submenuCenter.y)
                     ForEach(Array(panel.tools.enumerated()), id: \.element.id) { index, tool in
-                        let selected = state.toolIndex == index
-                        let toolAngle = submenuToolAngle(index, panel.tools.count, center: direction)
-                        radialNode(title: store.settings.showLabels ? tool.title : "", icon: tool.icon, selected: selected, radius: 62 * reveal, angle: toolAngle, origin: submenuCenter, opacity: submenuOpacity, scale: submenuScale)
+                        radialNode(title: store.settings.showLabels ? tool.title : "", icon: tool.icon, selected: state.toolIndex == index, radius: 62 * reveal, angle: submenuToolAngle(index, panel.tools.count, center: direction), origin: submenuCenter, opacity: submenuOpacity, scale: submenuScale)
                     }
                 }
-
-                Path { path in
-                    path.move(to: CGPoint(x: 260, y: 260))
-                    path.addLine(to: CGPoint(x: 260 + vector.dx * 0.65, y: 260 + vector.dy * 0.65))
-                }
-                .stroke(MirTheme.Colors.selection.opacity(0.62), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, dash: [4, 8]))
-            }
-            .frame(width: 520, height: 520)
-            .position(center)
-            .scaleEffect(depthScale)
-            .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.78), value: state)
-
-            Button(action: onSettings) { Image(systemName: "gearshape.fill") }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(10)
-                .background(.black.opacity(0.45), in: Circle())
-                .position(x: center.x + 42, y: center.y + 42)
-
-            if distance >= store.settings.activationRadius, let tool = selectedTool {
-                Text("Отпустите — \(tool.title)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .position(x: center.x, y: center.y + 190)
-                    .transition(.opacity)
-            }
+                Path { path in path.move(to: CGPoint(x: 260, y: 260)); path.addLine(to: CGPoint(x: 260 + vector.dx * 0.65, y: 260 + vector.dy * 0.65)) }.stroke(MirTheme.Colors.selection.opacity(0.62), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, dash: [4, 8])).opacity(isCommitting ? 0 : 1)
+            }.frame(width: 520, height: 520).position(center).scaleEffect(depthScale).transition(.opacity.combined(with: .scale(scale: 0.9))).animation(.interactiveSpring(response: 0.22, dampingFraction: 0.78), value: state)
+            if distance >= store.settings.activationRadius, let tool = committedTool ?? selectedTool, !isCommitting { Text(isCommitting ? "" : "Отпустите — \(tool.title)").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 8).background(.ultraThinMaterial, in: Capsule()).position(x: center.x, y: center.y + 190).transition(.opacity) }
+            Button(action: onSettings) { Image(systemName: "gearshape.fill") }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.7)).padding(10).background(.black.opacity(0.45), in: Circle()).position(x: center.x + 42, y: center.y + 42)
         }
         .allowsHitTesting(false)
         .onChange(of: state) { _, newState in previousState = newState }
-        .onAppear { previousState = .init() }
-        .onDisappear { previousState = .init() }
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { note in
+            guard (note.userInfo?["commit"] as? Bool) == true, !isCommitting else { return }
+            commitSelection()
+        }
+        .onAppear { previousState = .init(); committedTool = nil; isCommitting = false }
+        .onDisappear { previousState = .init(); committedTool = nil; isCommitting = false }
+    }
+
+    private func commitSelection() {
+        guard let tool = selectedTool else { return }
+        committedTool = tool
+        isCommitting = true
+        withAnimation(.easeOut(duration: 0.16)) {
+            // Keep the selected tool visually anchored for the commit beat.
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            onToolActivated(tool)
+            committedTool = nil
+            isCommitting = false
+        }
     }
 
     private func radialNode(title: String, icon: String, selected: Bool, radius: Double, angle: Double, origin: CGPoint = .zero, opacity: Double = 1, scale: Double = 1) -> some View {
         let x = 260 + origin.x + CGFloat(cos(angle) * radius)
         let y = 260 + origin.y + CGFloat(sin(angle) * radius)
-        return VStack(spacing: 3) {
-            Image(systemName: icon).font(.system(size: selected ? 16 : 13, weight: .semibold))
-            if !title.isEmpty { Text(title).font(.system(size: 8, weight: .semibold)).lineLimit(1) }
-        }
-        .foregroundStyle(selected ? .white : .white.opacity(0.72))
-        .frame(width: selected ? 82 : 68, height: selected ? 50 : 44)
-        .background(selected ? MirTheme.Colors.selection.opacity(0.86) : Color.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 13))
-        .overlay(RoundedRectangle(cornerRadius: 13).stroke(selected ? MirTheme.Colors.accentBright : .white.opacity(0.12), lineWidth: selected ? 1.5 : 0.8))
-        .scaleEffect((selected ? 1.08 : 1) * scale)
-        .opacity(opacity)
-        .position(x: x, y: y)
+        return VStack(spacing: 3) { Image(systemName: icon).font(.system(size: selected ? 16 : 13, weight: .semibold)); if !title.isEmpty { Text(title).font(.system(size: 8, weight: .semibold)).lineLimit(1) } }.foregroundStyle(selected ? .white : .white.opacity(0.72)).frame(width: selected ? 82 : 68, height: selected ? 50 : 44).background(selected ? MirTheme.Colors.selection.opacity(0.86) : Color.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 13)).overlay(RoundedRectangle(cornerRadius: 13).stroke(selected ? MirTheme.Colors.accentBright : .white.opacity(0.12), lineWidth: selected ? 1.5 : 0.8)).scaleEffect((selected ? 1.08 : 1) * scale).opacity(opacity).position(x: x, y: y)
     }
-
     private func sectorAngle(_ index: Int, _ count: Int) -> Double { -Double.pi / 2 + Double.pi * 2 / Double(max(count, 1)) * Double(index) }
     private func submenuToolAngle(_ index: Int, _ count: Int, center: Double) -> Double { guard count > 0 else { return center }; let spread = min(Double.pi * 0.9, max(Double.pi * 0.42, Double(count - 1) * Double.pi / 9)); if count == 1 { return center }; return center - spread / 2 + spread * Double(index) / Double(count - 1) }
 }
