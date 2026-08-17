@@ -24,7 +24,6 @@ struct MIR4DCreativeWorkspaceView: View {
     @State private var cameraDistance = 1.0
     @State private var isOrthographic = false
     @State private var showEmptyState = true
-    @State private var viewportSize: CGSize = .zero
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
 
@@ -56,7 +55,13 @@ struct MIR4DCreativeWorkspaceView: View {
                   let dy = note.userInfo?["dy"] as? Double else { return }
             radialVector = CGVector(dx: dx, dy: dy)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { note in
+            let commit = (note.userInfo?["commit"] as? Bool) ?? false
+            let finalVector = CGVector(
+                dx: (note.userInfo?["dx"] as? Double) ?? radialVector.dx,
+                dy: (note.userInfo?["dy"] as? Double) ?? radialVector.dy
+            )
+            if commit { commitRadialSelection(vector: finalVector) }
             radialMenuPresented = false
             radialVector = .zero
         }
@@ -64,8 +69,12 @@ struct MIR4DCreativeWorkspaceView: View {
             registry.registerDefaults(appState: appState)
             registry.registerExtendedScenarioCommands(appState: appState)
             voiceAssistant.start(appState: appState)
+            MIR4DRadialInteractionCoordinator.shared.start()
         }
-        .onDisappear { voiceAssistant.stop() }
+        .onDisappear {
+            voiceAssistant.stop()
+            MIR4DRadialInteractionCoordinator.shared.stop()
+        }
     }
 
     private var viewport: some View {
@@ -76,8 +85,6 @@ struct MIR4DCreativeWorkspaceView: View {
                 onCameraOrientationChanged: { theta, phi, distance in
                     DispatchQueue.main.async { cameraTheta = theta; cameraPhi = phi; cameraDistance = distance; showEmptyState = false }
                 })
-                .onAppear { viewportSize = proxy.size }
-                .onChange(of: proxy.size) { _, size in viewportSize = size }
         }
     }
 
@@ -164,6 +171,29 @@ struct MIR4DCreativeWorkspaceView: View {
         )
     }
 
+    private func commitRadialSelection(vector: CGVector) {
+        let settings = RadialMenuSettingsStore.shared.settings
+        guard let panelIndex = RadialMenuGeometry.panelIndex(for: vector.dx, dy: vector.dy, settings: settings) else { return }
+        let panels = RadialMenuGeometry.enabledPanels(settings)
+        guard panels.indices.contains(panelIndex) else { return }
+        let panel = panels[panelIndex]
+
+        if let toolIndex = RadialMenuGeometry.toolIndex(for: vector.dx, dy: vector.dy, panel: panel, settings: settings), panel.tools.indices.contains(toolIndex) {
+            MirEventBus.shared.publish(.commandRequested(panel.tools[toolIndex].command))
+            return
+        }
+
+        // Releasing on a first-orbit segment enters that work domain.
+        switch panel.title {
+        case "Модель": appState.selectWorkbench(.model)
+        case "Сборка": appState.selectWorkbench(.assembly)
+        case "Симуляция": appState.selectWorkbench(.simulation)
+        case "4D": appState.selectWorkbench(.fourD)
+        case "Чертёж": appState.selectWorkbench(.drawing)
+        default: break
+        }
+    }
+
     private func createDefaultBox() { _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 40, depth: 40, height: 40) }
 }
 
@@ -172,7 +202,6 @@ private struct CreativeViewportRepresentable: NSViewRepresentable {
     var onSelectionChanged: (UInt64) -> Void
     var onIOError: (String) -> Void
     var onCameraOrientationChanged: (Double, Double, Double) -> Void
-    func makeNSView(context: Context) -> MirGLCustomView { let view = MirGLCustomView(); apply(to: view); return view }
-    func updateNSView(_ nsView: MirGLCustomView, context: Context) { apply(to: nsView) }
-    private func apply(to view: MirGLCustomView) { view.appState = appState; view.onSelectionChanged = onSelectionChanged; view.onIOError = onIOError; view.onCameraOrientationChanged = onCameraOrientationChanged; view.syncWorkPlanesIfNeeded() }
+    func makeNSView(context: Context) -> MirGLCustomView { let view = MirGLCustomView(); view.appState = appState; view.onSelectionChanged = onSelectionChanged; view.onIOError = onIOError; view.onCameraOrientationChanged = onCameraOrientationChanged; return view }
+    func updateNSView(_ nsView: MirGLCustomView, context: Context) { nsView.appState = appState; nsView.onSelectionChanged = onSelectionChanged; nsView.onIOError = onIOError; nsView.onCameraOrientationChanged = onCameraOrientationChanged; nsView.syncWorkPlanesIfNeeded() }
 }
