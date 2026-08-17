@@ -42,7 +42,10 @@ struct CADMainView: View {
                       let dy = note.userInfo?["dy"] as? Double else { return }
                 radialVector = CGVector(dx: dx, dy: dy)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: .mir4DRadialMenuEnded)) { note in
+                if let command = note.userInfo?["command"] as? String {
+                    executeRadialCommand(command)
+                }
                 radialMenuPresented = false
                 radialVector = .zero
             }
@@ -206,21 +209,24 @@ struct CADMainView: View {
     }
 
     private var radialMenuOverlay: some View {
-        RadialMenuView(
+        MIR4DRadialSelectionOverlay(
             store: RadialMenuSettingsStore.shared,
             center: radialCenter,
             vector: radialVector,
             onToolActivated: { tool in
-                NotificationCenter.default.post(
-                    name: .mir4DRadialMenuEnded,
-                    object: nil,
-                    userInfo: ["command": tool.command]
-                )
+                executeRadialCommand(tool.command)
+                radialMenuPresented = false
+                radialVector = .zero
             },
             onSettings: { radialSettingsPresented = true }
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.10).allowsHitTesting(false))
+    }
+
+    private func executeRadialCommand(_ command: String) {
+        let normalized = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        registry.execute(id: normalized, appState: appState)
     }
 
     private func applyCameraIntent(deltaTheta: Double, deltaPhi: Double, deltaDistance: Double) {
