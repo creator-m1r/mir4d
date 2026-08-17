@@ -2,14 +2,10 @@ import SwiftUI
 
 /// Navigation Sphere МИР 4D.
 ///
-/// The engine uses a Z-up world and an orbit camera whose position is:
-///   x = sin(phi) * sin(theta)
-///   y = sin(phi) * cos(theta)
-///   z = cos(phi)
-///
-/// The sphere therefore projects world directions using the same camera basis
-/// as MirEngine::Camera: forward, right and up. It deliberately does not keep
-/// a second camera model.
+/// MirEngine uses a Z-up world. The sphere is a navigation instrument, not a
+/// second camera model: all orientation is derived from the viewport orbit
+/// values supplied by MirGLView. World directions are projected through the
+/// same camera basis used by MirEngine::Camera.
 struct NavigationSphereView: View {
     var theta: Double
     var phi: Double
@@ -37,7 +33,7 @@ struct NavigationSphereView: View {
                     sphereBody(radius: radius)
                     sphereLatitudeLongitude(radius: radius)
                     worldMarkers(center: center, radius: radius)
-                    cameraDirection(center: center, radius: radius)
+                    orientationIndicator(center: center, radius: radius)
                     poleControls(center: center, radius: radius)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -86,7 +82,6 @@ struct NavigationSphereView: View {
 
     private func sphereLatitudeLongitude(radius: CGFloat) -> some View {
         ZStack {
-            // Equator and latitude rings for a Z-up world.
             Ellipse().stroke(.white.opacity(0.16), lineWidth: 0.8)
                 .frame(width: radius * 2, height: radius * 0.72)
             Ellipse().stroke(.white.opacity(0.075), lineWidth: 0.7)
@@ -106,8 +101,8 @@ struct NavigationSphereView: View {
         .allowsHitTesting(false)
     }
 
-    /// Directions are VIEW directions, not camera positions.
-    /// This is intentionally Z-up and matches MirEngine::Camera::forward().
+    /// Horizontal directions are VIEW directions, not camera positions.
+    /// The signs match the Z-up convention used by MirEngine::Camera::forward().
     private var directionPresets: [(MirCameraPreset, SIMD3<Double>)] {
         [
             (.front, SIMD3(0, -1, 0)),
@@ -126,13 +121,14 @@ struct NavigationSphereView: View {
             ForEach(Array(directionPresets.enumerated()), id: \.offset) { _, item in
                 let projection = project(item.1, radius: radius * 0.91)
                 let depth = max(0, min(1, (projection.depth + 1) * 0.5))
-                let active = nearestPreset == item.0
+                let active = nearestHorizontalPreset == item.0
                 let hovered = hoveredPreset == item.0
 
                 Button { navigate(item.0) } label: {
                     Circle()
                         .fill(active ? MirTheme.Colors.accentBright : .white.opacity(0.22 + 0.38 * depth))
-                        .frame(width: active ? 12 : hovered ? 10 : 7, height: active ? 12 : hovered ? 10 : 7)
+                        .frame(width: active ? 12 : hovered ? 10 : 7,
+                               height: active ? 12 : hovered ? 10 : 7)
                         .overlay(Circle().stroke(.white.opacity(active ? 0.95 : 0.35), lineWidth: active ? 1.1 : 0.6))
                 }
                 .buttonStyle(.plain)
@@ -154,27 +150,43 @@ struct NavigationSphereView: View {
 
     private func compassLabel(_ text: String, direction: SIMD3<Double>, center: CGPoint, radius: CGFloat) -> some View {
         let p = project(direction, radius: radius)
+        let depth = max(0, min(1, (p.depth + 1) * 0.5))
         return Text(text)
             .font(.system(size: text.count > 1 ? 7 : 8, weight: .bold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.42 + 0.45 * ((p.depth + 1) * 0.5)))
+            .foregroundStyle(.white.opacity(0.42 + 0.45 * depth))
             .position(x: center.x + p.x, y: center.y - p.y)
             .allowsHitTesting(false)
     }
 
-    private func cameraDirection(center: CGPoint, radius: CGFloat) -> some View {
-        let projection = project(cameraForward, radius: radius * 0.74)
+    /// The previous implementation projected cameraForward itself. That always
+    /// produces (0,0), because cameraForward is the screen normal. The useful
+    /// orientation indicator is therefore the world-up vector projected into
+    /// the current camera plane: it gives a stable horizon/up cue while the
+    /// highlighted markers identify the active view direction.
+    private func orientationIndicator(center: CGPoint, radius: CGFloat) -> some View {
+        let worldUp = SIMD3<Double>(0, 0, 1)
+        let projection = project(worldUp, radius: radius * 0.55)
         let end = CGPoint(x: center.x + projection.x, y: center.y - projection.y)
+        let nearPole = abs(dot(cameraForward, worldUp)) > 0.96
+
         return ZStack {
             Path { path in
                 path.move(to: center)
                 path.addLine(to: end)
             }
-            .stroke(MirTheme.Colors.accentBright.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+            .stroke(MirTheme.Colors.accentBright.opacity(0.72), style: StrokeStyle(lineWidth: 1.4, dash: [3, 2]))
+
             Circle()
                 .fill(MirTheme.Colors.accentBright)
-                .frame(width: 8, height: 8)
+                .frame(width: nearPole ? 9 : 7, height: nearPole ? 9 : 7)
                 .overlay(Circle().stroke(.white.opacity(0.95), lineWidth: 1))
                 .position(end)
+
+            Circle()
+                .fill(.black.opacity(0.30))
+                .frame(width: 12, height: 12)
+                .overlay(Circle().stroke(.white.opacity(0.70), lineWidth: 0.8))
+                .position(center)
         }
         .allowsHitTesting(false)
     }
@@ -188,15 +200,17 @@ struct NavigationSphereView: View {
 
     private func pole(_ label: String, preset: MirCameraPreset, direction: SIMD3<Double>, center: CGPoint, radius: CGFloat) -> some View {
         let p = project(direction, radius: radius)
+        let depth = max(0, min(1, (p.depth + 1) * 0.5))
         return Button { navigate(preset) } label: {
             Circle()
-                .fill(MirTheme.Colors.accentBright.opacity(0.28))
+                .fill(MirTheme.Colors.accentBright.opacity(0.20 + 0.16 * depth))
                 .frame(width: 17, height: 17)
-                .overlay(Circle().stroke(.white.opacity(0.58), lineWidth: 0.8))
+                .overlay(Circle().stroke(.white.opacity(0.58 + 0.25 * depth), lineWidth: 0.8))
                 .overlay(Text(label).font(.system(size: 7, weight: .bold)).foregroundStyle(.white))
         }
         .buttonStyle(.plain)
         .position(x: center.x + p.x, y: center.y - p.y)
+        .opacity(0.50 + 0.50 * depth)
         .help(preset.titleRU)
         .accessibilityLabel(preset.titleRU)
     }
@@ -212,7 +226,8 @@ struct NavigationSphereView: View {
                 }
                 let sensitivity = 0.0105
                 let newTheta = normalizeAngle(dragStartTheta + Double(value.translation.width) * sensitivity)
-                let newPhi = clamp(dragStartPhi - Double(value.translation.height) * sensitivity, min: 0.035, max: .pi - 0.035)
+                let newPhi = clamp(dragStartPhi - Double(value.translation.height) * sensitivity,
+                                   min: 0.035, max: .pi - 0.035)
                 Mir4DSetCameraOrbit(theta: newTheta, phi: newPhi, distance: distance, animated: false)
             }
             .onEnded { _ in
@@ -225,7 +240,11 @@ struct NavigationSphereView: View {
         Circle()
             .stroke(.white.opacity(0.045), lineWidth: 12)
             .frame(width: (radius + 10) * 2, height: (radius + 10) * 2)
-            .overlay(Circle().stroke(MirTheme.Colors.panelBorder.opacity(0.55), lineWidth: 1).frame(width: (radius + 10) * 2, height: (radius + 10) * 2))
+            .overlay(
+                Circle()
+                    .stroke(MirTheme.Colors.panelBorder.opacity(0.55), lineWidth: 1)
+                    .frame(width: (radius + 10) * 2, height: (radius + 10) * 2)
+            )
             .contentShape(Circle().strokeBorder(lineWidth: 12))
             .gesture(
                 DragGesture(minimumDistance: 2)
@@ -252,7 +271,9 @@ struct NavigationSphereView: View {
                 guard let snapshot = history.popLast() else { return }
                 Mir4DSetCameraOrbit(theta: snapshot.theta, phi: snapshot.phi, distance: snapshot.distance, animated: true)
             }
-            sphereButton(icon: "arrow.up.left.and.down.right.magnifyingglass", help: "Вписать всё") { Mir4DRequestCameraFit() }
+            sphereButton(icon: "arrow.up.left.and.down.right.magnifyingglass", help: "Вписать всё") {
+                Mir4DRequestCameraFit()
+            }
         }
         .frame(height: 20)
     }
@@ -278,7 +299,7 @@ struct NavigationSphereView: View {
     }
 
     /// Projects a world direction into the current camera screen plane using
-    /// the exact Z-up basis used by MirEngine::Camera.
+    /// the same Z-up basis as MirEngine::Camera.
     private func project(_ world: SIMD3<Double>, radius: CGFloat) -> ProjectedDirection {
         let forward = cameraForward
         let worldUp = SIMD3<Double>(0, 0, 1)
@@ -293,10 +314,23 @@ struct NavigationSphereView: View {
         )
     }
 
+    /// Horizontal snap is intentionally limited to the eight planar views.
+    /// Vertical/diagonal presets are selected explicitly by their controls.
+    private var nearestHorizontalPreset: MirCameraPreset {
+        directionPresets.min { lhs, rhs in
+            dot(cameraForward, lhs.1) > dot(cameraForward, rhs.1)
+        }?.0 ?? .front
+    }
+
     private var nearestPreset: MirCameraPreset {
-        MirCameraPreset.allCases.max { lhs, rhs in
+        let horizontal = nearestHorizontalPreset
+        let horizontalScore = dot(cameraForward, normalized(horizontal.direction))
+        let verticalCandidates: [MirCameraPreset] = [.top, .bottom, .isometric]
+        return verticalCandidates.max { lhs, rhs in
             dot(cameraForward, normalized(lhs.direction)) < dot(cameraForward, normalized(rhs.direction))
-        } ?? .front
+        }.map { candidate in
+            dot(cameraForward, normalized(candidate.direction)) > horizontalScore ? candidate : horizontal
+        } ?? horizontal
     }
 
     private func snapToNearestViewIfClose() {
@@ -337,7 +371,8 @@ struct NavigationSphereView: View {
     }
 
     private var orientationDescription: String {
-        String(format: "Азимут %.0f°, наклон %.0f°, расстояние %.2f", theta * 180 / .pi, phi * 180 / .pi, distance)
+        String(format: "Азимут %.0f°, наклон %.0f°, расстояние %.2f",
+               theta * 180 / .pi, phi * 180 / .pi, distance)
     }
 
     private func normalized(_ value: SIMD3<Double>) -> SIMD3<Double> {
@@ -351,7 +386,9 @@ struct NavigationSphereView: View {
     }
 
     private func cross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
-        SIMD3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+        SIMD3(a.y * b.z - a.z * b.y,
+              a.z * b.x - a.x * b.z,
+              a.x * b.y - a.y * b.x)
     }
 
     private func clamp(_ value: Double, min minimum: Double, max maximum: Double) -> Double {
