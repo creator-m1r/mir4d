@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import Vision
 import CoreGraphics
+import Combine
 
 struct MIRHandPoint: Equatable, Sendable {
     let x: CGFloat
@@ -29,6 +30,7 @@ final class MIRHandTrackingSession: NSObject, ObservableObject {
     private let output = AVCaptureVideoDataOutput()
     private let queue = DispatchQueue(label: "com.mir4d.hand-tracking", qos: .userInteractive)
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
+    private var configured = false
 
     func start() {
         guard !isRunning else { return }
@@ -47,15 +49,12 @@ final class MIRHandTrackingSession: NSObject, ObservableObject {
         pose = nil
     }
 
-    private var configured = false
-
     private func configureIfNeeded() {
         guard !configured else { return }
         session.beginConfiguration()
         session.sessionPreset = .high
         guard let device = AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) else {
-            session.commitConfiguration()
-            return
+            session.commitConfiguration(); return
         }
         session.addInput(input)
         output.alwaysDiscardsLateVideoFrames = true
@@ -68,8 +67,8 @@ final class MIRHandTrackingSession: NSObject, ObservableObject {
         cameraAvailable = true
     }
 
-    private func process(_ buffer: CVPixelBuffer) {
-        let request = VNDetectHumanHandPoseRequest { [weak self] request, _ in
+    nonisolated private func process(_ buffer: CVPixelBuffer, owner: MIRHandTrackingSession) {
+        let request = VNDetectHumanHandPoseRequest { request, _ in
             guard let observation = request.results?.first as? VNHumanHandPoseObservation,
                   let wrist = try? observation.recognizedPoint(.wrist),
                   let index = try? observation.recognizedPoint(.indexTip),
@@ -85,7 +84,7 @@ final class MIRHandTrackingSession: NSObject, ObservableObject {
                 openness: hypot(middle.location.x - wrist.location.x, middle.location.y - wrist.location.y),
                 timestamp: Date()
             )
-            Task { @MainActor in self?.pose = pose }
+            Task { @MainActor in owner.pose = pose }
         }
         request.maximumHandCount = 2
         try? VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .leftMirrored).perform([request])
@@ -95,6 +94,6 @@ final class MIRHandTrackingSession: NSObject, ObservableObject {
 extension MIRHandTrackingSession: AVCaptureVideoDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        process(buffer)
+        process(buffer, owner: self)
     }
 }
