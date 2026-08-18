@@ -121,14 +121,10 @@ struct SketchPlaneAnchor: Identifiable, Equatable, Sendable {
     let xAxis: (x: Double, y: Double, z: Double)
     let yAxis: (x: Double, y: Double, z: Double)
 
-    /// Ручная реализация: кортежи не синтезируют `Equatable`, а `onChange`
-    /// требует соответствия протоколу. Плоскость однозначно задаётся `id`.
     static func == (lhs: SketchPlaneAnchor, rhs: SketchPlaneAnchor) -> Bool {
         lhs.id == rhs.id
     }
 
-    /// Три стандартные базовые плоскости (нормаль совпадает с осью, пресет —
-    /// вид спереди/справа/сверху, перпендикулярный плоскости).
     static let xy = SketchPlaneAnchor(
         id: 1, name: "XY", preset: .front,
         origin: (0, 0, 0), normal: (0, 0, 1), xAxis: (1, 0, 0), yAxis: (0, 1, 0))
@@ -161,8 +157,6 @@ final class CADAppState: ObservableObject {
     @Published var axesVisible: Bool = true
     @Published var sectionMode: Bool = false
 
-    /// Выбранная плоскость построения эскиза. `nil` означает, что пользователь
-    /// ещё не выбрал плоскость — в этом случае показывается выборщик плоскости.
     @Published var sketchPlane: SketchPlaneAnchor? {
         didSet { modelRuntime.activeSketchPlane = sketchPlane }
     }
@@ -181,8 +175,6 @@ final class CADAppState: ObservableObject {
         CADActiveContext(workbench: workbench, subMode: subMode, selection: selection, time: timeState, interaction: interaction, simulation: simulation, experience: ui.experience, language: ui.language)
     }
 
-    /// The workspace tree is now derived from the persisted model document.
-    /// UI no longer owns a second, unrelated tree identity set.
     var treeData: [TreeNodeData] {
         [makeTreeNode(from: modelRuntime.document.root)]
     }
@@ -220,8 +212,6 @@ final class CADAppState: ObservableObject {
         }
     }
 
-    // MARK: Workbench
-
     func selectWorkbench(_ value: CADWorkbench) {
         workbench = value
         subMode = value.defaultSubMode
@@ -244,8 +234,6 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.subModeChanged(value))
     }
 
-    // MARK: Panels
-
     func togglePanel(_ panel: CADPanel) { panelState.toggle(panel) }
 
     func panelPlacement(for panel: CADPanel) -> PanelPlacement { panelState.placement(for: panel) }
@@ -257,19 +245,9 @@ final class CADAppState: ObservableObject {
         showNotification("\(title): \(zone)", type: .info)
     }
 
-    // MARK: UI
-
     func toggleLanguage() { ui.language = ui.language == .russian ? .english : .russian }
     func toggleExperience() { ui.experience = ui.experience == .expert ? .beginner : .expert }
 
-    // MARK: Selection
-
-    /// Selection crossing the viewport boundary is normalized here.
-    ///
-    /// MirEngine/OpenGL reports a runtime object ID, while the CAD document owns
-    /// stable UUIDs. Numeric body IDs are therefore resolved through the persisted
-    /// model before entering CADAppState. UUID selections from the model tree pass
-    /// through unchanged.
     func setSelection(ids: [String], kind: CADSelectionKind) {
         let normalizedIDs = ids.compactMap { rawID -> String? in
             if UUID(uuidString: rawID) != nil { return rawID }
@@ -286,13 +264,9 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 
-    // MARK: Viewport
-
     func toggleGrid() { gridVisible.toggle() }
     func toggleAxes() { axesVisible.toggle() }
     func toggleSection() { sectionMode.toggle() }
-
-    // MARK: Document
 
     func newDocument() {
         documentName = "Новый проект"
@@ -310,8 +284,6 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.documentChanged)
     }
 
-    // MARK: Import / Export
-
     func importModel(url: URL) {
         documentDirty = true
         MirEventBus.shared.publish(.commandRequested("document.import"))
@@ -323,8 +295,6 @@ final class CADAppState: ObservableObject {
     }
 
     func loadModel(url: URL) { importModel(url: url) }
-
-    // MARK: 4D Time
 
     func seek(_ seconds: Double) { time.seek(seconds) }
     func togglePlayback() { time.togglePlayback() }
@@ -342,8 +312,6 @@ final class CADAppState: ObservableObject {
         time.createBranch()
         MirEventBus.shared.publish(.commandRequested("fourD.branch"))
     }
-
-    // MARK: Simulation
 
     func setPhysics(_ physics: CADSimulationState.PhysicsType) {
         simulation.physics = physics
@@ -404,18 +372,12 @@ final class CADAppState: ObservableObject {
 
     private func criterionLine(for physics: CADSimulationState.PhysicsType) -> String {
         switch physics {
-        case .structural, .multiphysics:
-            return "criterion stress 0 1e9"
-        case .thermal:
-            return "criterion temperature 0 400"
-        case .fluid:
-            return "criterion density 500 2000"
-        case .acoustic:
-            return "criterion acoustic 0 1"
-        case .chemical:
-            return "criterion composition 0 1"
-        case .electromagnetic:
-            return "criterion temperature 0 400"
+        case .structural, .multiphysics: return "criterion stress 0 1e9"
+        case .thermal: return "criterion temperature 0 400"
+        case .fluid: return "criterion density 500 2000"
+        case .acoustic: return "criterion acoustic 0 1"
+        case .chemical: return "criterion composition 0 1"
+        case .electromagnetic: return "criterion temperature 0 400"
         }
     }
 
@@ -428,9 +390,7 @@ final class CADAppState: ObservableObject {
           initial composition reactant 1
           \(criterion)
         """
-        if simulation.useGeometry {
-            body += "  load fixed 1\n"
-        }
+        if simulation.useGeometry { body += "  load fixed 1\n" }
         return body
     }
 
@@ -445,7 +405,14 @@ final class CADAppState: ObservableObject {
             showNotification(ru ? "Не удалось получить геометрию" : "Could not read geometry", type: .error)
             return
         }
-        let json = String(cString: buffer)
+
+        // C bridge returns a NUL-terminated UTF-8 buffer. `String(cString:)` is
+        // deprecated in modern Swift, so explicitly truncate at NUL and decode.
+        let json = String(
+            decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+            as: UTF8.self
+        )
+
         guard let data = json.data(using: .utf8),
               let dict = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any],
               (dict["hasGeometry"] as? Bool) == true else {
@@ -453,6 +420,7 @@ final class CADAppState: ObservableObject {
             showNotification(ru ? "Объект не выбран" : "No object selected", type: .warning)
             return
         }
+
         let geo = CADObjectMetrics(
             objectId: (dict["objectId"] as? NSNumber)?.uint64Value ?? 0,
             sizeX: dict["sizeX"] as? Double ?? 0,
@@ -503,9 +471,7 @@ final class CADAppState: ObservableObject {
         simulation.phase = .results
         let passedCount = rows.filter { $0.passed }.count
         simulation.lastPassed = rows.allSatisfy { $0.passed }
-        simulation.solverStatus = ru
-            ? "Прогон: \(passedCount)/\(rows.count) пройдено"
-            : "Sweep: \(passedCount)/\(rows.count) passed"
+        simulation.solverStatus = ru ? "Прогон: \(passedCount)/\(rows.count) пройдено" : "Sweep: \(passedCount)/\(rows.count) passed"
         MirEventBus.shared.publish(.simulationChanged(simulation))
         showNotification(ru ? "Прогон завершён: \(passedCount)/\(rows.count)" : "Sweep done: \(passedCount)/\(rows.count)", type: passedCount == rows.count ? .success : .warning)
     }
@@ -520,9 +486,7 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.simulationChanged(simulation))
     }
 
-    private func fmt(_ value: Double) -> String {
-        String(format: "%.4g", value)
-    }
+    private func fmt(_ value: Double) -> String { String(format: "%.4g", value) }
 
     private func sweepDefinition(parameter: CAESweepParameter, from: Double, to: Double, steps: Int) -> String {
         var lines: [String] = []
@@ -531,7 +495,6 @@ final class CADAppState: ObservableObject {
             let raw = from + (to - from) * t
             var value = raw
             if parameter == .load, simulation.useGeometry, let geo = simulation.geometry, geo.surfaceArea > 0 {
-                // raw интерпретируется как приложенная сила (Н); переводим в давление через площадь
                 value = raw / geo.surfaceArea
             }
             var body = """
@@ -541,9 +504,7 @@ final class CADAppState: ObservableObject {
               initial composition reactant 1
               \(criterionLine(for: simulation.physics))
             """
-            if simulation.useGeometry {
-                body += "  load fixed 1\n"
-            }
+            if simulation.useGeometry { body += "  load fixed 1\n" }
             lines.append(body)
         }
         return lines.joined(separator: "\n")
@@ -573,8 +534,6 @@ final class CADAppState: ObservableObject {
         }
         return rows
     }
-
-    // MARK: Notifications
 
     func showNotification(_ msg: String, type: NotificationType = .info) {
         let notification = CADNotification(message: msg, type: type)
