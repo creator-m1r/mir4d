@@ -175,8 +175,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
-        // Keep the lock operation explicitly Void to avoid a generic-result warning.
-        let _: Void = continuationLock.withLock { continuation in
+        continuationLock.withLock { continuation in
             continuation?.yield(poses)
         }
     }
@@ -234,7 +233,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             ? 0
             : confidences.reduce(0, +) / Double(confidences.count)
 
-        let handedness: MIRHandedness = {
+        let handedness: Handedness = {
             switch observation.chirality {
             case .left:
                 return .left
@@ -257,11 +256,13 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
     }
 
     private func palmPosition(from landmarks: [MIRHandLandmark]) -> SIMD3<Double> {
-        let ids: Set<LandmarkID> = [.wrist, .indexMCP, .middleMCP, .ringMCP, .littleMCP]
-        let points = landmarks.filter { ids.contains($0.id) }
+        let ids: [LandmarkID] = [.wrist, .indexMCP, .middleMCP, .ringMCP, .littleMCP]
+        let points = ids.compactMap { id in
+            landmarks.first(where: { $0.id == id })?.normalizedPosition
+        }
+
         guard !points.isEmpty else { return .zero }
-        return points.reduce(SIMD3<Double>.zero) { $0 + $1.normalizedPosition }
-            / Double(points.count)
+        return points.reduce(.zero, +) / Double(points.count)
     }
 
     private func palmNormal(from landmarks: [MIRHandLandmark]) -> SIMD3<Double> {
@@ -275,9 +276,13 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
 
         let a = index - wrist
         let b = little - wrist
-        let cross = simd_cross(a, b)
-        let length = simd_length(cross)
-        guard length > 1e-8 else { return SIMD3<Double>(0, 0, 1) }
-        return cross / length
+        let normal = simd_cross(a, b)
+        let length = simd_length(normal)
+
+        guard length > 0.000001 else {
+            return SIMD3<Double>(0, 0, 1)
+        }
+
+        return normal / length
     }
 }
