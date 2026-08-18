@@ -176,7 +176,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
         continuationLock.withLock { continuation in
-            continuation?.yield(poses)
+            _ = continuation?.yield(poses)
         }
     }
 
