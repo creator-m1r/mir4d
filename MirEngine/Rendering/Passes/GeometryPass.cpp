@@ -174,13 +174,43 @@ void GeometryPass::rebuildSceneCache(mir::Scene& scene,RenderDevice& device)
 void GeometryPass::uploadMesh(const mir::ModelNode& node,RenderDevice& device)
 {
     const mir::TriangleMesh3& mesh=node.model()->mesh(); if(!mesh.isValid())return;
-    std::vector<Vertex> vertices; std::vector<std::uint32_t> indices; vertices.reserve(mesh.vertices.size()); indices.reserve(mesh.triangles.size()*3);
+    std::vector<Vertex> vertices; std::vector<std::uint32_t> indices;
+    vertices.reserve(mesh.vertices.size()); indices.reserve(mesh.triangles.size()*3);
     std::vector<mir::Vector3> normals;
-    if(mesh.hasVertexNormals())normals=mesh.normals;else{normals.assign(mesh.vertices.size(),mir::Vector3::zero());for(const auto& triangle:mesh.triangles){const mir::Vector3 a{mesh.vertices[triangle.a]};const mir::Vector3 b{mesh.vertices[triangle.b]};const mir::Vector3 c{mesh.vertices[triangle.c]};const auto n=mir::Vector3::cross(b-a,c-a).normalized();normals[triangle.a]+=n;normals[triangle.b]+=n;normals[triangle.c]+=n;}for(auto& n:normals)n=n.normalized();}
-    for(std::size_t i=0;i<mesh.vertices.size();++i){const auto&p=mesh.vertices[i];const auto&n=normals[i];vertices.push_back(Vertex{{static_cast<float>(p.x),static_cast<float>(p.y),static_cast<float>(p.z)},{static_cast<float>(n.x),static_cast<float>(n.y),static_cast<float>(n.z)}});}
-    for(const auto&t:mesh.triangles){indices.push_back(t.a);indices.push_back(t.b);indices.push_back(t.c);}
-    const auto vao=std::make_shared<VertexArray>(); const auto vbo=std::make_shared<VertexBuffer>(vertices); const auto ibo=std::make_shared<IndexBuffer>(indices);
-    vao->addVertexBuffer(vbo);vao->setIndexBuffer(ibo);m_vaos[node.id()]=vao;m_objectToHandle[node.id()]=m_nextMeshHandle++;
+    if(mesh.hasVertexNormals()){
+        normals=mesh.normals;
+    } else {
+        normals.assign(mesh.vertices.size(),mir::Vector3::zero());
+        for(const auto& triangle:mesh.triangles){
+            const auto ab=mesh.vertices[triangle.b]-mesh.vertices[triangle.a];
+            const auto ac=mesh.vertices[triangle.c]-mesh.vertices[triangle.a];
+            const auto n=mir::Vector3::cross(ab,ac).normalized();
+            normals[triangle.a]+=n; normals[triangle.b]+=n; normals[triangle.c]+=n;
+        }
+        for(auto& nrm:normals)nrm=nrm.normalized();
+    }
+    for(std::size_t i=0;i<mesh.vertices.size();++i){
+        const auto&p=mesh.vertices[i]; const auto&nrm=normals[i];
+        vertices.push_back(Vertex(
+            Vector3(static_cast<float>(p.x),static_cast<float>(p.y),static_cast<float>(p.z)),
+            Vector3(static_cast<float>(nrm.x),static_cast<float>(nrm.y),static_cast<float>(nrm.z)),
+            Vector2{}));
+    }
+    for(const auto&t:mesh.triangles){
+        indices.push_back(static_cast<std::uint32_t>(t.a));
+        indices.push_back(static_cast<std::uint32_t>(t.b));
+        indices.push_back(static_cast<std::uint32_t>(t.c));
+    }
+    const auto vao=device.createVertexArray();
+    const auto vbo=device.createVertexBuffer();
+    const auto ibo=device.createIndexBuffer();
+    vbo->uploadVertices(vertices);
+    ibo->uploadIndices(indices);
+    vao->setVertexBuffer(vbo);
+    vao->setIndexBuffer(ibo);
+    const MeshHandle handle=m_nextMeshHandle++;
+    m_vaos[handle]=vao;
+    m_objectToHandle[node.id()]=handle;
 }
 
 } // namespace MirEngine::Rendering
