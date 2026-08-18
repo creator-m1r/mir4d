@@ -175,10 +175,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
-        // `withLock` is generic and its closure return type can otherwise be
-        // inferred as the return value of `yield`. Keep the synchronization
-        // operation explicitly Void so Swift does not warn about an unused
-        // generic result.
+        // Keep the lock operation explicitly Void to avoid a generic-result warning.
         let _: Void = continuationLock.withLock { continuation in
             continuation?.yield(poses)
         }
@@ -237,9 +234,20 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             ? 0
             : confidences.reduce(0, +) / Double(confidences.count)
 
+        let handedness: MIRHandedness = {
+            switch observation.chirality {
+            case .left:
+                return .left
+            case .right:
+                return .right
+            @unknown default:
+                return .unknown
+            }
+        }()
+
         return MIRHandPose(
             id: UUID(),
-            handedness: observation.handSide == .left ? .left : .right,
+            handedness: handedness,
             landmarks: landmarks,
             palmPosition: palmPosition(from: landmarks),
             palmNormal: palmNormal(from: landmarks),
