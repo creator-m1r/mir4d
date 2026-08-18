@@ -180,7 +180,12 @@ void GeometryPass::processNode(const mir::ModelNode& node,
     const auto vaoIt = m_vaos.find(handleIt->second);
     if (vaoIt == m_vaos.end() || !vaoIt->second || !vaoIt->second->isValid()) return;
 
-    shader->setMatrix("u_model", makeModelMatrix(node.transform(), context.cameraPosition));
+    const double cameraPos[3] = {
+        static_cast<double>(context.cameraPosition[0]),
+        static_cast<double>(context.cameraPosition[1]),
+        static_cast<double>(context.cameraPosition[2])
+    };
+    shader->setMatrix("u_model", makeModelMatrix(node.transform(), cameraPos));
     shader->setInt("u_selected", selected ? 1 : 0);
     shader->setInt("u_hover", hovered ? 1 : 0);
 
@@ -332,7 +337,12 @@ void GeometryPass::drawHighlightFace(mir::Scene& scene,
     }
     if (!selectedNode) return;
 
-    shader->setMatrix("u_model", makeModelMatrix(selectedNode->transform(), context.cameraPosition));
+    const double cameraPos[3] = {
+        static_cast<double>(context.cameraPosition[0]),
+        static_cast<double>(context.cameraPosition[1]),
+        static_cast<double>(context.cameraPosition[2])
+    };
+    shader->setMatrix("u_model", makeModelMatrix(selectedNode->transform(), cameraPos));
     shader->setInt("u_selected", 1);
     shader->setInt("u_hover", 0);
     shader->setVec3("u_baseColor", 1.0f, 0.62f, 0.16f);
@@ -358,16 +368,12 @@ Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
     const mir::Matrix4 matrix = transform.matrix();
     Matrix4Raw result{};
 
-    // Matrix4 is row-major with column-vector semantics; GLSL expects the
-    // equivalent matrix in column-major memory order.
     for (std::size_t row = 0; row < 4; ++row) {
         for (std::size_t column = 0; column < 4; ++column) {
             result[column * 4 + row] = static_cast<float>(matrix(row, column));
         }
     }
 
-    // Camera-relative rendering: remove the large world-space translation only
-    // after subtracting the camera position in double precision.
     result[12] = static_cast<float>(transform.position.x - cameraPos[0]);
     result[13] = static_cast<float>(transform.position.y - cameraPos[1]);
     result[14] = static_cast<float>(transform.position.z - cameraPos[2]);
