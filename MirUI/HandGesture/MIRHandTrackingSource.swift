@@ -175,7 +175,11 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
-        continuationLock.withLock { continuation in
+        // `withLock` is generic and its closure return type can otherwise be
+        // inferred as the return value of `yield`. Keep the synchronization
+        // operation explicitly Void so Swift does not warn about an unused
+        // generic result.
+        let _: Void = continuationLock.withLock { continuation in
             continuation?.yield(poses)
         }
     }
@@ -233,34 +237,39 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             ? 0
             : confidences.reduce(0, +) / Double(confidences.count)
 
-        guard let wrist = landmarks.first(where: { $0.id == .wrist })?.normalizedPosition,
-              let indexMCP = landmarks.first(where: { $0.id == .indexMCP })?.normalizedPosition,
-              let middleMCP = landmarks.first(where: { $0.id == .middleMCP })?.normalizedPosition,
-              let littleMCP = landmarks.first(where: { $0.id == .littleMCP })?.normalizedPosition else {
-            return nil
-        }
-
-        let palmPosition = (wrist + indexMCP + middleMCP + littleMCP) / 4.0
-
-        let palmEdge = littleMCP - indexMCP
-        let palmDepth = middleMCP - wrist
-        let rawNormal = simd_cross(palmEdge, palmDepth)
-        let palmNormal: SIMD3<Double>
-
-        if simd_length_squared(rawNormal) > 1.0e-12 {
-            palmNormal = simd_normalize(rawNormal)
-        } else {
-            palmNormal = SIMD3<Double>(0, 0, 0)
-        }
-
         return MIRHandPose(
             id: UUID(),
-            handedness: .unknown,
+            handedness: observation.handSide == .left ? .left : .right,
             landmarks: landmarks,
-            palmPosition: palmPosition,
-            palmNormal: palmNormal,
+            palmPosition: palmPosition(from: landmarks),
+            palmNormal: palmNormal(from: landmarks),
             confidence: averageConfidence,
             timestamp: Date()
         )
+    }
+
+    private func palmPosition(from landmarks: [MIRHandLandmark]) -> SIMD3<Double> {
+        let ids: Set<LandmarkID> = [.wrist, .indexMCP, .middleMCP, .ringMCP, .littleMCP]
+        let points = landmarks.filter { ids.contains($0.id) }
+        guard !points.isEmpty else { return .zero }
+        return points.reduce(SIMD3<Double>.zero) { $0 + $1.normalizedPosition }
+            / Double(points.count)
+    }
+
+    private func palmNormal(from landmarks: [MIRHandLandmark]) -> SIMD3<Double> {
+        guard
+            let wrist = landmarks.first(where: { $0.id == .wrist })?.normalizedPosition,
+            let index = landmarks.first(where: { $0.id == .indexMCP })?.normalizedPosition,
+            let little = landmarks.first(where: { $0.id == .littleMCP })?.normalizedPosition
+        else {
+            return SIMD3<Double>(0, 0, 1)
+        }
+
+        let a = index - wrist
+        let b = little - wrist
+        let cross = simd_cross(a, b)
+        let length = simd_length(cross)
+        guard length > 1e-8 else { return SIMD3<Double>(0, 0, 1) }
+        return cross / length
     }
 }
