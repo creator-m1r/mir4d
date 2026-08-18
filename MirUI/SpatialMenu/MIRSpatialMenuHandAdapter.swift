@@ -55,7 +55,7 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
         accumulativeDY = 0
     }
 
-    private func handle(_ intent: MIRHandIntent) {
+    func handle(_ intent: MIRHandIntent) {
         switch intent.gesture.type {
         case .pinch:
             if intent.phase == .began || intent.phase == .changed {

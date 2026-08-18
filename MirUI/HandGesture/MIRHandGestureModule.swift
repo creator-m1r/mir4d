@@ -23,7 +23,7 @@ public final class MIRHandGestureModule: ObservableObject {
 
     // MARK: - Lifecycle
 
-    func startCamera() {
+    public func startCamera() {
         session.start()
     }
 
@@ -32,7 +32,7 @@ public final class MIRHandGestureModule: ObservableObject {
         session.startMock(frames, mode: mode)
     }
 
-    func stop() {
+    public func stop() {
         session.stop()
     }
 

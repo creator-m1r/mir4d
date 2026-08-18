@@ -99,6 +99,11 @@ let package = Package(
             name: "MirUIHandGestureTests",
             dependencies: ["MirUIHandGesture"],
             path: "Tests/MIRHandGestureTests"
+        ),
+        .testTarget(
+            name: "MIR4DAppTests",
+            dependencies: ["MIR4DApp", "MirUIHandGesture"],
+            path: "Tests/MIR4DAppTests"
         )
     ]
 )

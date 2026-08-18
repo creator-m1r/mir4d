@@ -44,6 +44,20 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         GCC_PREPROCESSOR_DEFINITIONS:
           - "MIR4D_SWIFTPM=1"
+  MirUIHandGesture:
+    type: framework
+    platform: macOS
+    sources:
+      - path: MirUI/HandGesture
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.mir4d.handgesture
+        PRODUCT_MODULE_NAME: MirUIHandGesture
+        GENERATE_INFOPLIST_FILE: YES
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "MIR4D_SWIFTPM=1"
   MIR4DApp:
     type: application
     platform: macOS
@@ -94,7 +108,6 @@ targets:
         excludes:
           - "UIConfig/*.json"
       - path: MirUI/SpatialMenu
-      - path: MirUI/HandGesture
       - path: MirUI/Renderers/SwiftUI
         excludes:
           - MirEngineApp.swift
@@ -192,6 +205,7 @@ targets:
         LSMinimumSystemVersion: "15.0"
     dependencies:
       - target: MirServer
+      - target: MirUIHandGesture
       - sdk: OpenGL.framework
       - sdk: Cocoa.framework
       - sdk: QuartzCore.framework

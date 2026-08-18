@@ -43,6 +43,13 @@ final class MIRSpatialMenuController: ObservableObject {
         MIRSpatialMenuGesture.shared.start()
         MIRSpatialMenuVoiceAdapter.shared.connect(appState: appState)
 
+        // Hand-gesture pipeline: run the camera source and bridge intents into
+        // the same Spatial Menu event path used by the trackpad/voice.
+        Task { @MainActor in
+            MIRSpatialMenuHandAdapter.shared.start()
+            MIRHandGestureModule.shared.startCamera()
+        }
+
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: .mir4DSpatialMenuBegan, object: nil, queue: .main) { [weak self] note in
             let via = note.userInfo?["via"] as? String ?? "system"
@@ -73,6 +80,10 @@ final class MIRSpatialMenuController: ObservableObject {
         voiceCancellable = nil
         MIRSpatialMenuVoiceAdapter.shared.disconnect()
         MIRSpatialMenuGesture.shared.stop()
+        Task { @MainActor in
+            MIRSpatialMenuHandAdapter.shared.stop()
+            MIRHandGestureModule.shared.stop()
+        }
         isPresented = false
         vector = .zero
         state = .initial
