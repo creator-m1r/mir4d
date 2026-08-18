@@ -17,7 +17,6 @@ struct MIR4DLaunchProjectSelectionView: View {
     @State private var newProjectDefaultName: String?
     @State private var showRecentProjects = false
     @State private var showWhatsNew = false
-    @State private var appeared = false
     @State private var recentRefreshToken = UUID()
     @State private var viewport: CGSize = .zero
 
@@ -46,6 +45,7 @@ struct MIR4DLaunchProjectSelectionView: View {
                     continueProject: continueProject,
                     onNewProject: { presentNewProject() },
                     onOpenProject: { presentOpenProject() },
+                    onRecentProjects: { presentRecentProjects() },
                     onContinue: { project in
                         commands.open(appState: appState, url: project.url)
                     }
@@ -70,7 +70,6 @@ struct MIR4DLaunchProjectSelectionView: View {
                             onClose: { closeRecentProjects() }
                         )
                     }
-                    .environmentObject(appState)
                 }
 
                 if showOpenProject {
@@ -83,7 +82,6 @@ struct MIR4DLaunchProjectSelectionView: View {
                         MIR4DProjectOpenView()
                             .environmentObject(appState)
                     }
-                    .environmentObject(appState)
                 }
 
                 if showNewProject {
@@ -99,7 +97,6 @@ struct MIR4DLaunchProjectSelectionView: View {
                         )
                         .environmentObject(appState)
                     }
-                    .environmentObject(appState)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -109,9 +106,6 @@ struct MIR4DLaunchProjectSelectionView: View {
             .animation(.timingCurve(0.18, 0.80, 0.22, 1.0, duration: 0.68), value: isLeaving)
             .onAppear {
                 viewport = proxy.size
-                withAnimation(.easeOut(duration: 0.65)) {
-                    appeared = true
-                }
             }
             .onChange(of: proxy.size) { _, newSize in
                 viewport = newSize
@@ -154,17 +148,10 @@ struct MIR4DLaunchProjectSelectionView: View {
 
     private var startupBackground: some View {
         ZStack {
-            Color.black
-                .ignoresSafeArea()
-
-            MIR4DStartupMotionLayer()
-                .opacity(0.10)
-
+            Color.black.ignoresSafeArea()
+            MIR4DStartupMotionLayer().opacity(0.10)
             RadialGradient(
-                colors: [
-                    Color.cyan.opacity(0.055),
-                    Color.clear
-                ],
+                colors: [Color.cyan.opacity(0.055), Color.clear],
                 center: .topLeading,
                 startRadius: 20,
                 endRadius: max(viewport.width, viewport.height) * 0.8
@@ -173,17 +160,12 @@ struct MIR4DLaunchProjectSelectionView: View {
         }
     }
 
-    private func presentNewProject(
-        preset: CADWorkbench? = nil,
-        defaultName: String? = nil
-    ) {
+    private func presentNewProject(preset: CADWorkbench? = nil, defaultName: String? = nil) {
         newProjectPreset = preset
         newProjectDefaultName = defaultName
         showOpenProject = false
         showRecentProjects = false
-        withAnimation {
-            showNewProject = true
-        }
+        withAnimation { showNewProject = true }
     }
 
     private func presentOpenProject() {
@@ -191,9 +173,13 @@ struct MIR4DLaunchProjectSelectionView: View {
         newProjectDefaultName = nil
         showNewProject = false
         showRecentProjects = false
-        withAnimation {
-            showOpenProject = true
-        }
+        withAnimation { showOpenProject = true }
+    }
+
+    private func presentRecentProjects() {
+        showOpenProject = false
+        showNewProject = false
+        withAnimation { showRecentProjects = true }
     }
 
     private func closeNewProject() {
