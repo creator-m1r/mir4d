@@ -48,8 +48,10 @@ public final class MIRHandTrackingSession: ObservableObject {
             resultContinuation.finish()
         }
 
-        task = Task { @MainActor [weak self] in
-            guard let self else { return }
+        // This task is created from the MainActor and explicitly inherits it.
+        // Keep the session strongly captured until the stream terminates; stop()
+        // cancels the task and therefore releases the cycle deterministically.
+        task = Task { @MainActor in
             for await result in resultStream {
                 guard !Task.isCancelled else { break }
                 self.publish(result)
