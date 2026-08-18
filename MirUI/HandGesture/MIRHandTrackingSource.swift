@@ -13,23 +13,14 @@ enum MIRHandTrackingAvailability: Sendable {
 }
 
 /// A replaceable source of hand poses.
-///
-/// The module is decoupled from any specific camera technology. Built-in
-/// implementations: `MIRCameraTrackingSource` (MacBook / iPad camera) and
-/// `MIRMockTrackingSource` (synthetic data for tests and the Spatial Menu).
-/// External USB cameras, depth cameras, ARKit and spatial devices can be added
-/// by implementing this protocol.
 protocol MIRHandTrackingSource: Sendable {
     var availability: MIRHandTrackingAvailability { get }
-    /// Begin producing pose frames. The returned stream ends when `stop()` is called.
     func start() -> AsyncStream<[MIRHandPose]>
     func stop()
 }
 
 // MARK: - Mock source
 
-/// Feeds pre-recorded synthetic poses. Enables testing the full pipeline and
-/// the Spatial Menu without any camera hardware.
 struct MIRMockTrackingSource: MIRHandTrackingSource {
     enum Mode: Sendable { case once, loop }
 
@@ -65,9 +56,6 @@ struct MIRMockTrackingSource: MIRHandTrackingSource {
 
 // MARK: - Camera source
 
-/// Default source: built-in camera via AVFoundation + Vision hand-pose detection.
-/// All heavy work runs off the main actor; failures degrade to `unavailable`
-/// instead of crashing the app.
 final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
@@ -86,15 +74,25 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
     func start() -> AsyncStream<[MIRHandPose]> {
         AsyncStream { [weak self] continuation in
-            guard let self else { continuation.finish(); return }
+            guard let self else {
+                continuation.finish()
+                return
+            }
+
             continuationLock.withLock { $0 = continuation }
+
             Task {
                 let granted = await AVCaptureDevice.requestAccess(for: .video)
                 guard granted else {
-                    _ = continuationLock.withLock { $0?.finish() }
-                    _ = continuationLock.withLock { $0 = nil }
+                    continuationLock.withLock { continuation in
+                        continuation?.finish()
+                    }
+                    continuationLock.withLock { continuation in
+                        continuation = nil
+                    }
                     return
                 }
+
                 self.configureIfNeeded()
                 self.sessionQueue.async { [weak self] in
                     self?.session.startRunning()
@@ -105,8 +103,14 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     }
 
     func stop() {
-        _ = continuationLock.withLock { $0?.finish() }
-        _ = continuationLock.withLock { $0 = nil }
+        continuationLock.withLock { continuation in
+            continuation?.finish()
+        }
+
+        continuationLock.withLock { continuation in
+            continuation = nil
+        }
+
         sessionQueue.async { [weak self] in
             self?.session.stopRunning()
             self?.running = false
@@ -115,40 +119,65 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
     private func configureIfNeeded() {
         guard !configured else { return }
+
         session.beginConfiguration()
         session.sessionPreset = .high
+
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else {
             session.commitConfiguration()
             return
         }
+
         session.addInput(input)
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: visionQueue)
-        guard session.canAddOutput(output) else { session.commitConfiguration(); return }
-        session.addOutput(output)
-        if let connection = output.connection(with: .video) {
-            connection.videoOrientation = .portrait
+
+        guard session.canAddOutput(output) else {
+            session.commitConfiguration()
+            return
         }
+
+        session.addOutput(output)
+
+        if let connection = output.connection(with: .video),
+           connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
+        }
+
         session.commitConfiguration()
         configured = true
     }
 }
 
 extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate {
-    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    nonisolated func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
         let request = VNDetectHumanHandPoseRequest()
         request.maximumHandCount = 2
+
         do {
-            try VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:]).perform([request])
+            try VNImageRequestHandler(
+                cvPixelBuffer: buffer,
+                orientation: .up,
+                options: [:]
+            ).perform([request])
         } catch {
             return
         }
+
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
-        continuationLock.withLock { $0?.yield(poses) }
+
+        continuationLock.withLock { continuation in
+            continuation?.yield(poses)
+        }
     }
 
     private func pose(from observation: VNHumanHandPoseObservation) -> MIRHandPose? {
@@ -178,54 +207,36 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
 
         var landmarks: [MIRHandLandmark] = []
         var confidences: [Double] = []
+
         for (id, name) in jointMap {
             guard let point = try? observation.recognizedPoint(name),
-                  point.confidence > 0.2 else { return nil }
-            landmarks.append(MIRHandLandmark(
-                id: id,
-                normalizedPosition: SIMD3(Double(point.location.x), Double(point.location.y), 0),
-                confidence: Double(point.confidence)
-            ))
+                  point.confidence > 0.2 else {
+                return nil
+            }
+
+            landmarks.append(
+                MIRHandLandmark(
+                    id: id,
+                    normalizedPosition: SIMD3(
+                        Double(point.location.x),
+                        Double(point.location.y),
+                        0
+                    ),
+                    confidence: Double(point.confidence)
+                )
+            )
+
             confidences.append(Double(point.confidence))
         }
 
-        let palm = computePalm(landmarks: landmarks)
-        let handedness: Handedness
-        switch observation.chirality {
-        case .left: handedness = .left
-        case .right: handedness = .right
-        default: handedness = .unknown
-        }
+        let averageConfidence = confidences.isEmpty
+            ? 0
+            : confidences.reduce(0, +) / Double(confidences.count)
 
         return MIRHandPose(
-            id: UUID(),
-            handedness: handedness,
             landmarks: landmarks,
-            palmPosition: palm.position,
-            palmNormal: palm.normal,
-            confidence: confidences.min() ?? 0,
-            timestamp: Date()
+            confidence: averageConfidence,
+            timestamp: CACurrentMediaTime()
         )
-    }
-
-    private func computePalm(landmarks: [MIRHandLandmark]) -> (position: SIMD3<Double>, normal: SIMD3<Double>) {
-        let ids: [LandmarkID] = [.wrist, .indexMCP, .middleMCP, .ringMCP, .littleMCP]
-        let pts = ids.compactMap { id in landmarks.first(where: { $0.id == id })?.normalizedPosition }
-        guard !pts.isEmpty else { return (.zero, .zero) }
-        let position = pts.reduce(SIMD3<Double>(0, 0, 0)) { $0 + $1 } / Double(pts.count)
-
-        let v1: SIMD3<Double>
-        let v2: SIMD3<Double>
-        if let wrist = landmarks.first(where: { $0.id == .wrist })?.normalizedPosition,
-           let index = landmarks.first(where: { $0.id == .indexMCP })?.normalizedPosition,
-           let little = landmarks.first(where: { $0.id == .littleMCP })?.normalizedPosition {
-            v1 = index - wrist
-            v2 = little - wrist
-        } else {
-            return (position, SIMD3(0, 0, 1))
-        }
-        let z = v1.x * v2.y - v1.y * v2.x
-        let normal = z >= 0 ? SIMD3<Double>(0, 0, 1) : SIMD3<Double>(0, 0, -1)
-        return (position, normal)
     }
 }
