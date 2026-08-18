@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>МИР Engineering — рабочее пространство</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">МИР<span>ENGINEERING</span></a>
+    <nav>
+      <a href="#projects">Проекты</a><a href="#tasks">Задачи</a><a href="#team">Команда</a>
+    </nav>
+    <button class="profile">Сергей · Руководитель</button>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">ЖИВОЕ ИНЖЕНЕРНОЕ ПРОСТРАНСТВО</p>
+        <h1>Заказчик видит,<br><em>как рождается изделие.</em></h1>
+        <p class="lead">От идеи и первого эскиза до 3D-модели, задач инженерам и готовой документации — всё происходит в одном проекте.</p>
+        <button class="primary" data-action="new-project">Создать проект <span>→</span></button>
+      </div>
+      <div class="hero-card">
+        <div class="status-dot"></div><strong>Проект в работе</strong>
+        <span>Корпус промышленного устройства</span>
+        <div class="progress"><i style="width:62%"></i></div>
+        <small>62% · 4 из 7 этапов</small>
+      </div>
+    </section>
+
+    <section id="projects" class="workspace">
+      <aside class="sidebar">
+        <div class="side-title">МОИ ПРОЕКТЫ <button data-action="new-project">＋</button></div>
+        <button class="project active"><b>Корпус устройства</b><small>В работе · 62%</small></button>
+        <button class="project"><b>Редуктор транспортёра</b><small>Ожидает согласования</small></button>
+        <button class="project"><b>Лабораторный стенд</b><small>Новый заказ</small></button>
+        <div class="side-bottom"><span>Баланс команды</span><strong>184 500 ₽</strong></div>
+      </aside>
+
+      <div class="project-main">
+        <div class="project-head"><div><span class="tag">MIR-1048</span><h2>Корпус промышленного устройства</h2><p>Заказчик: Алексей · обновлено 8 мин назад</p></div><button class="ghost">Поделиться</button></div>
+        <div class="stage-tabs"><button class="selected">Рабочий космос</button><button>Задачи</button><button>История</button><button>Документы</button></div>
+
+        <div class="viewport">
+          <div class="grid"></div><div class="model"><div class="face front"></div><div class="face side"></div><div class="face top"></div></div>
+          <button class="sticker s1" data-sticker="Увеличить толщину стенки до 4 мм">📌</button>
+          <button class="sticker s2" data-sticker="Добавить отверстие Ø12">📌</button>
+          <div class="axis"><b>X</b><b>Y</b><b>Z</b></div>
+          <div class="viewport-tools"><button>＋</button><button>−</button><button>⌖</button><button>◈</button></div>
+          <div class="hint">Нажмите на 📌, чтобы открыть пожелание заказчика</div>
+        </div>
+
+        <div id="tasks" class="task-board">
+          <div class="board-head"><h3>Рабочие задачи</h3><button class="primary small" data-action="new-task">+ Создать задачу</button></div>
+          <div class="tasks"><article><span class="task-state done">✓</span><div><b>Концепция корпуса</b><small>Сергей · завершено</small></div><strong>12 000 ₽</strong></article><article><span class="task-state work">●</span><div><b>Крепление двигателя</b><small>Никита · выполняется</small></div><strong>7 500 ₽</strong></article><article><span class="task-state open">○</span><div><b>Проверить толщины и технологичность</b><small>Свободная задача</small></div><button class="take" data-action="take-task">Взять · 4 500 ₽</button></article></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="team" class="team-section"><div><p class="eyebrow">КОМАНДА</p><h2>Задачи приходят к инженерам,<br>а не наоборот.</h2></div><div class="team-stats"><div><b>18</b><span>инженеров</span></div><div><b>147</b><span>задач выполнено</span></div><div><b>96.8%</b><span>принято заказчиками</span></div></div></section>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
