@@ -28,9 +28,6 @@ struct MIR4DProjectWindowHub: View {
             .padding(28)
             .frame(maxWidth: 980, maxHeight: 900)
         }
-        .onAppear {
-            permissions.applyAtLaunch()
-        }
     }
 
     private var ambientBackground: some View {
@@ -78,12 +75,18 @@ struct MIR4DProjectWindowHub: View {
             }
 
             HStack(spacing: 14) {
-                actionWindow(icon: "plus", title: "Новый проект", subtitle: "Начать создание", accent: .cyan) { onNewProject() }
+                actionWindow(icon: "plus", title: "Новый проект", subtitle: "Начать создание", accent: .cyan) {
+                    launchWithPermissions(onNewProject)
+                }
 
                 if canContinue, let project = continueProject {
-                    actionWindow(icon: "arrow.right", title: "Продолжить", subtitle: project.name, accent: .blue) { onContinue(project) }
+                    actionWindow(icon: "arrow.right", title: "Продолжить", subtitle: project.name, accent: .blue) {
+                        launchWithPermissions { onContinue(project) }
+                    }
                 } else {
-                    actionWindow(icon: "folder", title: "Открыть проект", subtitle: "Выбрать .mir4d", accent: .blue) { onOpenProject() }
+                    actionWindow(icon: "folder", title: "Открыть проект", subtitle: "Выбрать .mir4d", accent: .blue) {
+                        launchWithPermissions(onOpenProject)
+                    }
                 }
             }
         }
@@ -125,14 +128,25 @@ struct MIR4DProjectWindowHub: View {
     }
 
     private var permissionsSummary: String {
-        let enabled = [permissions.cameraEnabled, permissions.microphoneEnabled, permissions.aiEnabled].filter { $0 }.count
+        let enabled = permissions.enabledModules.count
         return "\(enabled)/3 включено"
+    }
+
+    private func launchWithPermissions(_ action: @escaping () -> Void) {
+        // The checkboxes are the user's explicit consent for this project launch.
+        // No optional subsystem is enabled before this point.
+        permissions.applyAtLaunch()
+        action()
     }
 
     private var secondaryWindows: some View {
         HStack(spacing: 14) {
-            smallWindow(icon: "folder", title: "Открыть проект", subtitle: "Проекты и файлы") { onOpenProject() }
-            smallWindow(icon: "clock", title: "Недавние", subtitle: recentProjects.isEmpty ? "Нет проектов" : "\(recentProjects.count) проектов") { onRecentProjects() }
+            smallWindow(icon: "folder", title: "Открыть проект", subtitle: "Проекты и файлы") {
+                launchWithPermissions(onOpenProject)
+            }
+            smallWindow(icon: "clock", title: "Недавние", subtitle: recentProjects.isEmpty ? "Нет проектов" : "\(recentProjects.count) проектов") {
+                onRecentProjects()
+            }
         }
     }
 
