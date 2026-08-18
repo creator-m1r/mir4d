@@ -221,6 +221,71 @@ public:
     [[nodiscard]] bool canUndo() const noexcept { return history_.canUndo(); }
     [[nodiscard]] bool canRedo() const noexcept { return history_.canRedo(); }
 
+    // ── Sculpt stroke (undoable) ─────────────────────────────────────────
+    //
+    // A hand sculpt stroke produces many deform frames; they must collapse into
+    // exactly one undo entry. `beginDeformSelected` snapshots the selected mesh,
+    // `MirEngineDeformSelected` mutates it live (no history), and `endDeformSelected`
+    // commits a single `DeformObjectCommand` capturing before/after vertices.
+
+    /// Snapshots the primary-selected mesh so a subsequent stroke is undoable.
+    /// Safe to call when nothing is selected (no-op until `endDeformSelected`).
+    void beginDeformSelected() noexcept
+    {
+        deformSnapshotId_ = mir4d::InvalidObjectId;
+        deformSnapshot_.clear();
+        if (!scene_)
+            return;
+        const mir4d::ObjectId id = state_.selection.primary();
+        if (!mir4d::isValidObjectId(id))
+            return;
+        const auto node = scene_->find(id);
+        if (!node || !node->model() || !node->model()->hasMesh())
+            return;
+        deformSnapshotId_ = id;
+        deformSnapshot_ = node->model()->mesh().vertices; // copy
+    }
+
+    /// Commits one undoable deform command for the active stroke (if changed).
+    void endDeformSelected() noexcept
+    {
+        if (!scene_ || !mir4d::isValidObjectId(deformSnapshotId_))
+        {
+            deformSnapshot_.clear();
+            deformSnapshotId_ = mir4d::InvalidObjectId;
+            return;
+        }
+        const auto node = scene_->find(deformSnapshotId_);
+        const mir4d::ObjectId id = deformSnapshotId_;
+        if (node && node->model() && node->model()->hasMesh())
+        {
+            const auto& mesh = node->model()->mesh();
+            bool changed = mesh.vertices.size() == deformSnapshot_.size();
+            if (changed)
+            {
+                for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+                {
+                    const auto& a = mesh.vertices[i];
+                    const auto& b = deformSnapshot_[i];
+                    if (a.x != b.x || a.y != b.y || a.z != b.z)
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if (changed)
+            {
+                history_.execute(
+                    std::make_unique<mir4d::DeformObjectCommand>(
+                        id, deformSnapshot_, mesh.vertices),
+                    *scene_);
+            }
+        }
+        deformSnapshot_.clear();
+        deformSnapshotId_ = mir4d::InvalidObjectId;
+    }
+
     void setProjection(CameraProjection projection) noexcept
     {
         state_.camera.setProjection(projection);
@@ -514,6 +579,10 @@ private:
     Scalar dragStartY_{0};
     Transform dragStartTransform_{Transform::identity()};
     bool dragging_{false};
+
+    // Sculpt-stroke snapshot (before-state for a single undoable DeformObjectCommand).
+    mir4d::ObjectId deformSnapshotId_{mir4d::InvalidObjectId};
+    std::vector<mir::Point3> deformSnapshot_{};
 };
 
 } // namespace mir

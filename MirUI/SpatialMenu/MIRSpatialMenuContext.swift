@@ -1,4 +1,17 @@
 import Foundation
+import MirUIHandGesture
+
+/// Derives the interaction target from the live scene presentation state so the
+/// hand-gesture resolver can map a raw gesture into a semantic action.
+extension MIRSpatialMenuSceneContext {
+    var interactionTarget: MIR4DInteractionTarget {
+        if sculptActive && (bodySelected || hasSelection) { return .sculpt }
+        if faceSelected { return .face }
+        if sketchActive { return .sketch }
+        if bodySelected || hasSelection { return .object }
+        return .empty
+    }
+}
 
 /// A lightweight snapshot of the scene that decides which tools are meaningful.
 /// The menu never reads the CAD model directly; it only reads UI presentation state.
@@ -9,6 +22,7 @@ struct MIRSpatialMenuSceneContext: Equatable, Sendable {
     var sketchActive: Bool
     var faceSelected: Bool
     var bodySelected: Bool
+    var sculptActive: Bool
 
     static let idle = MIRSpatialMenuSceneContext(
         workbench: "model",
@@ -16,7 +30,8 @@ struct MIRSpatialMenuSceneContext: Equatable, Sendable {
         hasSelection: false,
         sketchActive: false,
         faceSelected: false,
-        bodySelected: false
+        bodySelected: false,
+        sculptActive: false
     )
 }
 
@@ -32,7 +47,8 @@ enum MIRSpatialMenuContext {
             hasSelection: appState.selection.hasSelection,
             sketchActive: appState.workbench == .sketch,
             faceSelected: appState.selection.primaryKind == .face,
-            bodySelected: appState.selection.primaryKind == .body
+            bodySelected: appState.selection.primaryKind == .body,
+            sculptActive: appState.selectedTool == "sculpt"
         )
     }
 

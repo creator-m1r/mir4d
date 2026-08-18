@@ -1018,6 +1018,111 @@ uint64_t MirEngineGetSelectedObjectId(
     );
 }
 
+
+bool MirEngineDeformSelected(
+    void* viewport,
+    double x, double y, double z,
+    double radius,
+    double strength,
+    int mode)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return false;
+
+    const mir4d::ObjectId selected = native->runtime->state().selection.primary();
+    if (!mir4d::isValidObjectId(selected))
+        return false;
+
+    auto node = native->scene->find(selected);
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return false;
+
+    mir::TriangleMesh3& mesh = node->model()->mesh();
+
+    const mir::Point3 brush(x, y, z);
+    const mir::Point3 local = node->transform().inverse().transformPoint(brush);
+    const double r = std::max(radius, 1e-4);
+
+    const bool smooth = (mode == 2);
+    int sign = 1;
+    if (mode == 1 || mode == 5 || mode == 6)
+        sign = -1; // pull, pinch, cut
+
+    if (smooth)
+    {
+        // One Laplacian relaxation pass over vertices inside the brush.
+        std::vector<mir::Vector3> offsets(mesh.vertices.size(), mir::Vector3(0, 0, 0));
+        std::vector<int> counts(mesh.vertices.size(), 0);
+        for (const auto& t : mesh.triangles)
+        {
+            const std::size_t ids[3] = { t.a, t.b, t.c };
+            for (int e = 0; e < 3; ++e)
+            {
+                const std::size_t i = ids[e];
+                const std::size_t j = ids[(e + 1) % 3];
+                const std::size_t k = ids[(e + 2) % 3];
+                const double dist = (mesh.vertices[i] - local).length();
+                if (dist > r)
+                    continue;
+                const double tt = 1.0 - dist / r;
+                const double falloff = tt * tt * (3.0 - 2.0 * tt);
+                const mir::Vector3 vj(mesh.vertices[j].x, mesh.vertices[j].y, mesh.vertices[j].z);
+                const mir::Vector3 vk(mesh.vertices[k].x, mesh.vertices[k].y, mesh.vertices[k].z);
+                const mir::Vector3 vi(mesh.vertices[i].x, mesh.vertices[i].y, mesh.vertices[i].z);
+                const mir::Vector3 neighbour = (vj + vk) * 0.5;
+                offsets[i] += (neighbour - vi) * (sign * strength * falloff);
+                counts[i] += 1;
+            }
+        }
+        for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+        {
+            if (counts[i] > 0)
+                mesh.vertices[i] = mesh.vertices[i] + offsets[i] / static_cast<double>(counts[i]);
+        }
+    }
+    else
+    {
+        for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+        {
+            const double dist = (mesh.vertices[i] - local).length();
+            if (dist > r)
+                continue;
+            const double tt = 1.0 - dist / r;
+            const double falloff = tt * tt * (3.0 - 2.0 * tt);
+            mir::Vector3 nrm = mesh.normals.empty() ? mir::Vector3(0, 0, 1) : mesh.normals[i];
+            const double nl = nrm.length();
+            if (nl < 1e-9)
+                nrm = mir::Vector3(0, 0, 1);
+            else
+                nrm = nrm.normalized();
+            mesh.vertices[i] = mesh.vertices[i] + nrm * (sign * strength * falloff);
+        }
+    }
+
+    // Recompute smooth vertex normals from the deformed triangles.
+    if (mesh.normals.size() != mesh.vertices.size())
+        mesh.normals.resize(mesh.vertices.size());
+    std::vector<mir::Vector3> acc(mesh.vertices.size(), mir::Vector3(0, 0, 0));
+    for (const auto& t : mesh.triangles)
+    {
+        const mir::Vector3 fn = mir::Vector3::cross(
+            mesh.vertices[t.b] - mesh.vertices[t.a],
+            mesh.vertices[t.c] - mesh.vertices[t.a]);
+        acc[t.a] += fn;
+        acc[t.b] += fn;
+        acc[t.c] += fn;
+    }
+    for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+    {
+        const double l = acc[i].length();
+        mesh.normals[i] = l > 1e-9 ? acc[i].normalized() : mir::Vector3(0, 0, 1);
+    }
+
+    node->touch();
+    return true;
+}
+
 /// Real CAD geometry bridge: extracts bounding box, volume, surface area and
 /// topology counts from the selected object's tessellated mesh.
 bool MirEngineGetSelectedObjectMetrics(
@@ -1179,6 +1284,36 @@ bool MirEngineCanRedo(
         return false;
 
     return native->runtime->canRedo();
+}
+
+
+bool MirEngineBeginDeformSelected(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    native->runtime->beginDeformSelected();
+    return true;
+}
+
+
+bool MirEngineEndDeformSelected(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return false;
+
+    native->runtime->endDeformSelected();
+    return true;
 }
 
 

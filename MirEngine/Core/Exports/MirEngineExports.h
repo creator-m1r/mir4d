@@ -280,6 +280,33 @@ uint64_t MirEngineGetSelectedObjectId(
     void* viewport
 );
 
+// Applies an in-place sculpt/push/pull deformation to the selected object's
+// tessellated mesh. `x,y,z` is the world-space brush centre, `radius` a
+// world-space radius, `strength` a signed displacement magnitude in world
+// units, and `mode` selects the displacement profile. Returns false when no
+// object is selected or the selection has no editable mesh.
+bool MirEngineDeformSelected(
+    void* viewport,
+    double x, double y, double z,
+    double radius,
+    double strength,
+    int mode
+);
+
+// Begins an undoable sculpt stroke on the primary selection: snapshots the
+// current mesh vertices. Pairs with MirEngineEndDeformSelected. No-op when
+// nothing is selected.
+bool MirEngineBeginDeformSelected(
+    void* viewport
+);
+
+// Commits a single undoable DeformObjectCommand for the active stroke (only if
+// the mesh actually changed since MirEngineBeginDeformSelected). Pairs with
+// MirEngineBeginDeformSelected.
+bool MirEngineEndDeformSelected(
+    void* viewport
+);
+
 // Deletes the primary selection through the canonical Scene API. The
 // renderer observes the scene change; nothing is removed from the renderer
 // directly. Returns true when an object was removed.

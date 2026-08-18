@@ -10,6 +10,7 @@
 #pragma once
 
 #include "MirEngine/Geometry/Scene/Scene.hpp"
+#include "MirEngine/Geometry/Model/Model.hpp"
 #include "MirEngine/Math/Transform.hpp"
 #include "MirEngine/Core/Identity/ObjectId.hpp"
 
@@ -104,6 +105,49 @@ public:
 
 private:
     std::shared_ptr<mir::ModelNode> node_;
+};
+
+/// Restores a selected object's mesh to a captured vertex set (an undoable
+/// sculpt stroke). Normals are recomputed from the restored vertices so the
+/// renderer stays consistent after undo/redo.
+class DeformObjectCommand final : public SceneCommand
+{
+public:
+    DeformObjectCommand(ObjectId objectId,
+                        std::vector<mir::Point3> from,
+                        std::vector<mir::Point3> to) noexcept
+        : objectId_(objectId)
+        , from_(std::move(from))
+        , to_(std::move(to))
+    {
+    }
+
+    void execute(mir::Scene& scene) override { apply(scene, to_); }
+    void undo(mir::Scene& scene) override { apply(scene, from_); }
+
+    [[nodiscard]] const char* description() const noexcept override
+    {
+        return "DEFORM";
+    }
+
+private:
+    void apply(mir::Scene& scene, const std::vector<mir::Point3>& verts)
+    {
+        const auto node = scene.find(objectId_);
+        if (!node || !node->model() || !node->model()->hasMesh())
+            return;
+        auto* model = const_cast<Model*>(node->model().get());
+        auto& mesh = model->mesh();
+        if (mesh.vertices.size() != verts.size())
+            return;
+        mesh.vertices = verts;
+        mesh.recomputeVertexNormals();
+        node->touch();
+    }
+
+    ObjectId objectId_;
+    std::vector<mir::Point3> from_;
+    std::vector<mir::Point3> to_;
 };
 
 /// Stack-based history of scene commands (single undo/redo chain).

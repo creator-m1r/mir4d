@@ -250,6 +250,19 @@ final class CADCommandRegistry: ObservableObject {
             execute: { MirEventBus.shared.publish(.commandRequested("model.revolve")) }
         ))
         register(CADCommand(
+            id: "model.sculpt",
+            titleRU: "Воздушный скульпт",
+            titleEN: "Air Sculpt",
+            icon: "wand.and.rays",
+            shortcut: nil,
+            workbenches: [.model],
+            isAvailable: { context in context.workbench == .model && context.selection.hasSelection },
+            execute: {
+                appState.selectedTool = "sculpt"
+                MirEventBus.shared.publish(.commandRequested("model.sculpt"))
+            }
+        ))
+        register(CADCommand(
             id: "assembly.mate",
             titleRU: "Связать детали",
             titleEN: "Mate Components",

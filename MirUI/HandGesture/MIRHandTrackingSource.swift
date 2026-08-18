@@ -3,6 +3,7 @@ import CoreGraphics
 import simd
 import AVFoundation
 import Vision
+import os
 
 /// Whether a tracking source can currently provide frames.
 enum MIRHandTrackingAvailability: Sendable {
@@ -72,7 +73,7 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     private let output = AVCaptureVideoDataOutput()
     private let sessionQueue = DispatchQueue(label: "com.mir4d.hand-camera", qos: .userInteractive)
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
-    private var continuation: AsyncStream<[MIRHandPose]>.Continuation?
+    private let continuationLock = OSAllocatedUnfairLock<AsyncStream<[MIRHandPose]>.Continuation?>(initialState: nil)
     private var configured = false
     private var running = false
 
@@ -86,11 +87,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     func start() -> AsyncStream<[MIRHandPose]> {
         AsyncStream { [weak self] continuation in
             guard let self else { continuation.finish(); return }
-            self.continuation = continuation
+            continuationLock.withLock { $0 = continuation }
             Task {
                 let granted = await AVCaptureDevice.requestAccess(for: .video)
                 guard granted else {
-                    self.continuation?.finish()
+                    _ = continuationLock.withLock { $0?.finish() }
+                    _ = continuationLock.withLock { $0 = nil }
                     return
                 }
                 self.configureIfNeeded()
@@ -103,12 +105,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     }
 
     func stop() {
+        _ = continuationLock.withLock { $0?.finish() }
+        _ = continuationLock.withLock { $0 = nil }
         sessionQueue.async { [weak self] in
             self?.session.stopRunning()
             self?.running = false
         }
-        continuation?.finish()
-        continuation = nil
     }
 
     private func configureIfNeeded() {
@@ -146,7 +148,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         }
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
-        continuation?.yield(poses)
+        continuationLock.withLock { $0?.yield(poses) }
     }
 
     private func pose(from observation: VNHumanHandPoseObservation) -> MIRHandPose? {

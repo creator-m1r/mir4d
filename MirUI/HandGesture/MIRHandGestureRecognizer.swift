@@ -22,6 +22,10 @@ struct MIRHandGestureRecognizer: Sendable {
         var minHoldFrames: Int = 3
         var lostFrameTolerance: Int = 8
         var maxPositionJump: Double = 0.6
+        /// Exponential smoothing factor for pinch strength (0...1). Lower = smoother,
+        /// removes high-frequency "buzz" on `pressure`/sculpt strength without
+        /// delaying discrete gesture transitions (those are debounced separately).
+        var strengthSmoothing: Double = 0.4
         var motion: MIRHandMotion.Configuration = .init()
         var classifying: MIRHandGestureClassifier.Configuration = .init()
     }
@@ -34,6 +38,8 @@ struct MIRHandGestureRecognizer: Sendable {
     private var state: MIRHandState = .lost
     private var smoothedPosition: SIMD3<Double>?
     private var lastDirection: SIMD3<Double> = .zero
+    private var smoothedStrength: Double = 0
+    private var strengthInitialized = false
     private var lostFrames = 0
 
     private var pendingType: MIRHandGestureType = .rest
@@ -77,6 +83,17 @@ struct MIRHandGestureRecognizer: Sendable {
         lastDirection = movement.direction
         let result = classifier.classify(pose)
 
+        // Smooth pinch strength (feeds MIRHandIntent.strength → pressure/sculpt).
+        // Position is already smoothed; strength was raw and flickered frame to frame.
+        let rawStrength = result.pinchStrength
+        if strengthInitialized {
+            let a = min(max(configuration.strengthSmoothing, 0), 1)
+            smoothedStrength += (rawStrength - smoothedStrength) * a
+        } else {
+            smoothedStrength = rawStrength
+            strengthInitialized = true
+        }
+
         let observed = true
         let interacting = [MIRHandGestureType.pinch, .grab, .point, .twoFinger, .threeFinger].contains(result.type)
         state = state.next(observed: observed, interacting: interacting)
@@ -91,16 +108,16 @@ struct MIRHandGestureRecognizer: Sendable {
 
         if pendingType != confirmedType && pendingFrames >= configuration.minHoldFrames {
             if confirmedType != .rest {
-                _ = makeEvent(type: confirmedType, confidence: confirmedConfidence, strength: result.pinchStrength,
+                _ = makeEvent(type: confirmedType, confidence: confirmedConfidence, strength: smoothedStrength,
                               position: smoothed, movement: movement, timestamp: timestamp, phase: .ended)
             }
             confirmedType = pendingType
             confirmedConfidence = result.confidence
-            return makeEvent(type: confirmedType, confidence: result.confidence, strength: result.pinchStrength,
+            return makeEvent(type: confirmedType, confidence: result.confidence, strength: smoothedStrength,
                              position: smoothed, movement: movement, timestamp: timestamp, phase: .began)
         } else if confirmedType != .rest {
             confirmedConfidence = confirmedConfidence * 0.7 + result.confidence * 0.3
-            return makeEvent(type: confirmedType, confidence: confirmedConfidence, strength: result.pinchStrength,
+            return makeEvent(type: confirmedType, confidence: confirmedConfidence, strength: smoothedStrength,
                              position: smoothed, movement: movement, timestamp: timestamp, phase: .changed)
         }
 
@@ -118,6 +135,8 @@ struct MIRHandGestureRecognizer: Sendable {
         pendingType = .rest
         pendingFrames = 0
         smoothedPosition = nil
+        smoothedStrength = 0
+        strengthInitialized = false
         motion.reset()
         state = state.next(observed: false, interacting: false)
 
@@ -132,6 +151,8 @@ struct MIRHandGestureRecognizer: Sendable {
         motion.reset()
         state = .lost
         smoothedPosition = nil
+        smoothedStrength = 0
+        strengthInitialized = false
         lastDirection = .zero
         lostFrames = 0
         pendingType = .rest

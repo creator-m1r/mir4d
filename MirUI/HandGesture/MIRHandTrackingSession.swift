@@ -57,7 +57,9 @@ public final class MIRHandTrackingSession: ObservableObject {
         self.source = src
         status = .running
         let cfg = poolConfiguration
-        task = Task { [weak self] in
+        // Recognition must run off the main actor: the class is @MainActor, so a
+        // plain `Task { }` would inherit it and block the UI every frame.
+        task = Task.detached { [weak self] in
             let stream = src.start()
             let pool = MIRHandRecognizerPool(configuration: cfg)
             for await frame in stream {

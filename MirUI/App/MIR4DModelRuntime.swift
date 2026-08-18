@@ -51,6 +51,29 @@ final class MIR4DModelRuntime: ObservableObject {
         viewportObjectIDs[bodyID] = engineObjectID
     }
 
+    /// Applies an in-place sculpt stroke to the selected object through MirEngine.
+    /// `x,y,z` and `radius` are in CAD world units; `strength` is a signed
+    /// displacement magnitude; `mode` matches `MIR4DSculptIntent.Mode` ordering.
+    @discardableResult
+    func deformSelected(x: Double, y: Double, z: Double, radius: Double, strength: Double, mode: Int) -> Bool {
+        guard let viewport else { return false }
+        return mirEngineDeformSelected(viewport, x, y, z, radius, strength, Int32(mode))
+    }
+
+    /// Snapshots the selected mesh so a subsequent `deformSelected` stroke is a
+    /// single undoable command. Pairs with `endDeformStroke`.
+    func beginDeformStroke() {
+        guard let viewport else { return }
+        _ = mirEngineBeginDeformSelected(viewport)
+    }
+
+    /// Commits one undoable deform command for the active stroke. Pairs with
+    /// `beginDeformStroke`.
+    func endDeformStroke() {
+        guard let viewport else { return }
+        _ = mirEngineEndDeformSelected(viewport)
+    }
+
     /// Resolves a persisted body UUID from a viewport engine object ID.
     func persistedBodyID(forViewportEngineObjectID objectID: UInt64) -> UUID? {
         guard objectID > 0 else { return nil }

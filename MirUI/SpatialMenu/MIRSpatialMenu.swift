@@ -96,6 +96,7 @@ final class MIRSpatialMenuController: ObservableObject {
         guard let appState else { return }
         context = MIRSpatialMenuContext.resolve(appState: appState)
         MIRSpatialMenuContextResolved.current = context
+        MIRSpatialMenuHandAdapter.shared.setInteractionTarget(context.interactionTarget)
         tree = MIRSpatialMenuContext.tree(for: context)
         state = .initial
         previousState = nil
