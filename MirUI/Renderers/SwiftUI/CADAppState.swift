@@ -163,7 +163,9 @@ final class CADAppState: ObservableObject {
 
     /// Выбранная плоскость построения эскиза. `nil` означает, что пользователь
     /// ещё не выбрал плоскость — в этом случае показывается выборщик плоскости.
-    @Published var sketchPlane: SketchPlaneAnchor?
+    @Published var sketchPlane: SketchPlaneAnchor? {
+        didSet { modelRuntime.activeSketchPlane = sketchPlane }
+    }
 
     let time = TimeCoordinator()
     private var cancellables = Set<AnyCancellable>()

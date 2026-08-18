@@ -85,5 +85,35 @@ int main()
     assert(!history.canUndo());
     assert(!history.canRedo());
 
+    // ── Deform (undoable sculpt stroke) ───────────────────────────────
+    const auto node = scene.createNode(makeModel());
+    const auto original = node->model()->mesh().vertices;
+    auto modified = original;
+    for (auto& v : modified)
+        v = v + mir::Vector3(0, 0, 2); // push along +Z
+
+    auto equalVec = [](const std::vector<mir::Point3>& a,
+                       const std::vector<mir::Point3>& b) -> bool {
+        if (a.size() != b.size())
+            return false;
+        for (std::size_t i = 0; i < a.size(); ++i)
+            if (a[i].x != b[i].x || a[i].y != b[i].y || a[i].z != b[i].z)
+                return false;
+        return true;
+    };
+
+    history.execute(
+        std::make_unique<mir4d::DeformObjectCommand>(node->id(), original, modified),
+        scene);
+    assert(equalVec(node->model()->mesh().vertices, modified));
+    assert(history.canUndo() && !history.canRedo());
+
+    assert(history.undo(scene));
+    assert(equalVec(node->model()->mesh().vertices, original));
+    assert(history.canRedo());
+
+    assert(history.redo(scene));
+    assert(equalVec(node->model()->mesh().vertices, modified));
+
     return 0;
 }

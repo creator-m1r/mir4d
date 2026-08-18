@@ -12,6 +12,7 @@
 #include "../Math/Transform.hpp"
 #include "../BRep/Commands/BRepSceneBridge.hpp"
 #include "../Document/Document.hpp"
+#include "../Interaction/RayPicker.hpp"
 #include "../IO/Mesh/StlImporter.hpp"
 #include "../IO/Mesh/StlExporter.hpp"
 #include "../IO/Step/StepImporter.hpp"
@@ -1213,6 +1214,61 @@ void MirEngineClearSelection(
         return;
 
     native->runtime->clearSelection();
+}
+
+void MirEngineSelectObject(
+    void* viewport,
+    uint64_t objectId
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->state().selection.select(mir4d::ObjectId(objectId), false);
+}
+
+bool MirEnginePickWorldPoint(
+    void* viewport,
+    double nx, double ny,
+    double* outX, double* outY, double* outZ,
+    uint64_t* outObjectId
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return false;
+
+    auto* rt = native->runtime.get();
+    const double w = static_cast<double>(rt->state().width);
+    const double h = static_cast<double>(rt->state().height);
+    if (w <= 0 || h <= 0)
+        return false;
+
+    // Normalized (-1..1, screen-centred, y up) → pixel coordinates.
+    const double px = (nx * 0.5 + 0.5) * w;
+    const double py = (0.5 - ny * 0.5) * h;
+
+    const auto ray = mir::RayPicker::buildRay(
+        rt->state().camera,
+        static_cast<mir::Scalar>(px),
+        static_cast<mir::Scalar>(py),
+        rt->state().width,
+        rt->state().height);
+    const auto result = rt->pick(
+        static_cast<mir::Scalar>(px),
+        static_cast<mir::Scalar>(py));
+    if (!result.hit())
+        return false;
+
+    const auto point = ray.origin + ray.direction * result.distance;
+    if (outX) *outX = static_cast<double>(point.x);
+    if (outY) *outY = static_cast<double>(point.y);
+    if (outZ) *outZ = static_cast<double>(point.z);
+    if (outObjectId) *outObjectId = static_cast<std::uint64_t>(result.objectId);
+    return true;
 }
 
 

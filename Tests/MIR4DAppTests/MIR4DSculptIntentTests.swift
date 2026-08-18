@@ -49,6 +49,19 @@ final class MIR4DSculptIntentTests: XCTestCase {
         XCTAssertEqual(s.mode, .push)
     }
 
+    func testHandPoseMapsToSculptMode() {
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .pinch), .push)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .fist), .pull)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .point), .smooth)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .openPalm), .inflate)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .grab), .grab)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .thumbsUp), .pinch)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .vSign), .cut)
+        XCTAssertEqual(MIR4DSculptIntent.Mode(handPose: .twoFinger), .paint)
+        XCTAssertNil(MIR4DSculptIntent.Mode(handPose: .rest))
+        XCTAssertNil(MIR4DSculptIntent.Mode(handPose: .threeFinger))
+    }
+
     func testStrengthIsClamped() {
         let s = MIR4DSculptIntent(from: handIntent(gesture: .pinch, strength: 5))
         XCTAssertEqual(s.pressure, 1)

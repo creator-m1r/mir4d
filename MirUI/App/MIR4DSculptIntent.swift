@@ -75,3 +75,38 @@ struct MIR4DSculptIntent: Equatable {
         )
     }
 }
+
+extension MIR4DSculptIntent.Mode {
+    /// Maps a raw hand pose to a sculpt deformation mode so every pose is a
+    /// distinct tool: pinch→push, fist→pull, point→smooth, openPalm→inflate,
+    /// grab→grab, thumbsUp→pinch, vSign→cut, twoFinger→paint. Poses without a
+    /// sculpt meaning (rest, threeFinger) return nil.
+    init?(handPose: MIRHandGestureType) {
+        switch handPose {
+        case .pinch: self = .push
+        case .fist: self = .pull
+        case .point: self = .smooth
+        case .openPalm: self = .inflate
+        case .grab: self = .grab
+        case .thumbsUp: self = .pinch
+        case .vSign: self = .cut
+        case .twoFinger: self = .paint
+        default: return nil
+        }
+    }
+
+    /// Short russian label for the on-screen brush indicator.
+    var shortTitle: String {
+        switch self {
+        case .push: return "Вдавить"
+        case .pull: return "Вытянуть"
+        case .smooth: return "Сгладить"
+        case .inflate: return "Надуть"
+        case .grab: return "Тянуть"
+        case .pinch: return "Щипок"
+        case .cut: return "Разрез"
+        case .paint: return "Краска"
+        }
+    }
+}
+

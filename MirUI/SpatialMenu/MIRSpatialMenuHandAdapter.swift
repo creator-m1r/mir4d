@@ -31,6 +31,9 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
     private var accumulativeDY: Double = 0
     private var cancellable: AnyCancellable?
 
+    /// In-progress hand-drawn sketch stroke (normalized -1…1 vertices).
+    private var sketchTrail: [CGPoint] = []
+
     func update(configuration: Configuration) {
         self.configuration = configuration
     }
@@ -45,6 +48,8 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
         guard cancellable == nil else { return }
         // Ensure the sculpt bridge is subscribed for the lifetime of the session.
         _ = MIR4DSculptCommandBridge.shared
+        // Ensure the sketch bridge is subscribed for the lifetime of the session.
+        _ = MIR4DSketchCommandBridge.shared
         cancellable = MIRHandGestureModule.shared.session.intentPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] intent in
@@ -58,6 +63,28 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
         reset()
     }
 
+    /// Draws a freeform stroke while the Sketch workbench is active. A pointing
+    /// hand accumulates vertices; releasing commits the stroke. Each frame is
+    /// published (live preview) so the bridge can show the stroke in real time.
+    private func handleSketch(_ intent: MIRHandIntent) {
+        guard intent.gesture.type == .point else { return }
+        let vertex = CGPoint(x: intent.position.x, y: intent.position.y)
+
+        switch intent.phase {
+        case .began:
+            sketchTrail = [vertex]
+            MIR4DSketchIntentPublisher.shared.publish(MIR4DSketchIntent(points: sketchTrail, live: true))
+        case .changed:
+            sketchTrail.append(vertex)
+            MIR4DSketchIntentPublisher.shared.publish(MIR4DSketchIntent(points: sketchTrail, live: true))
+        case .ended, .cancelled:
+            if sketchTrail.count >= 2 {
+                MIR4DSketchIntentPublisher.shared.publish(MIR4DSketchIntent(points: sketchTrail, live: false))
+            }
+            sketchTrail.removeAll()
+        }
+    }
+
     func reset() {
         active = false
         lastPosition = nil
@@ -66,28 +93,39 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
     }
 
     func handle(_ intent: MIRHandIntent) {
-        switch intent.gesture.type {
-        case .pinch:
-            let action = MIR4DInteractionContext(target: interactionTarget)
-                .resolve(gesture: .pinch, phase: intent.phase)
+        let action = MIR4DInteractionContext(target: interactionTarget)
+            .resolve(gesture: .pinch, phase: intent.phase)
 
-            // Sculpting surface: emit a rich, real deformation stroke each frame
-            // instead of (only) driving the radial menu. Depth is carried through.
-            if interactionTarget == .sculpt,
-               intent.phase == .began || intent.phase == .changed {
-                MIR4DSculptIntentPublisher.shared.publish(MIR4DSculptIntent(from: intent))
+        // Sculpt surface: every supported hand pose deforms the selected body in
+        // a distinct mode and publishes on the App stream; the radial menu is not
+        // navigated while sculpting. `active` is intentionally left untouched so
+        // menu navigation still works after leaving sculpt mode.
+        if interactionTarget == .sculpt {
+            switch intent.phase {
+            case .began, .changed:
+                if let mode = MIR4DSculptIntent.Mode(handPose: intent.gesture.type) {
+                    var sculpt = MIR4DSculptIntent(from: intent)
+                    sculpt.mode = mode
+                    MIR4DSculptIntentPublisher.shared.publish(sculpt)
+                }
                 MIRIntentRouter.shared.publish(
                     MIRIntent(source: .spatial, phase: .attention, action: action.rawValue, confidence: intent.confidence)
                 )
-                if intent.phase == .began {
-                    active = true
-                    lastPosition = intent.position
-                    accumulativeDX = 0
-                    accumulativeDY = 0
-                }
-                return
+            case .ended, .cancelled:
+                break
             }
+            return
+        }
 
+        // Sketch workbench: a pointing hand draws a freeform stroke on the active
+        // plane. The radial menu is still opened with a pinch.
+        if interactionTarget == .sketch {
+            handleSketch(intent)
+            return
+        }
+
+        switch intent.gesture.type {
+        case .pinch:
             if intent.phase == .began || intent.phase == .changed {
                 guard !active else { return }
                 active = true
@@ -104,11 +142,6 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
                 reset()
             }
         case .point, .grab:
-            // Sculpt surface also accepts a grab stroke (pinch released into grab).
-            if interactionTarget == .sculpt, intent.phase == .began || intent.phase == .changed {
-                MIR4DSculptIntentPublisher.shared.publish(MIR4DSculptIntent(from: intent))
-                return
-            }
             guard active, let last = lastPosition else { return }
             let dx = (intent.position.x - last.x) * Double(configuration.scale)
             let dy = (intent.position.y - last.y) * Double(configuration.scale)

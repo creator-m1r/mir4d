@@ -34,6 +34,15 @@ final class MIR4DModelRuntime: ObservableObject {
     /// geometry bridge to read real metrics of the selected CAD object.
     nonisolated(unsafe) var viewport: UnsafeMutableRawPointer?
 
+    /// Live OpenGL renderer handle published by MirGLView. Required to push the
+    /// 2D sketch overlay (and other immediate-mode draws) from App-layer bridges.
+    nonisolated(unsafe) var renderer: UnsafeMutableRawPointer?
+
+    /// Active sketch plane basis mirrored from `CADAppState.sketchPlane`, used by
+    /// the sketch command bridge to orient hand-drawn strokes onto the chosen
+    /// work plane (XY/YZ/ZX) instead of a fixed base plane.
+    nonisolated(unsafe) var activeSketchPlane: SketchPlaneAnchor?
+
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
     /// persisted because the engine document is rebuilt when a project opens.
@@ -81,6 +90,27 @@ final class MIR4DModelRuntime: ObservableObject {
             return bodyID
         }
         return nil
+    }
+
+    /// Selects a persisted body in the MirEngine viewport by its UUID so that
+    /// selection-driven tools (sculpt) work even when the body was picked from
+    /// the CAD tree rather than the 3D viewport (which already sets it).
+    func selectBody(persistedID: UUID) {
+        guard let viewport else { return }
+        guard let objectID = viewportObjectIDs[persistedID], objectID > 0 else { return }
+        mirEngineSelectObject(viewport, objectID)
+    }
+
+    /// Ray-casts the viewport camera through normalized screen coords (nx, ny in
+    /// -1..1, screen-centred, y up) and returns the world hit point plus the hit
+    /// engine object id. Used to place the air-sculpt brush where the hand points,
+    /// regardless of camera orientation. Returns nil on a miss.
+    func pickWorldPoint(nx: Double, ny: Double) -> (point: SIMD3<Double>, objectId: UInt64)? {
+        guard let viewport else { return nil }
+        var x = 0.0, y = 0.0, z = 0.0
+        var objectId: UInt64 = 0
+        guard mirEnginePickWorldPoint(viewport, nx, ny, &x, &y, &z, &objectId) else { return nil }
+        return (SIMD3(x, y, z), objectId)
     }
 
     /// Removes a body (with its operations and geometry) from the persisted

@@ -302,6 +302,7 @@ final class MirGLCustomView: NSView {
             MirEngineDestroyOpenGLContext(context)
 
             self.renderer = nil
+            MIR4DModelRuntime.shared.renderer = nil
             self.context = nil
 
             return
@@ -314,6 +315,7 @@ final class MirGLCustomView: NSView {
                 size.height
             )
         MIR4DModelRuntime.shared.viewport = self.viewport
+        MIR4DModelRuntime.shared.renderer = self.renderer
         print("TRACE: setupEngine viewport ok: \(viewport != nil)")
 
         if let startupViewport = viewport {
@@ -341,6 +343,7 @@ final class MirGLCustomView: NSView {
             MirEngineDestroyOpenGLContext(context)
 
             self.renderer = nil
+            MIR4DModelRuntime.shared.renderer = nil
             self.context = nil
 
             return
@@ -1191,6 +1194,7 @@ final class MirGLCustomView: NSView {
             MirEngineDestroyRenderer(renderer)
 
             self.renderer = nil
+            MIR4DModelRuntime.shared.renderer = nil
         }
 
         if let context {

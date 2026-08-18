@@ -23,9 +23,6 @@ final class MIR4DSculptCommandBridge {
     private let volumeH = 1.25
     private let volumeD = 1.6
     private let depthCenter = 0.0
-    /// Fraction of the object half-extent used as the brush radius so a default
-    /// stroke stays local rather than engulfing the whole body.
-    private let brushScale: Double = 0.25
 
     /// A hand sculpt stroke spans many deform frames; they collapse into exactly
     /// one undo entry via begin/end of a stroke. The stroke ends after a short
@@ -49,28 +46,49 @@ final class MIR4DSculptCommandBridge {
         }
         // Any incoming frame keeps the stroke alive; commit only after a gap.
         endTimer?.invalidate()
-        endTimer = Timer.scheduledTimer(withTimeInterval: strokeIdleSeconds, repeats: false) { _ in
+        endTimer = Timer.scheduledTimer(withTimeInterval: strokeIdleSeconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.finishStroke() }
         }
 
-        guard let bounds = selectedBounds() else { return }
+        guard let bounds = selectedBounds() else {
+            MIR4DBrushIndicator.shared.hide()
+            return
+        }
         let bmin = bounds.min
         let bmax = bounds.max
         let center = (bmin + bmax) * 0.5
         let half = (bmax - bmin) * 0.5
         let maxHalf = max(half.x, max(half.y, half.z))
 
-        // Interaction volume (−1…1) → object extents.
+        // Interaction volume (−1…1, screen-centred) → normalized screen coords.
         let nx = Double(intent.position.x) / (volumeW * 0.5)
         let ny = Double(intent.position.y) / (volumeH * 0.5)
-        let nz = (Double(intent.depth) - depthCenter) / (volumeD * 0.5)
-        let wx = center.x + nx * half.x
-        let wy = center.y + ny * half.y
-        let wz = center.z + nz * half.z
 
-        let worldRadius = max(Double(intent.radius), 0.05) * maxHalf * brushScale
+        // Place the brush where the hand points by ray-casting the viewport
+        // camera; this follows the hand on screen regardless of camera
+        // orientation. Fall back to the bbox-proportional mapping if the ray
+        // misses (e.g. the hand is off the body).
+        let (wx, wy, wz): (Double, Double, Double)
+        if let hit = runtime.pickWorldPoint(nx: nx, ny: ny) {
+            wx = hit.point.x
+            wy = hit.point.y
+            wz = hit.point.z
+        } else {
+            let nz = (Double(intent.depth) - depthCenter) / (volumeD * 0.5)
+            wx = center.x + nx * half.x
+            wy = center.y + ny * half.y
+            wz = center.z + nz * half.z
+        }
+
+        let worldRadius = max(Double(intent.radius), 0.05) * maxHalf * MIR4DSculptSettings.shared.radiusScale
         // Displacement scales with object size and pinch strength (0…1).
-        let worldStrength = Double(intent.strength) * maxHalf * 0.04
+        let worldStrength = Double(intent.strength) * maxHalf * MIR4DSculptSettings.shared.strengthScale
+
+        MIR4DBrushIndicator.shared.show(
+            x: nx, y: ny,
+            radius: CGFloat(max(Double(intent.radius), 0.05) * MIR4DSculptSettings.shared.radiusScale),
+            mode: intent.mode
+        )
 
         _ = runtime.deformSelected(
             x: wx, y: wy, z: wz,
@@ -86,6 +104,7 @@ final class MIR4DSculptCommandBridge {
         endTimer = nil
         runtime.endDeformStroke()
         strokeActive = false
+        MIR4DBrushIndicator.shared.hide()
     }
 
     /// Maps `MIR4DSculptIntent.Mode` to the int profile expected by MirEngine.

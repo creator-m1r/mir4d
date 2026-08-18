@@ -96,6 +96,10 @@ struct MIR4DCreativeWorkspaceView: View {
     private var sceneOverlays: some View {
         ZStack {
             FourDSceneOverlayView(appState: appState).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).allowsHitTesting(false)
+            MIR4DBrushOverlay()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
+            MIR4DSculptSettingsHUD()
             if appState.workbench == .fourD {
                 DigitalWorldHUD(appState: appState, store: productionStore)
                 ProductionWorldView(appState: appState, store: productionStore).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

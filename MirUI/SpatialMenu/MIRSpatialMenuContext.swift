@@ -212,6 +212,7 @@ enum MIRSpatialMenuContext {
                     icon: "cube.transparent",
                     command: "object.body",
                     children: [
+                        tool("object.body.sculpt", "Воздушный скульпт", "Air Sculpt", "wand.and.rays", "model.sculpt"),
                         tool("object.body.properties", "Свойства", "Properties", "info.circle", "object.properties"),
                         tool("object.body.material", "Материал", "Material", "paintpalette", "object.material"),
                         tool("object.body.delete", "Удалить", "Delete", "trash", "object.delete"),

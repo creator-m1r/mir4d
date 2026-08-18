@@ -319,6 +319,26 @@ void MirEngineClearSelection(
     void* viewport
 );
 
+// Selects the object with the given engine id in the viewport without a pick.
+// Keeps the engineering selection in sync with the CAD/app selection so tools
+// that read viewport selection (e.g. sculpt) work regardless of how the body
+// was picked (3D viewport click or CAD tree).
+void MirEngineSelectObject(
+    void* viewport,
+    uint64_t objectId
+);
+
+// Ray-casts the viewport camera through normalized screen coords (nx, ny in
+// -1..1, screen-centred, y up) and returns the world hit point on the closest
+// mesh plus the hit object id. Used to place the air-sculpt brush exactly where
+// the hand points, independent of camera orientation. Returns false on a miss.
+bool MirEnginePickWorldPoint(
+    void* viewport,
+    double nx, double ny,
+    double* outX, double* outY, double* outZ,
+    uint64_t* outObjectId
+);
+
 // Aborts an active object drag and restores the drag-start transform (Esc).
 // No history entry is created.
 void MirEngineViewportDragCancel(

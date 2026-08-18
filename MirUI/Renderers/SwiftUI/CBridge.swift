@@ -83,6 +83,8 @@ public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) 
 public func mirEngineDeformSelected(_ viewport: UnsafeMutableRawPointer?, _ x: Double, _ y: Double, _ z: Double, _ radius: Double, _ strength: Double, _ mode: Int32) -> Bool { false }
 public func mirEngineBeginDeformSelected(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func mirEngineEndDeformSelected(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+public func mirEngineSelectObject(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) { }
+public func mirEnginePickWorldPoint(_ viewport: UnsafeMutableRawPointer?, _ nx: Double, _ ny: Double, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?, _ outObjectId: UnsafeMutablePointer<UInt64>?) -> Bool { false }
 public func MirEngineClearSelection(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineViewportDragCancel(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
@@ -121,7 +123,13 @@ public struct MirEngineSketchSegment: Sendable {
         self.ax = ax; self.ay = ay; self.bx = bx; self.by = by; self.color = color
     }
 }
-public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments: [MirEngineSketchSegment]) {}
+public func MirEnginePushSketch(
+    _ renderer: UnsafeMutableRawPointer?,
+    _ segments: [MirEngineSketchSegment],
+    origin: [Float] = [0, 0, 0],
+    xAxis: [Float] = [1, 0, 0],
+    yAxis: [Float] = [0, 1, 0]
+) {}
 public func MirEngineCreatePlaneStore() -> UnsafeMutableRawPointer? { nil }
 public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?) {}
 public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?) {}
@@ -201,6 +209,8 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineBeginDeformSelected") public func mirEngineBeginDeformSelected(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineEndDeformSelected") public func mirEngineEndDeformSelected(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineClearSelection") public func MirEngineClearSelection(_ viewport: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineSelectObject") public func mirEngineSelectObject(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
+@_silgen_name("MirEnginePickWorldPoint") public func mirEnginePickWorldPoint(_ viewport: UnsafeMutableRawPointer?, _ nx: Double, _ ny: Double, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?, _ outObjectId: UnsafeMutablePointer<UInt64>?) -> Bool
 @_silgen_name("MirEngineViewportDragCancel") public func MirEngineViewportDragCancel(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineUndo") public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineRedo") public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
@@ -305,7 +315,13 @@ public struct MirEngineSketchSegment: Sendable {
     }
 }
 
-public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments: [MirEngineSketchSegment]) {
+public func MirEnginePushSketch(
+    _ renderer: UnsafeMutableRawPointer?,
+    _ segments: [MirEngineSketchSegment],
+    origin: [Float] = [0, 0, 0],
+    xAxis: [Float] = [1, 0, 0],
+    yAxis: [Float] = [0, 1, 0]
+) {
     guard let renderer else {
         MirEngineSetSketch(nil, 0, nil, nil, nil, nil, nil, nil, nil, nil)
         return
@@ -321,9 +337,6 @@ public func MirEnginePushSketch(_ renderer: UnsafeMutableRawPointer?, _ segments
         colors.append(contentsOf: [seg.color.0, seg.color.1, seg.color.2])
     }
     // Plane basis for the active work plane (XY base plane by default).
-    let origin: [Float] = [0, 0, 0]
-    let xAxis: [Float] = [1, 0, 0]
-    let yAxis: [Float] = [0, 1, 0]
     ax.withUnsafeBufferPointer { axP in
         ay.withUnsafeBufferPointer { ayP in
             bx.withUnsafeBufferPointer { bxP in

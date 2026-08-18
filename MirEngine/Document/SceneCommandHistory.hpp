@@ -136,12 +136,32 @@ private:
         const auto node = scene.find(objectId_);
         if (!node || !node->model() || !node->model()->hasMesh())
             return;
-        auto* model = const_cast<Model*>(node->model().get());
+        auto* model = const_cast<mir::Model*>(node->model().get());
         auto& mesh = model->mesh();
         if (mesh.vertices.size() != verts.size())
             return;
         mesh.vertices = verts;
-        mesh.recomputeVertexNormals();
+
+        // Recompute smooth vertex normals from the deformed triangles (mirrors
+        // the in-place recompute in MirEngineDeformSelected).
+        if (mesh.normals.size() != mesh.vertices.size())
+            mesh.normals.resize(mesh.vertices.size());
+        std::vector<mir::Vector3> acc(mesh.vertices.size(), mir::Vector3(0, 0, 0));
+        for (const auto& t : mesh.triangles)
+        {
+            const mir::Vector3 fn = mir::Vector3::cross(
+                mesh.vertices[t.b] - mesh.vertices[t.a],
+                mesh.vertices[t.c] - mesh.vertices[t.a]);
+            acc[t.a] += fn;
+            acc[t.b] += fn;
+            acc[t.c] += fn;
+        }
+        for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+        {
+            const double l = acc[i].length();
+            mesh.normals[i] = l > 1e-9 ? acc[i].normalized() : mir::Vector3(0, 0, 1);
+        }
+
         node->touch();
     }
 

@@ -258,6 +258,11 @@ final class CADCommandRegistry: ObservableObject {
             workbenches: [.model],
             isAvailable: { context in context.workbench == .model && context.selection.hasSelection },
             execute: {
+                let selectionIDs = appState.activeContext.selection.ids
+                if let firstID = selectionIDs.first,
+                   let uuid = UUID(uuidString: firstID) {
+                    MIR4DModelRuntime.shared.selectBody(persistedID: uuid)
+                }
                 appState.selectedTool = "sculpt"
                 MirEventBus.shared.publish(.commandRequested("model.sculpt"))
             }

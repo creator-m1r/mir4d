@@ -29,6 +29,7 @@ final class MIRSpatialMenuController: ObservableObject {
     private var previousState: MIRSpatialMenuState?
     private var observers: [NSObjectProtocol] = []
     private var voiceCancellable: AnyCancellable?
+    private var toolObserver: AnyCancellable?
     private var lastHapticSignature: String?
 
     private init() {}
@@ -72,12 +73,28 @@ final class MIRSpatialMenuController: ObservableObject {
             .sink { [weak self] hint in
                 self?.voiceHint = hint
             }
+
+        // Keep the hand-adapter interaction target in sync with the live scene
+        // state so that entering / leaving the sculpt tool (by any input path:
+        // hand menu, keyboard, palette) immediately switches pinch between
+        // "navigate the radial menu" and "deform the selected body".
+        toolObserver = Publishers.CombineLatest(appState.$selectedTool, appState.$selection)
+            .sink { [weak self] _, _ in
+                Task { @MainActor in
+                    guard let self, let appState = self.appState else { return }
+                    let ctx = MIRSpatialMenuContext.resolve(appState: appState)
+                    self.context = ctx
+                    MIRSpatialMenuHandAdapter.shared.setInteractionTarget(ctx.interactionTarget)
+                }
+            }
     }
 
     func uninstall() {
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
         voiceCancellable = nil
+        toolObserver?.cancel()
+        toolObserver = nil
         MIRSpatialMenuVoiceAdapter.shared.disconnect()
         MIRSpatialMenuGesture.shared.stop()
         Task { @MainActor in
@@ -128,6 +145,7 @@ final class MIRSpatialMenuController: ObservableObject {
 
     private func handleEnded(commit: Bool, dx: Double, dy: Double) {
         guard isPresented else { return }
+        guard let appState else { return }
         vector = CGVector(dx: dx, dy: dy)
         state = MIRSpatialMenuSelection.state(
             vector: vector,
@@ -144,6 +162,11 @@ final class MIRSpatialMenuController: ObservableObject {
             MIRIntentRouter.shared.publish(
                 MIRIntent(source: .spatial, phase: .execution, action: tool.command, confidence: 1.0)
             )
+            // Reflect the freshly applied tool / selection into the hand adapter
+            // so a pinch immediately sculpts instead of reopening the menu.
+            let resolved = MIRSpatialMenuContext.resolve(appState: appState)
+            context = resolved
+            MIRSpatialMenuHandAdapter.shared.setInteractionTarget(resolved.interactionTarget)
         } else {
             MIRIntentRouter.shared.publish(
                 MIRIntent(source: .spatial, phase: .cancel, action: "spatial.menu.cancel", confidence: 1.0)
