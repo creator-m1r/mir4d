@@ -75,7 +75,8 @@ let package = Package(
                 "App/UIConfig/Viewport.ui.json",
                 "App/UIConfig/ProjectTree.ui.json",
                 "App/UIConfig/TopBar.ui.json",
-                "App/UIConfig/MIR4DUIConfig.json"
+                "App/UIConfig/MIR4DUIConfig.json",
+                "App/Info.plist"
             ],
             sources: [
                 "App",

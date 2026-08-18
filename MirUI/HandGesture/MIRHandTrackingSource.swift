@@ -39,16 +39,23 @@ struct MIRMockTrackingSource: MIRHandTrackingSource {
     func start() -> AsyncStream<[MIRHandPose]> {
         AsyncStream { continuation in
             let frames = self.frames
-            if frames.isEmpty { continuation.finish(); return }
-            func emit(_ index: Int) {
-                guard index < frames.count else {
-                    if self.mode == .loop { emit(0) } else { continuation.finish() }
-                    return
+            let mode = self.mode
+            Task {
+                if frames.isEmpty { continuation.finish(); return }
+                var index = 0
+                while true {
+                    continuation.yield(frames[index])
+                    index += 1
+                    if index >= frames.count {
+                        if mode == .loop {
+                            index = 0
+                        } else {
+                            break
+                        }
+                    }
                 }
-                continuation.yield(frames[index])
-                emit(index + 1)
+                continuation.finish()
             }
-            emit(0)
         }
     }
 

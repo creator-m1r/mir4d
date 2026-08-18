@@ -14,19 +14,21 @@ final class HandAdapterBridgeTests: XCTestCase {
     private var movedObserver: NSObjectProtocol?
     private var endedObserver: NSObjectProtocol?
 
-    @MainActor
     override func setUp() {
         super.setUp()
-        MIRSpatialMenuHandAdapter.shared.stop()
-        MIRSpatialMenuGesture.shared.stop()
-        MIRHandGestureModule.shared.stop()
+        MainActor.assumeIsolated {
+            MIRSpatialMenuHandAdapter.shared.stop()
+            MIRSpatialMenuGesture.shared.stop()
+            MIRHandGestureModule.shared.stop()
+        }
     }
 
-    @MainActor
     override func tearDown() {
-        MIRSpatialMenuHandAdapter.shared.stop()
-        MIRSpatialMenuGesture.shared.stop()
-        MIRHandGestureModule.shared.stop()
+        MainActor.assumeIsolated {
+            MIRSpatialMenuHandAdapter.shared.stop()
+            MIRSpatialMenuGesture.shared.stop()
+            MIRHandGestureModule.shared.stop()
+        }
         if let o = beganObserver { NotificationCenter.default.removeObserver(o) }
         if let o = movedObserver { NotificationCenter.default.removeObserver(o) }
         if let o = endedObserver { NotificationCenter.default.removeObserver(o) }
@@ -48,7 +50,7 @@ final class HandAdapterBridgeTests: XCTestCase {
     // MARK: - Direct translation (no camera)
 
     @MainActor
-    func testPinchBeganOpensSpatialMenu() {
+    func testPinchBeganOpensSpatialMenu() async {
         var began = false
         beganObserver = NotificationCenter.default.addObserver(forName: .mir4DSpatialMenuBegan, object: nil, queue: .main) { _ in
             began = true
@@ -59,22 +61,22 @@ final class HandAdapterBridgeTests: XCTestCase {
     }
 
     @MainActor
-    func testPointMoveDrivesSpatialMenuMovement() {
-        var moved = false
+    func testPointMoveDrivesSpatialMenuMovement() async {
         var movedDX: Double = 0
+        let exp = expectation(description: "spatial menu moved")
         movedObserver = NotificationCenter.default.addObserver(forName: .mir4DSpatialMenuMoved, object: nil, queue: .main) { note in
-            moved = true
             movedDX = (note.userInfo?["dx"] as? Double) ?? 0
+            exp.fulfill()
         }
         MIRSpatialMenuHandAdapter.shared.start()
         MIRSpatialMenuHandAdapter.shared.handle(intent(.pinch, .began))
         MIRSpatialMenuHandAdapter.shared.handle(intent(.point, .changed, position: SIMD3(0.02, 0, 0)))
-        XCTAssertTrue(moved, "A tracking 'point' intent must move the Spatial Menu")
-        XCTAssertGreaterThan(movedDX, 0, "Movement must carry a positive delta")
+        await fulfillment(of: [exp], timeout: 2)
+        XCTAssertGreaterThan(movedDX, 0, "A tracking 'point' intent must move the Spatial Menu with a positive delta")
     }
 
     @MainActor
-    func testPinchEndedCommitsSpatialMenu() {
+    func testPinchEndedCommitsSpatialMenu() async {
         var ended = false
         var commit = false
         endedObserver = NotificationCenter.default.addObserver(forName: .mir4DSpatialMenuEnded, object: nil, queue: .main) { note in
@@ -104,7 +106,7 @@ final class HandAdapterBridgeTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 500_000_000)
             exp.fulfill()
         }
-        wait(for: [exp], timeout: 3)
+        await fulfillment(of: [exp], timeout: 3)
         MIRHandGestureModule.shared.stop()
         XCTAssertTrue(began, "A pinch recognised by the module must open the Spatial Menu")
     }

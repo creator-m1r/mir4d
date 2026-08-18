@@ -143,7 +143,11 @@ final class MIRSpatialMenuGesture: ObservableObject {
         NotificationCenter.default.post(
             name: .mir4DSpatialMenuMoved,
             object: nil,
-            userInfo: ["dx": stabilizedVector.dx, "dy": stabilizedVector.dy, "via": beganVia]
+            userInfo: [
+                "dx": Double(stabilizedVector.dx),
+                "dy": Double(stabilizedVector.dy),
+                "via": beganVia
+            ]
         )
     }
 

@@ -10,6 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
     CLANG_CXX_LANGUAGE_STANDARD: "c++23"
     CLANG_CXX_LIBRARY: "libc++"
     HEADER_SEARCH_PATHS:
@@ -107,6 +109,7 @@ targets:
       - path: MirUI/App
         excludes:
           - "UIConfig/*.json"
+          - "Info.plist"
       - path: MirUI/SpatialMenu
       - path: MirUI/Renderers/SwiftUI
         excludes:
@@ -203,6 +206,12 @@ targets:
         CFBundleDisplayName: MIR 4D
         NSHumanReadableCopyright: "© MIR 4D"
         LSMinimumSystemVersion: "15.0"
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+        LSApplicationCategoryType: public.app-category.graphics-design
+        NSSpeechRecognitionUsageDescription: "МИР 4D использует распознавание речи для голосового управления командами меню и моделирования."
+        NSMicrophoneUsageDescription: "МИР 4D использует микрофон для голосового ввода команд."
+        NSCameraUsageDescription: "МИР 4D использует камеру для управления жестами руки."
     dependencies:
       - target: MirServer
       - target: MirUIHandGesture
@@ -211,6 +220,8 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: CoreVideo.framework
       - sdk: Metal.framework
+      - sdk: Speech.framework
+      - sdk: AVFoundation.framework
 schemes:
   MIR4DApp:
     build:
