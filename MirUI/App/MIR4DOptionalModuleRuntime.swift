@@ -7,16 +7,8 @@ import Combine
 final class MIR4DOptionalModuleRuntime: ObservableObject {
     static let shared = MIR4DOptionalModuleRuntime()
 
-    enum Module: String, CaseIterable, Identifiable {
-        case camera
-        case microphone
-        case ai
-
-        var id: String { rawValue }
-    }
-
-    @Published private(set) var enabledModules: Set<Module> = []
-    @Published private(set) var runningModules: Set<Module> = []
+    @Published private(set) var enabledModules: Set<MIR4DOptionalModule> = []
+    @Published private(set) var runningModules: Set<MIR4DOptionalModule> = []
 
     private var permissionObserver: NSObjectProtocol?
 
@@ -38,35 +30,39 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
         }
     }
 
-    func apply(_ notification: Notification) {
-        let camera = notification.userInfo?["cameraEnabled"] as? Bool ?? false
-        let microphone = notification.userInfo?["microphoneEnabled"] as? Bool ?? false
-        let ai = notification.userInfo?["aiEnabled"] as? Bool ?? false
-
-        let requested: Set<Module> = [
-            camera ? .camera : nil,
-            microphone ? .microphone : nil,
-            ai ? .ai : nil
-        ].compactMap { $0 }
-
-        enabledModules = requested
-
-        for module in Module.allCases where !requested.contains(module) {
+    /// Applies the enabled-module set posted by the permissions UI.
+    func apply(_ modules: Set<MIR4DOptionalModule>) {
+        enabledModules = modules
+        for module in MIR4DOptionalModule.allCases where !modules.contains(module) {
             stop(module)
         }
     }
 
-    func isEnabled(_ module: Module) -> Bool {
+    /// Applies a configuration-change notification (cameraEnabled / microphoneEnabled / aiEnabled).
+    func apply(_ notification: Notification) {
+        let camera = notification.userInfo?["cameraEnabled"] as? Bool ?? false
+        let microphone = notification.userInfo?["microphoneEnabled"] as? Bool ?? false
+        let ai = notification.userInfo?["aiEnabled"] as? Bool ?? false
+        let requested: [MIR4DOptionalModule?] = [
+            camera ? .camera : nil,
+            microphone ? .microphone : nil,
+            ai ? .ai : nil
+        ]
+        apply(requested.compactMap { $0 })
+    }
+
+    func isEnabled(_ module: MIR4DOptionalModule) -> Bool {
         enabledModules.contains(module)
     }
 
-    func start(_ module: Module) -> Bool {
+    /// Starts the module if enabled. Returns whether it is now running.
+    func start(_ module: MIR4DOptionalModule) -> Bool {
         guard isEnabled(module) else { return false }
         runningModules.insert(module)
         return true
     }
 
-    func stop(_ module: Module) {
+    func stop(_ module: MIR4DOptionalModule) {
         runningModules.remove(module)
     }
 

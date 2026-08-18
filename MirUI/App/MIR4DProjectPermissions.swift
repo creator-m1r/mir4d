@@ -67,36 +67,6 @@ enum MIR4DOptionalModule: String, CaseIterable, Hashable, Sendable {
     case ai
 }
 
-/// Runtime gate for optional modules.
-/// Every camera/microphone/AI subsystem should check this gate before starting.
-@MainActor
-final class MIR4DOptionalModuleRuntime: ObservableObject {
-    static let shared = MIR4DOptionalModuleRuntime()
-
-    @Published private(set) var enabled: Set<MIR4DOptionalModule> = []
-
-    func apply(_ modules: Set<MIR4DOptionalModule>) {
-        enabled = modules
-    }
-
-    func isEnabled(_ module: MIR4DOptionalModule) -> Bool {
-        enabled.contains(module)
-    }
-
-    func stop(_ module: MIR4DOptionalModule) {
-        enabled.remove(module)
-    }
-
-    func stopAll() {
-        enabled.removeAll()
-    }
-
-    /// Use as a hard runtime guard immediately before starting an optional service.
-    func require(_ module: MIR4DOptionalModule) -> Bool {
-        isEnabled(module)
-    }
-}
-
 extension Notification.Name {
     static let mir4DOptionalModulesConfigurationChanged = Notification.Name("mir4DOptionalModulesConfigurationChanged")
 }
