@@ -10,7 +10,7 @@ import simd
 struct MIRHandGestureClassifier: Sendable {
     struct Configuration: Sendable {
         /// Normalised distance (relative to palm size) at which thumb↔index is "fully pinched".
-        var pinchScale: Double = 0.45
+        var pinchScale: Double = 1.0
         /// Curl value at/above which a finger counts as "folded".
         var curlFolded: Double = 0.6
         /// Curl value at/below which a finger counts as "extended".
@@ -28,15 +28,25 @@ struct MIRHandGestureClassifier: Sendable {
     }
 
     /// Curl ∈ [0,1]: 0 = straight, 1 = fully folded. Distance-independent.
+    ///
+    /// Computed as the mean of the two inter-segment bend angles expressed as
+    /// `(1 - cos θ) / 2`, where θ is the angle between consecutive finger
+    /// segments. A straight finger has θ ≈ 0° → curl 0; a fully folded finger
+    /// has θ ≈ 180° → curl 1.
     func curl(of finger: MIRFinger, in pose: MIRHandPose) -> Double {
         let joints = finger.joints.compactMap { joint(pose, $0) }
-        guard joints.count == finger.joints.count else { return 0 }
-        let tip = joints.last!
-        let mcp = joints[1]
-        let tipToMcp = simd_distance(tip, mcp)
-        let segmentSum = zip(joints, joints.dropFirst()).map { simd_distance($0, $1) }.reduce(0, +)
-        guard segmentSum > 1e-6 else { return 0 }
-        return min(max(1 - tipToMcp / segmentSum, 0), 1)
+        guard joints.count == finger.joints.count, joints.count >= 3 else { return 0 }
+        var total = 0.0
+        var bends = 0
+        for i in 0..<joints.count - 2 {
+            let v1 = simd_normalize(joints[i + 1] - joints[i])
+            let v2 = simd_normalize(joints[i + 2] - joints[i + 1])
+            let cosA = max(-1, min(1, dot(v1, v2)))
+            total += (1 - cosA) / 2
+            bends += 1
+        }
+        guard bends > 0 else { return 0 }
+        return min(max(total / Double(bends), 0), 1)
     }
 
     /// Continuous pinch strength ∈ [0,1]: 0 = fingers far apart, 1 = fully pinched.

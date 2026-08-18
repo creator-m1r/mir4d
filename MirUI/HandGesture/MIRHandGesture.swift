@@ -69,7 +69,7 @@ public struct MIRHandGesture: Sendable {
         self.position = position
         self.direction = direction
         self.velocity = velocity
-        self.strength = strength
+        self.strength = max(strength, 0)
         self.timestamp = timestamp
     }
 }

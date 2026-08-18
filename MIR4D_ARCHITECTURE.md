@@ -286,6 +286,8 @@ subscriptions
 
 `MirUI/Core/Events/EventDispatcher.hpp` разрешён только как UI capture/target/bubble dispatcher. Это не вторая engine-шина.
 
+Swift-слой намерений: `MirUI/HandGesture/` (target `MirUIHandGesture`) — `public MIRIntent` + `MIRIntentRouter` (единая `@MainActor`-шина намерений от устройств: voice/touch/trackpad/mouse/keyboard/gaze/spatial/system). `MIRIntentRouter` никогда не исполняет CAD-команды — только доставляет намерения; исполнение остаётся за командным слоем (`CADCommandRegistry`) через `MirEventBus`. Потребители: Radial Menu, Spatial Menu, CAD viewport. Это UI-шина намерений, а не вторая engine-шина.
+
 ## 9. Services / DI
 
 ```text
@@ -692,6 +694,8 @@ MirUI/
 ├── Viewport/
 ├── Widgets/
 ├── Renderers/
+├── HandGesture/   → target MirUIHandGesture (intent-шина + жесты рук)
+├── SpatialMenu/   → пространственное меню (11 файлов, target MIR4DApp)
 └── Swift/
 ```
 
@@ -700,6 +704,8 @@ MirUI/
 `MirUI/Core/Transform/TransformProperties.hpp` использует `mir4d::ObjectId`; сам legacy `mir::Transform` остаётся временной геометрической границей.
 
 SwiftUI не владеет C++ Document.
+
+Spatial Menu работает исключительно через `MIRIntent → MIRIntentRouter → Command → MirEngine`; он не содержит CAD-алгоритмов, геометрии, Vision, голосового движка и GPU-кода. Активация: клавиша `]`, средняя кнопка мыши, двухпальцевый hold (iPad, каркас). Голос: распознавание в `MIR4DVoiceAssistant`, адаптер публикует `MIRIntent(source: .voice)`. Рука: подписка на `MIRHandGestureModule.shared.session.intentPublisher` → `MIRIntent(source: .spatial)`.
 
 ## 25. Остальные engine-подсистемы
 

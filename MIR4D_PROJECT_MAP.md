@@ -70,6 +70,22 @@ SwiftUI
   - `MirServer.swift` — `MirServerManager` (`@MainActor` координатор: connect/disconnect, отправка сообщений, экспорт, broadcastCollaboration, открытие проекта в браузере).
   - Интеграция UI (`MirUI/App`): `MIR4DTeamServerView.swift` (чат/экспорт), `MIR4DCollaborationView.swift` (совместная работа), команды меню и окна `mir4d-server` / `mir4d-collab`. Создание примитива в `MIR4DModelCommands` транслируется в операцию совместной работы.
   - Зависимости: Foundation, AppKit (только `NSWorkspace` для открытия сайта). MirEngine и SwiftUI не требуются; модуль изолирован от CAD-ядра.
+- `MirUI/HandGesture/` — отдельный Swift target `MirUIHandGesture` (SPM; в Xcode — папка в target `MIR4DApp`), 27 файлов, зависимости: Foundation/simd/Combine. Состав:
+  - Intent-шина: `MIRIntent.swift` (`public struct MIRIntent` + `Source`/`Phase`), `MIRIntentRouter.swift` (`@MainActor public` синглтон-шина намерений: `publish` → подписчики; не исполняет CAD-команды).
+  - Распознавание жестов: `MIRHandPose.swift`, `MIRHandLandmark.swift`, `MIRHandSpatialMapper.swift`, `MIRHandGestureClassifier.swift`, `MIRHandGestureRecognizer.swift`, `MIRHandTrackingSession.swift` (`public intentPublisher`), `MIRHandGestureModule.swift` (`public shared`-фасад), `MIRHandIntent.swift` (`public struct`).
+  - Air-sculpt: `MIRAirSculptController.swift` (+ `Mode: sculpt/grab/draw`, `State`, `Configuration`), `MIRAirGestureController.swift`, `MIRSurfaceInteraction.swift`, `MIRSurfaceContactSolver.swift`, `MIRSurfaceDeformationCommand.swift`, `MIRAirContactField.swift`, `MIRAirContactPreview.swift`, `MIRAirDeformationField.swift`.
+  - Публичный контракт для UI: `MIRIntent`, `MIRIntentRouter`, `MIRHandGestureModule`, `MIRHandTrackingSession`, `MIRHandIntent`, `MIRHandGesture`, `MIRHandGestureType`, `MIRHandGesturePhase`. Внутренние типы — `internal`; модуль не зависит от SwiftUI и MirEngine.
+- `MirUI/SpatialMenu/` — пространственное меню (11 файлов, входит в target `MIR4DApp` SPM и Xcode):
+  - `MIRSpatialMenu.swift` — контроллер (`MIRSpatialMenuController.shared`), `MIRSpatialMenuView`, `.mir4DSpatialMenu(appState:registry:)` (интеграция в `MIR4DCreativeWorkspaceView`); выполнение — через `CADCommandRegistry.execute(id:context:)`, fallback — `MirEventBus` (`undoRequested`/`redoRequested`/`commandRequested`) и `selectWorkbench`/`selectedTool`.
+  - `MIRSpatialMenuModel.swift` — `MIRSpatialMenuItem`, `MIRSpatialMenuState`, `MIRSpatialMenuSettings`/`Store`, `MIRSpatialMenuAnchor` (центр меню фиксирован).
+  - `MIRSpatialMenuContext.swift` — `MIRSpatialMenuSceneContext` (`@MainActor resolve(appState:)`), дерево из 8 intent-сегментов, контекстные замены (face/body/sketch).
+  - `MIRSpatialMenuLayout.swift` — чистая геометрия веера (углы, подменю, магнитная стабилизация).
+  - `MIRSpatialMenuSelection.swift` — трёхуровневый выбор (intent → категория → инструмент), гистерезис.
+  - `MIRSpatialMenuGesture.swift` — активация `]`, средняя кнопка мыши, scrollWheel; нотификации `.mir4DSpatialMenuBegan/Moved/Ended`; `#if os(iOS)` каркас touch-активации.
+  - `MIRSpatialMenuRenderer.swift`, `MIRSpatialMenuAnimation.swift`, `MIRSpatialMenuBlur.swift` — веерные сегменты, анимации, `NSVisualEffectView` blur.
+  - `MIRSpatialMenuVoiceAdapter.swift` — слушает `.mir4DVoiceTranscript` (`MIR4DVoiceAssistant`), публикует `MIRIntent(source: .voice)`.
+  - `MIRSpatialMenuHandAdapter.swift` — подписка на `MIRHandGestureModule.shared.session.intentPublisher`, публикует `MIRIntent(source: .spatial)`.
+  - Запреты: меню не трогает MirEngine напрямую, не содержит CAD-алгоритмов, Vision, голосового движка и GPU; только Intent-шина и Event Bus.
 
 ## 3. Канон B-Rep
 

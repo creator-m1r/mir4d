@@ -22,7 +22,7 @@ enum MIRHandPoseMock {
     private static func fingerLandmarks(finger: MIRFinger, mcp: SIMD3<Double>, up: SIMD3<Double>, curl: Double) -> [MIRHandLandmark] {
         let s1 = 0.05, s2 = 0.05, s3 = 0.05
         let u = simd_normalize(up)
-        let phi = curl * 2.4
+        let phi = curl * 6.0
         let j0 = mcp
         let j1 = j0 + u * s1
         let j2 = j1 + rotate(u, by: phi * 0.5) * s2

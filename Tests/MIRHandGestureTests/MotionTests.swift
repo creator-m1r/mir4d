@@ -33,8 +33,16 @@ final class MotionTests: XCTestCase {
         var recognizer = MIRHandGestureRecognizer()
         let mapper = MIRHandSpatialMapper()
         let pose = MIRHandPoseMock.mockPoint()
-        _ = recognizer.ingest(pose: pose, scenePosition: mapper.map(normalized: pose.palmPosition), timestamp: Date())
-        let lost = recognizer.handleMissing(timestamp: Date().addingTimeInterval(1))
+        for i in 0..<5 {
+            _ = recognizer.ingest(pose: pose, scenePosition: mapper.map(normalized: pose.palmPosition),
+                                  timestamp: Date().addingTimeInterval(TimeInterval(i)))
+        }
+        var lost: MIRHandGestureEvent?
+        for i in 0...recognizer.configuration.lostFrameTolerance + 2 {
+            if let event = recognizer.handleMissing(timestamp: Date().addingTimeInterval(TimeInterval(10 + i))) {
+                lost = event
+            }
+        }
         XCTAssertNotNil(lost)
         XCTAssertEqual(recognizer.currentState, .lost)
     }
