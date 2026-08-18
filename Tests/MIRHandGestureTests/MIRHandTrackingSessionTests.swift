@@ -4,36 +4,53 @@ import Combine
 @testable import MirUIHandGesture
 
 /// Exercises the real `MIRHandTrackingSession` pipeline (source → mapper →
-/// recognizers → intents) via the camera-less mock source. This is the same
-/// code path the camera uses, minus the Vision `VNHandPoseRequest` detection.
+/// recognizers → intents) synchronously, without spawning the tracking-source
+/// `Task` (XCTest aborts on long-lived unstructured tasks).
 @MainActor
 final class MIRHandTrackingSessionTests: XCTestCase {
-    func testSessionForwardsIntentsFromSource() async {
+    private func configuredSession() -> MIRHandTrackingSession {
         let session = MIRHandTrackingSession()
         var config = MIRHandGestureConfiguration()
         config.minimumIntentConfidence = 0.1
         session.configuration = config
+        return session
+    }
 
-        let exp = expectation(description: "intent emitted from session")
+    func testSessionForwardsIntentsFromPipeline() {
+        let session = configuredSession()
         var received: [MIRHandIntent] = []
-        let cancellable = session.intentPublisher.sink { intent in
-            received.append(intent)
-            exp.fulfill()
-        }
+        let cancellable = session.intentPublisher.sink { received.append($0) }
 
+        // Five identical fist frames so the recognizer passes its hold debounce.
         let frames = (0..<5).map { _ in [MIRHandPoseMock.mockFist()] }
-        session.startMock(frames)
+        session.processFramesForTesting(frames)
 
-        await fulfillment(of: [exp], timeout: 2)
-
-        XCTAssertFalse(received.isEmpty, "Session must forward intents from the tracking source to intentPublisher")
+        cancellable.cancel()
+        XCTAssertFalse(received.isEmpty, "Session must forward intents from the recognition pipeline to intentPublisher")
         XCTAssertTrue(
             received.contains { $0.gesture.type != .rest },
             "A recognised gesture (e.g. fist) should produce a non-rest intent"
         )
+    }
+
+    func testSessionEmitsPinchIntent() {
+        let session = configuredSession()
+        var config = MIRHandGestureConfiguration()
+        config.minimumIntentConfidence = 0.1
+        // Lower the pinch threshold so the synthetic mockPinch (pinch ~0.9) is classified.
+        config.recognizer.classifying.pinchScale = 0.5
+        session.configuration = config
+
+        var sawPinch = false
+        let cancellable = session.intentPublisher.sink { intent in
+            if intent.gesture.type == .pinch { sawPinch = true }
+        }
+
+        let frames = (0..<5).map { _ in [MIRHandPoseMock.mockPinch()] }
+        session.processFramesForTesting(frames)
 
         cancellable.cancel()
-        session.stop()
+        XCTAssertTrue(sawPinch, "mockPinch must be classified as a pinch intent")
     }
 
     func testSessionStatusTransitionsToRunning() {
@@ -47,29 +64,5 @@ final class MIRHandTrackingSessionTests: XCTestCase {
 
         session.stop()
         XCTAssertEqual(session.status, .inactive, "Session must report inactive after stop")
-    }
-
-    func testSessionEmitsPinchIntent() async {
-        let session = MIRHandTrackingSession()
-        var config = MIRHandGestureConfiguration()
-        config.minimumIntentConfidence = 0.1
-        // Lower the pinch threshold so the synthetic mockPinch (pinch ~0.9) is classified.
-        config.recognizer.classifying.pinchScale = 0.5
-        session.configuration = config
-
-        let exp = expectation(description: "pinch intent emitted")
-        var sawPinch = false
-        let cancellable = session.intentPublisher.sink { intent in
-            if intent.gesture.type == .pinch { sawPinch = true; exp.fulfill() }
-        }
-
-        let frames = (0..<5).map { _ in [MIRHandPoseMock.mockPinch()] }
-        session.startMock(frames)
-
-        await fulfillment(of: [exp], timeout: 2)
-        XCTAssertTrue(sawPinch, "mockPinch must be classified as a pinch intent")
-
-        cancellable.cancel()
-        session.stop()
     }
 }

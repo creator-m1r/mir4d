@@ -144,7 +144,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         } catch {
             return
         }
-        guard let observations = request.results as? [VNHumanHandPoseObservation] else { return }
+        guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
         continuation?.yield(poses)
     }

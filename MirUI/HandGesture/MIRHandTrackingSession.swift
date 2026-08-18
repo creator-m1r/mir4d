@@ -83,6 +83,17 @@ public final class MIRHandTrackingSession: ObservableObject {
         debugInfo = nil
     }
 
+    /// Test seam: run pre-recorded frame batches through the exact recognition
+    /// pipeline `start()` uses (recognizers → intents → `intentPublisher`) without
+    /// spawning a tracking-source `Task`. XCTest's async-task observation crashes
+    /// on long-lived unstructured tasks, so tests drive the pipeline synchronously.
+    func processFramesForTesting(_ frames: [[MIRHandPose]]) {
+        let pool = MIRHandRecognizerPool(configuration: poolConfiguration)
+        for frame in frames {
+            publish(pool.process(frames: frame))
+        }
+    }
+
     /// Current one- or two-hand state for the Spatial Menu to read.
     func spatialContext() -> MIRHandSpatialContext {
         debugInfo?.spatialContext ?? .empty
