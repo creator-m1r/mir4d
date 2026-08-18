@@ -41,8 +41,6 @@ final class MIRSurfaceInteractionBuilder {
             operation = displacement >= 0 ? .push : .pull
         case .draw:
             operation = .smooth
-        default:
-            operation = .hover
         }
 
         return MIRSurfaceInteraction(
