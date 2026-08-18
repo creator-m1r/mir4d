@@ -5,6 +5,8 @@ import SwiftUI
 /// owned by MIR4DProjectCommands and MIR4DProjectSession.
 struct MIR4DProjectWindowHub: View {
     @EnvironmentObject private var appState: CADAppState
+    @StateObject private var permissions = MIR4DProjectPermissions.shared
+    @State private var permissionsExpanded = true
     let recentProjects: [MIR4DRecentProject]
     let canContinue: Bool
     let continueProject: MIR4DRecentProject?
@@ -20,10 +22,11 @@ struct MIR4DProjectWindowHub: View {
             VStack(spacing: 22) {
                 title
                 mainWindow
+                permissionsWindow
                 secondaryWindows
             }
             .padding(28)
-            .frame(maxWidth: 980, maxHeight: 760)
+            .frame(maxWidth: 980, maxHeight: 900)
         }
     }
 
@@ -72,32 +75,17 @@ struct MIR4DProjectWindowHub: View {
             }
 
             HStack(spacing: 14) {
-                actionWindow(
-                    icon: "plus",
-                    title: "Новый проект",
-                    subtitle: "Начать создание",
-                    accent: .cyan
-                ) {
-                    onNewProject()
+                actionWindow(icon: "plus", title: "Новый проект", subtitle: "Начать создание", accent: .cyan) {
+                    launchWithPermissions(onNewProject)
                 }
 
                 if canContinue, let project = continueProject {
-                    actionWindow(
-                        icon: "arrow.right",
-                        title: "Продолжить",
-                        subtitle: project.name,
-                        accent: .blue
-                    ) {
-                        onContinue(project)
+                    actionWindow(icon: "arrow.right", title: "Продолжить", subtitle: project.name, accent: .blue) {
+                        launchWithPermissions { onContinue(project) }
                     }
                 } else {
-                    actionWindow(
-                        icon: "folder",
-                        title: "Открыть проект",
-                        subtitle: "Выбрать .mir4d",
-                        accent: .blue
-                    ) {
-                        onOpenProject()
+                    actionWindow(icon: "folder", title: "Открыть проект", subtitle: "Выбрать .mir4d", accent: .blue) {
+                        launchWithPermissions(onOpenProject)
                     }
                 }
             }
@@ -106,10 +94,55 @@ struct MIR4DProjectWindowHub: View {
         .background(windowBackground(cornerRadius: 22))
     }
 
+    private var permissionsWindow: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    permissionsExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "checkmark.shield")
+                        .foregroundStyle(.cyan.opacity(0.9))
+                    Text("Разрешения при запуске")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text(permissionsSummary)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.38))
+                    Image(systemName: permissionsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if permissionsExpanded {
+                MIR4DProjectPermissionsView(permissions: permissions)
+                    .padding(.top, 12)
+            }
+        }
+        .padding(18)
+        .background(windowBackground(cornerRadius: 18))
+    }
+
+    private var permissionsSummary: String {
+        let enabled = permissions.enabledModules.count
+        return "\(enabled)/3 включено"
+    }
+
+    private func launchWithPermissions(_ action: @escaping () -> Void) {
+        // The checkboxes are the user's explicit consent for this project launch.
+        // No optional subsystem is enabled before this point.
+        permissions.applyAtLaunch()
+        action()
+    }
+
     private var secondaryWindows: some View {
         HStack(spacing: 14) {
             smallWindow(icon: "folder", title: "Открыть проект", subtitle: "Проекты и файлы") {
-                onOpenProject()
+                launchWithPermissions(onOpenProject)
             }
             smallWindow(icon: "clock", title: "Недавние", subtitle: recentProjects.isEmpty ? "Нет проектов" : "\(recentProjects.count) проектов") {
                 onRecentProjects()
@@ -117,13 +150,7 @@ struct MIR4DProjectWindowHub: View {
         }
     }
 
-    private func actionWindow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        accent: Color,
-        action: @escaping () -> Void
-    ) -> some View {
+    private func actionWindow(icon: String, title: String, subtitle: String, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 14) {
                 Image(systemName: icon)
@@ -131,15 +158,9 @@ struct MIR4DProjectWindowHub: View {
                     .foregroundStyle(accent)
                     .frame(width: 44, height: 44)
                     .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
-
                 Spacer(minLength: 2)
-
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.48))
+                Text(title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+                Text(subtitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.48))
             }
             .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
             .padding(18)
@@ -149,29 +170,16 @@ struct MIR4DProjectWindowHub: View {
         .buttonStyle(.plain)
     }
 
-    private func smallWindow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
+    private func smallWindow(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundStyle(.cyan.opacity(0.85))
+                Image(systemName: icon).font(.system(size: 16)).foregroundStyle(.cyan.opacity(0.85))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text(subtitle)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.42))
+                    Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    Text(subtitle).font(.system(size: 10)).foregroundStyle(.white.opacity(0.42))
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
             }
             .padding(16)
             .frame(maxWidth: .infinity, minHeight: 62)
@@ -183,10 +191,7 @@ struct MIR4DProjectWindowHub: View {
     private func windowBackground(cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius)
             .fill(.ultraThinMaterial.opacity(0.42))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).stroke(Color.white.opacity(0.10), lineWidth: 1))
             .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
     }
 }
