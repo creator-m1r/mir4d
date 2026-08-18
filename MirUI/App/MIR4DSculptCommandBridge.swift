@@ -5,10 +5,12 @@ import simd
 ///
 /// The bridge deliberately uses the existing `MIR4DModelRuntime` as the
 /// application runtime and resolves the hand position through the viewport
-/// picking API. This keeps the sculpt intent independent from the C ABI and
-/// avoids duplicating a second runtime/viewport ownership model.
+/// picking API. This keeps the sculpt intent independent from the C ABI
+/// and avoids duplicating a second runtime/viewport ownership model.
 @MainActor
 final class MIR4DSculptCommandBridge {
+    static let shared = MIR4DSculptCommandBridge()
+
     enum BridgeError: Error {
         case viewportUnavailable
         case selectedObjectUnavailable
@@ -23,17 +25,11 @@ final class MIR4DSculptCommandBridge {
     }
 
     /// Applies one sculpt intent to the selected surface.
-    ///
-    /// `MIR4DSculptIntent.position` is expected to be in normalized screen
-    /// coordinates. We convert it to the viewport's world-space hit point via
-    /// MirEngine instead of treating screen coordinates as CAD coordinates.
+    /// `MIR4DSculptIntent.position` is expected to be normalized screen space.
     @discardableResult
     func apply(_ intent: MIR4DSculptIntent) -> Bool {
         guard runtime.viewport != nil else { return false }
 
-        // MIRHandSpatialMapper supplies a screen-space point. Convert it to
-        // the NDC convention used by MIR4DModelRuntime.pickWorldPoint():
-        // x/y in [-1, 1], origin at the viewport centre, y up.
         let nx = Double(intent.position.x) * 2.0 - 1.0
         let ny = 1.0 - Double(intent.position.y) * 2.0
 
