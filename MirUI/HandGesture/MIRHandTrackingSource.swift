@@ -32,10 +32,14 @@ struct MIRMockTrackingSource: MIRHandTrackingSource {
         AsyncStream { continuation in
             let frames = self.frames
             let mode = self.mode
-            Task {
-                if frames.isEmpty { continuation.finish(); return }
+            Task.detached {
+                if frames.isEmpty {
+                    continuation.finish()
+                    return
+                }
+
                 var index = 0
-                while true {
+                while !Task.isCancelled {
                     continuation.yield(frames[index])
                     index += 1
                     if index >= frames.count {
@@ -56,12 +60,22 @@ struct MIRMockTrackingSource: MIRHandTrackingSource {
 
 // MARK: - Camera source
 
+/// Camera/Vision source.
+///
+/// Important concurrency rule: every mutation of AVCaptureSession, its inputs
+/// and outputs is serialized on `sessionQueue`. Vision callbacks only read the
+/// sample buffer and publish immutable pose snapshots through the locked
+/// AsyncStream continuation. This prevents AVFoundation/libdispatch queue
+/// assertions when the hand module is started/stopped from SwiftUI or a
+/// background task.
 final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
     private let sessionQueue = DispatchQueue(label: "com.mir4d.hand-camera", qos: .userInteractive)
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
     private let continuationLock = OSAllocatedUnfairLock<AsyncStream<[MIRHandPose]>.Continuation?>(initialState: nil)
+
+    /// These flags are accessed only on `sessionQueue`.
     private var configured = false
     private var running = false
 
@@ -81,52 +95,63 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
             continuationLock.withLock { $0 = continuation }
 
-            Task {
+            // Permission is asynchronous and must not block the camera queue.
+            Task.detached { [weak self] in
+                guard let self else { return }
+
                 let granted = await AVCaptureDevice.requestAccess(for: .video)
-                guard granted else {
-                    continuationLock.withLock { continuation in
-                        continuation?.finish()
-                    }
-                    continuationLock.withLock { continuation in
-                        continuation = nil
-                    }
+                guard granted, !Task.isCancelled else {
+                    self.finishStream()
                     return
                 }
 
-                self.configureIfNeeded()
+                // AVFoundation session configuration and startRunning are both
+                // serialized on exactly the same queue.
                 self.sessionQueue.async { [weak self] in
-                    self?.session.startRunning()
-                    self?.running = true
+                    guard let self else { return }
+                    self.configureIfNeededOnSessionQueue()
+                    guard self.configured, !self.running else { return }
+                    self.session.startRunning()
+                    self.running = self.session.isRunning
                 }
             }
         }
     }
 
     func stop() {
-        continuationLock.withLock { continuation in
-            continuation?.finish()
-        }
+        // Finish the stream immediately so consumers stop processing frames.
+        finishStream()
 
-        continuationLock.withLock { continuation in
-            continuation = nil
-        }
-
+        // All AVCaptureSession mutations remain serialized on sessionQueue.
         sessionQueue.async { [weak self] in
-            self?.session.stopRunning()
-            self?.running = false
+            guard let self else { return }
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+            self.running = false
         }
     }
 
-    private func configureIfNeeded() {
+    private func finishStream() {
+        continuationLock.withLock { continuation in
+            continuation?.finish()
+            continuation = nil
+        }
+    }
+
+    /// Must be called only from `sessionQueue`.
+    private func configureIfNeededOnSessionQueue() {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
         guard !configured else { return }
 
         session.beginConfiguration()
+        defer { session.commitConfiguration() }
+
         session.sessionPreset = .high
 
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else {
-            session.commitConfiguration()
             return
         }
 
@@ -135,7 +160,6 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
         output.setSampleBufferDelegate(self, queue: visionQueue)
 
         guard session.canAddOutput(output) else {
-            session.commitConfiguration()
             return
         }
 
@@ -146,7 +170,6 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
             connection.videoRotationAngle = 90
         }
 
-        session.commitConfiguration()
         configured = true
     }
 }
@@ -175,9 +198,8 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
-        let _: Void = continuationLock.withLock { continuation in
+        continuationLock.withLock { continuation in
             continuation?.yield(poses)
-            return ()
         }
     }
 
