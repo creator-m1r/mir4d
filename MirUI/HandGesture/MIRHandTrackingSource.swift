@@ -140,8 +140,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     }
 
     /// Must be called only from `sessionQueue`.
+    ///
+    /// Do not use `dispatchPrecondition(.onQueue:)` here. The queue ownership is
+    /// already enforced by the single `sessionQueue.async` call site, while a
+    /// debug-only queue assertion can itself terminate the application with
+    /// `_dispatch_assert_queue_fail` if AVFoundation changes execution context.
     private func configureIfNeededOnSessionQueue() {
-        dispatchPrecondition(condition: .onQueue(sessionQueue))
         guard !configured else { return }
 
         session.beginConfiguration()
