@@ -175,7 +175,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         guard let observations = request.results else { return }
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
-        continuationLock.withLock { continuation in
+        let _: Void = continuationLock.withLock { continuation in
             continuation?.yield(poses)
         }
     }
@@ -233,16 +233,15 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             ? 0
             : confidences.reduce(0, +) / Double(confidences.count)
 
-        let handedness: Handedness = {
-            switch observation.chirality {
-            case .left:
-                return .left
-            case .right:
-                return .right
-            @unknown default:
-                return .unknown
-            }
-        }()
+        let handedness: Handedness
+        switch observation.chirality {
+        case .left:
+            handedness = .left
+        case .right:
+            handedness = .right
+        @unknown default:
+            handedness = .unknown
+        }
 
         return MIRHandPose(
             id: UUID(),
