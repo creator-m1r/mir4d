@@ -1,0 +1,8 @@
+const toast=document.querySelector('#toast');
+function notify(text){toast.textContent=text;toast.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>toast.classList.remove('show'),2600)}
+document.querySelectorAll('[data-action="new-project"]').forEach(b=>b.addEventListener('click',()=>notify('Создание проекта: следующий шаг — форма заказа и загрузка исходных материалов.')));
+document.querySelector('[data-action="new-task"]')?.addEventListener('click',()=>notify('Новая задача создаётся из этапов проекта и может быть предложена команде.'));
+document.querySelector('[data-action="take-task"]')?.addEventListener('click',e=>{e.currentTarget.textContent='Задача взята';e.currentTarget.disabled=true;notify('Задача закреплена за вами. Результат можно будет отправить руководителю проекта.');});
+document.querySelectorAll('.sticker').forEach(b=>b.addEventListener('click',()=>notify('Пожелание заказчика: '+b.dataset.sticker)));
+document.querySelectorAll('.stage-tabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.stage-tabs button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');notify('Раздел: '+b.textContent)}));
+document.querySelectorAll('.project').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.project').forEach(x=>x.classList.remove('active'));b.classList.add('active');notify('Открыт проект: '+b.querySelector('b').textContent)}));
