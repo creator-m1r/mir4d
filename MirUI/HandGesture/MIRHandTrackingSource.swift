@@ -75,9 +75,10 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
     private let continuationLock = OSAllocatedUnfairLock<AsyncStream<[MIRHandPose]>.Continuation?>(initialState: nil)
 
-    /// These flags are accessed only on `sessionQueue`.
+    /// These flags and the generation token are accessed only on `sessionQueue`.
     private var configured = false
     private var running = false
+    private var sessionGeneration: UInt64 = 0
 
     var availability: MIRHandTrackingAvailability {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
@@ -95,6 +96,14 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
             continuationLock.withLock { $0 = continuation }
 
+            // Reserve this start operation on the session queue before asking
+            // for permission. `stop()` can then invalidate exactly this
+            // generation even while the system permission dialog is active.
+            let generation: UInt64 = sessionQueue.sync {
+                sessionGeneration &+= 1
+                return sessionGeneration
+            }
+
             // Permission is asynchronous and must not block the camera queue.
             Task.detached { [weak self] in
                 guard let self else { return }
@@ -106,11 +115,15 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                 }
 
                 // AVFoundation session configuration and startRunning are both
-                // serialized on exactly the same queue.
+                // serialized on exactly the same queue. The generation check
+                // prevents a permission callback from resurrecting a stopped
+                // session.
                 self.sessionQueue.async { [weak self] in
                     guard let self else { return }
+                    guard generation == self.sessionGeneration else { return }
                     self.configureIfNeededOnSessionQueue()
                     guard self.configured, !self.running else { return }
+                    guard generation == self.sessionGeneration else { return }
                     self.session.startRunning()
                     self.running = self.session.isRunning
                 }
@@ -122,9 +135,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
         // Finish the stream immediately so consumers stop processing frames.
         finishStream()
 
-        // All AVCaptureSession mutations remain serialized on sessionQueue.
+        // Invalidate the pending start before stopping the session. Any
+        // permission callback queued later will carry the old generation and
+        // will be ignored on sessionQueue.
         sessionQueue.async { [weak self] in
             guard let self else { return }
+            self.sessionGeneration &+= 1
             if self.session.isRunning {
                 self.session.stopRunning()
             }
