@@ -48,10 +48,11 @@ public final class MIRHandTrackingSession: ObservableObject {
             resultContinuation.finish()
         }
 
-        // This task is created from the MainActor and explicitly inherits it.
-        // Keep the session strongly captured until the stream terminates; stop()
-        // cancels the task and therefore releases the cycle deterministically.
-        task = Task { @MainActor in
+        // Task inherits the MainActor isolation from this @MainActor method.
+        // Do not add an explicit actor hop here: that creates a second sending
+        // boundary for `self` under Swift 6 strict concurrency checking.
+        task = Task { [weak self] in
+            guard let self else { return }
             for await result in resultStream {
                 guard !Task.isCancelled else { break }
                 self.publish(result)
