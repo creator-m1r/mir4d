@@ -68,16 +68,16 @@ struct CADMainView: View {
     }
 
     private var mainLayout: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .topTrailing) {
             centerColumn
-            MinimalWorkspaceBar(
-                appState: appState,
+
+            MIR4DViewportActionDock(
                 onCommandPalette: { commandPalettePresented = true },
                 onSettings: { radialSettingsPresented = true },
                 onPanels: { workspace.isMinimalMode.toggle() }
             )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 12)
+            .padding(.top, 14)
+            .padding(.trailing, 14)
         }
     }
 
