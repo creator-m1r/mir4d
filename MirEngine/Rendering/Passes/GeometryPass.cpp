@@ -14,6 +14,7 @@
 #include "MirEngine/Math/Transform.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <vector>
 
@@ -100,14 +101,11 @@ struct EngineeringStudioLights
 {
     float keyDir[3] = {0.5f, 1.0f, 0.3f};
     float keyColor[3] = {1.0f, 0.98f, 0.94f};
-    // Brighter model-only key light. Scene/background lighting is untouched.
     float keyIntensity = 1.35f;
     float fillDir[3] = {-0.6f, -0.2f, -0.8f};
     float fillColor[3] = {0.62f, 0.70f, 0.85f};
-    // Lift side faces without flattening the model.
     float fillIntensity = 0.70f;
     float ambientColor[3] = {0.46f, 0.49f, 0.54f};
-    // Keeps recessed engineering geometry readable.
     float ambientIntensity = 0.82f;
 };
 
@@ -119,6 +117,7 @@ void normalize3(float v[3]) noexcept
 
 void applyMaterialUniforms(Shader* shader,const MaterialData& material)
 {
+    if (!shader) return;
     shader->setVec3("u_baseColor",material.baseColor[0],material.baseColor[1],material.baseColor[2]);
     shader->setFloat("u_roughness",material.roughness);
     shader->setFloat("u_metallic",material.metallic);
@@ -163,6 +162,41 @@ void GeometryPass::execute(RenderContext& context,mir::Scene& scene,RenderDevice
         const bool hovered=!selected&&context.hoverObjectId==node->id(); processNode(*node,context,device,shader.get(),selected,hovered);
     }
     if(faceSelectionActive)drawHighlightFace(scene,context,device,shader.get()); shader->unbind();
+}
+
+void GeometryPass::processNode(const mir::ModelNode& node,
+                               RenderContext& context,
+                               RenderDevice& device,
+                               Shader* shader,
+                               bool selected,
+                               bool hovered)
+{
+    (void)device;
+    if (!shader || !node.model() || !node.model()->hasMesh()) return;
+
+    const auto handleIt = m_objectToHandle.find(node.id());
+    if (handleIt == m_objectToHandle.end()) return;
+
+    const auto vaoIt = m_vaos.find(handleIt->second);
+    if (vaoIt == m_vaos.end() || !vaoIt->second || !vaoIt->second->isValid()) return;
+
+    shader->setMatrix("u_model", makeModelMatrix(node.transform(), context.cameraPosition));
+    shader->setInt("u_selected", selected ? 1 : 0);
+    shader->setInt("u_hover", hovered ? 1 : 0);
+
+    MaterialId materialId = MaterialLibrary::defaultMaterial();
+    if (const auto materialIt = m_objectMaterials.find(node.id()); materialIt != m_objectMaterials.end()) {
+        materialId = materialIt->second;
+    }
+    applyMaterialUniforms(shader, MaterialLibrary::material(materialId));
+
+    const auto& vao = vaoIt->second;
+    vao->bind();
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(vao->getElementCount()),
+                   GL_UNSIGNED_INT,
+                   nullptr);
+    vao->unbind();
 }
 
 void GeometryPass::rebuildSceneCache(mir::Scene& scene,RenderDevice& device)
@@ -211,6 +245,134 @@ void GeometryPass::uploadMesh(const mir::ModelNode& node,RenderDevice& device)
     const MeshHandle handle=m_nextMeshHandle++;
     m_vaos[handle]=vao;
     m_objectToHandle[node.id()]=handle;
+}
+
+void GeometryPass::rebuildHighlightFace(mir::Scene& scene, RenderDevice& device)
+{
+    m_highlightVAO.reset();
+
+    const auto objectId = m_highlightObject;
+    const auto faceId = m_highlightFace;
+    if (objectId == mir4d::InvalidObjectId || faceId == 0) return;
+
+    const mir::ModelNode* selectedNode = nullptr;
+    for (const auto& node : scene.nodes()) {
+        if (node && node->id() == objectId && node->model() && node->model()->hasMesh()) {
+            selectedNode = node.get();
+            break;
+        }
+    }
+    if (!selectedNode) return;
+
+    const auto& mesh = selectedNode->model()->mesh();
+    if (!mesh.isValid()) return;
+
+    std::vector<Vertex> vertices;
+    std::vector<std::uint32_t> indices;
+
+    for (const auto& triangle : mesh.triangles) {
+        if (triangle.sourceFaceId != faceId) continue;
+
+        const std::size_t base = vertices.size();
+        const std::size_t ids[3] = {triangle.a, triangle.b, triangle.c};
+
+        mir::Vector3 normal = mir::Vector3::zero();
+        const auto ab = mesh.vertices[triangle.b] - mesh.vertices[triangle.a];
+        const auto ac = mesh.vertices[triangle.c] - mesh.vertices[triangle.a];
+        normal = mir::Vector3::cross(ab, ac).normalized();
+
+        for (const std::size_t index : ids) {
+            const auto& p = mesh.vertices[index];
+            vertices.emplace_back(
+                Vector3(static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)),
+                Vector3(static_cast<float>(normal.x), static_cast<float>(normal.y), static_cast<float>(normal.z)),
+                Vector2{});
+        }
+
+        indices.push_back(static_cast<std::uint32_t>(base));
+        indices.push_back(static_cast<std::uint32_t>(base + 1));
+        indices.push_back(static_cast<std::uint32_t>(base + 2));
+    }
+
+    if (indices.empty()) return;
+
+    const auto vao = device.createVertexArray();
+    const auto vbo = device.createVertexBuffer();
+    const auto ibo = device.createIndexBuffer();
+    vbo->uploadVertices(vertices);
+    ibo->uploadIndices(indices);
+    vao->setVertexBuffer(vbo);
+    vao->setIndexBuffer(ibo);
+    m_highlightVAO = vao;
+}
+
+void GeometryPass::drawHighlightFace(mir::Scene& scene,
+                                     RenderContext& context,
+                                     RenderDevice& device,
+                                     Shader* shader)
+{
+    if (!shader) return;
+
+    if (m_highlightObject != context.selectionObjectId ||
+        m_highlightFace != context.selectionFaceId ||
+        !m_highlightVAO) {
+        m_highlightObject = context.selectionObjectId;
+        m_highlightFace = context.selectionFaceId;
+        rebuildHighlightFace(scene, device);
+    }
+
+    if (!m_highlightVAO || !m_highlightVAO->isValid()) return;
+
+    const mir::ModelNode* selectedNode = nullptr;
+    for (const auto& node : scene.nodes()) {
+        if (node && node->id() == context.selectionObjectId) {
+            selectedNode = node.get();
+            break;
+        }
+    }
+    if (!selectedNode) return;
+
+    shader->setMatrix("u_model", makeModelMatrix(selectedNode->transform(), context.cameraPosition));
+    shader->setInt("u_selected", 1);
+    shader->setInt("u_hover", 0);
+    shader->setVec3("u_baseColor", 1.0f, 0.62f, 0.16f);
+    shader->setFloat("u_roughness", 0.42f);
+    shader->setFloat("u_metallic", 0.0f);
+    shader->setFloat("u_specular", 0.55f);
+    shader->setVec3("u_emission", 0.08f, 0.03f, 0.0f);
+    shader->setFloat("u_opacity", 0.92f);
+
+    device.setDepthFunc(RenderDevice::DepthFunc::LessEqual);
+    m_highlightVAO->bind();
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(m_highlightVAO->getElementCount()),
+                   GL_UNSIGNED_INT,
+                   nullptr);
+    m_highlightVAO->unbind();
+    device.setDepthFunc(RenderDevice::DepthFunc::Less);
+}
+
+Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
+                                          const double cameraPos[3]) noexcept
+{
+    const mir::Matrix4 matrix = transform.matrix();
+    Matrix4Raw result{};
+
+    // Matrix4 is row-major with column-vector semantics; GLSL expects the
+    // equivalent matrix in column-major memory order.
+    for (std::size_t row = 0; row < 4; ++row) {
+        for (std::size_t column = 0; column < 4; ++column) {
+            result[column * 4 + row] = static_cast<float>(matrix(row, column));
+        }
+    }
+
+    // Camera-relative rendering: remove the large world-space translation only
+    // after subtracting the camera position in double precision.
+    result[12] = static_cast<float>(transform.position.x - cameraPos[0]);
+    result[13] = static_cast<float>(transform.position.y - cameraPos[1]);
+    result[14] = static_cast<float>(transform.position.z - cameraPos[2]);
+
+    return result;
 }
 
 } // namespace MirEngine::Rendering
