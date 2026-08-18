@@ -1,38 +1,57 @@
 import Foundation
 import simd
 
-/// Converts sculpting intents into MirEngine sculpt commands.
+/// Converts sculpting intents into MirEngine deformation commands.
+///
+/// The bridge deliberately uses the existing `MIR4DModelRuntime` as the
+/// application runtime and resolves the hand position through the viewport
+/// picking API. This keeps the sculpt intent independent from the C ABI and
+/// avoids duplicating a second runtime/viewport ownership model.
 @MainActor
 final class MIR4DSculptCommandBridge {
     enum BridgeError: Error {
         case viewportUnavailable
         case selectedObjectUnavailable
         case invalidBounds
+        case surfaceNotFound
     }
 
-    private let runtime: MIR4DAppRuntime
+    private let runtime: MIR4DModelRuntime
 
-    init(runtime: MIR4DAppRuntime) {
+    init(runtime: MIR4DModelRuntime = .shared) {
         self.runtime = runtime
     }
 
-    func apply(_ intent: MIR4DSculptIntent) {
-        guard let viewport = runtime.viewport else { return }
+    /// Applies one sculpt intent to the selected surface.
+    ///
+    /// `MIR4DSculptIntent.position` is expected to be in normalized screen
+    /// coordinates. We convert it to the viewport's world-space hit point via
+    /// MirEngine instead of treating screen coordinates as CAD coordinates.
+    @discardableResult
+    func apply(_ intent: MIR4DSculptIntent) -> Bool {
+        guard runtime.viewport != nil else { return false }
 
-        let point = intent.point
-        let normal = intent.normal
+        // MIRHandSpatialMapper supplies a screen-space point. Convert it to
+        // the NDC convention used by MIR4DModelRuntime.pickWorldPoint():
+        // x/y in [-1, 1], origin at the viewport centre, y up.
+        let nx = Double(intent.position.x) * 2.0 - 1.0
+        let ny = 1.0 - Double(intent.position.y) * 2.0
 
-        MirEngineApplySculpt(
-            viewport,
-            modeInt(intent.mode),
-            point.x,
-            point.y,
-            point.z,
-            normal.x,
-            normal.y,
-            normal.z,
-            intent.radius,
-            intent.strength
+        guard let hit = runtime.pickWorldPoint(nx: nx, ny: ny) else {
+            return false
+        }
+
+        let radius = max(0.001, Double(intent.radius))
+        let strength = Double(intent.strength)
+        let mode = modeInt(intent.mode)
+
+        return runtime.deformSelected(
+            x: hit.point.x,
+            y: hit.point.y,
+            z: hit.point.z,
+            radius: radius,
+            strength: strength,
+            mode: mode
         )
     }
 
@@ -57,9 +76,6 @@ final class MIR4DSculptCommandBridge {
             return nil
         }
 
-        // CChar is platform-dependent (Int8 on Apple platforms), while
-        // String(decoding:as:) expects UTF-8 code units. Convert explicitly
-        // and stop at the first C null terminator.
         let bytes: [UInt8] = buffer.map { UInt8(bitPattern: $0) }
         let utf8Bytes = bytes.prefix { $0 != 0 }
         let json = String(decoding: utf8Bytes, as: UTF8.self)
