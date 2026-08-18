@@ -65,7 +65,12 @@ public final class MIRHandTrackingSession: ObservableObject {
             for await frame in stream {
                 guard !Task.isCancelled else { break }
                 let result = pool.process(frames: frame)
-                await self?.publish(result)
+                // Make the actor hop explicit. This avoids relying on implicit
+                // actor inference from a detached task and keeps all observable
+                // state, Combine emission and intent routing on MainActor.
+                await MainActor.run {
+                    self?.publish(result)
+                }
             }
         }
     }
