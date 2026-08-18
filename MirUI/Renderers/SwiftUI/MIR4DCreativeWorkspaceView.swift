@@ -107,15 +107,15 @@ struct MIR4DCreativeWorkspaceView: View {
         }
     }
 
-    /// The sphere is a quiet spatial instrument, not a permanent toolbar.
+    /// The sphere is a quiet spatial instrument in the upper-left corner.
     private var navigationSphere: some View {
         NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance, isOrthographic: isOrthographic)
             .opacity(0.16)
             .scaleEffect(0.44)
             .fixedSize()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, 12)
-            .padding(.trailing, 12)
+            .padding(.leading, 12)
             .allowsHitTesting(true)
     }
 
