@@ -176,7 +176,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
         let poses: [MIRHandPose] = observations.compactMap { pose(from: $0) }
 
         continuationLock.withLock { continuation in
-            _ = continuation?.yield(poses)
+            continuation?.yield(poses)
         }
     }
 
@@ -233,10 +233,34 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             ? 0
             : confidences.reduce(0, +) / Double(confidences.count)
 
+        guard let wrist = landmarks.first(where: { $0.id == .wrist })?.normalizedPosition,
+              let indexMCP = landmarks.first(where: { $0.id == .indexMCP })?.normalizedPosition,
+              let middleMCP = landmarks.first(where: { $0.id == .middleMCP })?.normalizedPosition,
+              let littleMCP = landmarks.first(where: { $0.id == .littleMCP })?.normalizedPosition else {
+            return nil
+        }
+
+        let palmPosition = (wrist + indexMCP + middleMCP + littleMCP) / 4.0
+
+        let palmEdge = littleMCP - indexMCP
+        let palmDepth = middleMCP - wrist
+        let rawNormal = simd_cross(palmEdge, palmDepth)
+        let palmNormal: SIMD3<Double>
+
+        if simd_length_squared(rawNormal) > 1.0e-12 {
+            palmNormal = simd_normalize(rawNormal)
+        } else {
+            palmNormal = SIMD3<Double>(0, 0, 0)
+        }
+
         return MIRHandPose(
+            id: UUID(),
+            handedness: .unknown,
             landmarks: landmarks,
+            palmPosition: palmPosition,
+            palmNormal: palmNormal,
             confidence: averageConfidence,
-            timestamp: CACurrentMediaTime()
+            timestamp: Date()
         )
     }
 }
