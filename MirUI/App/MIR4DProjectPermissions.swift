@@ -12,6 +12,7 @@ final class MIR4DProjectPermissions: ObservableObject {
     @Published var aiEnabled: Bool { didSet { persist() } }
 
     private let defaults: UserDefaults
+
     private enum Keys {
         static let camera = "mir4d.permission.camera"
         static let microphone = "mir4d.permission.microphone"
@@ -25,13 +26,23 @@ final class MIR4DProjectPermissions: ObservableObject {
         aiEnabled = defaults.bool(forKey: Keys.ai)
     }
 
+    var enabledModules: Set<MIR4DOptionalModule> {
+        var result = Set<MIR4DOptionalModule>()
+        if cameraEnabled { result.insert(.camera) }
+        if microphoneEnabled { result.insert(.microphone) }
+        if aiEnabled { result.insert(.ai) }
+        return result
+    }
+
     func reset() {
         cameraEnabled = false
         microphoneEnabled = false
         aiEnabled = false
     }
 
+    /// Commits the user's choices to the runtime immediately before a project starts.
     func applyAtLaunch() {
+        MIR4DOptionalModuleRuntime.shared.apply(enabledModules)
         NotificationCenter.default.post(
             name: .mir4DOptionalModulesConfigurationChanged,
             object: self,
@@ -50,6 +61,42 @@ final class MIR4DProjectPermissions: ObservableObject {
     }
 }
 
+enum MIR4DOptionalModule: String, CaseIterable, Hashable, Sendable {
+    case camera
+    case microphone
+    case ai
+}
+
+/// Runtime gate for optional modules.
+/// Every camera/microphone/AI subsystem should check this gate before starting.
+@MainActor
+final class MIR4DOptionalModuleRuntime: ObservableObject {
+    static let shared = MIR4DOptionalModuleRuntime()
+
+    @Published private(set) var enabled: Set<MIR4DOptionalModule> = []
+
+    func apply(_ modules: Set<MIR4DOptionalModule>) {
+        enabled = modules
+    }
+
+    func isEnabled(_ module: MIR4DOptionalModule) -> Bool {
+        enabled.contains(module)
+    }
+
+    func stop(_ module: MIR4DOptionalModule) {
+        enabled.remove(module)
+    }
+
+    func stopAll() {
+        enabled.removeAll()
+    }
+
+    /// Use as a hard runtime guard immediately before starting an optional service.
+    func require(_ module: MIR4DOptionalModule) -> Bool {
+        isEnabled(module)
+    }
+}
+
 extension Notification.Name {
     static let mir4DOptionalModulesConfigurationChanged = Notification.Name("mir4DOptionalModulesConfigurationChanged")
 }
@@ -65,7 +112,7 @@ struct MIR4DProjectPermissionsView: View {
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(.cyan.opacity(0.85))
-                    Text("Не включённые модули не запускаются вместе с проектом")
+                    Text("Если модуль не отмечен, он не запускается с проектом")
                         .font(.system(size: 10))
                         .foregroundStyle(.white.opacity(0.42))
                 }
