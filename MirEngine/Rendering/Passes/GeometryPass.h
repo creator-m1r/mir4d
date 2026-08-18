@@ -93,6 +93,20 @@ private:
 
     [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
                                                     const double cameraPos[3]) noexcept;
+
+    /// Compatibility overload for RenderContext's float camera position.
+    /// Conversion to double happens before subtracting the world-space camera
+    /// position, preserving the double-precision camera-relative calculation.
+    [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
+                                                    const float cameraPos[3]) noexcept
+    {
+        const double cameraPosDouble[3] = {
+            static_cast<double>(cameraPos[0]),
+            static_cast<double>(cameraPos[1]),
+            static_cast<double>(cameraPos[2])
+        };
+        return makeModelMatrix(transform, cameraPosDouble);
+    }
 };
 
 } // namespace MirEngine::Rendering
