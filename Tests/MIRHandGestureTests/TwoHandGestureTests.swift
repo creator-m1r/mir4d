@@ -1,5 +1,5 @@
 import XCTest
-@testable import MIR4DApp
+@testable import MirUIHandGesture
 import simd
 
 final class TwoHandGestureTests: XCTestCase {

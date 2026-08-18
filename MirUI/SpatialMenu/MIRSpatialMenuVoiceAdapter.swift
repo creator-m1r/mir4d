@@ -1,3 +1,4 @@
+import MirUIHandGesture
 import Foundation
 
 /// Maps spoken commands into spatial intents.

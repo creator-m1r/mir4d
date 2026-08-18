@@ -46,7 +46,7 @@ struct MIR4DProjectWindowShell<Content: View>: View {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(minWidth: 520, minHeight: 360, maxWidth: 760, maxHeight: 620)
+            .frame(minWidth: 520, maxWidth: 760, minHeight: 360, maxHeight: 620)
             .background(.ultraThinMaterial)
             .background(Color(red: 0.018, green: 0.028, blue: 0.045).opacity(0.92))
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))

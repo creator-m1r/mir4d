@@ -1,5 +1,5 @@
 import XCTest
-@testable import MIR4DApp
+@testable import MirUIHandGesture
 
 final class HandPoseTests: XCTestCase {
     func testMockPoseHasFullSkeleton() {

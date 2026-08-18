@@ -1,3 +1,4 @@
+import MirUIHandGesture
 import SwiftUI
 
 struct MIR4DRadialSelectionState: Equatable {

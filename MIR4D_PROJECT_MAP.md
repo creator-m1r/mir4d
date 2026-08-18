@@ -1,7 +1,7 @@
 # МИР 4D — каноническая карта проекта
 
-Версия: 1.9
-Дата: 2026-08-14
+Версия: 2.0
+Дата: 2026-08-17
 
 Этот файл является единой картой архитектуры репозитория. Перед структурными изменениями сначала читается эта карта; новые файлы создаются только в соответствующем слое, а старые имена сохраняются лишь как совместимые фасады, если это необходимо для переходного периода.
 
@@ -57,7 +57,7 @@ SwiftUI
 - `IO/` — STL/STEP и прочие внешние форматы. OCCT остаётся только здесь.
 - `Time/` — модель времени и 4D-данные.
 - Научные модули: `Simulation/`, `Physics/`, `Mechanics/`, `Materials/`, `Chemistry/`, `Acoustics/`, `World/`, `Interaction/`, `Platform/`, `Config/` — развиваются отдельно от геометрического ядра.
-- `MirUI/` — presentation/interoperability layer: `Foundation/` (без зависимостей), `Core/` (виджеты, состояние, темы, команды), `Schema/`, `Widgets/`, `Workspace/`, `Designer/` (визуальный редактор), `Interop/` (CBridge), `Renderers/`, `Swift/`, `App/`, `Viewport/`.
+- `MirUI/` — presentation/interoperability layer: `Foundation/` (без зависимостей), `Core/` (виджеты, состояние, темы, команды), `Schema/`, `Widgets/`, `Workspace/`, `Designer/` (визуальный редактор), `Interop/` (CBridge), `Renderers/`, `Swift/`, `App/`, `Viewport/`, `HandGesture/` (intent-шина и жесты рук, отдельный Swift target `MirUIHandGesture`), `SpatialMenu/` (пространственное меню).
 - `MirServer/` — подсистема совместной работы и обмена с сервером MIR 4D (Swift, независимый library target):
   - `Models/` — `MirServerModels.swift` (MirTeamMember, MirTeamMessage, MirProjectExportRequest/Result, MirServerConnectionStatus) — все `Sendable`/`Codable`.
   - `Core/` — `MirServerConfiguration.swift` (конфигурация подключения к сайту/API) и `MirServerTransport.swift` (сетевой `actor`: REST-экспорт проекта, WebSocket-поток сообщений команды).

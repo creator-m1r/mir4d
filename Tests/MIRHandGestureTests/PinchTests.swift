@@ -1,5 +1,5 @@
 import XCTest
-@testable import MIR4DApp
+@testable import MirUIHandGesture
 
 final class PinchTests: XCTestCase {
     func testPinchIsRecognised() {
