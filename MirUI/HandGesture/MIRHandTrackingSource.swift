@@ -177,6 +177,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
 
         let _: Void = continuationLock.withLock { continuation in
             continuation?.yield(poses)
+            return ()
         }
     }
 
@@ -239,6 +240,8 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
             handedness = .left
         case .right:
             handedness = .right
+        case .unknown:
+            handedness = .unknown
         @unknown default:
             handedness = .unknown
         }
