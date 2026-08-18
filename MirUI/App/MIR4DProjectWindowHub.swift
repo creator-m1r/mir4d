@@ -10,15 +10,8 @@ struct MIR4DProjectWindowHub: View {
     let continueProject: MIR4DRecentProject?
     let onNewProject: () -> Void
     let onOpenProject: () -> Void
+    let onRecentProjects: () -> Void
     let onContinue: (MIR4DRecentProject) -> Void
-
-    @State private var selectedWindow: WindowKind?
-
-    enum WindowKind: Hashable {
-        case create
-        case open
-        case recent
-    }
 
     var body: some View {
         ZStack {
@@ -119,7 +112,7 @@ struct MIR4DProjectWindowHub: View {
                 onOpenProject()
             }
             smallWindow(icon: "clock", title: "Недавние", subtitle: recentProjects.isEmpty ? "Нет проектов" : "\(recentProjects.count) проектов") {
-                selectedWindow = .recent
+                onRecentProjects()
             }
         }
     }
