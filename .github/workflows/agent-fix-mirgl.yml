@@ -1,0 +1,181 @@
+name: Agent fix MirGLView
+
+on:
+  push:
+    branches:
+      - agent/fix-mirgl-displaylink
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch MirGLView.swift
+        shell: python3 {0}
+        run: |
+          from pathlib import Path
+
+          path = Path("MirUI/Renderers/SwiftUI/MirGLView.swift")
+          text = path.read_text(encoding="utf-8")
+
+          old = '''    // Renders one frame. NSView.displayLink(target:selector:) fires on the
+    // main run loop, so this is MainActor-isolated; the lock still protects
+    // against any non-main MirEngine access.
+    @objc
+    private func renderTick(_ displayLink: CADisplayLink) {
+
+        guard viewport != nil else {
+            return
+        }
+
+        MirGLCustomView.engineLock.lock()
+        MirEngineRender(viewport)
+        MirGLCustomView.engineLock.unlock()
+    }
+'''
+          new = '''    // The display-link selector must not touch NSView instance state.
+    // NSView is MainActor-isolated in the modern AppKit SDK, while the
+    // callback mechanism is Objective-C/runtime based. Passing the engine
+    // viewport through a static raw pointer keeps the callback independent
+    // from MainActor-isolated Swift state.
+    nonisolated(unsafe) private static var currentViewport: UnsafeMutableRawPointer?
+
+    @objc
+    nonisolated private func renderTick(_ displayLink: CADisplayLink) {
+        MirGLCustomView.engineLock.lock()
+        defer { MirGLCustomView.engineLock.unlock() }
+
+        guard let vp = MirGLCustomView.currentViewport else {
+            return
+        }
+
+        MirEngineRender(vp)
+    }
+'''
+          if old not in text:
+              raise SystemExit("renderTick block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''        viewport =
+            MirEngineCreateViewport(
+                renderer,
+                size.width,
+                size.height
+            )
+        MIR4DModelRuntime.shared.viewport = self.viewport
+'''
+          new = '''        viewport =
+            MirEngineCreateViewport(
+                renderer,
+                size.width,
+                size.height
+            )
+        MirGLCustomView.currentViewport = viewport
+        MIR4DModelRuntime.shared.viewport = self.viewport
+'''
+          if old not in text:
+              raise SystemExit("viewport assignment block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''    private func stopDisplayLink() {
+
+        guard let displayLink else {
+
+            isRunning = false
+
+            return
+        }
+
+        isRunning = false
+
+        displayLink.invalidate()
+
+        self.displayLink = nil
+
+        print(
+            "⏹ MIR4D: DisplayLink stopped"
+        )
+    }
+'''
+          new = '''    private func stopDisplayLink() {
+
+        guard let displayLink else {
+            isRunning = false
+            return
+        }
+
+        isRunning = false
+        displayLink.invalidate()
+        self.displayLink = nil
+
+        MirGLCustomView.engineLock.lock()
+        MirGLCustomView.currentViewport = nil
+        MirGLCustomView.engineLock.unlock()
+
+        print(
+            "⏹ MIR4D: DisplayLink stopped"
+        )
+    }
+'''
+          if old not in text:
+              raise SystemExit("stopDisplayLink block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''    private func shutdownEngine() {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        if let viewport {
+'''
+          new = '''    private func shutdownEngine() {
+
+        MirGLCustomView.engineLock.lock()
+        defer {
+            MirGLCustomView.engineLock.unlock()
+        }
+
+        MirGLCustomView.currentViewport = nil
+        MIR4DModelRuntime.shared.viewport = nil
+
+        if let viewport {
+'''
+          if old not in text:
+              raise SystemExit("shutdownEngine block not found")
+          text = text.replace(old, new, 1)
+
+          old = '''        return String(cString: pointer)
+'''
+          new = '''        return String(decodingCString: pointer, as: UTF8.self)
+'''
+          if old not in text:
+              raise SystemExit("deprecated String(cString:) not found")
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding="utf-8")
+
+      - name: Commit patched source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add MirUI/Renderers/SwiftUI/MirGLView.swift
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Fix MirGLView display-link isolation"
+          git push
+
+      - name: Remove temporary workflow
+        shell: bash
+        run: |
+          git rm .github/workflows/agent-fix-mirgl.yml || true
+          git commit -m "Remove temporary MirGLView patch workflow" || true
+          git push || true
