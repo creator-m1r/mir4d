@@ -34,7 +34,9 @@ final class MIR4DProjectSessionOptionalModulesBridge {
     }
 
     deinit {
-        observers.forEach(NotificationCenter.default.removeObserver)
+        MainActor.assumeIsolated {
+            observers.forEach(NotificationCenter.default.removeObserver)
+        }
     }
 
     /// Call once from the application/root UI before projects can be opened.

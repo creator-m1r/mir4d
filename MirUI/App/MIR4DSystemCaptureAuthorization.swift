@@ -30,7 +30,7 @@ final class MIR4DSystemCaptureAuthorization: ObservableObject {
         return granted
     }
 
-    func canUseCamera: Bool { camera == .authorized }
+    var canUseCamera: Bool { camera == .authorized }
     var canUseMicrophone: Bool { microphone == .authorized }
 
     private func map(_ status: AVAuthorizationStatus) -> Status {

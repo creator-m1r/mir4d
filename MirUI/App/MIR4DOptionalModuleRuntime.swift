@@ -18,15 +18,20 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            Task { @MainActor in
-                self?.apply(notification)
+            let camera = notification.userInfo?["cameraEnabled"] as? Bool ?? false
+            let microphone = notification.userInfo?["microphoneEnabled"] as? Bool ?? false
+            let ai = notification.userInfo?["aiEnabled"] as? Bool ?? false
+            MainActor.assumeIsolated {
+                self?.apply(camera: camera, microphone: microphone, ai: ai)
             }
         }
     }
 
     deinit {
-        if let permissionObserver {
-            NotificationCenter.default.removeObserver(permissionObserver)
+        MainActor.assumeIsolated {
+            if let permissionObserver {
+                NotificationCenter.default.removeObserver(permissionObserver)
+            }
         }
     }
 
@@ -38,17 +43,14 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
         }
     }
 
-    /// Applies a configuration-change notification (cameraEnabled / microphoneEnabled / aiEnabled).
-    func apply(_ notification: Notification) {
-        let camera = notification.userInfo?["cameraEnabled"] as? Bool ?? false
-        let microphone = notification.userInfo?["microphoneEnabled"] as? Bool ?? false
-        let ai = notification.userInfo?["aiEnabled"] as? Bool ?? false
+    /// Applies a configuration-change notification payload (cameraEnabled / microphoneEnabled / aiEnabled).
+    func apply(camera: Bool, microphone: Bool, ai: Bool) {
         let requested: [MIR4DOptionalModule?] = [
             camera ? .camera : nil,
             microphone ? .microphone : nil,
             ai ? .ai : nil
         ]
-        apply(requested.compactMap { $0 })
+        apply(Set(requested.compactMap { $0 }))
     }
 
     func isEnabled(_ module: MIR4DOptionalModule) -> Bool {
