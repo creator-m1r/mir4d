@@ -448,6 +448,7 @@ final class MIR4DProjectSession {
     }
 }
 
+@MainActor
 extension CADAppState {
     func createMIR4DProject(name: String, parentURL: URL, workbench: CADWorkbench? = nil) {
         MIR4DProjectSession.shared.createProject(appState: self, name: name, parentURL: parentURL, workbench: workbench)

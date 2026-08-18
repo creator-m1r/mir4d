@@ -110,10 +110,9 @@ struct CADNotification: Identifiable {
 ///
 /// This is a projection of engine state plus presentation state.
 /// Engineering truth remains in MirEngine.
-@MainActor
 /// Якорь эскиза: плоскость построения и её базис в мировых координатах.
 /// `id` совпадает с базовым id плоскости в MirEngine (1=XY, 2=YZ, 3=ZX).
-struct SketchPlaneAnchor: Identifiable, Equatable {
+struct SketchPlaneAnchor: Identifiable, Equatable, Sendable {
     let id: UInt32
     let name: String
     let preset: MirCameraPreset
@@ -143,6 +142,7 @@ struct SketchPlaneAnchor: Identifiable, Equatable {
     static let standard: [SketchPlaneAnchor] = [.xy, .yz, .zx]
 }
 
+@MainActor
 final class CADAppState: ObservableObject {
     @Published var workbench: CADWorkbench = .model
     @Published var subMode: CADSubMode = .modelFeature

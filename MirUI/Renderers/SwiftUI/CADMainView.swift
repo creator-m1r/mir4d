@@ -228,6 +228,7 @@ struct CADMainView: View {
         guard !normalized.isEmpty else { return }
         guard registry.execute(id: normalized, context: appState.activeContext) else {
             appState.showNotification("Команда недоступна в текущем контексте: \(normalized)", type: .warning)
+            return
         }
     }
 
@@ -246,5 +247,36 @@ struct CADMainView: View {
     private func createDefaultBox() {
         _ = MIR4DModelCommands.shared.createBox(appState: appState, width: 100, depth: 60, height: 40)
         showEmptyState = false
+    }
+
+    private enum ResizeEdge: Hashable { case left, right, bottom }
+}
+
+// MARK: - Viewport bridge
+
+/// SwiftUI wrapper around the MirGLCustomView OpenGL viewport.
+/// Camera and selection are forwarded through the CADAppState callbacks.
+struct ViewportRepresentable: NSViewRepresentable {
+    var appState: CADAppState
+    var onSelectionChanged: (UInt64) -> Void
+    var onIOError: (String) -> Void
+    var onCameraOrientationChanged: (Double, Double, Double) -> Void
+
+    func makeNSView(context: Context) -> MirGLCustomView {
+        let view = MirGLCustomView()
+        apply(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: MirGLCustomView, context: Context) {
+        apply(to: nsView)
+    }
+
+    private func apply(to view: MirGLCustomView) {
+        view.appState = appState
+        view.onSelectionChanged = onSelectionChanged
+        view.onIOError = onIOError
+        view.onCameraOrientationChanged = onCameraOrientationChanged
+        view.syncWorkPlanesIfNeeded()
     }
 }

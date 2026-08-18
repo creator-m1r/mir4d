@@ -1,10 +1,18 @@
 import Foundation
 import CoreGraphics
+import simd
+import simd
 
 /// Converts spatial hand samples into a continuous air-sculpt stroke.
 /// This layer owns interaction state only; mesh mutation belongs to MirEngine.
 @MainActor
 final class MIRAirSculptController {
+    enum Mode: Equatable {
+        case sculpt
+        case grab
+        case draw
+    }
+
     enum State: Equatable {
         case idle
         case hovering

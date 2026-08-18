@@ -100,7 +100,7 @@ struct CADPanelView: View {
 
     private var simulationPanel: some View {
         let ru = appState.ui.language == .russian
-        ScrollView {
+        return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 panelSection(title: appState.ui.language == .russian ? "ФИЗИКА" : "PHYSICS") {
                     Picker(appState.ui.language == .russian ? "Тип" : "Type", selection: Binding(

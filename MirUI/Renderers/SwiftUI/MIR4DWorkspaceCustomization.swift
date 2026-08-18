@@ -15,6 +15,7 @@ final class MIR4DWorkspaceCustomizationStore: ObservableObject {
     @Published var bottomHeight: Double { didSet { save() } }
     @Published var floatingWidth: Double { didSet { save() } }
     @Published var floatingHeight: Double { didSet { save() } }
+    @Published var isMinimalMode: Bool { didSet { save() } }
 
     private init() {
         let d = UserDefaults.standard
@@ -27,6 +28,7 @@ final class MIR4DWorkspaceCustomizationStore: ObservableObject {
         bottomHeight = d.object(forKey: "mir4d.workspace.bottom") as? Double ?? 240
         floatingWidth = d.object(forKey: "mir4d.workspace.floatingWidth") as? Double ?? 420
         floatingHeight = d.object(forKey: "mir4d.workspace.floatingHeight") as? Double ?? 520
+        isMinimalMode = d.object(forKey: "mir4d.workspace.minimal") as? Bool ?? false
     }
 
     func reset() {
@@ -39,6 +41,7 @@ final class MIR4DWorkspaceCustomizationStore: ObservableObject {
         bottomHeight = 240
         floatingWidth = 420
         floatingHeight = 520
+        isMinimalMode = false
         FloatingPanelManager.shared.applySizeToAll(width: floatingWidth, height: floatingHeight)
     }
 
@@ -53,6 +56,7 @@ final class MIR4DWorkspaceCustomizationStore: ObservableObject {
         d.set(bottomHeight, forKey: "mir4d.workspace.bottom")
         d.set(floatingWidth, forKey: "mir4d.workspace.floatingWidth")
         d.set(floatingHeight, forKey: "mir4d.workspace.floatingHeight")
+        d.set(isMinimalMode, forKey: "mir4d.workspace.minimal")
     }
 }
 

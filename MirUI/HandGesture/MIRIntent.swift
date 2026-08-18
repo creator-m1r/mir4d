@@ -2,8 +2,8 @@ import Foundation
 
 /// A device-independent expression of an engineer's intention.
 /// Input devices produce intents; the CAD layer decides whether and how they become actions.
-struct MIRIntent: Equatable, Identifiable {
-    enum Source: String, Equatable, Sendable {
+public struct MIRIntent: Equatable, Identifiable {
+    public enum Source: String, Equatable, Sendable {
         case voice
         case touch
         case trackpad
@@ -14,7 +14,7 @@ struct MIRIntent: Equatable, Identifiable {
         case system
     }
 
-    enum Phase: String, Equatable, Sendable {
+    public enum Phase: String, Equatable, Sendable {
         case attention
         case preview
         case selection
@@ -23,17 +23,17 @@ struct MIRIntent: Equatable, Identifiable {
         case cancel
     }
 
-    let id: UUID
-    let source: Source
-    let phase: Phase
-    let action: String?
-    let targetID: String?
-    let directionRadians: Double?
-    let value: Double?
-    let confidence: Double
-    let timestamp: Date
+    public let id: UUID
+    public let source: Source
+    public let phase: Phase
+    public let action: String?
+    public let targetID: String?
+    public let directionRadians: Double?
+    public let value: Double?
+    public let confidence: Double
+    public let timestamp: Date
 
-    init(
+    public init(
         id: UUID = UUID(),
         source: Source,
         phase: Phase,

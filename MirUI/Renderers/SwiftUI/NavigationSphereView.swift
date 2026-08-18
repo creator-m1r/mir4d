@@ -245,7 +245,7 @@ struct NavigationSphereView: View {
                     .stroke(MirTheme.Colors.panelBorder.opacity(0.55), lineWidth: 1)
                     .frame(width: (radius + 10) * 2, height: (radius + 10) * 2)
             )
-            .contentShape(Circle().strokeBorder(lineWidth: 12))
+            .contentShape(Circle())
             .gesture(
                 DragGesture(minimumDistance: 2)
                     .onChanged { value in

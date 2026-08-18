@@ -75,6 +75,7 @@ struct MIR4DCreativeWorkspaceView: View {
             voiceAssistant.start(appState: appState)
             MIR4DRadialInteractionCoordinator.shared.start()
         }
+        .mir4DSpatialMenu(appState: appState, registry: registry)
         .onDisappear {
             voiceAssistant.stop()
             MIR4DRadialInteractionCoordinator.shared.stop()

@@ -98,6 +98,7 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
             Task { @MainActor in
                 if let result {
                     self.lastTranscript = result.bestTranscription.formattedString
+                    NotificationCenter.default.post(name: .mir4DVoiceTranscript, object: self.lastTranscript)
                     if result.isFinal { self.handleCommand(self.lastTranscript) }
                 }
                 if error != nil || result?.isFinal == true {

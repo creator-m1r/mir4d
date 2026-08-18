@@ -5,7 +5,7 @@ extension Notification.Name {
     static let mir4DCameraOrbitRequested = Notification.Name("MIR4D.CameraOrbitRequested")
 }
 
-public enum MirCameraPreset: String, CaseIterable {
+public enum MirCameraPreset: String, CaseIterable, Sendable {
     case front, back, left, right, top, bottom, isometric
     case topFrontLeft, topFrontRight, topBackLeft, topBackRight
     case bottomFrontLeft, bottomFrontRight, bottomBackLeft, bottomBackRight

@@ -37,7 +37,7 @@ struct MIR4DViewportWorkspace: View {
                 .padding(.trailing, 14)
 
             if appState.selection.hasSelection {
-                ContextualToolbarView(appState: appState, registry: registry, onCommandPalette: onCommandPalette)
+                ContextualToolbarView(appState: appState, registry: registry)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))

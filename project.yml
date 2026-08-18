@@ -93,6 +93,8 @@ targets:
       - path: MirUI/App
         excludes:
           - "UIConfig/*.json"
+      - path: MirUI/SpatialMenu
+      - path: MirUI/HandGesture
       - path: MirUI/Renderers/SwiftUI
         excludes:
           - MirEngineApp.swift

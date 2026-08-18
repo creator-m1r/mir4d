@@ -31,6 +31,7 @@ let package = Package(
             // SwiftPM must see this target as Swift-only. The SwiftUI directory
             // also contains legacy C++/Objective-C++ bridge files used by Xcode
             // and the CMake UI target, so they must be explicitly excluded.
+            // The hand-gesture subsystem lives under `MirUI/HandGesture`.
             path: "MirUI",
             exclude: [
                 "CMakeLists.txt",
@@ -68,6 +69,8 @@ let package = Package(
             ],
             sources: [
                 "App",
+                "HandGesture",
+                "SpatialMenu",
                 "Renderers/SwiftUI"
             ],
             resources: [
@@ -82,6 +85,11 @@ let package = Package(
             swiftSettings: [
                 .define("MIR4D_SWIFTPM")
             ]
+        ),
+        .testTarget(
+            name: "MirUIHandGestureTests",
+            dependencies: ["MIR4DApp"],
+            path: "Tests/MIRHandGestureTests"
         )
     ]
 )
