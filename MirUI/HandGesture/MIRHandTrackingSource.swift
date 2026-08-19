@@ -132,14 +132,11 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                         return
                     }
 
-                    self.configureIfNeededOnSessionQueue()
-                    guard self.configured else {
-                        self.finishStream()
-                        return
+                    self.configureIfNeededOnSessionQueue {
+                        guard !self.running else { return }
+                        self.session.startRunning()
+                        self.running = self.session.isRunning
                     }
-                    guard !self.running else { return }
-                    self.session.startRunning()
-                    self.running = self.session.isRunning
                 }
             }
         }
@@ -169,38 +166,51 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
         }
     }
 
-    /// Must be called only from `sessionQueue`.
-    private func configureIfNeededOnSessionQueue() {
-        dispatchPrecondition(condition: .onQueue(sessionQueue))
-        guard !configured else { return }
+    /// Конфигурирует `AVCaptureSession` строго на `sessionQueue`. Тело всегда
+    /// выполняется через `sessionQueue.async`, поэтому вызов из любой другой
+    /// очереди (visionQueue / Thread 12 при старте сессии из 3D-сцены, либо из
+    /// `captureOutput`) безопасен и не вызывает EXC_BREAKPOINT в
+    /// `dispatch_assert_queue_fail` (ТЗ §5). Внутри вызываются
+    /// `AVCaptureSession.beginConfiguration` / `addInput`, которые внутренне
+    /// assert-ят выполнение именно на очереди сессии. `then` вызывается после
+    /// успешной конфигурации (также на `sessionQueue`).
+    private func configureIfNeededOnSessionQueue(then startIfConfigured: @Sendable @escaping () -> Void) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            guard !self.configured else {
+                startIfConfigured()
+                return
+            }
 
-        session.beginConfiguration()
-        defer { session.commitConfiguration() }
+            self.session.beginConfiguration()
+            defer { self.session.commitConfiguration() }
 
-        session.sessionPreset = .high
+            self.session.sessionPreset = .high
 
-        guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input) else {
-            return
+            guard let device = AVCaptureDevice.default(for: .video),
+                  let input = try? AVCaptureDeviceInput(device: device),
+                  self.session.canAddInput(input) else {
+                return
+            }
+
+            self.session.addInput(input)
+            self.output.alwaysDiscardsLateVideoFrames = true
+            self.output.setSampleBufferDelegate(self, queue: self.visionQueue)
+
+            guard self.session.canAddOutput(self.output) else {
+                return
+            }
+
+            self.session.addOutput(self.output)
+
+            if let connection = self.output.connection(with: .video),
+               connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
+
+            self.configured = true
+            startIfConfigured()
         }
-
-        session.addInput(input)
-        output.alwaysDiscardsLateVideoFrames = true
-        output.setSampleBufferDelegate(self, queue: visionQueue)
-
-        guard session.canAddOutput(output) else {
-            return
-        }
-
-        session.addOutput(output)
-
-        if let connection = output.connection(with: .video),
-           connection.isVideoRotationAngleSupported(90) {
-            connection.videoRotationAngle = 90
-        }
-
-        configured = true
     }
 }
 
@@ -230,6 +240,7 @@ extension MIRCameraTrackingSource: AVCaptureVideoDataOutputSampleBufferDelegate 
 
         continuationLock.withLock { continuation in
             continuation?.yield(poses)
+            return
         }
     }
 

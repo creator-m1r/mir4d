@@ -184,7 +184,6 @@ final class MIRSpatialMenuController: ObservableObject {
     // MARK: - Intents during the gesture
 
     private func publishPreviewIntent(for newState: MIRSpatialMenuState) {
-        let settings = MIRSpatialMenuSettingsStore.shared.settings
         if let tool = MIRSpatialMenuSelection.resolvedTool(newState, tree: tree) {
             MIRIntentRouter.shared.publish(
                 MIRIntent(source: .spatial, phase: .preview, action: tool.command, directionRadians: newState.angleRadians, confidence: 0.92)
