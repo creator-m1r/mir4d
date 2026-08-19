@@ -75,6 +75,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
     private let continuationLock = OSAllocatedUnfairLock<AsyncStream<[MIRHandPose]>.Continuation?>(initialState: nil)
 
+    /// Защищает generation-счётчик (ТЗ §11). Каждый start()/stop() увеличивают
+    /// поколение; отложенный permission-callback запускает камеру только если
+    /// его поколение совпадает с текущим — иначе startRunning() после stop()
+    /// не происходит.
+    private let generationLock = OSAllocatedUnfairLock<UInt64>(initialState: 0)
+
     /// These flags are accessed only on `sessionQueue`.
     private var configured = false
     private var running = false
@@ -95,6 +101,14 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
             continuationLock.withLock { $0 = continuation }
 
+            // Захватываем поколение для ЭТОГО start(). Любой последующий stop()
+            // (или повторный start()) увеличит поколение, и отложенный запуск
+            // камеры ниже будет пропущен (ТЗ §11, Test 5).
+            let myGeneration = generationLock.withLock { state in
+                state &+= 1
+                return state
+            }
+
             // Permission is asynchronous and must not block the camera queue.
             Task.detached { [weak self] in
                 guard let self else { return }
@@ -109,8 +123,21 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                 // serialized on exactly the same queue.
                 self.sessionQueue.async { [weak self] in
                     guard let self else { return }
+
+                    // Поколение могло измениться (stop() пришёл до ответа
+                    // permission) — в этом случае НЕ запускаем камеру.
+                    let current = self.generationLock.withLock { $0 }
+                    guard current == myGeneration else {
+                        self.finishStream()
+                        return
+                    }
+
                     self.configureIfNeededOnSessionQueue()
-                    guard self.configured, !self.running else { return }
+                    guard self.configured else {
+                        self.finishStream()
+                        return
+                    }
+                    guard !self.running else { return }
                     self.session.startRunning()
                     self.running = self.session.isRunning
                 }
@@ -121,6 +148,9 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     func stop() {
         // Finish the stream immediately so consumers stop processing frames.
         finishStream()
+
+        // Инвалидируем любой отложенный start от предыдущего поколения.
+        generationLock.withLock { $0 &+= 1 }
 
         // All AVCaptureSession mutations remain serialized on sessionQueue.
         sessionQueue.async { [weak self] in
