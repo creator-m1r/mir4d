@@ -60,24 +60,25 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         beginRecognition()
     }
 
-    private func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+    // nonisolated: completion-блоки SFSpeechRecognizer.requestAuthorization /
+    // AVCaptureDevice.requestAccess(for:) в этом SDK не @Sendable и наследуют
+    // @MainActor-изоляцию. Если TCC-ответ приходит в фоновом потоке, рантайм
+    // Swift вставляет swift_task_isCurrentExecutorWithFlagsImpl ->
+    // dispatch_assert_queue_fail (EXC_BREAKPOINT, ТЗ §5). Делаем метод
+    // nonisolated, тогда completion тоже nonisolated, а сам запрос TCC
+    // выполняется на главном потоке вызова (ViewBridge-безопасно).
+    private nonisolated func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
         await withCheckedContinuation { continuation in
-            // TCC-запрос должен идти с главного потока, иначе remote view
-            // сервис диалога разрешений завершается (ViewBridge error, ТЗ §5).
-            DispatchQueue.main.async {
-                SFSpeechRecognizer.requestAuthorization { status in
-                    continuation.resume(returning: status)
-                }
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status)
             }
         }
     }
 
-    private func requestMicrophonePermission() async -> Bool {
+    private nonisolated func requestMicrophonePermission() async -> Bool {
         await withCheckedContinuation { continuation in
-            DispatchQueue.main.async {
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    continuation.resume(returning: granted)
-                }
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
             }
         }
     }
