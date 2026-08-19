@@ -2,6 +2,17 @@ import Foundation
 import AVFoundation
 import Speech
 
+/// Потокобезопасный (по контракту использования) держатель распознавателя.
+/// `SFSpeechAudioBufferRecognitionRequest` не является Sendable, поэтому
+/// помечаем холдер как `@unchecked Sendable` и обращаемся к request только
+/// из одного потока записи (real-time audio tap) и из главного потока
+/// (создание/отмена). Это устраняет MainActor-executor assertion в tap-callback
+/// (ТЗ §5: real-time audio callback нельзя делать actor-isolated).
+private final class VoiceRecognitionHolder {
+    var request: SFSpeechAudioBufferRecognitionRequest?
+}
+extension VoiceRecognitionHolder: @unchecked Sendable {}
+
 /// Local voice interface for the engineer.
 /// No chat window and no microphone control are exposed in the creative workspace.
 /// Recognition is explicitly requested on-device and commands are executed through CADAppState/EventBus.
@@ -20,8 +31,9 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ru-RU"))
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    /// nonisolated: к request обращается real-time audio tap (см. beginRecognition).
+    nonisolated private let holder = VoiceRecognitionHolder()
     private weak var appState: CADAppState?
     private var restarting = false
 
@@ -33,7 +45,7 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
     func stop() {
         recognitionTask?.cancel()
         recognitionTask = nil
-        recognitionRequest = nil
+        holder.request = nil
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         state = .idle
@@ -91,13 +103,19 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = true
-        recognitionRequest = request
+        holder.request = request
 
         let inputNode = audioEngine.inputNode
         inputNode.removeTap(onBus: 0)
         let format = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
+
+        // Захватываем ТОЛЬКО holder (nonisolated + @unchecked Sendable).
+        // Внутри tap-callback НЕТ self → Swift не вставляет проверку executor
+        // (ТЗ §5: real-time audio callback запрещено делать actor-isolated).
+        let holder = self.holder
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable buffer, _ in
+            guard let copied = Self.copyBuffer(buffer) else { return }
+            holder.request?.append(copied)
         }
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -128,7 +146,7 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         restarting = true
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionRequest = nil
+        holder.request = nil
         recognitionTask = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self else { return }
@@ -219,6 +237,32 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         speak("Я услышал: \(raw). Команда пока не распознана.")
     }
 
+    /// Надёжное копирование AVAudioPCMBuffer (buffer.copy() не всегда
+    /// корректен для PCM). Вызывается из real-time audio callback, поэтому
+    /// static + nonisolated — не захватывает self и не требует actor-executor.
+    private nonisolated static func copyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        let format = buffer.format
+        guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameCapacity) else {
+            return nil
+        }
+        copy.frameLength = buffer.frameLength
+
+        if let src = buffer.floatChannelData, let dst = copy.floatChannelData {
+            for channel in 0..<Int(format.channelCount) {
+                memcpy(dst[channel], src[channel], Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            }
+        } else if let src = buffer.int16ChannelData, let dst = copy.int16ChannelData {
+            for channel in 0..<Int(format.channelCount) {
+                memcpy(dst[channel], src[channel], Int(buffer.frameLength) * MemoryLayout<Int16>.size)
+            }
+        } else if let src = buffer.int32ChannelData, let dst = copy.int32ChannelData {
+            for channel in 0..<Int(format.channelCount) {
+                memcpy(dst[channel], src[channel], Int(buffer.frameLength) * MemoryLayout<Int32>.size)
+            }
+        }
+        return copy
+    }
+
     private func normalized(_ value: String) -> String {
         value.lowercased()
             .replacingOccurrences(of: "ё", with: "е")
@@ -229,7 +273,7 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         state = .processing
         recognitionTask?.cancel()
         recognitionTask = nil
-        recognitionRequest = nil
+        holder.request = nil
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
 
