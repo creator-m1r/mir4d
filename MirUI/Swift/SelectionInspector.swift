@@ -86,8 +86,8 @@ public final class SelectionInspector: ObservableObject {
                 continue
             }
 
-            let name = String(cString: namePointer)
-            let value = String(cString: valuePointer)
+            let name = mirCString(namePointer) ?? ""
+            let value = mirCString(valuePointer) ?? ""
 
             result.append(
                 SelectionInspectorProperty(

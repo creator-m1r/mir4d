@@ -127,7 +127,7 @@ final class InsetsEditorViewModel: ObservableObject {
             return nil
         }
 
-        let value = String(cString: cStr)
+        let value = mirCString(cStr) ?? ""
 
         return value.isEmpty ? nil : value
     }

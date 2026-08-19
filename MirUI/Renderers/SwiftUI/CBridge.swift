@@ -425,9 +425,28 @@ public enum MirEngineSketchConstraint: Int32 {
 @_silgen_name("MirEngineRunCAECampaign") public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool
 #endif
 
-public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
+/// Unified diagnostics logger (ТЗ §40).
+///
+/// Categories: ENGINE, GL, DISPLAYLINK, CAMERA, HAND, ACTOR, LIFECYCLE.
+public func MIR4DLog(_ category: String, _ message: String) {
+    #if DEBUG
+    print("[MIR4D-\(category)] \(message)")
+    #endif
+}
+
+/// Безопасное декодирование NUL-терминированной C-строки (ТЗ §29).
+///
+/// `String(decodingCString:as:)` требует `UnsafePointer<UTF8.CodeUnit>` (UInt8),
+/// тогда как C API возвращает `UnsafePointer<CChar>` (Int8). Приводим через
+/// `assumingMemoryBound` —布局 CChar/UTF8.CodeUnit идентичен (1 байт).
+public func mirCString(_ pointer: UnsafePointer<CChar>?) -> String? {
     guard let pointer else { return nil }
-    let value = String(cString: pointer)
+    let utf8 = UnsafeRawPointer(pointer).assumingMemoryBound(to: UTF8.CodeUnit.self)
+    return String(decodingCString: utf8, as: UTF8.self)
+}
+
+public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
+    guard let value = mirCString(pointer) else { return nil }
     return value.isEmpty ? nil : value
 }
 public func cStrToStringDefault(_ pointer: UnsafePointer<CChar>?, _ defaultValue: String = "") -> String { cStrToString(pointer) ?? defaultValue }
@@ -439,7 +458,8 @@ public func MIR4DRunCAECampaign(definition: String) -> String? {
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: capacity)
     defer { buffer.deallocate() }
     guard definition.withCString({ MirEngineRunCAECampaign($0, buffer, capacity) }) else { return nil }
-    return String(cString: buffer)
+    let utf8 = UnsafeRawPointer(buffer).assumingMemoryBound(to: UTF8.CodeUnit.self)
+    return String(decodingCString: utf8, as: UTF8.self)
 }
 
 public extension Color {
