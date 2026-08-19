@@ -82,6 +82,33 @@ const char* errorMessage(NativeViewport* native) noexcept
 // C ABI
 // ============================================================
 
+// Transform (C ABI ↔ mir4d::Transform) helpers. Defined as file-static C++
+// functions so they never inherit the C linkage of the export stubs below.
+static MirTransform toMirTransform(const mir4d::Transform& t) noexcept
+{
+    MirTransform m{};
+    m.px = static_cast<double>(t.position.x);
+    m.py = static_cast<double>(t.position.y);
+    m.pz = static_cast<double>(t.position.z);
+    m.qx = static_cast<double>(t.rotation.x);
+    m.qy = static_cast<double>(t.rotation.y);
+    m.qz = static_cast<double>(t.rotation.z);
+    m.qw = static_cast<double>(t.rotation.w);
+    m.sx = static_cast<double>(t.scale.x);
+    m.sy = static_cast<double>(t.scale.y);
+    m.sz = static_cast<double>(t.scale.z);
+    return m;
+}
+
+static mir4d::Transform fromMirTransform(const MirTransform& m) noexcept
+{
+    mir4d::Transform t{};
+    t.position = {m.px, m.py, m.pz};
+    t.rotation = mir::Quaternion(m.qx, m.qy, m.qz, m.qw);
+    t.scale = {m.sx, m.sy, m.sz};
+    return t;
+}
+
 extern "C"
 {
 
@@ -1369,6 +1396,138 @@ bool MirEngineEndDeformSelected(
         return false;
 
     native->runtime->endDeformSelected();
+    return true;
+}
+
+
+// ------------------------------------------------------------
+// Hand Grab — Vertical Slice v0.1
+// ------------------------------------------------------------
+
+bool MirEnginePickHandRay(
+    void* viewport,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    uint64_t* outObjectId,
+    double* outDistance
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return false;
+
+    auto* rt = native->runtime.get();
+    const mir::Vector3 dir{dx, dy, dz};
+    if (dir.isZero())
+        return false;
+
+    const auto result = rt->pickWorldRay(
+        mir::Point3{ox, oy, oz},
+        dir.normalized());
+    if (!result.hit())
+        return false;
+
+    if (outObjectId)
+        *outObjectId = static_cast<std::uint64_t>(result.objectId);
+    if (outDistance)
+        *outDistance = static_cast<double>(result.distance);
+    return true;
+}
+
+void MirEngineBeginGrab(
+    void* viewport,
+    uint64_t objectId
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->beginHandGrab(mir4d::ObjectId(objectId));
+}
+
+bool MirEnginePreviewGrab(
+    void* viewport,
+    uint64_t objectId,
+    MirTransform transform
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return false;
+
+    (void)objectId; // runtime tracks the armed grab id; parameter kept for ABI symmetry
+    native->runtime->previewHandGrab(fromMirTransform(transform));
+    return true;
+}
+
+bool MirEngineCommitGrab(
+    void* viewport,
+    uint64_t objectId
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return false;
+
+    (void)objectId;
+    native->runtime->commitHandGrab();
+    return true;
+}
+
+void MirEngineCancelGrab(
+    void* viewport
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->cancelHandGrab();
+}
+
+bool MirEngineGetObjectTransform(
+    void* viewport,
+    uint64_t objectId,
+    MirTransform* outTransform
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !outTransform)
+        return false;
+
+    *outTransform = toMirTransform(
+        native->runtime->objectTransform(mir4d::ObjectId(objectId)));
+    return true;
+}
+
+void MirEngineSetHandHover(
+    void* viewport,
+    uint64_t objectId
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->setHandHover(mir4d::ObjectId(objectId));
+}
+
+bool MirEngineGetCameraEye(
+    void* viewport,
+    double* outX,
+    double* outY,
+    double* outZ
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !outX || !outY || !outZ)
+        return false;
+
+    const auto eye = native->runtime->state().camera.position();
+    *outX = static_cast<double>(eye.x);
+    *outY = static_cast<double>(eye.y);
+    *outZ = static_cast<double>(eye.z);
     return true;
 }
 

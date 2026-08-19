@@ -34,6 +34,31 @@ import SwiftUI
 @_silgen_name("MirUI_ExecuteCommand") public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: Int64)
 
 // MARK: - MirEngine OpenGL ABI
+
+/// Canonical object transform across the C ABI. Layout MUST match `MirTransform`
+/// in `MirEngineExports.h` (position, rotation quaternion, scale) so the struct
+/// can be passed by value through `@_silgen_name`.
+public struct MirTransform {
+    public var px: Double
+    public var py: Double
+    public var pz: Double
+    public var qx: Double
+    public var qy: Double
+    public var qz: Double
+    public var qw: Double
+    public var sx: Double
+    public var sy: Double
+    public var sz: Double
+    public init() { px = 0; py = 0; pz = 0; qx = 0; qy = 0; qz = 0; qw = 1; sx = 1; sy = 1; sz = 1 }
+    public init(px: Double = 0, py: Double = 0, pz: Double = 0,
+                qx: Double = 0, qy: Double = 0, qz: Double = 0, qw: Double = 1,
+                sx: Double = 1, sy: Double = 1, sz: Double = 1) {
+        self.px = px; self.py = py; self.pz = pz
+        self.qx = qx; self.qy = qy; self.qz = qz; self.qw = qw
+        self.sx = sx; self.sy = sy; self.sz = sz
+    }
+}
+
 #if MIR4D_SWIFTPM
 public struct MirEngineSize2D {
     public var width: UInt32
@@ -91,6 +116,16 @@ public func MirEngineUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false 
 public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
+
+// Hand Grab — Vertical Slice v0.1 (SwiftPM stubs).
+public func MirEnginePickHandRay(_ viewport: UnsafeMutableRawPointer?, _ ox: Double, _ oy: Double, _ oz: Double, _ dx: Double, _ dy: Double, _ dz: Double, _ outObjectId: UnsafeMutablePointer<UInt64>?, _ outDistance: UnsafeMutablePointer<Double>?) -> Bool { false }
+public func MirEngineBeginGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
+public func MirEnginePreviewGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: MirTransform) -> Bool { false }
+public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) -> Bool { false }
+public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?) {}
+public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool { false }
+public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
+public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool { false }
 
 // Work planes (ТЗ Этап 1) — SwiftPM stub.
 public struct MirEnginePlane {
@@ -216,6 +251,16 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineRedo") public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineCanUndo") public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineCanRedo") public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
+
+// Hand Grab — Vertical Slice v0.1.
+@_silgen_name("MirEnginePickHandRay") public func MirEnginePickHandRay(_ viewport: UnsafeMutableRawPointer?, _ ox: Double, _ oy: Double, _ oz: Double, _ dx: Double, _ dy: Double, _ dz: Double, _ outObjectId: UnsafeMutablePointer<UInt64>?, _ outDistance: UnsafeMutablePointer<Double>?) -> Bool
+@_silgen_name("MirEngineBeginGrab") public func MirEngineBeginGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
+@_silgen_name("MirEnginePreviewGrab") public func MirEnginePreviewGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: MirTransform) -> Bool
+@_silgen_name("MirEngineCommitGrab") public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) -> Bool
+@_silgen_name("MirEngineCancelGrab") public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineGetObjectTransform") public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool
+@_silgen_name("MirEngineSetHandHover") public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
+@_silgen_name("MirEngineGetCameraEye") public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool
 @_silgen_name("MirEngineSetPlanes") public func MirEngineSetPlanes(_ renderer: UnsafeMutableRawPointer?,
     _ count: Int32, _ ids: UnsafePointer<UInt32>?, _ origins: UnsafePointer<Float>?,
     _ normals: UnsafePointer<Float>?, _ xAxes: UnsafePointer<Float>?,

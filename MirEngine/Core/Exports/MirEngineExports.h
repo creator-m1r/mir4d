@@ -345,6 +345,77 @@ void MirEngineViewportDragCancel(
     void* viewport
 );
 
+// ------------------------------------------------------------
+// Hand Grab — Vertical Slice v0.1 (Pinch → point → grab → move → commit)
+// ------------------------------------------------------------
+
+/// Canonical object transform passed across the C ABI (position / rotation /
+/// scale). Mirrors mir4d::Transform in the engine.
+typedef struct
+{
+    double px, py, pz;
+    double qx, qy, qz, qw;
+    double sx, sy, sz;
+} MirTransform;
+
+/// Picks the scene against an explicit world-space hand ray. Returns the hit
+/// object id (0 on a miss) and the distance from the ray origin.
+bool MirEnginePickHandRay(
+    void* viewport,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    uint64_t* outObjectId,
+    double* outDistance
+);
+
+/// Arms a grab on the given object, snapshots its transform and selects it.
+void MirEngineBeginGrab(
+    void* viewport,
+    uint64_t objectId
+);
+
+/// Live preview of the grabbed object's transform. Mutates the scene with no
+/// history entry (Preview, not Commit).
+bool MirEnginePreviewGrab(
+    void* viewport,
+    uint64_t objectId,
+    MirTransform transform
+);
+
+/// Commits exactly one undoable Move/Transform command for the active grab.
+/// Returns false when no grab is active or nothing moved.
+bool MirEngineCommitGrab(
+    void* viewport,
+    uint64_t objectId
+);
+
+/// Cancels the active grab and restores the snapshot transform (no history).
+void MirEngineCancelGrab(
+    void* viewport
+);
+
+/// Current world transform of an object (seed for preview deltas).
+bool MirEngineGetObjectTransform(
+    void* viewport,
+    uint64_t objectId,
+    MirTransform* outTransform
+);
+
+/// Highlights an object under the hand (hover) without changing selection.
+void MirEngineSetHandHover(
+    void* viewport,
+    uint64_t objectId
+);
+
+/// World-space camera eye used to build the hand picking ray. Returns false
+/// when the viewport / camera is not ready; outputs are left untouched then.
+bool MirEngineGetCameraEye(
+    void* viewport,
+    double* outX,
+    double* outY,
+    double* outZ
+);
+
 // Undo / Redo of scene commands (Move / Delete). Returns true when a
 // command was reverted / reapplied.
 bool MirEngineUndo(

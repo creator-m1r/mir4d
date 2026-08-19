@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import QuartzCore
+import os
 
 // MARK: - Notifications
 
@@ -53,7 +54,10 @@ final class MirGLCustomView: NSView {
     // nonisolated(unsafe): MirGLCustomView inherits from @MainActor NSView, so
     // its static members are main-isolated by default in Swift 6. NSLock is
     // thread-safe by design, so the marker is sound.
-    nonisolated private static let engineLock = NSLock()
+    // `OSAllocatedUnfairLock` (not `NSLock`) provides priority inheritance, so a
+    // User-interactive DisplayLink thread never inverts priority behind a
+    // Default-QoS engine accessor (Xcode Hang Risk 17459).
+    nonisolated private static let engineLock = OSAllocatedUnfairLock(initialState: ())
 
     // Renders one frame. NSView.displayLink(target:selector:) fires on the
     // main run loop, so this is MainActor-isolated; the lock still protects

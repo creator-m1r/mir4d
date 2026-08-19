@@ -38,6 +38,8 @@ struct PickRay
 class RayPicker
 {
 public:
+    /// Screen-space entry point: builds the world ray through a pixel and
+    /// delegates to `pick(scene, ray)`.
     [[nodiscard]] static PickResult pick(
         const Scene& scene,
         const Camera& camera,
@@ -46,10 +48,20 @@ public:
         std::uint32_t viewportWidth,
         std::uint32_t viewportHeight) noexcept
     {
-        PickResult result{};
         const PickRay ray = buildRay(
             camera, screenX, screenY, viewportWidth, viewportHeight);
-        if (ray.direction.isZero())
+        return pick(scene, ray);
+    }
+
+    /// Picks against a pre-built world-space ray. Used by spatial input
+    /// (hand tracking): the caller supplies the ray origin/direction directly
+    /// instead of a screen pixel, so no camera projection is needed.
+    [[nodiscard]] static PickResult pick(
+        const Scene& scene,
+        const PickRay& worldRay) noexcept
+    {
+        PickResult result{};
+        if (worldRay.direction.isZero())
             return result;
 
         for (const auto& node : scene.nodes())
@@ -61,8 +73,8 @@ public:
             const Matrix4 world = transform.matrix();
             const Matrix4 inverseWorld = world.inverse();
 
-            const Vector4 localOrigin4 = inverseWorld * Vector4(ray.origin.x, ray.origin.y, ray.origin.z, Scalar(1));
-            const Vector4 localDirection4 = inverseWorld * Vector4(ray.direction.x, ray.direction.y, ray.direction.z, Scalar(0));
+            const Vector4 localOrigin4 = inverseWorld * Vector4(worldRay.origin.x, worldRay.origin.y, worldRay.origin.z, Scalar(1));
+            const Vector4 localDirection4 = inverseWorld * Vector4(worldRay.direction.x, worldRay.direction.y, worldRay.direction.z, Scalar(0));
             const Point3 localOrigin{localOrigin4.x, localOrigin4.y, localOrigin4.z};
             const Vector3 localDirection{localDirection4.x, localDirection4.y, localDirection4.z};
 
@@ -81,9 +93,9 @@ public:
                                       localOrigin.y + localDirection.y * t,
                                       localOrigin.z + localDirection.z * t};
                 const Point3 worldHit = transform.transformPoint(localHit);
-                const Scalar distance = Vector3{worldHit.x - ray.origin.x,
-                                                worldHit.y - ray.origin.y,
-                                                worldHit.z - ray.origin.z}.length();
+                const Scalar distance = Vector3{worldHit.x - worldRay.origin.x,
+                                                worldHit.y - worldRay.origin.y,
+                                                worldHit.z - worldRay.origin.z}.length();
 
                 if (distance < result.distance)
                     result = {node->id(), distance, triangle.sourceFaceId};

@@ -244,6 +244,9 @@ target_link_libraries(MIR4D_ViewportFoundation PRIVATE MirEngineViewport)
 add_executable(MIR4D_ViewportRuntime MirEngine/Tests/Render/ViewportRuntime.cpp)
 target_link_libraries(MIR4D_ViewportRuntime PRIVATE MirEngineViewport)
 
+add_executable(MIR4D_HandGrab MirEngine/Tests/Render/HandGrabTest.cpp)
+target_link_libraries(MIR4D_HandGrab PRIVATE MirEngineViewport)
+
 add_executable(MIR4D_ViewportController MirEngine/Tests/Viewport/ViewportControllerTest.cpp)
 target_link_libraries(MIR4D_ViewportController PRIVATE MirEngineViewport)
 
@@ -311,6 +314,7 @@ add_test(NAME MIR4D_WorkPlane COMMAND MIR4D_WorkPlane)
 add_test(NAME MIR4D_SketchDocumentSolver COMMAND MIR4D_SketchDocumentSolver)
 add_test(NAME MIR4D_ViewportFoundation COMMAND MIR4D_ViewportFoundation)
 add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
+add_test(NAME MIR4D_HandGrab COMMAND MIR4D_HandGrab)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)
 add_test(NAME MIR4D_Count COMMAND MIR4D_Count)
 add_test(NAME MIR4D_Simulation COMMAND MIR4D_Simulation)

@@ -335,6 +335,94 @@ public:
         return state_.hoveredObjectId;
     }
 
+    /// Highlights an object under the hand without changing the selection set.
+    /// Consumed by the renderer's hover pass exactly like cursor hover.
+    void setHandHover(mir4d::ObjectId objectId) noexcept
+    {
+        state_.hoveredObjectId = objectId;
+    }
+
+    // ── Hand Grab (Vertical Slice v0.1) ───────────────────────────────────
+    //
+    // Mirrors the mouse-drag contract (see handleMouse*/updateDrag): a grab
+    // captures the object's transform once, `previewHandGrab` mutates it live
+    // with NO history, and exactly one `MoveObjectCommand` is committed on
+    // release. State is kept separate from the mouse drag so the two input
+    // methods never interfere. A lost-tracking grace period is handled by the
+    // Swift controller, which calls `cancelHandGrab` on timeout.
+
+    /// Arms a grab on `objectId`, snapshots its transform and selects it.
+    void beginHandGrab(mir4d::ObjectId objectId) noexcept
+    {
+        if (!scene_ || !mir4d::isValidObjectId(objectId))
+        {
+            resetHandGrab();
+            return;
+        }
+        const auto node = scene_->find(objectId);
+        handGrabId_ = objectId;
+        handGrabStartTransform_ = node ? node->transform() : Transform::identity();
+        state_.selection.select(objectId, false);
+    }
+
+    /// Live preview of the grabbed object's transform. Never touches history.
+    void previewHandGrab(const Transform& transform) noexcept
+    {
+        if (!scene_ || !mir4d::isValidObjectId(handGrabId_))
+            return;
+        if (auto node = scene_->find(handGrabId_))
+            node->setTransform(transform);
+    }
+
+    /// Commits exactly one `MoveObjectCommand(initial, final)` for the grab.
+    void commitHandGrab() noexcept
+    {
+        if (scene_ && mir4d::isValidObjectId(handGrabId_))
+        {
+            const auto node = scene_->find(handGrabId_);
+            if (node && node->transform() != handGrabStartTransform_)
+                history_.execute(
+                    std::make_unique<mir4d::MoveObjectCommand>(
+                        handGrabId_, handGrabStartTransform_, node->transform()),
+                    *scene_);
+        }
+        resetHandGrab();
+    }
+
+    /// Cancels the active grab and restores the snapshot transform (no history).
+    void cancelHandGrab() noexcept
+    {
+        if (scene_ && mir4d::isValidObjectId(handGrabId_))
+        {
+            if (auto node = scene_->find(handGrabId_))
+                node->setTransform(handGrabStartTransform_);
+        }
+        resetHandGrab();
+    }
+
+    [[nodiscard]] bool isHandGrabbing() const noexcept
+    {
+        return mir4d::isValidObjectId(handGrabId_);
+    }
+
+    /// Current world transform of an object (seed for preview deltas).
+    [[nodiscard]] Transform objectTransform(mir4d::ObjectId objectId) const noexcept
+    {
+        if (scene_)
+            if (auto node = scene_->find(objectId))
+                return node->transform();
+        return Transform::identity();
+    }
+
+    /// Picks against an explicit world-space ray (hand tracking input).
+    [[nodiscard]] PickResult pickWorldRay(
+        const Point3& origin, const Vector3& direction) const noexcept
+    {
+        if (!scene_)
+            return {};
+        return RayPicker::pick(*scene_, PickRay{origin, direction});
+    }
+
     /// Assigns a MaterialLibrary material id to an object.
     void setObjectMaterial(mir4d::ObjectId objectId,
                            MirEngine::Rendering::MaterialId materialId) noexcept
@@ -579,6 +667,17 @@ private:
     Scalar dragStartY_{0};
     Transform dragStartTransform_{Transform::identity()};
     bool dragging_{false};
+
+    // Hand-grab state (Vertical Slice v0.1). Independent from the mouse drag
+    // so simultaneous inputs do not corrupt each other's snapshot.
+    mir4d::ObjectId handGrabId_{mir4d::InvalidObjectId};
+    Transform handGrabStartTransform_{Transform::identity()};
+
+    void resetHandGrab() noexcept
+    {
+        handGrabId_ = mir4d::InvalidObjectId;
+        handGrabStartTransform_ = Transform::identity();
+    }
 
     // Sculpt-stroke snapshot (before-state for a single undoable DeformObjectCommand).
     mir4d::ObjectId deformSnapshotId_{mir4d::InvalidObjectId};

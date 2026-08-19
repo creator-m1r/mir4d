@@ -43,6 +43,11 @@ final class MIR4DModelRuntime: ObservableObject {
     /// work plane (XY/YZ/ZX) instead of a fixed base plane.
     nonisolated(unsafe) var activeSketchPlane: SketchPlaneAnchor?
 
+    /// Closed-loop hand grab controller (Vertical Slice v0.1). It subscribes to
+    /// the hand intent stream and drives the real MirEngine through this runtime;
+    /// when no viewport is present its calls are safe no-ops.
+    private let handGrabController = MIRHandGrabController()
+
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
     /// persisted because the engine document is rebuilt when a project opens.
@@ -113,8 +118,68 @@ final class MIR4DModelRuntime: ObservableObject {
         return (SIMD3(x, y, z), objectId)
     }
 
-    /// Removes a body (with its operations and geometry) from the persisted
-    /// model after the MirEngine scene deleted the object. MirEngine Scene is
+    // MARK: - Hand Grab (Vertical Slice v0.1: Pinch → point → grab → move → commit)
+
+    /// World-space camera eye, used by the hand-grab controller to build the
+    /// picking ray (eye → calibrated hand point).
+    func cameraEye() -> SIMD3<Double>? {
+        guard let viewport else { return nil }
+        var x = 0.0, y = 0.0, z = 0.0
+        guard MirEngineGetCameraEye(viewport, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Casts a world-space hand ray and returns the first hit object id.
+    func pickHandRay(origin: SIMD3<Double>, direction: SIMD3<Double>) -> (objectId: UInt64, distance: Double)? {
+        guard let viewport else { return nil }
+        var objectId: UInt64 = 0
+        var distance = 0.0
+        guard MirEnginePickHandRay(viewport, origin.x, origin.y, origin.z,
+                                   direction.x, direction.y, direction.z,
+                                   &objectId, &distance) else { return nil }
+        return (objectId, distance)
+    }
+
+    /// Arms a grab on `objectId`, snapshots its transform and selects it.
+    func beginGrab(objectId: UInt64) {
+        guard let viewport, objectId > 0 else { return }
+        MirEngineBeginGrab(viewport, objectId)
+    }
+
+    /// Live preview of the grabbed object transform (no history entry yet).
+    func previewGrab(objectId: UInt64, transform: MirTransform) {
+        guard let viewport, objectId > 0 else { return }
+        _ = MirEnginePreviewGrab(viewport, objectId, transform)
+    }
+
+    /// Commits exactly one undoable transform command; returns false if nothing moved.
+    @discardableResult
+    func commitGrab(objectId: UInt64) -> Bool {
+        guard let viewport, objectId > 0 else { return false }
+        return MirEngineCommitGrab(viewport, objectId)
+    }
+
+    /// Cancels the active grab, restoring the snapshot transform.
+    func cancelGrab() {
+        guard let viewport else { return }
+        MirEngineCancelGrab(viewport)
+    }
+
+    /// Current world transform of an object (seed for preview deltas).
+    func getObjectTransform(objectId: UInt64) -> MirTransform? {
+        guard let viewport, objectId > 0 else { return nil }
+        var t = MirTransform()
+        guard MirEngineGetObjectTransform(viewport, objectId, &t) else { return nil }
+        return t
+    }
+
+    /// Highlights the object currently under the hand (hover, no selection change).
+    func setHandHover(objectId: UInt64) {
+        guard let viewport, objectId > 0 else { return }
+        MirEngineSetHandHover(viewport, objectId)
+    }
+
+    /// Removes a body (with its operations and geometry) from the persisted    /// model after the MirEngine scene deleted the object. MirEngine Scene is
     /// the source of truth; this keeps the navigation tree in sync.
     @discardableResult
     func removeBody(forViewportObjectID objectID: UInt64) -> Bool {
@@ -176,6 +241,7 @@ final class MIR4DModelRuntime: ObservableObject {
         engineDocument = MIR4DDocumentCreate()
         syncEngineState()
 #endif
+        handGrabController.start()
     }
 
     deinit {
