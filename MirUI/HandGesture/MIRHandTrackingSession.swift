@@ -21,6 +21,11 @@ public final class MIRHandTrackingSession: ObservableObject {
     private var poolConfiguration: MIRHandGestureConfiguration
     private let emitter = MIRHandIntentEmitter()
 
+    /// Независимая от MainActor копия source для гарантированной остановки
+    /// камеры в `deinit` (ТЗ §10/§36): из nonisolated deinit нельзя читать
+    /// MainActor-свойство `source`, поэтому держим nonisolated(unsafe) зеркало.
+    nonisolated(unsafe) private var sourceRef: (any MIRHandTrackingSource)?
+
     init(configuration: MIRHandGestureConfiguration = .init()) {
         self.configuration = configuration
         self.poolConfiguration = configuration
@@ -34,6 +39,7 @@ public final class MIRHandTrackingSession: ObservableObject {
         guard src.availability != .unavailable else { status = .cameraUnavailable; return }
 
         self.source = src
+        self.sourceRef = src
         status = .running
         let cfg = poolConfiguration
         let (resultStream, resultContinuation) = AsyncStream.makeStream(of: MIRHandProcessingResult.self)
@@ -65,9 +71,20 @@ public final class MIRHandTrackingSession: ObservableObject {
         task?.cancel(); task = nil
         processingTask?.cancel(); processingTask = nil
         source?.stop(); source = nil
+        sourceRef?.stop(); sourceRef = nil
         status = .inactive
         lastIntents = []
         debugInfo = nil
+    }
+
+    deinit {
+        // Гарантируем остановку камеры/потока даже если `stop()` не был
+        // вызван явно (ТЗ §10/§36). sourceRef — nonisolated(unsafe), чтение
+        // из nonisolated deinit допустимо.
+        sourceRef?.stop()
+        sourceRef = nil
+        task?.cancel()
+        processingTask?.cancel()
     }
 
     func processFramesForTesting(_ frames: [[MIRHandPose]]) {
