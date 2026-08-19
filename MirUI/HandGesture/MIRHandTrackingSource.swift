@@ -113,7 +113,14 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
             Task.detached { [weak self] in
                 guard let self else { return }
 
-                let granted = await AVCaptureDevice.requestAccess(for: .video)
+                // TCC-запрос разрешения должен выполняться на главном потоке:
+                // иначе remote view сервис диалога разрешений (RemoteViewService)
+                // завершается с ViewBridge error (ТЗ §5, macOS TCC quirk).
+                let granted: Bool = await withCheckedContinuation { continuation in
+                    Task { @MainActor in
+                        continuation.resume(returning: await AVCaptureDevice.requestAccess(for: .video))
+                    }
+                }
                 guard granted, !Task.isCancelled else {
                     self.finishStream()
                     return
@@ -183,13 +190,12 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
             }
 
             self.session.beginConfiguration()
-            defer { self.session.commitConfiguration() }
-
             self.session.sessionPreset = .high
 
             guard let device = AVCaptureDevice.default(for: .video),
                   let input = try? AVCaptureDeviceInput(device: device),
                   self.session.canAddInput(input) else {
+                self.session.commitConfiguration()
                 return
             }
 
@@ -198,6 +204,7 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
             self.output.setSampleBufferDelegate(self, queue: self.visionQueue)
 
             guard self.session.canAddOutput(self.output) else {
+                self.session.commitConfiguration()
                 return
             }
 
@@ -208,6 +215,9 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                 connection.videoRotationAngle = 90
             }
 
+            // Коммитим конфигурацию ДО startRunning (иначе сессия может
+            // заблокироваться внутри открытой транзакции конфигурации).
+            self.session.commitConfiguration()
             self.configured = true
             startIfConfigured()
         }

@@ -62,16 +62,22 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
 
     private func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
         await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
+            // TCC-запрос должен идти с главного потока, иначе remote view
+            // сервис диалога разрешений завершается (ViewBridge error, ТЗ §5).
+            DispatchQueue.main.async {
+                SFSpeechRecognizer.requestAuthorization { status in
+                    continuation.resume(returning: status)
+                }
             }
         }
     }
 
     private func requestMicrophonePermission() async -> Bool {
         await withCheckedContinuation { continuation in
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
-                continuation.resume(returning: granted)
+            DispatchQueue.main.async {
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    continuation.resume(returning: granted)
+                }
             }
         }
     }
