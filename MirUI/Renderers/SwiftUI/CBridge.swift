@@ -125,6 +125,9 @@ public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId
 public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool { false }
 public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
+// Hand skeleton visualization (debug / assist). SwiftPM stubs.
+public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?) {}
+public func MirEngineClearHandSkeleton(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool { false }
 
 // Work planes (ТЗ Этап 1) — SwiftPM stub.
@@ -260,6 +263,8 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineCancelGrab") public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineGetObjectTransform") public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool
 @_silgen_name("MirEngineSetHandHover") public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
+@_silgen_name("MirEngineSetHandSkeleton") public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?)
+@_silgen_name("MirEngineClearHandSkeleton") public func MirEngineClearHandSkeleton(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineGetCameraEye") public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool
 @_silgen_name("MirEngineSetPlanes") public func MirEngineSetPlanes(_ renderer: UnsafeMutableRawPointer?,
     _ count: Int32, _ ids: UnsafePointer<UInt32>?, _ origins: UnsafePointer<Float>?,

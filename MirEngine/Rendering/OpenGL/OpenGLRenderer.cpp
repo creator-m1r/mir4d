@@ -115,6 +115,17 @@ bool OpenGLRenderer::initialize()
     }
     dbgTimestamp("initialize: sketchPass ok");
 
+    // Hand-skeleton overlay (debug / assist). Drawn last (over the solid
+    // geometry) using the frame's view-projection matrix; it is a transient
+    // sensor view that never mutates the CAD scene or command history.
+    m_handSkeletonPass = std::make_unique<HandSkeletonPass>();
+    if (!m_handSkeletonPass->initialize(*m_device))
+    {
+        std::cerr << "[OpenGLRenderer] HandSkeletonPass initialization failed; continuing without skeleton overlay.\n";
+        m_handSkeletonPass.reset();
+    }
+    dbgTimestamp("initialize: handSkeletonPass ok");
+
     // OpenGL diagnostics: context, limits, extensions.
     dbgTimestamp("initialize: resetErrors");
     OpenGLDebug::resetErrors();
@@ -195,6 +206,10 @@ void OpenGLRenderer::render(mir::Scene& scene,
 
     if (m_geometryPass)
         m_geometryPass->execute(context, scene, *m_device);
+
+    // Hand-skeleton overlay drawn after the solid geometry (sensor view).
+    if (m_handSkeletonPass && m_handSkeletonPass->isInitialized())
+        m_handSkeletonPass->execute(context, scene, *m_device);
 
     m_device->endFrame();
 }
@@ -278,6 +293,9 @@ void OpenGLRenderer::captureDiagnosticFrame(RenderContext& context,
 
     if (m_geometryPass)
         m_geometryPass->execute(context, scene, device);
+
+    if (m_handSkeletonPass && m_handSkeletonPass->isInitialized())
+        m_handSkeletonPass->execute(context, scene, device);
 
     std::vector<unsigned char> px(static_cast<std::size_t>(w) * h * 3);
     glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px.data());

@@ -75,6 +75,12 @@ private:
     mir::Transform to_;
 };
 
+/// Vertical Slice v0.1 naming for the transform command committed by a hand
+/// grab. A grab is a transform (pinch → point → move → release), so it reuses
+/// `MoveObjectCommand` rather than duplicating the implementation; this alias
+/// keeps the grab code readable against the hand-modeling specification.
+using GrabTransformCommand = MoveObjectCommand;
+
 /// Removes one object from the scene; undo re-inserts it with its original
 /// identity (the scene registry releases the id on remove and re-reserves it
 /// on add).

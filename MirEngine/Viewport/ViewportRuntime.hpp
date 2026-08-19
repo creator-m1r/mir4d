@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <vector>
 
 namespace mir
 {
@@ -342,6 +343,35 @@ public:
         state_.hoveredObjectId = objectId;
     }
 
+    /// Pushes the transient hand-skeleton overlay data for the current frame
+    /// (debug / assist sensor view). The renderer draws it without ever
+    /// mutating the scene, Document or command history.
+    void setHandSkeleton(const MirEngine::Rendering::HandSkeletonRenderData& data) noexcept
+    {
+        m_handSkeletonData = data;
+    }
+
+    /// Clears the hand-skeleton overlay (no hands tracked / mode off).
+    void clearHandSkeleton() noexcept
+    {
+        m_handSkeletonData.clear();
+    }
+
+    /// Forwards the hand-skeleton overlay style to the renderer (colours /
+    /// sizes / depth behaviour). Single source of truth is the configuration.
+    void setHandSkeletonStyle(const MirEngine::Rendering::HandSkeletonStyle& style) noexcept
+    {
+        if (renderer_)
+            renderer_->setHandSkeletonStyle(style);
+    }
+
+    /// Forwards the hand-skeleton bone topology to the renderer.
+    void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept
+    {
+        if (renderer_)
+            renderer_->setHandSkeletonTopology(bones);
+    }
+
     // ── Hand Grab (Vertical Slice v0.1) ───────────────────────────────────
     //
     // Mirrors the mouse-drag contract (see handleMouse*/updateDrag): a grab
@@ -382,7 +412,7 @@ public:
             const auto node = scene_->find(handGrabId_);
             if (node && node->transform() != handGrabStartTransform_)
                 history_.execute(
-                    std::make_unique<mir4d::MoveObjectCommand>(
+                    std::make_unique<mir4d::GrabTransformCommand>(
                         handGrabId_, handGrabStartTransform_, node->transform()),
                     *scene_);
         }
@@ -582,6 +612,10 @@ public:
 
         context.setHover(static_cast<std::uint64_t>(state_.hoveredObjectId));
 
+        // Hand-skeleton overlay is a transient sensor view; copy it into the
+        // per-frame context for the renderer's HandSkeletonPass.
+        context.setHandSkeleton(m_handSkeletonData);
+
         renderer_->render(*scene_, context);
     }
 
@@ -658,6 +692,7 @@ private:
     Scene* scene_{nullptr};
     ViewportState state_{};
     MirEngine::Rendering::RenderContext renderContext_{};
+    MirEngine::Rendering::HandSkeletonRenderData m_handSkeletonData{};
     mir4d::SceneCommandHistory history_{};
 
     // Move-manipulation state. dragStartTransform_ keeps the transform

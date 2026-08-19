@@ -41,6 +41,7 @@ if(APPLE)
         MirEngine/Rendering/Passes/GridPass.cpp
         MirEngine/Rendering/Passes/PlanePass.cpp
         MirEngine/Rendering/Passes/SketchPass.cpp
+        MirEngine/Rendering/Passes/HandSkeletonPass.cpp
         MirEngine/Rendering/Resources/ShaderLibrary.cpp
         MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
         MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp
@@ -247,6 +248,9 @@ target_link_libraries(MIR4D_ViewportRuntime PRIVATE MirEngineViewport)
 add_executable(MIR4D_HandGrab MirEngine/Tests/Render/HandGrabTest.cpp)
 target_link_libraries(MIR4D_HandGrab PRIVATE MirEngineViewport)
 
+add_executable(MIR4D_HandSkeleton MirEngine/Tests/Render/HandSkeletonTest.cpp)
+target_link_libraries(MIR4D_HandSkeleton PRIVATE MirEngineViewport)
+
 add_executable(MIR4D_ViewportController MirEngine/Tests/Viewport/ViewportControllerTest.cpp)
 target_link_libraries(MIR4D_ViewportController PRIVATE MirEngineViewport)
 
@@ -315,6 +319,7 @@ add_test(NAME MIR4D_SketchDocumentSolver COMMAND MIR4D_SketchDocumentSolver)
 add_test(NAME MIR4D_ViewportFoundation COMMAND MIR4D_ViewportFoundation)
 add_test(NAME MIR4D_ViewportRuntime COMMAND MIR4D_ViewportRuntime)
 add_test(NAME MIR4D_HandGrab COMMAND MIR4D_HandGrab)
+add_test(NAME MIR4D_HandSkeleton COMMAND MIR4D_HandSkeleton)
 add_test(NAME MIR4D_ViewportController COMMAND MIR4D_ViewportController)
 add_test(NAME MIR4D_Count COMMAND MIR4D_Count)
 add_test(NAME MIR4D_Simulation COMMAND MIR4D_Simulation)

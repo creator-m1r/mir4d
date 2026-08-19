@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 /// Which hand a pose belongs to.
-enum Handedness: String, Sendable {
+public enum Handedness: String, Sendable {
     case left
     case right
     case unknown

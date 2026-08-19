@@ -1513,6 +1513,98 @@ void MirEngineSetHandHover(
     native->runtime->setHandHover(mir4d::ObjectId(objectId));
 }
 
+void MirEngineSetHandSkeleton(
+    void* viewport,
+    int32_t mode,
+    int32_t handCount,
+    const double* positions,
+    const double* confidence,
+    const int32_t* handedness,
+    const double* pinch,
+    const int32_t* gesture
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
+    // Invalid arguments (or mode off) clear the overlay rather than draw stale data.
+    if (mode <= 0 || handCount <= 0 || !positions || !confidence ||
+        !handedness || !pinch)
+    {
+        native->runtime->clearHandSkeleton();
+        return;
+    }
+
+    MirEngine::Rendering::HandSkeletonRenderData data{};
+    data.mode = static_cast<int>(mode);
+    const int hands = std::min(static_cast<int>(handCount),
+                               MirEngine::Rendering::HandSkeletonRenderData::kMaxHands);
+    data.handCount = hands;
+    for (int h = 0; h < hands; ++h)
+    {
+        data.handedness[h] = static_cast<int>(handedness[h]);
+        data.pinch[h] = static_cast<float>(pinch[h]);
+        data.gesture[h] = gesture ? static_cast<int>(gesture[h]) : 0;
+        for (int j = 0; j < MirEngine::Rendering::HandSkeletonRenderData::kMaxJoints; ++j)
+        {
+            const std::size_t src = static_cast<std::size_t>(h) * 21 + static_cast<std::size_t>(j);
+            data.positions[h][j * 3 + 0] = static_cast<float>(positions[src * 3 + 0]);
+            data.positions[h][j * 3 + 1] = static_cast<float>(positions[src * 3 + 1]);
+            data.positions[h][j * 3 + 2] = static_cast<float>(positions[src * 3 + 2]);
+            data.confidence[h][j] = static_cast<float>(confidence[src]);
+        }
+    }
+    native->runtime->setHandSkeleton(data);
+}
+
+void MirEngineSetHandSkeletonStyle(
+    void* viewport,
+    float leftR, float leftG, float leftB,
+    float rightR, float rightG, float rightB,
+    float jointSize, float tipSize, float wristSize,
+    float alpha, int32_t depthTest
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+    MirEngine::Rendering::HandSkeletonStyle style{};
+    style.leftColor[0] = leftR;  style.leftColor[1] = leftG;  style.leftColor[2] = leftB;
+    style.rightColor[0] = rightR; style.rightColor[1] = rightG; style.rightColor[2] = rightB;
+    style.jointSize = jointSize;
+    style.tipSize = tipSize;
+    style.wristSize = wristSize;
+    style.alpha = alpha;
+    style.depthTest = depthTest != 0;
+    native->runtime->setHandSkeletonStyle(style);
+}
+
+void MirEngineSetHandSkeletonTopology(
+    void* viewport,
+    int32_t boneCount,
+    const int32_t* bones
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || boneCount <= 0 || !bones)
+        return;
+    std::vector<std::pair<int, int>> topology;
+    topology.reserve(static_cast<std::size_t>(boneCount));
+    for (int i = 0; i < boneCount; ++i)
+        topology.emplace_back(static_cast<int>(bones[i * 2 + 0]),
+                              static_cast<int>(bones[i * 2 + 1]));
+    native->runtime->setHandSkeletonTopology(topology);
+}
+
+void MirEngineClearHandSkeleton(void* viewport)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+    native->runtime->clearHandSkeleton();
+}
+
 bool MirEngineGetCameraEye(
     void* viewport,
     double* outX,

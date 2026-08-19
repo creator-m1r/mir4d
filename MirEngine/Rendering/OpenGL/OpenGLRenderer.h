@@ -3,15 +3,18 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "OpenGLContext.h"
 #include "OpenGLDevice.h"
 #include "OpenGLShader.h"
 #include "../Renderer.h"
+#include "../Core/RenderContext.h"
 #include "../Passes/GridPass.h"
 #include "../Passes/GeometryPass.h"
 #include "../Passes/PlanePass.h"
 #include "../Passes/SketchPass.h"
+#include "../Passes/HandSkeletonPass.h"
 #include "../Resources/ShaderLibrary.h"
 
 namespace MirEngine::Rendering
@@ -80,6 +83,22 @@ public:
     [[nodiscard]] const OpenGLDevice* device() const noexcept { return m_device.get(); }
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
+    /// Forwards the hand-skeleton overlay style (colours / sizes / depth) to the
+    /// dedicated pass. Called once (or when the configuration changes).
+    void setHandSkeletonStyle(const HandSkeletonStyle& style) noexcept
+    {
+        if (m_handSkeletonPass)
+            m_handSkeletonPass->setStyle(style);
+    }
+
+    /// Forwards the hand-skeleton bone topology (single source of truth comes
+    /// from Swift MIRHandSkeletonTopology).
+    void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept
+    {
+        if (m_handSkeletonPass)
+            m_handSkeletonPass->setTopology(bones);
+    }
+
 private:
     OpenGLContext* m_context{nullptr};
     std::unique_ptr<OpenGLDevice> m_device;
@@ -88,6 +107,7 @@ private:
     std::unique_ptr<GeometryPass> m_geometryPass;
     std::unique_ptr<PlanePass> m_planePass;
     std::unique_ptr<SketchPass> m_sketchPass;
+    std::unique_ptr<HandSkeletonPass> m_handSkeletonPass;
     std::vector<PlaneRenderData> m_planes;
     std::vector<SketchRenderData> m_sketches;
     float m_cursorNDC[2]{0.0f, 0.0f};

@@ -36,6 +36,12 @@ struct MIR4DViewportWorkspace: View {
                 .padding(.top, 14)
                 .padding(.trailing, 14)
 
+            // Debug / assist: отдельный режим визуализации скелета кистей.
+            MIRHandSkeletonModeControl()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.top, 14)
+                .padding(.leading, 14)
+
             if appState.selection.hasSelection {
                 ContextualToolbarView(appState: appState, registry: registry)
                     .padding(.horizontal, 18)

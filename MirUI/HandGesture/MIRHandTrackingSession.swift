@@ -10,6 +10,9 @@ public final class MIRHandTrackingSession: ObservableObject {
     @Published var status: MIRHandTrackingStatus = .inactive
     @Published private(set) var lastIntents: [MIRHandIntent] = []
     @Published private(set) var debugInfo: MIRHandGestureDebugInfo?
+    /// Кадры скелета кистей в scene space (режим визуализации). Пусты, когда
+    /// режим выключен или руки не отслеживаются.
+    @Published public private(set) var skeletonFrames: [MIRHandSkeletonFrame] = []
 
     private let intentSubject = PassthroughSubject<MIRHandIntent, Never>()
     public var intentPublisher: AnyPublisher<MIRHandIntent, Never> { intentSubject.eraseToAnyPublisher() }
@@ -75,6 +78,7 @@ public final class MIRHandTrackingSession: ObservableObject {
         status = .inactive
         lastIntents = []
         debugInfo = nil
+        skeletonFrames = []
     }
 
     deinit {
@@ -105,6 +109,7 @@ public final class MIRHandTrackingSession: ObservableObject {
         debugInfo = poolConfiguration.enableDebugOverlay
             ? result.debug
             : MIRHandGestureDebugInfo(spatialContext: result.debug.spatialContext)
+        skeletonFrames = result.skeletonFrames
     }
 }
 
@@ -182,7 +187,22 @@ private final class MIRHandRecognizerPool: @unchecked Sendable {
         }
         let context = MIRHandSpatialContext(hands: handEntries.map { .init(handedness: $0.handedness, gesture: $0.gesture, position: $0.position, pinch: $0.pinch, direction: $0.direction) }, twoHandGesture: twoHandEntry?.gesture ?? .rest)
         let debug = MIRHandGestureDebugInfo(hands: handEntries, twoHand: twoHandEntry, spatialContext: context)
-        return MIRHandProcessingResult(intents: intents, debug: debug)
+
+        // Кадры скелета строятся только когда режим включён (нулевая
+        // стоимость при выключенном режиме: никакой маппинга/загрузки).
+        var skeletonFrames: [MIRHandSkeletonFrame] = []
+        if configuration.skeletonVisualizationMode != .off {
+            let classifier = MIRHandGestureClassifier()
+            for hand in [Handedness.left, .right] {
+                guard let pose = byHand[hand] else { continue }
+                let gesture = recognizers[hand]?.activeGesture ?? .rest
+                let pinch = classifier.pinchStrength(in: pose)
+                skeletonFrames.append(
+                    MIRHandSkeletonBuilder.build(pose: pose, mapper: mapper, gesture: gesture, pinch: pinch))
+            }
+        }
+
+        return MIRHandProcessingResult(intents: intents, debug: debug, skeletonFrames: skeletonFrames)
     }
 
     private func makeIntent(_ ev: MIRHandGestureEvent, strength: Double) -> MIRHandIntent {
@@ -197,6 +217,7 @@ private final class MIRHandRecognizerPool: @unchecked Sendable {
 struct MIRHandProcessingResult: Sendable {
     let intents: [MIRHandIntent]
     let debug: MIRHandGestureDebugInfo
+    let skeletonFrames: [MIRHandSkeletonFrame]
 }
 
 struct MIRHandSpatialContext: Sendable {

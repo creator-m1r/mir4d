@@ -8,7 +8,6 @@ import AppKit
 /// remain owned by MIR4DProjectCommands and MIR4DProjectSession.
 struct MIR4DLaunchProjectSelectionView: View {
     @EnvironmentObject private var appState: CADAppState
-    @ObservedObject var diagnostic: MIR4DBootCoordinator
     @Binding var isLeaving: Bool
 
     @State private var showOpenProject = false
@@ -130,6 +129,11 @@ struct MIR4DLaunchProjectSelectionView: View {
             whatsNewSheet
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectActivated)) { _ in
+            withAnimation {
+                showNewProject = false
+                showOpenProject = false
+                showRecentProjects = false
+            }
             refreshRecents()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mir4DProjectSaved)) { _ in

@@ -4,11 +4,15 @@ import simd
 /// Aggregate configuration for the whole hand-gesture module.
 /// All tunables are collected here so consumers can adjust behaviour without
 /// touching the recognition pipeline.
-struct MIRHandGestureConfiguration: Sendable {
+public struct MIRHandGestureConfiguration: Sendable {
     var recognizer: MIRHandGestureRecognizer.Configuration = .init()
     var mapper: MIRHandSpatialMapper = .init()
     var minimumIntentConfidence: Double = 0.55
     var enableDebugOverlay: Bool = false
+
+    /// Режим визуализации скелета кистей (отдельный debug / assist режим,
+    /// по умолчанию выключен; не влияет на CAD-геометрию и History).
+    public var skeletonVisualizationMode: MIRHandSkeletonVisMode = .off
 
     /// Whether two-hand relational gestures are evaluated.
     var twoHandEnabled: Bool = true

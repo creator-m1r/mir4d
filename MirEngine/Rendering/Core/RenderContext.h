@@ -67,6 +67,59 @@ struct SketchRenderData
     std::vector<SketchSegment2D> segments;
 };
 
+// -----------------------------------------------------------------------------
+// Hand-skeleton visualization (debug / assist mode).
+//
+// Transient per-frame data pushed from the hand-tracking subsystem. It is a
+// sensor view only: the pass that consumes it NEVER mutates the CAD scene,
+// Document or command history. Copied into the context by the ViewportRuntime
+// each frame; when the mode is Off (or no hands are tracked) handCount is 0 and
+// the pass is a zero-cost no-op.
+// -----------------------------------------------------------------------------
+struct HandSkeletonRenderData
+{
+    static constexpr int kMaxHands = 2;
+    static constexpr int kMaxJoints = 21;
+
+    // Visibility mode (mirrors the Swift MIRHandSkeletonVisMode raw value):
+    // 0 = off, 1 = jointsOnly, 2 = bones, 3 = bonesAndRays.
+    int mode{0};
+
+    // Number of valid hands in the arrays below (0 when off / no tracking).
+    int handCount{0};
+
+    // Per-hand joint positions (scene space, xyz) in LandmarkID.allCases order.
+    float positions[kMaxHands][kMaxJoints * 3]{};
+    // Per-hand per-joint tracking confidence in [0,1].
+    float confidence[kMaxHands][kMaxJoints]{};
+    // Per-hand handedness: 0 = left, 1 = right, 2 = none.
+    int handedness[kMaxHands]{0, 0};
+    // Per-hand pinch strength in [0,1] (drives tip accent + pinch line).
+    float pinch[kMaxHands]{0.0f, 0.0f};
+    // Per-hand active gesture code (index into MIRHandGestureType.allCases).
+    int gesture[kMaxHands]{0, 0};
+
+    void clear() noexcept { mode = 0; handCount = 0; }
+};
+
+
+// -----------------------------------------------------------------------------
+// Style for the hand-skeleton overlay (debug / assist mode).
+//
+// Driven from the hand-tracking configuration (colours, sizes, transparency,
+// depth behaviour). Kept separate from the per-frame `HandSkeletonRenderData`
+// so it can be pushed once and reused across frames.
+// -----------------------------------------------------------------------------
+struct HandSkeletonStyle
+{
+    float leftColor[3]{0.20f, 0.90f, 0.95f};   // cyan
+    float rightColor[3]{1.00f, 0.55f, 0.15f};  // orange
+    float jointSize{5.0f};
+    float tipSize{7.0f};
+    float wristSize{8.0f};
+    float alpha{0.95f};
+    bool depthTest{false};
+};
 
 // -----------------------------------------------------------------------------
 // Per-frame rendering context.
@@ -158,6 +211,10 @@ public:
     // 2D sketches overlaid on work planes (ТЗ Этап 2)
     std::vector<SketchRenderData> sketches;
 
+    // Hand-skeleton overlay (debug / assist). Transient sensor view; never
+    // feeds back into the CAD scene or undo history.
+    HandSkeletonRenderData handSkeleton;
+
     // ==========================================================================
     // Methods
     // ==========================================================================
@@ -223,6 +280,12 @@ public:
         hoverObjectId = objectId;
     }
 
+    // Copies the hand-skeleton overlay data for the frame (sensor view only).
+    void setHandSkeleton(const HandSkeletonRenderData& data) noexcept
+    {
+        handSkeleton = data;
+    }
+
     // Resets every value to its default.
     void reset() noexcept
     {
@@ -242,6 +305,7 @@ public:
         selectionObjectId = 0;
         selectionFaceId = 0;
         hoverObjectId = 0;
+        handSkeleton.clear();
     }
 
 private:

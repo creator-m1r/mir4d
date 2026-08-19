@@ -14,7 +14,7 @@ public final class MIRHandGestureModule: ObservableObject {
 
     @Published public private(set) var session = MIRHandTrackingSession()
 
-    var configuration: MIRHandGestureConfiguration {
+    public var configuration: MIRHandGestureConfiguration {
         get { session.configuration }
         set { session.configuration = newValue }
     }
@@ -74,6 +74,14 @@ public final class MIRHandGestureModule: ObservableObject {
     func setDebugOverlay(enabled: Bool) {
         var config = configuration
         config.enableDebugOverlay = enabled
+        configuration = config
+    }
+
+    /// Включает/выключает режим визуализации скелета кистей (debug / assist).
+    /// По умолчанию выключен; не влияет на CAD-геометрию и History.
+    public func setSkeletonVisualizationMode(_ mode: MIRHandSkeletonVisMode) {
+        var config = configuration
+        config.skeletonVisualizationMode = mode
         configuration = config
     }
 }

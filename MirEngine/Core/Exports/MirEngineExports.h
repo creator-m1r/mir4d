@@ -407,6 +407,43 @@ void MirEngineSetHandHover(
     uint64_t objectId
 );
 
+/// Pushes the hand-skeleton overlay for the current frame (debug / assist).
+/// `mode` mirrors MIRHandSkeletonVisMode (0 off, 1 joints, 2 bones, 3 bones+ray).
+/// `positions` is handCount*21*3 doubles in LandmarkID.allCases order,
+/// `confidence` handCount*21, `handedness` handCount (0 left, 1 right, 2 none),
+/// `pinch` handCount, `gesture` handCount (index into MIRHandGestureType.allCases).
+/// A null/empty call clears the overlay.
+void MirEngineSetHandSkeleton(
+    void* viewport,
+    int32_t mode,
+    int32_t handCount,
+    const double* positions,
+    const double* confidence,
+    const int32_t* handedness,
+    const double* pinch,
+    const int32_t* gesture
+);
+
+/// Sets the hand-skeleton overlay style (colours, sizes, transparency, depth).
+void MirEngineSetHandSkeletonStyle(
+    void* viewport,
+    float leftR, float leftG, float leftB,
+    float rightR, float rightG, float rightB,
+    float jointSize, float tipSize, float wristSize,
+    float alpha, int32_t depthTest
+);
+
+/// Sets the hand-skeleton bone topology. `bones` is boneCount pairs of indices
+/// (parent, child) into the 21-joint array ordered by LandmarkID.allCases.
+void MirEngineSetHandSkeletonTopology(
+    void* viewport,
+    int32_t boneCount,
+    const int32_t* bones
+);
+
+/// Clears the hand-skeleton overlay.
+void MirEngineClearHandSkeleton(void* viewport);
+
 /// World-space camera eye used to build the hand picking ray. Returns false
 /// when the viewport / camera is not ready; outputs are left untouched then.
 bool MirEngineGetCameraEye(

@@ -1,18 +1,16 @@
 import SwiftUI
 import AppKit
+import MirUIHandGesture
 
 /// Full launch choreography: diagnostics -> project hub -> immersive CAD workspace.
 struct MIR4DLaunchExperienceView: View {
     @EnvironmentObject private var appState: CADAppState
     @EnvironmentObject private var launch: MIR4DLaunchCoordinator
-    @StateObject private var boot = MIR4DBootCoordinator()
+    @EnvironmentObject private var boot: MIR4DBootCoordinator
 
-    private enum Phase { case diagnostics, projectHub, workspace }
-    @State private var phase: Phase = .diagnostics
     @State private var cardVisible = false
     @State private var diagnosticsLeaving = false
     @State private var workspaceVisible = false
-    @State private var launchResolved = false
     @State private var hubVisible = false
     @State private var hubLeaving = false
 
@@ -21,17 +19,17 @@ struct MIR4DLaunchExperienceView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if phase == .workspace {
+                if launch.phase == .workspace {
                     MIR4DCreativeWorkspaceView(appState: appState)
                         .mir4DRadialKeyboardTrigger()
                         .opacity(workspaceVisible ? 1 : 0)
                         .scaleEffect(workspaceVisible ? 1 : 1.015)
                         .animation(.easeOut(duration: 0.65), value: workspaceVisible)
                 } else {
-                    MIR4DStartupMotionLayer().opacity(phase == .projectHub ? 0.16 : 0.35)
+                    MIR4DStartupMotionLayer().opacity(launch.phase == .projectHub ? 0.16 : 0.35)
                 }
 
-                if phase == .diagnostics {
+                if launch.phase == .diagnostics {
                     diagnosticsCard
                         .frame(width: min(430, proxy.size.width * 0.34), height: min(700, proxy.size.height * 0.84))
                         .offset(x: cardVisible ? 0 : -proxy.size.width * 0.44)
@@ -39,8 +37,8 @@ struct MIR4DLaunchExperienceView: View {
                         .animation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.90), value: cardVisible)
                 }
 
-                if phase == .projectHub {
-                    MIR4DLaunchProjectSelectionView(diagnostic: boot, isLeaving: $hubLeaving)
+                if launch.phase == .projectHub || (launch.phase == .workspace && hubLeaving) {
+                    MIR4DLaunchProjectSelectionView(isLeaving: $hubLeaving)
                         .opacity(hubVisible ? 1 : 0)
                         .transition(.move(edge: .trailing))
                         .animation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.80), value: hubVisible)
@@ -53,7 +51,12 @@ struct MIR4DLaunchExperienceView: View {
         .onAppear {
             startBoot()
             if CommandLine.arguments.contains("--debug-cad") {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                Task { @MainActor in
+                    // Wait until diagnostics complete so the workspace does not
+                    // open on top of the still-running boot card.
+                    while !launch.diagnosticsCompleted {
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
                     NotificationCenter.default.post(name: .mir4DStartWorkspace, object: nil, userInfo: ["workbench": "model"])
                 }
             }
@@ -138,13 +141,22 @@ struct MIR4DLaunchExperienceView: View {
     }
 
     private func startBoot() {
-        guard boot.state == .idle, !launchResolved else { return }
+        // View may be recreated (e.g. after creating a project or returning
+        // from the workspace). Never re-run diagnostics once they completed.
+        guard !launch.diagnosticsCompleted else {
+            if launch.phase == .diagnostics {
+                launch.showProjectHub()
+            }
+            return
+        }
+        guard boot.state == .idle, !launch.launchResolved else { return }
         withAnimation(.easeOut(duration: 0.55)) { cardVisible = true }
         Task { @MainActor in
             await boot.start()
             try? await Task.sleep(for: .milliseconds(350))
             guard boot.state == .ready || boot.state == .warning else { return }
             launch.markBootFinished()
+            launch.markDiagnosticsDone()
             withAnimation(.easeOut(duration: 0.55)) { diagnosticsLeaving = true }
             try? await Task.sleep(for: .milliseconds(520))
             resolveLaunch()
@@ -152,8 +164,8 @@ struct MIR4DLaunchExperienceView: View {
     }
 
     private func resolveLaunch() {
-        guard !launchResolved else { return }
-        launchResolved = true
+        guard !launch.launchResolved else { return }
+        launch.markLaunchResolved()
         switch launch.resolveAfterBoot(autoOpenLastProject: false) {
         case .externalProject(let url): openExternalProject(url)
         case .restoreLast, .startMenu: showProjectHub()
@@ -161,7 +173,7 @@ struct MIR4DLaunchExperienceView: View {
     }
 
     private func showProjectHub() {
-        phase = .projectHub
+        launch.showProjectHub()
         hubLeaving = false
         hubVisible = false
         withAnimation(.timingCurve(0.16, 0.82, 0.22, 1, duration: 0.80)) { hubVisible = true }
@@ -181,10 +193,13 @@ struct MIR4DLaunchExperienceView: View {
             hubLeaving = true
             workspaceVisible = true
         }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(720))
-            phase = .workspace
-            hubLeaving = false
-        }
+        // Start the hand-tracking subsystem so the Vertical Slice v0.1 grab
+        // pipeline (intent → ray → pick → preview → commit) receives live
+        // gestures. `startCamera()` is idempotent: it no-ops if already running.
+        MIRHandGestureModule.shared.startCamera()
+        // Switch phase immediately so the workspace is revealed without
+        // rebuilding the launch experience through a diagnostics reset. The
+        // hub keeps `hubLeaving == true` so its slide-out animates out.
+        launch.revealWorkspace()
     }
 }

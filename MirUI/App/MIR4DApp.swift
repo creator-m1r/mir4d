@@ -10,12 +10,14 @@ import AppKit
 struct MIR4DApp: App {
     @StateObject private var appState = CADAppState()
     @StateObject private var launch = MIR4DLaunchCoordinator.shared
+    @StateObject private var boot = MIR4DBootCoordinator()
 
     var body: some Scene {
         WindowGroup {
             MIR4DLaunchExperienceView()
                 .environmentObject(appState)
                 .environmentObject(launch)
+                .environmentObject(boot)
                 .frame(minWidth: 1280, minHeight: 800)
                 .background(MIR4DWindowConfigurator())
                 .onOpenURL { url in

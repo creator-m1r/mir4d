@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import MirUIHandGesture
 
 extension Notification.Name {
     static let mir4DModelChanged = Notification.Name("MIR4D.ModelChanged")
@@ -47,6 +48,9 @@ final class MIR4DModelRuntime: ObservableObject {
     /// the hand intent stream and drives the real MirEngine through this runtime;
     /// when no viewport is present its calls are safe no-ops.
     private let handGrabController = MIRHandGrabController()
+
+    /// Подписки на потоки данных hand-подсистемы (скелет и т.п.).
+    private var cancellables = Set<AnyCancellable>()
 
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
@@ -179,6 +183,62 @@ final class MIR4DModelRuntime: ObservableObject {
         MirEngineSetHandHover(viewport, objectId)
     }
 
+    /// Передаёт кадры скелета кистей в растератор (отдельный debug / assist
+    /// режим). Суставы в кадре — в порядке `LandmarkID.allCases`, что совпадает
+    /// с индексами костей на стороне C++ (`HandSkeletonPass`). Ничего не меняет
+    /// в CAD-сцене, Document или History.
+    func setHandSkeleton(frames: [MIRHandSkeletonFrame]) {
+        guard let viewport else { return }
+        let mode = MIRHandGestureModule.shared.configuration.skeletonVisualizationMode
+        guard mode != .off, !frames.isEmpty else {
+            clearHandSkeleton()
+            return
+        }
+        let handCount = min(frames.count, 2)
+        var positions = [Double]()
+        var confidence = [Double]()
+        var handedness = [Int32]()
+        var pinch = [Double]()
+        positions.reserveCapacity(handCount * 21 * 3)
+        confidence.reserveCapacity(handCount * 21)
+        handedness.reserveCapacity(handCount)
+        pinch.reserveCapacity(handCount)
+        for h in 0..<handCount {
+            let frame = frames[h]
+            for j in 0..<21 {
+                if j < frame.joints.count {
+                    let p = frame.joints[j].position
+                    positions.append(contentsOf: [p.x, p.y, p.z])
+                    confidence.append(frame.joints[j].confidence)
+                } else {
+                    positions.append(contentsOf: [0.0, 0.0, 0.0])
+                    confidence.append(0.0)
+                }
+            }
+            handedness.append(frame.handedness == .right ? 1 : (frame.handedness == .left ? 0 : 2))
+            pinch.append(frame.pinch)
+        }
+        let modeRaw = Int32(mode.rawValue)
+        let hc = Int32(handCount)
+        positions.withUnsafeBufferPointer { pBuf in
+            confidence.withUnsafeBufferPointer { cBuf in
+                handedness.withUnsafeBufferPointer { hBuf in
+                    pinch.withUnsafeBufferPointer { pinBuf in
+                        MirEngineSetHandSkeleton(
+                            viewport, modeRaw, hc,
+                            pBuf.baseAddress, cBuf.baseAddress, hBuf.baseAddress, pinBuf.baseAddress)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Очищает оверлей скелета в растераторе.
+    func clearHandSkeleton() {
+        guard let viewport else { return }
+        MirEngineClearHandSkeleton(viewport)
+    }
+
     /// Removes a body (with its operations and geometry) from the persisted    /// model after the MirEngine scene deleted the object. MirEngine Scene is
     /// the source of truth; this keeps the navigation tree in sync.
     @discardableResult
@@ -242,6 +302,22 @@ final class MIR4DModelRuntime: ObservableObject {
         syncEngineState()
 #endif
         handGrabController.start()
+
+        // Мост визуализации скелета кистей: кадры из сессии → растератор.
+        // Режим выключен по умолчанию, поэтому без активного режима оверлей
+        // не загружается (нулевая стоимость).
+        MIRHandGestureModule.shared.session.$skeletonFrames
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] frames in
+                guard let self else { return }
+                if frames.isEmpty ||
+                    MIRHandGestureModule.shared.configuration.skeletonVisualizationMode == .off {
+                    self.clearHandSkeleton()
+                } else {
+                    self.setHandSkeleton(frames: frames)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     deinit {

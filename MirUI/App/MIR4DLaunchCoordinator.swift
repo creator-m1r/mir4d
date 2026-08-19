@@ -16,8 +16,20 @@ final class MIR4DLaunchCoordinator: ObservableObject {
         case startMenu
     }
 
+    /// Persistent UI phase for the launch experience. Lives above
+    /// `MIR4DLaunchExperienceView` so it survives view recreation (create
+    /// project / transition to workspace) instead of resetting to diagnostics.
+    enum LaunchUIPhase: Equatable {
+        case diagnostics
+        case projectHub
+        case workspace
+    }
+
     @Published private(set) var pendingIntent: LaunchIntent?
     @Published private(set) var bootFinished = false
+    @Published private(set) var diagnosticsCompleted = false
+    @Published private(set) var phase: LaunchUIPhase = .diagnostics
+    @Published private(set) var launchResolved = false
 
     private init() {}
 
@@ -46,6 +58,33 @@ final class MIR4DLaunchCoordinator: ObservableObject {
         bootFinished = true
     }
 
+    /// Marks diagnostics complete and advances to the project hub when the
+    /// launch experience is still sitting on the diagnostics card.
+    func markDiagnosticsDone() {
+        diagnosticsCompleted = true
+        if phase == .diagnostics {
+            phase = .projectHub
+        }
+    }
+
+    /// Returns the user to the project hub (e.g. after closing a project).
+    func showProjectHub() {
+        phase = .projectHub
+    }
+
+    /// Advances directly to the immersive workspace. Intended for the create /
+    /// open project transition; phase is switched immediately so the view is
+    /// never rebuilt through a diagnostics reset.
+    func revealWorkspace() {
+        phase = .workspace
+    }
+
+    /// Marks the post-boot launch decision (external / restore / menu) as
+    /// applied. Survives view recreation so the hub is not resolved twice.
+    func markLaunchResolved() {
+        launchResolved = true
+    }
+
     func resolveAfterBoot(autoOpenLastProject: Bool) -> LaunchIntent {
         if let pendingIntent {
             self.pendingIntent = nil
@@ -58,6 +97,9 @@ final class MIR4DLaunchCoordinator: ObservableObject {
     func reset() {
         pendingIntent = nil
         bootFinished = false
+        diagnosticsCompleted = false
+        phase = .diagnostics
+        launchResolved = false
     }
 
     private func normalize(_ url: URL) -> URL {

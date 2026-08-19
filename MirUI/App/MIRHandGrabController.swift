@@ -115,7 +115,7 @@ final class MIRHandGrabController {
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 100_000_000)
-                await self?.tick()
+                self?.tick()
             }
         }
     }

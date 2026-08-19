@@ -3,7 +3,7 @@ import simd
 
 /// Identifier of a single tracked hand joint.
 /// Mirrors the canonical 21-point hand skeleton used by platform hand APIs.
-enum LandmarkID: String, Sendable, CaseIterable, Hashable {
+public enum LandmarkID: String, Sendable, CaseIterable, Hashable {
     case wrist
 
     case thumbCMC
