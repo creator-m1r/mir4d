@@ -60,13 +60,13 @@ final class MirGLCustomView: NSView {
     // against any non-main MirEngine access.
     @objc
     private func renderTick(_ displayLink: CADisplayLink) {
-
-        guard viewport != nil else {
-            return
-        }
-
+        // ТЗ §3/§7: callback не должен трогать MainActor-состояние вне lock.
+        // Считываем указатель engine под lock, затем рендерим под тем же lock.
         MirGLCustomView.engineLock.lock()
-        MirEngineRender(viewport)
+        let vp = viewport
+        if let vp {
+            MirEngineRender(vp)
+        }
         MirGLCustomView.engineLock.unlock()
     }
 
@@ -412,9 +412,7 @@ final class MirGLCustomView: NSView {
         displayLink = link
         isRunning = true
 
-        print(
-            "▶️ MIR4D: DisplayLink started"
-        )
+        MIR4DLog("DISPLAYLINK", "started")
     }
 
     private func stopDisplayLink() {
@@ -432,34 +430,27 @@ final class MirGLCustomView: NSView {
 
         self.displayLink = nil
 
-        print(
-            "⏹ MIR4D: DisplayLink stopped"
-        )
+        MIR4DLog("DISPLAYLINK", "stopped")
     }
 
     // MARK: Camera
 
     private func publishCameraOrientation() {
-
-        MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
-        guard let viewport else {
-            return
-        }
-
+        // ТЗ §23: не вызывать SwiftUI-callback внутри engineLock.
         var theta: Float = 0
         var phi: Float = 0
         var distance: Float = 0
 
-        MirEngineGetCameraOrientation(
-            viewport,
-            &theta,
-            &phi,
-            &distance
-        )
+        MirGLCustomView.engineLock.lock()
+        if let viewport {
+            MirEngineGetCameraOrientation(
+                viewport,
+                &theta,
+                &phi,
+                &distance
+            )
+        }
+        MirGLCustomView.engineLock.unlock()
 
         onCameraOrientationChanged?(
             Double(theta),
@@ -1207,6 +1198,7 @@ final class MirGLCustomView: NSView {
         print(
             "🛑 MIR4D: MirEngine shutdown"
         )
+        MIR4DLog("ENGINE", "shutdown (context=\(context != nil) renderer=\(renderer != nil) viewport=\(viewport != nil))")
     }
 
     // MARK: Errors
@@ -1222,24 +1214,20 @@ final class MirGLCustomView: NSView {
             return "Неизвестная ошибка MirEngine"
         }
 
-        return String(cString: pointer)
+        return mirCString(pointer) ?? "Неизвестная ошибка MirEngine"
     }
 
     // MARK: Import
 
     private func importMesh(path: String) {
 
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D import: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D import: viewport is not ready")
             return
         }
 
@@ -1247,21 +1235,25 @@ final class MirGLCustomView: NSView {
             path.lowercased().hasSuffix(".step") ||
             path.lowercased().hasSuffix(".stp")
 
-        let success: Bool =
-            path.withCString { cPath in
+        success = path.withCString { cPath in
 
-                if isStep {
-                    return MirEngineImportStepBRep(
-                        viewport,
-                        cPath
-                    )
-                }
-
-                return MirEngineImportMesh(
+            if isStep {
+                return MirEngineImportStepBRep(
                     viewport,
                     cPath
                 )
             }
+
+            return MirEngineImportMesh(
+                viewport,
+                cPath
+            )
+        }
+
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         if success {
 
@@ -1271,9 +1263,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1286,27 +1276,27 @@ final class MirGLCustomView: NSView {
 
     private func importStepBRep(path: String) {
 
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D STEP B-Rep import: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D STEP B-Rep import: viewport is not ready")
             return
         }
 
-        let success: Bool =
-            path.withCString { cPath in
-                MirEngineImportStepBRep(
-                    viewport,
-                    cPath
-                )
-            }
+        success = path.withCString { cPath in
+            MirEngineImportStepBRep(
+                viewport,
+                cPath
+            )
+        }
+
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         if success {
 
@@ -1316,9 +1306,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1334,28 +1322,28 @@ final class MirGLCustomView: NSView {
         selectionOnly: Bool
     ) {
 
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D STEP B-Rep export: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D STEP B-Rep export: viewport is not ready")
             return
         }
 
-        let success: Bool =
-            path.withCString { cPath in
-                MirEngineExportStepBRep(
-                    viewport,
-                    cPath,
-                    selectionOnly
-                )
-            }
+        success = path.withCString { cPath in
+            MirEngineExportStepBRep(
+                viewport,
+                cPath,
+                selectionOnly
+            )
+        }
+
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         if success {
 
@@ -1365,9 +1353,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1383,29 +1369,29 @@ final class MirGLCustomView: NSView {
         selectionOnly: Bool
     ) {
 
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D export: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D export: viewport is not ready")
             return
         }
 
-        let success =
-            path.withCString { cPath in
+        success = path.withCString { cPath in
 
-                MirEngineExportStl(
-                    viewport,
-                    cPath,
-                    selectionOnly
-                )
-            }
+            MirEngineExportStl(
+                viewport,
+                cPath,
+                selectionOnly
+            )
+        }
+
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         if success {
 
@@ -1415,9 +1401,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1433,29 +1417,29 @@ final class MirGLCustomView: NSView {
         selectionOnly: Bool
     ) {
 
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D STEP export: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D STEP export: viewport is not ready")
             return
         }
 
-        let success =
-            path.withCString { cPath in
+        success = path.withCString { cPath in
 
-                MirEngineExportStep(
-                    viewport,
-                    cPath,
-                    selectionOnly
-                )
-            }
+            MirEngineExportStep(
+                viewport,
+                cPath,
+                selectionOnly
+            )
+        }
+
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         if success {
 
@@ -1465,9 +1449,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1485,31 +1467,31 @@ final class MirGLCustomView: NSView {
         bodyID: UUID? = nil
     ) {
 
+        var objectID: UInt64 = 0
+        var success = false
+        var errorMessage: String?
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
-
         guard let viewport else {
-
-            onIOError?(
-                "MIR4D create body: viewport is not ready"
-            )
-
+            MirGLCustomView.engineLock.unlock()
+            onIOError?("MIR4D create body: viewport is not ready")
             return
         }
 
-        var objectID: UInt64 = 0
+        success = MirEngineCreateBox(
+            viewport,
+            width,
+            depth,
+            height,
+            &objectID
+        )
 
-        let success =
-            MirEngineCreateBox(
-                viewport,
-                width,
-                depth,
-                height,
-                &objectID
-            )
+        if !success {
+            errorMessage = engineErrorMessage(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
+        // ТЗ §22/§24: UI- и SwiftUI-callbacks вне engineLock.
         if success {
 
             if let bodyID {
@@ -1529,9 +1511,7 @@ final class MirGLCustomView: NSView {
 
         } else {
 
-            let message =
-                engineErrorMessage(viewport)
-
+            let message = errorMessage ?? "Неизвестная ошибка MirEngine"
             onIOError?(message)
 
             print(
@@ -1564,17 +1544,13 @@ final class MirGLCustomView: NSView {
 
     private func publishSelection() {
 
+        var objectID: UInt64 = 0
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
+        if let viewport {
+            objectID = MirEngineGetSelectedObjectId(viewport)
         }
-
-        guard let viewport else {
-            return
-        }
-
-        let objectID =
-            MirEngineGetSelectedObjectId(viewport)
+        MirGLCustomView.engineLock.unlock()
 
         onSelectionChanged?(objectID)
     }
@@ -1856,6 +1832,15 @@ final class MirGLCustomView: NSView {
         super.keyUp(with: event)
     }
 
+    // MARK: Deinit
+
+    deinit {
+        // ТЗ §37: диагностика жизненного цикла. Полная очистка (DisplayLink,
+        // observers, engine) выполняется в viewDidMoveToWindow(window == nil)
+        // на MainActor — deinit не должен обращаться к MainActor-свойствам.
+        MIR4DLog("LIFECYCLE", "MirGLCustomView deinit")
+    }
+
     // MARK: Mouse
 
     override func mouseDown(
@@ -1933,32 +1918,23 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        var objectID: UInt64 = 0
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
-        }
+        if let viewport {
+            let point = enginePoint(localPoint)
+            let addToSelection = event.modifierFlags.contains(.shift)
 
-        guard let viewport else {
-            return
-        }
-
-        let point =
-            enginePoint(localPoint)
-
-        let addToSelection =
-            event.modifierFlags.contains(.shift)
-
-        MirEngineViewportClick(
-            viewport,
-            point.0,
-            point.1,
-            addToSelection
-        )
-
-        let objectID =
-            MirEngineGetSelectedObjectId(
-                viewport
+            MirEngineViewportClick(
+                viewport,
+                point.0,
+                point.1,
+                addToSelection
             )
+
+            objectID = MirEngineGetSelectedObjectId(viewport)
+        }
+        MirGLCustomView.engineLock.unlock()
 
         onSelectionChanged?(objectID)
     }
@@ -2344,23 +2320,19 @@ final class MirGLCustomView: NSView {
     /// Esc handling: abort an active drag first, otherwise clear the selection.
     private func cancelDragOrClearSelection() {
 
+        var objectID: UInt64 = 0
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
+        if let viewport {
+            MirEngineViewportDragCancel(viewport)
+            objectID = MirEngineGetSelectedObjectId(viewport)
+            if objectID != 0 {
+                MirEngineClearSelection(viewport)
+            }
         }
-
-        guard let viewport else {
-            return
-        }
-
-        MirEngineViewportDragCancel(viewport)
-
-        let objectID =
-            MirEngineGetSelectedObjectId(viewport)
+        MirGLCustomView.engineLock.unlock()
 
         if objectID != 0 {
-
-            MirEngineClearSelection(viewport)
 
             onSelectionChanged?(0)
         }
@@ -2369,20 +2341,15 @@ final class MirGLCustomView: NSView {
     /// Delete / Backspace: remove the primary selection through MirEngine.
     private func deleteSelectedObject() {
 
+        var objectID: UInt64 = 0
+        var removed = false
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
+        if let viewport {
+            objectID = MirEngineGetSelectedObjectId(viewport)
+            removed = MirEngineDeleteSelectedObject(viewport)
         }
-
-        guard let viewport else {
-            return
-        }
-
-        let objectID =
-            MirEngineGetSelectedObjectId(viewport)
-
-        let removed =
-            MirEngineDeleteSelectedObject(viewport)
+        MirGLCustomView.engineLock.unlock()
 
         guard removed else {
             return
@@ -2401,19 +2368,15 @@ final class MirGLCustomView: NSView {
     /// Cmd+Z (undo) / Cmd+Shift+Z (redo) of scene commands.
     private func undoOrRedo(isShift: Bool) {
 
+        var applied = false
+
         MirGLCustomView.engineLock.lock()
-        defer {
-            MirGLCustomView.engineLock.unlock()
+        if let viewport {
+            applied = isShift
+                ? MirEngineRedo(viewport)
+                : MirEngineUndo(viewport)
         }
-
-        guard let viewport else {
-            return
-        }
-
-        let applied =
-            isShift
-            ? MirEngineRedo(viewport)
-            : MirEngineUndo(viewport)
+        MirGLCustomView.engineLock.unlock()
 
         guard applied else {
             return
