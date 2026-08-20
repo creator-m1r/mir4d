@@ -372,6 +372,14 @@ final class MIR4DProjectSession {
     private func notifyActivation(url: URL, appState: CADAppState, message: String) {
         appState.showNotification(message, type: .success)
         NotificationCenter.default.post(name: .mir4DProjectActivated, object: url)
+        // Drive the transition to the workspace independently of the launch
+        // view's own activation handling, so creating/opening a project always
+        // lands in the workspace even if the sheet/hub path is interrupted.
+        NotificationCenter.default.post(
+            name: .mir4DStartWorkspace,
+            object: nil,
+            userInfo: ["workbench": appState.workbench.rawValue]
+        )
     }
 
     private func startAutoSave(for appState: CADAppState) {

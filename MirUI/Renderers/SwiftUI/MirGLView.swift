@@ -252,6 +252,66 @@ final class MirGLCustomView: NSView {
         let viewPointer =
             Unmanaged.passUnretained(self).toOpaque()
 
+        // The OpenGL context is owned process-lifetime by MIR4DModelRuntime so
+        // it survives NSView remounts (launch creates the view, then AppKit
+        // remounts it once). Reuse the existing context and merely rebind it to
+        // the new NSView instead of destroying and recreating the (expensive)
+        // NSOpenGLContext. The renderer + viewport (with their scene) are
+        // recreated per mount — matching the original scene lifecycle — so a
+        // project switch still resets the 3D scene correctly.
+        if let existingContext = MIR4DModelRuntime.shared.glContext {
+
+            MirGLCustomView.engineLock.lock()
+            defer { MirGLCustomView.engineLock.unlock() }
+
+            self.context = existingContext
+            MirEngineSetOpenGLContextView(self.context, viewPointer)
+
+            self.renderer = MirEngineCreateOpenGLRenderer(self.context)
+            guard let renderer else {
+                print("❌ MIR4D: failed to create OpenGL renderer (reuse)")
+                self.context = nil
+                return
+            }
+
+            guard MirEngineInitializeRenderer(renderer) else {
+                print("❌ MIR4D: renderer initialization failed (reuse)")
+                MirEngineDestroyRenderer(renderer)
+                self.renderer = nil
+                self.context = nil
+                return
+            }
+
+            self.viewport = MirEngineCreateViewport(
+                renderer,
+                size.width,
+                size.height
+            )
+            MIR4DModelRuntime.shared.viewport = self.viewport
+            MIR4DModelRuntime.shared.renderer = self.renderer
+            print("TRACE: setupEngine viewport ok (reuse): \(self.viewport != nil)")
+
+            if let startupViewport = self.viewport {
+                print("TRACE: setupEngine creating box (reuse)...")
+                var startupBoxID: UInt64 = 0
+                if MirEngineCreateBox(startupViewport, 2.0, 2.0, 2.0, &startupBoxID) {
+                    print("MIR4D: startup cube created (objectID=\(startupBoxID))")
+                }
+            }
+
+            guard self.viewport != nil else {
+                print("❌ MIR4D: failed to create viewport (reuse)")
+                MirEngineDestroyRenderer(renderer)
+                self.renderer = nil
+                self.viewport = nil
+                self.context = nil
+                return
+            }
+
+            print("✅ MIR4D: MirEngine reused (context rebound to new view)")
+            return
+        }
+
         print("TRACE: setupEngine acquiring lock")
         MirGLCustomView.engineLock.lock()
         defer {
@@ -279,6 +339,9 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        // Context is created once and kept alive in the runtime across remounts.
+        MIR4DModelRuntime.shared.glContext = context
+
         renderer =
             MirEngineCreateOpenGLRenderer(context)
         print("TRACE: setupEngine renderer ok: \(renderer != nil)")
@@ -290,6 +353,7 @@ final class MirGLCustomView: NSView {
             )
 
             MirEngineDestroyOpenGLContext(context)
+            MIR4DModelRuntime.shared.glContext = nil
 
             self.context = nil
 
@@ -304,6 +368,7 @@ final class MirGLCustomView: NSView {
 
             MirEngineDestroyRenderer(renderer)
             MirEngineDestroyOpenGLContext(context)
+            MIR4DModelRuntime.shared.glContext = nil
 
             self.renderer = nil
             MIR4DModelRuntime.shared.renderer = nil
@@ -345,6 +410,7 @@ final class MirGLCustomView: NSView {
 
             MirEngineDestroyRenderer(renderer)
             MirEngineDestroyOpenGLContext(context)
+            MIR4DModelRuntime.shared.glContext = nil
 
             self.renderer = nil
             MIR4DModelRuntime.shared.renderer = nil
@@ -1199,15 +1265,19 @@ final class MirGLCustomView: NSView {
 
         if let context {
 
-            MirEngineDestroyOpenGLContext(context)
+            // The OpenGL context is owned process-lifetime by MIR4DModelRuntime:
+            // detach it from this (about-to-be-discarded) NSView instead of
+            // destroying it, so a subsequent NSView remount can rebind and reuse
+            // it. The context itself stays alive in MIR4DModelRuntime.glContext.
+            MirEngineSetOpenGLContextView(context, nil)
 
             self.context = nil
         }
 
         print(
-            "🛑 MIR4D: MirEngine shutdown"
+            "🛑 MIR4D: MirEngine shutdown (context detached, kept in runtime)"
         )
-        MIR4DLog("ENGINE", "shutdown (context=\(context != nil) renderer=\(renderer != nil) viewport=\(viewport != nil))")
+        MIR4DLog("ENGINE", "shutdown (context kept=\(MIR4DModelRuntime.shared.glContext != nil) renderer=\(renderer != nil) viewport=\(viewport != nil))")
     }
 
     // MARK: Errors

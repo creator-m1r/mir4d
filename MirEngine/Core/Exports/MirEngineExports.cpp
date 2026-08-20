@@ -150,6 +150,15 @@ void MirEngineDestroyOpenGLContext(void* context)
 }
 
 
+void MirEngineSetOpenGLContextView(void* context, void* view)
+{
+    if (!context)
+        return;
+
+    static_cast<OpenGLContext*>(context)->setView(view);
+}
+
+
 // ------------------------------------------------------------
 // Renderer
 // ------------------------------------------------------------

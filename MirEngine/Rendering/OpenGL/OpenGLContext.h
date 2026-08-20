@@ -47,6 +47,10 @@ public:
     // Делает контекст текущим в вызывающем потоке.
     virtual void makeCurrent() = 0;
 
+    // Перепривязывает контекст к нативному view (повторный вызов после
+    // пересоздания NSView при remount). nullptr отвязывает (clearDrawable).
+    virtual void setView(NativeWindowHandle window) = 0;
+
     // Меняет буферы (present).
     virtual void swapBuffers() = 0;
 

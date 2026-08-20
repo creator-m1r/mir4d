@@ -166,6 +166,11 @@ struct MIR4DLaunchExperienceView: View {
     private func resolveLaunch() {
         guard !launch.launchResolved else { return }
         launch.markLaunchResolved()
+        // A project may already have been activated before boot finished (e.g.
+        // the --debug-cad auto-open, or an external URL delivered mid-boot). In
+        // that case stay in the workspace instead of yanking the user back to
+        // the project hub — otherwise it looks like a spurious relaunch.
+        guard launch.phase != .workspace else { return }
         switch launch.resolveAfterBoot(autoOpenLastProject: false) {
         case .externalProject(let url): openExternalProject(url)
         case .restoreLast, .startMenu: showProjectHub()
@@ -193,10 +198,11 @@ struct MIR4DLaunchExperienceView: View {
             hubLeaving = true
             workspaceVisible = true
         }
-        // Start the hand-tracking subsystem so the Vertical Slice v0.1 grab
-        // pipeline (intent → ray → pick → preview → commit) receives live
-        // gestures. `startCamera()` is idempotent: it no-ops if already running.
-        MIRHandGestureModule.shared.startCamera()
+        // The hand-tracking camera is intentionally NOT started here. Starting
+        // the capture subsystem at the exact transition moment adds load and
+        // (unconditionally) prompts for camera TCC even when hand mode is off.
+        // It is started from MIR4DCreativeWorkspaceView.onAppear, gated by the
+        // user's camera permission, once the workspace is stable.
         // Switch phase immediately so the workspace is revealed without
         // rebuilding the launch experience through a diagnostics reset. The
         // hub keeps `hubLeaving == true` so its slide-out animates out.

@@ -39,6 +39,11 @@ final class MIR4DModelRuntime: ObservableObject {
     /// 2D sketch overlay (and other immediate-mode draws) from App-layer bridges.
     nonisolated(unsafe) var renderer: UnsafeMutableRawPointer?
 
+    /// Live OpenGL context handle. Owned process-lifetime: survives NSView
+    /// remounts so the (expensive) NSOpenGLContext is created once and merely
+    /// rebound to the new view, instead of being destroyed and recreated.
+    nonisolated(unsafe) var glContext: UnsafeMutableRawPointer?
+
     /// Active sketch plane basis mirrored from `CADAppState.sketchPlane`, used by
     /// the sketch command bridge to orient hand-drawn strokes onto the chosen
     /// work plane (XY/YZ/ZX) instead of a fixed base plane.

@@ -76,8 +76,7 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
     // deprecation diagnostics for the intentional legacy API usage below.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    [m_impl->context setView:m_impl->view];
-    [m_impl->context update];
+    setView(window);
     [m_impl->context makeCurrentContext];
 
     GLint swap = 1;
@@ -94,6 +93,25 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
 void MacOpenGLContext::makeCurrent() {
     if (m_impl->context)
         [m_impl->context makeCurrentContext];
+}
+
+void MacOpenGLContext::setView(Rendering::NativeWindowHandle window) {
+    if (!m_impl->context)
+        return;
+
+    m_impl->view = (__bridge NSView*)window;
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    if (m_impl->view) {
+        [m_impl->context setView:m_impl->view];
+        [m_impl->context update];
+    } else {
+        // Отвязываем контекст от уничтоженного view (remount NSView),
+        // не уничтожая сам контекст — он переиспользуется при следующем mount.
+        [m_impl->context clearDrawable];
+    }
+#pragma clang diagnostic pop
 }
 
 void MacOpenGLContext::swapBuffers() {

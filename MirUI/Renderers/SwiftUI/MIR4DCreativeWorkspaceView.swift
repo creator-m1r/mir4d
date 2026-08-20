@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import MirUIHandGesture
 
 private let mir4DCreativeImportTypes: [UTType] = [
     UTType(filenameExtension: "stl", conformingTo: .data), UTType(filenameExtension: "obj", conformingTo: .data),
@@ -26,6 +27,8 @@ struct MIR4DCreativeWorkspaceView: View {
     @State private var showEmptyState = true
     @State private var radialVector: CGVector = .zero
     @State private var radialMenuPresented = false
+    @State private var skeletonMenuPresented = false
+    @State private var selectedSkeletonMode: MIRHandSkeletonVisMode = .off
 
     private var russian: Bool { appState.ui.language == .russian }
 
@@ -76,6 +79,15 @@ struct MIR4DCreativeWorkspaceView: View {
                 voiceAssistant.start(appState: appState)
             }
             MIR4DRadialInteractionCoordinator.shared.start()
+            // Hand tracking is started here — not during the launch transition —
+            // so the camera capture subsystem comes up only once the workspace
+            // is stable, and only when the user enabled it. `startCamera()` is
+            // idempotent: it no-ops if already running.
+            if MIR4DProjectPermissions.shared.cameraEnabled {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    MIRHandGestureModule.shared.startCamera()
+                }
+            }
         }
         .mir4DSpatialMenu(appState: appState, registry: registry)
         .onDisappear {
@@ -97,7 +109,11 @@ struct MIR4DCreativeWorkspaceView: View {
 
     private var sceneOverlays: some View {
         ZStack {
-            FourDSceneOverlayView(appState: appState).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).allowsHitTesting(false)
+            FourDSceneOverlayView(appState: appState)
+                .padding(.top, (35 + 50) * 2.834645669)
+                .padding(.leading, 6 * 2.834645669)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .allowsHitTesting(false)
             MIR4DBrushOverlay()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
@@ -149,6 +165,13 @@ struct MIR4DCreativeWorkspaceView: View {
             dockItem("pencil.and.ruler", russian ? "Эскиз" : "Sketch", active: appState.workbench == .sketch) { appState.selectWorkbench(.sketch) }
             dockItem("clock.arrow.circlepath", "4D", active: appState.workbench == .fourD) { appState.selectWorkbench(.fourD) }
             dockItem("folder", russian ? "Проект" : "Project", active: false) { NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil) }
+
+            Divider()
+                .frame(height: 26)
+                .overlay(Color.white.opacity(0.11))
+
+            dockItem("hand.raised", russian ? "Скелет" : "Skeleton",
+                     active: selectedSkeletonMode != .off) { skeletonMenuPresented = true }
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
@@ -158,6 +181,96 @@ struct MIR4DCreativeWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 12)
         .allowsHitTesting(true)
+        .popover(isPresented: $skeletonMenuPresented) { skeletonSettingsPopover }
+    }
+
+    // MARK: - Hand skeleton visualization settings
+
+    private var skeletonSettingsPopover: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(russian ? "Визуализация скелета кисти" : "Hand skeleton visualization")
+                .font(.headline)
+
+            Button {
+                Task { @MainActor in
+                    let granted = await MIR4DSystemCaptureAuthorizationViewModel().requestCamera()
+                    if granted {
+                        MIR4DProjectPermissions.shared.cameraEnabled = true
+                        MIRHandGestureModule.shared.startCamera()
+                        appState.showNotification(
+                            russian ? "Камера включена" : "Camera enabled",
+                            type: .success)
+                    } else {
+                        appState.showNotification(
+                            russian ? "Нет доступа к камере. Разрешите в Системных настройках." : "No camera access. Enable it in System Settings.",
+                            type: .warning)
+                    }
+                }
+            } label: {
+                Label(russian ? "Включить камеру" : "Enable camera",
+                      systemImage: "camera")
+            }
+            .controlSize(.small)
+
+            Picker(russian ? "Режим" : "Mode", selection: skeletonMode) {
+                Text("Выкл").tag(MIRHandSkeletonVisMode.off)
+                Text("Точки").tag(MIRHandSkeletonVisMode.jointsOnly)
+                Text("Кости").tag(MIRHandSkeletonVisMode.bones)
+                Text("Кости + луч").tag(MIRHandSkeletonVisMode.bonesAndRays)
+            }
+            .pickerStyle(.segmented)
+
+            Toggle(russian ? "Глубина (depth test)" : "Depth test", isOn: skeletonDepthTest)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(russian ? "Размер сустава" : "Joint size")
+                    .font(.caption)
+                Slider(value: skeletonJointSize, in: 1...16, step: 1)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(russian ? "Прозрачность" : "Alpha")
+                    .font(.caption)
+                Slider(value: skeletonAlpha, in: 0.1...1)
+            }
+
+            Text(russian ? "Требуется запущенная камера (режим рук)" : "Requires a running camera (hand mode)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(width: 320)
+    }
+
+    private var skeletonMode: Binding<MIRHandSkeletonVisMode> {
+        Binding(
+            get: { MIRHandGestureModule.shared.configuration.skeletonVisualizationMode },
+            set: { newValue in
+                MIRHandGestureModule.shared.setSkeletonVisualizationMode(newValue)
+                selectedSkeletonMode = newValue
+            }
+        )
+    }
+
+    private var skeletonDepthTest: Binding<Bool> {
+        Binding(
+            get: { MIRHandGestureModule.shared.configuration.skeletonDepthTest },
+            set: { MIRHandGestureModule.shared.configuration.skeletonDepthTest = $0 }
+        )
+    }
+
+    private var skeletonJointSize: Binding<Double> {
+        Binding(
+            get: { MIRHandGestureModule.shared.configuration.skeletonJointSize },
+            set: { MIRHandGestureModule.shared.configuration.skeletonJointSize = $0 }
+        )
+    }
+
+    private var skeletonAlpha: Binding<Double> {
+        Binding(
+            get: { MIRHandGestureModule.shared.configuration.skeletonAlpha },
+            set: { MIRHandGestureModule.shared.configuration.skeletonAlpha = $0 }
+        )
     }
 
     private func dockItem(_ icon: String, _ title: String, active: Bool, action: @escaping () -> Void) -> some View {

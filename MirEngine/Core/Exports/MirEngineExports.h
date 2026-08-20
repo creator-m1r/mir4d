@@ -34,6 +34,13 @@ void MirEngineDestroyOpenGLContext(
     void* context
 );
 
+// Перепривязывает существующий OpenGL-контекст к новому NSView (remount).
+// view == nullptr отвязывает контекст без его уничтожения.
+void MirEngineSetOpenGLContextView(
+    void* context,
+    void* view
+);
+
 
 // ------------------------------------------------------------
 // Renderer

@@ -27,7 +27,8 @@ struct MIRHandTemporalFilter: Sendable {
     /// Pinch strength (0..1) that releases the grab (hysteresis vs `pinchBegin`).
     var pinchEnd: Double = 0.40
     /// Exponential smoothing factor for the hand position (0..1; lower = smoother).
-    var smoothing: Double = 0.5
+    /// 0.6 damps raw recognition jitter without adding noticeable drag latency.
+    var smoothing: Double = 0.6
 
     private var active = false
     private var smoothedPosition: SIMD3<Double>?
@@ -101,8 +102,10 @@ final class MIRHandGrabController {
     private var lastIntentTime: Date = .distantPast
 
     /// Lost-tracking grace period: hold the preview, then commit so the object
-    /// stays where it was last moved instead of snapping back.
-    var graceInterval: TimeInterval = 0.25
+    /// stays where it was last moved instead of snapping back. Kept generous
+    /// (1.0s) because camera hand-tracking routinely drops a few frames; a short
+    /// grace made the grab "let go" mid-drag whenever recognition blinked.
+    var graceInterval: TimeInterval = 1.0
 
     func start() {
         guard cancellables.isEmpty else { return }

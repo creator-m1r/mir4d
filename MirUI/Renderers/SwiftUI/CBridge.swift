@@ -67,6 +67,7 @@ public struct MirEngineSize2D {
 }
 public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer? { nil }
 public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?) {}
+public func MirEngineSetOpenGLContextView(_ context: UnsafeMutableRawPointer?, _ view: UnsafeMutableRawPointer?) {}
 public func MirEngineCreateOpenGLRenderer(_ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? { nil }
 public func MirEngineInitializeRenderer(_ renderer: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineDestroyRenderer(_ renderer: UnsafeMutableRawPointer?) {}
@@ -205,6 +206,7 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 #else
 @_silgen_name("MirEngineCreateMacOpenGLContext") public func MirEngineCreateMacOpenGLContext(_ view: UnsafeMutableRawPointer?, _ size: MirEngineSize2D) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineDestroyOpenGLContext") public func MirEngineDestroyOpenGLContext(_ context: UnsafeMutableRawPointer?)
+@_silgen_name("MirEngineSetOpenGLContextView") public func MirEngineSetOpenGLContextView(_ context: UnsafeMutableRawPointer?, _ view: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineCreateOpenGLRenderer") public func MirEngineCreateOpenGLRenderer(_ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineInitializeRenderer") public func MirEngineInitializeRenderer(_ renderer: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineDestroyRenderer") public func MirEngineDestroyRenderer(_ renderer: UnsafeMutableRawPointer?)
