@@ -82,5 +82,12 @@ private:
 // with an unbound VAO.
 void BindDefaultVertexArray() noexcept;
 
+// Must be called when the owning OpenGL context/device is torn down so the
+// lazily-created scratch VAO is regenerated for the next context. Without this
+// the global handle keeps pointing at a VAO that belonged to the destroyed
+// context, and the next BindDefaultVertexArray() binds a dead VAO (raising
+// GL_INVALID_OPERATION on buffer uploads and producing a black viewport).
+void ResetDefaultVertexArray() noexcept;
+
 } // namespace Rendering
 } // namespace MirEngine

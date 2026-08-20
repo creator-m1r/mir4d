@@ -126,7 +126,9 @@ public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool { false }
 public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
 // Hand skeleton visualization (debug / assist). SwiftPM stubs.
-public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?) {}
+public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?, _ gesture: UnsafePointer<Int32>?) {}
+public func MirEngineSetHandSkeletonStyle(_ viewport: UnsafeMutableRawPointer?, _ leftR: Float, _ leftG: Float, _ leftB: Float, _ rightR: Float, _ rightG: Float, _ rightB: Float, _ jointSize: Float, _ tipSize: Float, _ wristSize: Float, _ alpha: Float, _ depthTest: Int32) {}
+public func MirEngineSetHandSkeletonTopology(_ viewport: UnsafeMutableRawPointer?, _ boneCount: Int32, _ bones: UnsafePointer<Int32>?) {}
 public func MirEngineClearHandSkeleton(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool { false }
 
@@ -263,7 +265,9 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineCancelGrab") public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineGetObjectTransform") public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool
 @_silgen_name("MirEngineSetHandHover") public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
-@_silgen_name("MirEngineSetHandSkeleton") public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?)
+@_silgen_name("MirEngineSetHandSkeleton") public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?, _ gesture: UnsafePointer<Int32>?)
+@_silgen_name("MirEngineSetHandSkeletonStyle") public func MirEngineSetHandSkeletonStyle(_ viewport: UnsafeMutableRawPointer?, _ leftR: Float, _ leftG: Float, _ leftB: Float, _ rightR: Float, _ rightG: Float, _ rightB: Float, _ jointSize: Float, _ tipSize: Float, _ wristSize: Float, _ alpha: Float, _ depthTest: Int32)
+@_silgen_name("MirEngineSetHandSkeletonTopology") public func MirEngineSetHandSkeletonTopology(_ viewport: UnsafeMutableRawPointer?, _ boneCount: Int32, _ bones: UnsafePointer<Int32>?)
 @_silgen_name("MirEngineClearHandSkeleton") public func MirEngineClearHandSkeleton(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineGetCameraEye") public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool
 @_silgen_name("MirEngineSetPlanes") public func MirEngineSetPlanes(_ renderer: UnsafeMutableRawPointer?,

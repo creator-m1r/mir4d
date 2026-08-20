@@ -25,7 +25,7 @@ public:
     // Takes an already-created context (does not own it).
     explicit OpenGLDevice(OpenGLContext* context);
 
-    ~OpenGLDevice() override = default;
+    ~OpenGLDevice() override;
 
     OpenGLDevice(const OpenGLDevice&) = delete;
     OpenGLDevice& operator=(const OpenGLDevice&) = delete;

@@ -52,6 +52,11 @@ final class MIR4DModelRuntime: ObservableObject {
     /// Подписки на потоки данных hand-подсистемы (скелет и т.п.).
     private var cancellables = Set<AnyCancellable>()
 
+    /// Состояние моста визуализации скелета.
+    private var handSkeletonTopologySent = false
+    private var lastSkeletonStyleSignature: String?
+    private var lastSkeletonDataSignature: String?
+
     /// Runtime-only mapping from persisted geometry identity to the fresh
     /// MirEngine object identity created during evaluation. Engine IDs are not
     /// persisted because the engine document is rebuilt when a project opens.
@@ -194,15 +199,27 @@ final class MIR4DModelRuntime: ObservableObject {
             clearHandSkeleton()
             return
         }
+
+        // Топология — единый источник (Swift MIRHandSkeletonTopology). Шлём один раз.
+        if !handSkeletonTopologySent {
+            let topo = MIRHandSkeletonBuilder.topologyIndices()
+            topo.withUnsafeBufferPointer { buf in
+                MirEngineSetHandSkeletonTopology(viewport, Int32(topo.count / 2), buf.baseAddress)
+            }
+            handSkeletonTopologySent = true
+        }
+
         let handCount = min(frames.count, 2)
         var positions = [Double]()
         var confidence = [Double]()
         var handedness = [Int32]()
         var pinch = [Double]()
+        var gesture = [Int32]()
         positions.reserveCapacity(handCount * 21 * 3)
         confidence.reserveCapacity(handCount * 21)
         handedness.reserveCapacity(handCount)
         pinch.reserveCapacity(handCount)
+        gesture.reserveCapacity(handCount)
         for h in 0..<handCount {
             let frame = frames[h]
             for j in 0..<21 {
@@ -217,6 +234,7 @@ final class MIR4DModelRuntime: ObservableObject {
             }
             handedness.append(frame.handedness == .right ? 1 : (frame.handedness == .left ? 0 : 2))
             pinch.append(frame.pinch)
+            gesture.append(MIRHandSkeletonBuilder.gestureCode(frame.gesture))
         }
         let modeRaw = Int32(mode.rawValue)
         let hc = Int32(handCount)
@@ -224,9 +242,12 @@ final class MIR4DModelRuntime: ObservableObject {
             confidence.withUnsafeBufferPointer { cBuf in
                 handedness.withUnsafeBufferPointer { hBuf in
                     pinch.withUnsafeBufferPointer { pinBuf in
-                        MirEngineSetHandSkeleton(
-                            viewport, modeRaw, hc,
-                            pBuf.baseAddress, cBuf.baseAddress, hBuf.baseAddress, pinBuf.baseAddress)
+                        gesture.withUnsafeBufferPointer { gBuf in
+                            MirEngineSetHandSkeleton(
+                                viewport, modeRaw, hc,
+                                pBuf.baseAddress, cBuf.baseAddress, hBuf.baseAddress,
+                                pinBuf.baseAddress, gBuf.baseAddress)
+                        }
                     }
                 }
             }
@@ -237,6 +258,37 @@ final class MIR4DModelRuntime: ObservableObject {
     func clearHandSkeleton() {
         guard let viewport else { return }
         MirEngineClearHandSkeleton(viewport)
+    }
+
+    /// Передаёт стиль оверлея скелета в движок (цвета/размеры/глубина).
+    /// Вызывается каждый тик, но реальный C-вызов только при изменении конфигурации.
+    private func pushHandSkeletonStyleIfNeeded() {
+        guard let viewport else { return }
+        let c = MIRHandGestureModule.shared.configuration
+        let sig = "\(c.skeletonLeftColor)|\(c.skeletonRightColor)|\(c.skeletonJointSize)|"
+                  + "\(c.skeletonTipSize)|\(c.skeletonWristSize)|\(c.skeletonAlpha)|\(c.skeletonDepthTest)"
+        if sig == lastSkeletonStyleSignature { return }
+        lastSkeletonStyleSignature = sig
+        MirEngineSetHandSkeletonStyle(
+            viewport,
+            Float(c.skeletonLeftColor.x), Float(c.skeletonLeftColor.y), Float(c.skeletonLeftColor.z),
+            Float(c.skeletonRightColor.x), Float(c.skeletonRightColor.y), Float(c.skeletonRightColor.z),
+            Float(c.skeletonJointSize), Float(c.skeletonTipSize), Float(c.skeletonWristSize),
+            Float(c.skeletonAlpha), c.skeletonDepthTest ? 1 : 0)
+    }
+
+    /// Лёгкая сигнатура кадра для throttle: меняется, когда рука движется
+    /// или переключается режим, — иначе повторная отправка пропускается.
+    private func skeletonSignature(frames: [MIRHandSkeletonFrame],
+                                   mode: MIRHandSkeletonVisMode) -> String {
+        var s = "\(mode.rawValue)|\(frames.count)"
+        for f in frames {
+            s += "|\(f.handedness.rawValue):\(Int((f.pinch * 100).rounded()))"
+            if let j = f.joints.first {
+                s += ":\(Int((j.position.x * 1000).rounded()))"
+            }
+        }
+        return s
     }
 
     /// Removes a body (with its operations and geometry) from the persisted    /// model after the MirEngine scene deleted the object. MirEngine Scene is

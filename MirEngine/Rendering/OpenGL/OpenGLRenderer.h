@@ -85,7 +85,7 @@ public:
 
     /// Forwards the hand-skeleton overlay style (colours / sizes / depth) to the
     /// dedicated pass. Called once (or when the configuration changes).
-    void setHandSkeletonStyle(const HandSkeletonStyle& style) noexcept
+    void setHandSkeletonStyle(const HandSkeletonStyle& style) noexcept override
     {
         if (m_handSkeletonPass)
             m_handSkeletonPass->setStyle(style);
@@ -93,7 +93,7 @@ public:
 
     /// Forwards the hand-skeleton bone topology (single source of truth comes
     /// from Swift MIRHandSkeletonTopology).
-    void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept
+    void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept override
     {
         if (m_handSkeletonPass)
             m_handSkeletonPass->setTopology(bones);

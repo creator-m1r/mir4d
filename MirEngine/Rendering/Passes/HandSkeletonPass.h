@@ -5,6 +5,10 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
+
+#include "../Core/RenderContext.h"  // HandSkeletonStyle (single source of truth)
 
 namespace MirEngine::Rendering
 {

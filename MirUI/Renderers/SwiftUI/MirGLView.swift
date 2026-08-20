@@ -1182,6 +1182,11 @@ final class MirGLCustomView: NSView {
             MirEngineDestroyViewport(viewport)
 
             self.viewport = nil
+            // Инвалидируем и общий указатель: MIR4DModelRuntime держит его для
+            // C++-вызовов (clearHandSkeleton/setHandSkeleton). Без сброса после
+            // teardown указатель остаётся висячим и следующий вызов падает с
+            // EXC_BAD_ACCESS в ViewportRuntime::clearHandSkeleton().
+            MIR4DModelRuntime.shared.viewport = nil
         }
 
         if let renderer {

@@ -43,6 +43,14 @@ void BindDefaultVertexArray() noexcept
     bindDefaultVertexArrayImpl();
 }
 
+void ResetDefaultVertexArray() noexcept
+{
+    // Drop the handle without a GL call: the VAO is owned by the (now destroyed)
+    // context and is freed with it. The next BindDefaultVertexArray() will
+    // lazily regenerate a fresh VAO in the new context.
+    g_defaultVAO = 0;
+}
+
 // --------------------------------------------------------------------------
 // Конструктор / деструктор
 // --------------------------------------------------------------------------

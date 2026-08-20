@@ -23,6 +23,14 @@ OpenGLDevice::OpenGLDevice(OpenGLContext* context)
 {
 }
 
+OpenGLDevice::~OpenGLDevice()
+{
+    // The device owns the GL resource lifecycle bound to its context. Release
+    // the shared scratch VAO handle so the next context regenerates it instead
+    // of binding a VAO that died with this context.
+    ResetDefaultVertexArray();
+}
+
 bool OpenGLDevice::initialize()
 {
     if (!m_context)

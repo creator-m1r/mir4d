@@ -97,4 +97,20 @@ public enum MIRHandSkeletonBuilder {
             gesture: gesture,
             pinch: pinch)
     }
+
+    /// Flat (parent, child) bone-index array in `LandmarkID.allCases` order.
+    /// Single source of truth: the C++ pass receives exactly this via
+    /// `MirEngineSetHandSkeletonTopology`, so Swift and C++ can never drift.
+    public static func topologyIndices() -> [Int32] {
+        MIRHandSkeletonTopology.bones.flatMap { (a, b) in
+            [Int32(LandmarkID.allCases.firstIndex(of: a)!),
+             Int32(LandmarkID.allCases.firstIndex(of: b)!)]
+        }
+    }
+
+    /// Stable integer code for a gesture (index into `MIRHandGestureType.allCases`),
+    /// consumed by the C++ pass for the accent colour.
+    public static func gestureCode(_ gesture: MIRHandGestureType) -> Int32 {
+        Int32(MIRHandGestureType.allCases.firstIndex(of: gesture) ?? 0)
+    }
 }

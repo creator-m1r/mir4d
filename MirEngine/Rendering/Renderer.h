@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace mir
 {
@@ -11,6 +12,10 @@ namespace MirEngine::Rendering
 {
 
 class RenderContext;
+
+/// Hand-skeleton overlay style (colours / sizes / depth). Defined in
+/// RenderContext.h; forward-declared here to keep this header light.
+struct HandSkeletonStyle;
 
 /// Backend-independent renderer contract.
 /// The engineering scene is always the canonical mir::Scene.
@@ -34,6 +39,13 @@ public:
         (void)objectId;
         (void)materialId;
     }
+
+    /// Hand-skeleton overlay style (colours / sizes / depth behaviour).
+    /// Backends that do not support the overlay ignore the call.
+    virtual void setHandSkeletonStyle(const HandSkeletonStyle& /*style*/) noexcept {}
+
+    /// Hand-skeleton bone topology (single source of truth from Swift).
+    virtual void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& /*bones*/) noexcept {}
 
 protected:
     Renderer() = default;

@@ -72,7 +72,9 @@ struct MIR4DCreativeWorkspaceView: View {
         .onAppear {
             registry.registerDefaults(appState: appState)
             registry.registerExtendedScenarioCommands(appState: appState)
-            voiceAssistant.start(appState: appState)
+            if MIR4DProjectPermissions.shared.microphoneEnabled {
+                voiceAssistant.start(appState: appState)
+            }
             MIR4DRadialInteractionCoordinator.shared.start()
         }
         .mir4DSpatialMenu(appState: appState, registry: registry)
