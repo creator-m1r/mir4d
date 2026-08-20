@@ -22,7 +22,7 @@ struct MIR4DLaunchExperienceView: View {
                 if launch.phase == .workspace {
                     MIR4DCreativeWorkspaceView(appState: appState)
                         .mir4DRadialKeyboardTrigger()
-                        .opacity(workspaceVisible ? 1 : 0)
+                        .opacity((workspaceVisible || launch.phase == .workspace) ? 1 : 0)
                         .scaleEffect(workspaceVisible ? 1 : 1.015)
                         .animation(.easeOut(duration: 0.65), value: workspaceVisible)
                 } else {

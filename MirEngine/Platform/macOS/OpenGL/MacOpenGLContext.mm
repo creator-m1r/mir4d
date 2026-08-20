@@ -77,6 +77,7 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [m_impl->context setView:m_impl->view];
+    [m_impl->context update];
     [m_impl->context makeCurrentContext];
 
     GLint swap = 1;

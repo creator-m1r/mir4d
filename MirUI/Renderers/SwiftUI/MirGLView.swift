@@ -136,7 +136,7 @@ final class MirGLCustomView: NSView {
     }
 
     override var wantsUpdateLayer: Bool {
-        true
+        false
     }
 
     override var acceptsFirstResponder: Bool {
