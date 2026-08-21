@@ -2,15 +2,34 @@
 
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "Camera.hpp"
 #include "ViewportController.hpp"
+#include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
+#include "MirEngine/Interaction/PickTypes.hpp"
 #include "MirEngine/Interaction/RayPicker.hpp"
 #include "MirEngine/Interaction/SelectionState.hpp"
 
 namespace mir
 {
+
+/// A single entry held by the box (multi) selection. Carries the owning
+/// object id together with the selected sub-object kind and its mesh-local
+/// element id (vertex index, edge id = ti*3 + k, or source B-Rep face id).
+struct SelectionEntry
+{
+    mir4d::ObjectId id{mir4d::InvalidObjectId};
+    PickKind kind{PickKind::Body};
+    std::uint64_t elementId{0};
+
+    bool operator==(const SelectionEntry& other) const noexcept
+    {
+        return id == other.id && kind == other.kind && elementId == other.elementId;
+    }
+};
 
 /// Canonical runtime state owned by a single viewport.
 /// Engineering Scene/Document remains the source of truth; this object contains
@@ -41,9 +60,11 @@ struct ViewportState
     /// Active pick filter (selection mode). Defaults to selecting everything.
     PickFilter pickFilter{};
 
-    /// Set of objects selected via rectangle (box) selection. The primary
-    /// selection (SelectionState::selection) mirrors the first of these.
-    std::vector<mir4d::ObjectId> multiSelection{};
+    /// Entries selected via rectangle (box) selection. The primary selection
+    /// (SelectionState::selection) mirrors the first of these. When the active
+    /// pick filter allows sub-objects, entries carry face/edge/vertex kinds and
+    /// their element ids; otherwise they are body-level selections.
+    std::vector<SelectionEntry> multiSelection{};
 
     void resize(std::uint32_t newWidth, std::uint32_t newHeight) noexcept
     {
@@ -76,7 +97,23 @@ struct ViewportState
     {
         if (index >= multiSelection.size())
             return mir4d::InvalidObjectId;
-        return multiSelection[index];
+        return multiSelection[index].id;
+    }
+
+    /// Returns the selection kind at the given index, or None when out of range.
+    [[nodiscard]] PickKind multiSelectionKindAt(std::size_t index) const noexcept
+    {
+        if (index >= multiSelection.size())
+            return PickKind::None;
+        return multiSelection[index].kind;
+    }
+
+    /// Returns the element id at the given index, or 0 when out of range.
+    [[nodiscard]] std::uint64_t multiSelectionElementIdAt(std::size_t index) const noexcept
+    {
+        if (index >= multiSelection.size())
+            return 0;
+        return multiSelection[index].elementId;
     }
 
     void clearMultiSelection() noexcept
@@ -143,16 +180,121 @@ struct ViewportState
                 hits.push_back(node->id());
         }
 
+        // When the body kind is allowed (the default "auto" mode) keep the
+        // classic whole-object rectangle selection. Otherwise collect the
+        // sub-objects (faces / edges / vertices) whose representative point
+        // projects inside the rectangle.
+        const bool collectElements = !pickFilter.body;
+
+        std::vector<SelectionEntry> entries;
+        if (!collectElements)
+        {
+            for (const auto id : hits)
+                entries.push_back({id, PickKind::Body, 0});
+        }
+        else
+        {
+            const PickKind target =
+                (!pickFilter.face && !pickFilter.edge && pickFilter.vertex) ? PickKind::Vertex :
+                (!pickFilter.face && pickFilter.edge) ? PickKind::Edge :
+                pickFilter.face ? PickKind::Face : PickKind::Body;
+
+            for (const auto id : hits)
+            {
+                const auto node = scene.find(id);
+                if (!node || !node->model() || node->model()->mesh().empty())
+                    continue;
+                const auto& mesh = node->model()->mesh();
+                const Transform transform = node->transform();
+
+                if (target == PickKind::Face)
+                {
+                    std::unordered_map<std::uint64_t, std::array<double, 3>> centroid;
+                    std::unordered_map<std::uint64_t, std::size_t> count;
+                    for (const auto& tri : mesh.triangles)
+                    {
+                        const Point3& a = mesh.vertices[tri.a];
+                        const Point3& b = mesh.vertices[tri.b];
+                        const Point3& c = mesh.vertices[tri.c];
+                        auto& s = centroid[tri.sourceFaceId];
+                        s[0] += a.x + b.x + c.x;
+                        s[1] += a.y + b.y + c.y;
+                        s[2] += a.z + b.z + c.z;
+                        count[tri.sourceFaceId] += 1;
+                    }
+                    for (const auto& kv : count)
+                    {
+                        const auto& s = centroid[kv.first];
+                        const Point3 c{s[0] / double(kv.second),
+                                       s[1] / double(kv.second),
+                                       s[2] / double(kv.second)};
+                        const Point3 fc = transform.transformPoint(c);
+                        const auto p = RayPicker::projectToScreen(camera, fc, width, height);
+                        if (p && p->first >= rx0 && p->first <= rx1 &&
+                                p->second >= ry0 && p->second <= ry1)
+                            entries.push_back({id, PickKind::Face, kv.first});
+                    }
+                }
+                else if (target == PickKind::Edge)
+                {
+                    std::unordered_set<std::uint64_t> seen;
+                    for (std::size_t ti = 0; ti < mesh.triangles.size(); ++ti)
+                    {
+                        const auto& tri = mesh.triangles[ti];
+                        const std::size_t ends[3][2] = {
+                            {tri.a, tri.b}, {tri.b, tri.c}, {tri.c, tri.a}};
+                        for (int k = 0; k < 3; ++k)
+                        {
+                            const std::uint64_t sid = tri.sourceEdgeId[k];
+                            if (sid == kInvalidSourceEdge)
+                                continue;
+                            if (!seen.insert(sid).second)
+                                continue;
+                            const Point3& a = mesh.vertices[ends[k][0]];
+                            const Point3& b = mesh.vertices[ends[k][1]];
+                            const Point3 mid{(a.x + b.x) * 0.5,
+                                            (a.y + b.y) * 0.5,
+                                            (a.z + b.z) * 0.5};
+                            const Point3 wp = transform.transformPoint(mid);
+                            const auto p = RayPicker::projectToScreen(camera, wp, width, height);
+                            if (p && p->first >= rx0 && p->first <= rx1 &&
+                                    p->second >= ry0 && p->second <= ry1)
+                                entries.push_back(
+                                    {id, PickKind::Edge, std::uint64_t(ti * 3 + k)});
+                        }
+                    }
+                }
+                else if (target == PickKind::Vertex)
+                {
+                    std::unordered_set<std::size_t> seen;
+                    for (std::size_t vi = 0; vi < mesh.vertices.size(); ++vi)
+                    {
+                        if (!seen.insert(vi).second)
+                            continue;
+                        const Point3 wp = transform.transformPoint(mesh.vertices[vi]);
+                        const auto p = RayPicker::projectToScreen(camera, wp, width, height);
+                        if (p && p->first >= rx0 && p->first <= rx1 &&
+                                p->second >= ry0 && p->second <= ry1)
+                            entries.push_back({id, PickKind::Vertex, vi});
+                    }
+                }
+            }
+        }
+
         if (!additive)
             multiSelection.clear();
-        for (const auto id : hits)
+        for (const auto& entry : entries)
         {
-            if (std::find(cbegin(multiSelection), cend(multiSelection), id) == cend(multiSelection))
-                multiSelection.push_back(id);
+            if (std::find(cbegin(multiSelection), cend(multiSelection), entry) == cend(multiSelection))
+                multiSelection.push_back(entry);
         }
 
         if (!multiSelection.empty())
-            selection.selectElement(PickKind::Body, multiSelection.front(), 0, false);
+            selection.selectElement(
+                multiSelection.front().kind,
+                multiSelection.front().id,
+                multiSelection.front().elementId,
+                false);
         else
             selection.clear();
     }

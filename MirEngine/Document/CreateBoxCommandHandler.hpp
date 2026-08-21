@@ -71,6 +71,9 @@ public:
         if (!node)
             return CommandResult::failure("CREATE_BOX failed to add object to scene");
 
+        // Retain the exact B-Rep source so downstream queries can use it.
+        node->setBrep(std::make_shared<mir::BRepModel>(brep));
+
         return CommandResult::ok(
             "Created box " + std::to_string(width) + " x " +
             std::to_string(depth) + " x " + std::to_string(height),

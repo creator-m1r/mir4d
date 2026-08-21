@@ -35,7 +35,10 @@ public:
 
     void setProfile(Profile3 profile) { profile_ = std::move(profile); }
     void setSolid(Solid3 solid) { solid_ = std::move(solid); }
-    void setMesh(TriangleMesh3 mesh) { mesh_ = std::move(mesh); }
+    void setMesh(TriangleMesh3 mesh) {
+        mesh_ = std::move(mesh);
+        mesh_.markGeometryChanged();
+    }
 
     [[nodiscard]] bool hasProfile() const noexcept { return profile_.isValid(); }
     [[nodiscard]] bool hasSolid() const noexcept { return solid_.isValid(); }

@@ -678,7 +678,14 @@ public:
         // bodies; in that case the primary selection mirrors the first hit.
         const auto& sel = state_.selection;
         const bool hasBoxSelection = !state_.multiSelection.empty();
-        const auto& highlightSet = hasBoxSelection ? state_.multiSelection : sel.ids();
+        std::vector<mir4d::ObjectId> boxHighlightIds;
+        if (hasBoxSelection)
+        {
+            boxHighlightIds.reserve(state_.multiSelection.size());
+            for (const auto& entry : state_.multiSelection)
+                boxHighlightIds.push_back(entry.id);
+        }
+        const auto& highlightSet = hasBoxSelection ? boxHighlightIds : sel.ids();
         const auto primaryId =
             static_cast<std::uint64_t>(sel.primary());
 

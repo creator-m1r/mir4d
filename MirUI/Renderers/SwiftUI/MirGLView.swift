@@ -1755,8 +1755,23 @@ final class MirGLCustomView: NSView {
         if let viewport {
             let faceArea = MirEngineGetSelectionFaceArea(viewport)
             let edgeLength = MirEngineGetSelectionEdgeLength(viewport)
-            appState?.setSelectionElementMetrics(faceArea: faceArea, edgeLength: edgeLength)
-            appState?.setSelectionCount(Int(MirEngineGetSelectionCount(viewport)))
+            let edgeSourceId = MirEngineGetSelectionEdgeSourceId(viewport)
+            appState?.setSelectionElementMetrics(faceArea: faceArea, edgeLength: edgeLength, edgeSourceId: edgeSourceId)
+
+            let count = Int(MirEngineGetSelectionCount(viewport))
+            appState?.setSelectionCount(count)
+
+            var items: [CADSelectedItem] = []
+            items.reserveCapacity(count)
+            for i in 0..<count {
+                let objectId = MirEngineGetSelectionItem(viewport, Int32(i))
+                let kindRaw = MirEngineGetSelectionItemKind(viewport, Int32(i))
+                let elementId = MirEngineGetSelectionItemElementId(viewport, Int32(i))
+                items.append(appState?.selectedItem(for: objectId, kindRaw: kindRaw, elementId: elementId) ??
+                    CADSelectedItem(objectId: objectId, kind: .body, elementId: 0,
+                                    label: "Объект #\(objectId)", detail: ""))
+            }
+            appState?.setSelectionItems(items)
         }
     }
 

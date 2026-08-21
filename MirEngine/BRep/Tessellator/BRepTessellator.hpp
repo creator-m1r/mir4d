@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace mir
@@ -60,13 +61,74 @@ private:
     struct Vec2 { double x{0.0}; double y{0.0}; };
     struct FaceFrame { Vector3 origin{}; Vector3 normal{}; Vector3 xDir{}; Vector3 yDir{}; };
 
+    /// Quantized point key (1e6 units per length unit) for stable lookups.
+    struct PointKey
+    {
+        std::int64_t x{0}, y{0}, z{0};
+        bool operator==(const PointKey& o) const noexcept
+        {
+            return x == o.x && y == o.y && z == o.z;
+        }
+    };
+
+    struct PointKeyHash
+    {
+        std::size_t operator()(const PointKey& k) const noexcept
+        {
+            std::size_t h = 1469598103934665603ull;
+            const std::int64_t v[3] = {k.x, k.y, k.z};
+            for (int i = 0; i < 3; ++i)
+            {
+                h ^= static_cast<std::size_t>(v[i]);
+                h *= 1099511628211ull;
+            }
+            return h;
+        }
+    };
+
+    struct PairHash
+    {
+        std::size_t operator()(const std::pair<PointKey, PointKey>& p) const noexcept
+        {
+            std::size_t h = 1469598103934665603ull;
+            for (const PointKey& k : {p.first, p.second})
+            {
+                const std::int64_t v[3] = {k.x, k.y, k.z};
+                for (int i = 0; i < 3; ++i)
+                {
+                    h ^= static_cast<std::size_t>(v[i]);
+                    h *= 1099511628211ull;
+                }
+            }
+            return h;
+        }
+    };
+
+    using EdgeMap = std::unordered_map<std::pair<PointKey, PointKey>, BRepEdgeHandle,
+                                       PairHash>;
+
+    static PointKey toKey(const Vector3& p) noexcept
+    {
+        auto q = [](double v) noexcept { return static_cast<std::int64_t>(std::llround(v * 1e6)); };
+        return {q(p.x), q(p.y), q(p.z)};
+    }
+
     static void appendMesh(TriangleMesh3& dst, const TriangleMesh3& src)
     {
         const std::size_t base = dst.vertices.size();
         dst.vertices.insert(dst.vertices.end(), src.vertices.begin(), src.vertices.end());
         for (const auto& tri : src.triangles)
-            dst.triangles.push_back(
-                {tri.a + base, tri.b + base, tri.c + base, tri.sourceFaceId});
+        {
+            TriangleMesh3::Triangle t;
+            t.a = tri.a + base;
+            t.b = tri.b + base;
+            t.c = tri.c + base;
+            t.sourceFaceId = tri.sourceFaceId;
+            t.sourceEdgeId[0] = tri.sourceEdgeId[0];
+            t.sourceEdgeId[1] = tri.sourceEdgeId[1];
+            t.sourceEdgeId[2] = tri.sourceEdgeId[2];
+            dst.triangles.push_back(t);
+        }
     }
 
     static void appendFace(const BRepModel& model,
@@ -143,8 +205,50 @@ private:
         for (const Vector3& p : combined3d)
             mesh.vertices.push_back(Point3{p.x, p.y, p.z});
         const std::uint64_t faceId = static_cast<std::uint64_t>(faceHandle.index);
+
+        // Map every real B-Rep edge of this face to its endpoint point keys, so
+        // each tessellated boundary chord can be tagged with the stable source
+        // edge id. Internal seams (ear-clip diagonals, hole bridges) are not
+        // present in the map and therefore receive kInvalidSourceEdge.
+        EdgeMap edgeMap;
+        auto addWireEdges = [&](BRepWireHandle wh) {
+            const BRepWire* wire = model.topology().wire(wh);
+            if (!wire) return;
+            for (const BRepOrientedEdge& oe : wire->edges)
+            {
+                const BRepEdge* edge = model.topology().edge(oe.edge);
+                if (!edge) continue;
+                const BRepVertexHandle s = isForward(oe.orientation) ? edge->start : edge->end;
+                const BRepVertexHandle t = isForward(oe.orientation) ? edge->end : edge->start;
+                const PointKey ks = toKey(pointOf(model, s));
+                const PointKey kt = toKey(pointOf(model, t));
+                edgeMap.emplace(std::make_pair(ks, kt), oe.edge);
+                edgeMap.emplace(std::make_pair(kt, ks), oe.edge);
+            }
+        };
+        addWireEdges(face->outer.wire);
+        for (const BRepOrientedWire& inner : face->inners)
+            addWireEdges(inner.wire);
+
         for (const auto& tri : tris)
-            mesh.triangles.push_back({base + tri[0], base + tri[1], base + tri[2], faceId});
+        {
+            TriangleMesh3::Triangle t;
+            t.a = base + tri[0];
+            t.b = base + tri[1];
+            t.c = base + tri[2];
+            t.sourceFaceId = faceId;
+            const Vector3 pts[3] = {combined3d[tri[0]], combined3d[tri[1]], combined3d[tri[2]]};
+            for (int k = 0; k < 3; ++k)
+            {
+                const Vector3& pa = pts[k];
+                const Vector3& pb = pts[(k + 1) % 3];
+                auto it = edgeMap.find(std::make_pair(toKey(pa), toKey(pb)));
+                t.sourceEdgeId[k] = (it != edgeMap.end())
+                                        ? it->second.index
+                                        : kInvalidSourceEdge;
+            }
+            mesh.triangles.push_back(t);
+        }
     }
 
     [[nodiscard]] static std::vector<Vector3> sampleWirePoints(const BRepModel& model, BRepWireHandle wireHandle)

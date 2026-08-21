@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -77,6 +78,9 @@ private:
 
         if (!inserted.success)
             return CommandResult::failure("CREATE_BOX BRep pipeline failed");
+
+        if (auto node = scene.find(inserted.objectId))
+            node->setBrep(std::make_shared<mir::BRepModel>(brep_));
 
         return CommandResult::ok(
             "CREATE_BOX created object " + std::to_string(inserted.objectId),

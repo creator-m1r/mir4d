@@ -197,11 +197,30 @@ struct InspectorTabsView: View {
     }
 
     private var geometryContent: some View {
-        InspectorGroup(title: localized("Контекст", "Context")) {
-            InspectorRow(label: localized("Среда", "Workbench"), value: localizedWorkbench)
-            InspectorRow(label: localized("Подрежим", "SubMode"), value: localizedSubMode)
-            InspectorRow(label: localized("Выбрано", "Selected"), value: "\(context.selection.count)")
-            InspectorRow(label: localized("Тип", "Type"), value: selectionKindTitle)
+        VStack(alignment: .leading, spacing: MirTheme.Spacing.md) {
+            InspectorGroup(title: localized("Контекст", "Context")) {
+                InspectorRow(label: localized("Среда", "Workbench"), value: localizedWorkbench)
+                InspectorRow(label: localized("Подрежим", "SubMode"), value: localizedSubMode)
+                InspectorRow(label: localized("Выбрано", "Selected"), value: "\(context.selection.count)")
+                InspectorRow(label: localized("Тип", "Type"), value: selectionKindTitle)
+            }
+
+            if !context.selection.selectedItems.isEmpty {
+                InspectorGroup(title: localized("Выбранные объекты", "Selected Objects")) {
+                    ForEach(context.selection.selectedItems) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.label)
+                                .font(MirTheme.Typography.caption)
+                                .foregroundStyle(MirTheme.Colors.textPrimary)
+                            if !item.detail.isEmpty {
+                                Text(item.detail)
+                                    .font(MirTheme.Typography.caption)
+                                    .foregroundStyle(MirTheme.Colors.textTertiary)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

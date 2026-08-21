@@ -385,9 +385,19 @@ struct CADSelectionState: Equatable {
     var faceArea: Double = 0
     var edgeLength: Double = 0
 
+    /// Stable source B-Rep edge id of the primary edge selection
+    /// (`MirEngineGetSelectionEdgeSourceId`). `UInt64.max` when the selection is
+    /// not an edge or has no B-Rep provenance.
+    var edgeSourceId: UInt64 = 0
+
     /// Number of objects held by the box (multi) selection. 1 for a single
     /// pick, >1 after a rectangle selection, 0 when nothing is selected.
     var multiCount: Int = 0
+
+    /// Per-item snapshot of the box (multi) selection, each carrying its
+    /// object id, selection kind, element id and a precomputed metric line.
+    /// Populated by the viewport when the selection is published.
+    var selectedItems: [CADSelectedItem] = []
 
     var count: Int { ids.count }
     var hasSelection: Bool { !ids.isEmpty }
@@ -399,7 +409,10 @@ struct CADSelectionState: Equatable {
         guard hasSelection else { return "Нет выделения" }
         switch primaryKind {
             case .vertex: return "Вершина #\(primaryElementId)"
-            case .edge: return "Ребро #\(primaryElementId)"
+            case .edge:
+                return edgeSourceId != UInt64.max
+                    ? "Ребро #\(edgeSourceId) (BRep)"
+                    : "Ребро #\(primaryElementId)"
             case .face: return "Грань #\(primaryElementId)"
             case .body: return "Тело"
             default: return "Элемент"
@@ -414,10 +427,21 @@ struct CADSelectionState: Equatable {
                 return "Площадь: \(String(format: "%.4g", faceArea))"
             case .edge where edgeLength > 0:
                 return "Длина: \(String(format: "%.4g", edgeLength))"
-            default:
-                return ""
+        default:
+            return ""
         }
     }
+}
+
+/// One entry of the box (multi) selection, exposed to the inspector so it can
+/// list every selected object together with a compact metric line.
+struct CADSelectedItem: Identifiable, Equatable {
+    let id = UUID()
+    let objectId: UInt64
+    let kind: CADSelectionKind
+    let elementId: UInt64
+    let label: String
+    let detail: String
 }
 
 // MARK: - Time / 4D

@@ -396,15 +396,42 @@ void GeometryPass::drawHighlightEdge(mir::Scene& scene,
         const std::size_t ends[2] = {
             (e == 0) ? tri.a : (e == 1) ? tri.b : tri.c,
             (e == 0) ? tri.b : (e == 1) ? tri.c : tri.a};
+        const std::uint64_t srcId = tri.sourceEdgeId[e];
 
+        // Collect every triangle chord that belongs to the same source B-Rep
+        // edge, so the whole CAD edge is highlighted (not just one tessellation
+        // seam). Falls back to the single picked chord for non-B-Rep edges.
         std::vector<Vertex> verts;
-        for (const std::size_t idx : ends) {
-            const auto& p = mesh.vertices[idx];
+        std::vector<std::uint32_t> indices;
+        std::uint32_t v = 0;
+        auto addChord = [&](std::size_t a, std::size_t b) {
+            const auto& pa = mesh.vertices[a];
+            const auto& pb = mesh.vertices[b];
             verts.emplace_back(
-                Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)},
+                Vector3{static_cast<float>(pa.x), static_cast<float>(pa.y), static_cast<float>(pa.z)},
                 Vector3{}, Vector2{});
+            verts.emplace_back(
+                Vector3{static_cast<float>(pb.x), static_cast<float>(pb.y), static_cast<float>(pb.z)},
+                Vector3{}, Vector2{});
+            indices.push_back(v);
+            indices.push_back(v + 1);
+            v += 2;
+        };
+        if (srcId != mir::kInvalidSourceEdge)
+        {
+            for (const auto& t : mesh.triangles)
+            {
+                const std::size_t e2[3][2] = {{t.a, t.b}, {t.b, t.c}, {t.c, t.a}};
+                for (int k = 0; k < 3; ++k)
+                    if (t.sourceEdgeId[k] == srcId)
+                        addChord(e2[k][0], e2[k][1]);
+            }
         }
-        std::vector<std::uint32_t> indices = {0, 1};
+        else
+        {
+            addChord(ends[0], ends[1]);
+        }
+        if (verts.empty()) return;
 
         auto vao = device.createVertexArray();
         auto vbo = device.createVertexBuffer();
@@ -437,7 +464,7 @@ void GeometryPass::drawHighlightEdge(mir::Scene& scene,
 
         device.setDepthFunc(RenderDevice::DepthFunc::LessEqual);
         vao->bind();
-        glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_LINES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, nullptr);
         vao->unbind();
         device.setDepthFunc(RenderDevice::DepthFunc::Less);
     };

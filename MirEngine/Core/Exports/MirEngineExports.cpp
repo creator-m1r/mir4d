@@ -1148,6 +1148,113 @@ uint64_t MirEngineGetSelectionItem(
     );
 }
 
+int MirEngineGetSelectionItemKind(
+    void* viewport,
+    int index
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return 0;
+    return static_cast<int>(
+        native->runtime->state().multiSelectionKindAt(
+            static_cast<std::size_t>(index < 0 ? 0 : index)
+        )
+    );
+}
+
+uint64_t MirEngineGetSelectionItemElementId(
+    void* viewport,
+    int index
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return 0;
+    return native->runtime->state().multiSelectionElementIdAt(
+        static_cast<std::size_t>(index < 0 ? 0 : index)
+    );
+}
+
+/// Forward declaration: exact B-Rep edge length helper defined below.
+static double exactEdgeLength(const mir::Scene::NodePtr& node, std::uint64_t elementId);
+
+/// Returns the geometric metric of an arbitrary element (face area / edge
+/// length) addressed by object id + kind + element id. Used by the
+/// multi-selection inspector to show per-item metrics.
+bool MirEngineGetElementMetric(
+    void* viewport,
+    uint64_t objectId,
+    int kind,
+    uint64_t elementId,
+    double* outArea,
+    double* outLength
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return false;
+
+    const auto node = native->scene->find(objectId);
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return false;
+
+    const auto& mesh = node->model()->mesh();
+    const mir::Transform transform = node->transform();
+    const mir::PickKind pk = static_cast<mir::PickKind>(kind);
+
+    if (pk == mir::PickKind::Face)
+    {
+        double area = 0.0;
+        bool found = false;
+        for (const auto& tri : mesh.triangles)
+        {
+            if (tri.sourceFaceId != elementId)
+                continue;
+            found = true;
+            const mir::Point3 a = transform.transformPoint(mesh.vertices[tri.a]);
+            const mir::Point3 b = transform.transformPoint(mesh.vertices[tri.b]);
+            const mir::Point3 c = transform.transformPoint(mesh.vertices[tri.c]);
+            area += 0.5 * mir::Vector3::cross(b - a, c - a).length();
+        }
+        if (outArea) *outArea = found ? area : 0.0;
+        if (outLength) *outLength = 0.0;
+        return found;
+    }
+
+    if (pk == mir::PickKind::Edge)
+    {
+        const double exact = exactEdgeLength(node, elementId);
+        if (exact > 0.0)
+        {
+            if (outLength) *outLength = exact;
+            if (outArea) *outArea = 0.0;
+            return true;
+        }
+        const std::size_t ti = static_cast<std::size_t>(elementId / 3);
+        const int e = static_cast<int>(elementId % 3);
+        if (ti >= mesh.triangles.size())
+        {
+            if (outArea) *outArea = 0.0;
+            if (outLength) *outLength = 0.0;
+            return false;
+        }
+        const auto& tri = mesh.triangles[ti];
+        const std::size_t ends[2] = {
+            (e == 0) ? tri.a : (e == 1) ? tri.b : tri.c,
+            (e == 0) ? tri.b : (e == 1) ? tri.c : tri.a};
+        const mir::Point3 a = transform.transformPoint(mesh.vertices[ends[0]]);
+        const mir::Point3 b = transform.transformPoint(mesh.vertices[ends[1]]);
+        if (outLength) *outLength = (b - a).length();
+        if (outArea) *outArea = 0.0;
+        return true;
+    }
+
+    if (outArea) *outArea = 0.0;
+    if (outLength) *outLength = 0.0;
+    return false;
+}
+
 
 bool MirEngineDeformSelected(
     void* viewport,
@@ -1249,30 +1356,18 @@ bool MirEngineDeformSelected(
         mesh.normals[i] = l > 1e-9 ? acc[i].normalized() : mir::Vector3(0, 0, 1);
     }
 
+    mesh.markGeometryChanged();
     node->touch();
     return true;
 }
 
 /// Real CAD geometry bridge: extracts bounding box, volume, surface area and
-/// topology counts from the selected object's tessellated mesh.
-bool MirEngineGetSelectedObjectMetrics(
-    void* viewport,
-    char* outJson,
-    size_t outCapacity
-)
+/// Computes a compact JSON geometry brief (bounding box, volume, surface area,
+/// mesh counts) for an already-resolved scene node.
+static bool writeObjectMetrics(const mir::Scene::NodePtr& node,
+                               char* outJson,
+                               size_t outCapacity)
 {
-    if (!outJson || outCapacity == 0)
-        return false;
-
-    auto* native = asViewport(viewport);
-    if (!native || !native->runtime || !native->scene)
-    {
-        std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
-        return true;
-    }
-
-    const mir4d::ObjectId selected = native->runtime->state().selection.primary();
-    const auto node = native->scene->find(selected);
     if (!node || !node->model() || node->model()->mesh().empty())
     {
         std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
@@ -1305,13 +1400,57 @@ bool MirEngineGetSelectedObjectMetrics(
         "\"vertexCount\":%zu,\"faceCount\":%zu,"
         "\"boundsMin\":{\"x\":%.6g,\"y\":%.6g,\"z\":%.6g},"
         "\"boundsMax\":{\"x\":%.6g,\"y\":%.6g,\"z\":%.6g}}",
-        static_cast<unsigned long long>(selected),
+        static_cast<unsigned long long>(node->id()),
         double(bmax.x - bmin.x), double(bmax.y - bmin.y), double(bmax.z - bmin.z),
         volume, surfaceArea,
         mesh.vertices.size(), mesh.triangles.size(),
         double(bmin.x), double(bmin.y), double(bmin.z),
         double(bmax.x), double(bmax.y), double(bmax.z));
     return true;
+}
+
+/// Returns a compact JSON geometry brief (bounding box, volume, surface area,
+/// topology counts) for the currently primary-selected object.
+bool MirEngineGetSelectedObjectMetrics(
+    void* viewport,
+    char* outJson,
+    size_t outCapacity
+)
+{
+    if (!outJson || outCapacity == 0)
+        return false;
+
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+    {
+        std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
+        return true;
+    }
+
+    const mir4d::ObjectId selected = native->runtime->state().selection.primary();
+    return writeObjectMetrics(native->scene->find(selected), outJson, outCapacity);
+}
+
+/// Returns the same JSON geometry brief as MirEngineGetSelectedObjectMetrics
+/// but for an arbitrary object addressed by id. Used by the multi-selection
+/// inspector to show per-item metrics.
+bool MirEngineGetObjectMetricsById(
+    void* viewport,
+    std::uint64_t objectId,
+    char* outJson,
+    size_t outCapacity)
+{
+    if (!outJson || outCapacity == 0)
+        return false;
+
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+    {
+        std::snprintf(outJson, outCapacity, "{\"hasGeometry\":false}");
+        return true;
+    }
+
+    return writeObjectMetrics(native->scene->find(objectId), outJson, outCapacity);
 }
 
 double MirEngineGetSelectionFaceArea(void* viewport)
@@ -1349,6 +1488,45 @@ double MirEngineGetSelectionFaceArea(void* viewport)
     return found ? area : 0.0;
 }
 
+/// Exact edge length for a mesh edge element (elementId = ti*3 + k). Uses the
+/// retained B-Rep source edge when available (straight or curved), falling back
+/// to 0.0 so callers can use the cheaper chord length. The B-Rep length is in
+/// the node's local space; it is scaled by the node's average scale to match
+/// the world-space chord length used elsewhere.
+static double exactEdgeLength(const mir::Scene::NodePtr& node, std::uint64_t elementId)
+{
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return 0.0;
+
+    const auto& mesh = node->model()->mesh();
+    const std::size_t ti = static_cast<std::size_t>(elementId / 3);
+    const int k = static_cast<int>(elementId % 3);
+    if (ti >= mesh.triangles.size())
+        return 0.0;
+
+    const std::uint64_t sid = mesh.triangles[ti].sourceEdgeId[k];
+    if (sid == mir::kInvalidSourceEdge)
+        return 0.0;
+
+    const auto& brep = node->brep();
+    if (!brep)
+        return 0.0;
+
+    mir::BRepEdgeHandle eh;
+    eh.index = sid;
+    mir::BRepAdaptor_Curve curve(*brep, eh);
+    if (!curve.isBound())
+        return 0.0;
+
+    const double local = curve.lengthEstimate();
+    if (local <= 0.0)
+        return 0.0;
+
+    const mir::Transform transform = node->transform();
+    const double scale = (transform.scale.x + transform.scale.y + transform.scale.z) / 3.0;
+    return local * scale;
+}
+
 double MirEngineGetSelectionEdgeLength(void* viewport)
 {
     auto* native = asViewport(viewport);
@@ -1362,6 +1540,12 @@ double MirEngineGetSelectionEdgeLength(void* viewport)
     const auto node = native->scene->find(sel.primary());
     if (!node || !node->model() || node->model()->mesh().empty())
         return 0.0;
+
+    // Prefer the exact B-Rep edge length (correct for straight and curved edges)
+    // when the mesh edge carries B-Rep provenance and the source B-Rep is kept.
+    const double exact = exactEdgeLength(node, sel.elementId());
+    if (exact > 0.0)
+        return exact;
 
     const auto& mesh = node->model()->mesh();
     const std::uint64_t elementId = sel.elementId();
@@ -1378,6 +1562,34 @@ double MirEngineGetSelectionEdgeLength(void* viewport)
     const mir::Point3 a = transform.transformPoint(mesh.vertices[ends[0]]);
     const mir::Point3 b = transform.transformPoint(mesh.vertices[ends[1]]);
     return (b - a).length();
+}
+
+// Returns the stable source B-Rep edge id of the currently selected edge, or
+// kInvalidSourceEdge when the selection is not an edge / has no provenance.
+// The element id encodes the triangle and local edge (elementId = ti*3 + k),
+// so the source edge is read directly from the tessellated mesh.
+std::uint64_t MirEngineGetSelectionEdgeSourceId(void* viewport)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return mir::kInvalidSourceEdge;
+
+    const auto& sel = native->runtime->state().selection;
+    if (sel.kind() != mir::PickKind::Edge)
+        return mir::kInvalidSourceEdge;
+
+    const auto node = native->scene->find(sel.primary());
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return mir::kInvalidSourceEdge;
+
+    const auto& mesh = node->model()->mesh();
+    const std::uint64_t elementId = sel.elementId();
+    const std::size_t ti = static_cast<std::size_t>(elementId / 3);
+    const int e = static_cast<int>(elementId % 3);
+    if (ti >= mesh.triangles.size())
+        return mir::kInvalidSourceEdge;
+
+    return mesh.triangles[ti].sourceEdgeId[e];
 }
 
 // Deletes the primary selection through the canonical Scene API.
@@ -1840,6 +2052,12 @@ bool MirEngineCreateBox(
 
     if (objectId)
         *objectId = static_cast<uint64_t>(inserted.objectId);
+
+    // Retain the exact B-Rep source on the node so downstream queries (exact
+    // edge length, STEP round-trip) can use it. The tessellated mesh alone
+    // only approximates the geometry.
+    if (auto node = native->scene->find(inserted.objectId))
+        node->setBrep(std::make_shared<mir::BRepModel>(brep));
 
     setLastError(native, nullptr);
     return true;

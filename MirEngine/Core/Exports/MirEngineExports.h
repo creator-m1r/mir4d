@@ -333,6 +333,33 @@ uint64_t MirEngineGetSelectionItem(
     int index
 );
 
+// Returns the selection kind (PickKind: 0 None, 1 Body, 2 Face, 3 Edge,
+// 4 Vertex) of the multi-selection entry at `index`, or 0 when out of range.
+int MirEngineGetSelectionItemKind(
+    void* viewport,
+    int index
+);
+
+// Returns the element id (vertex index, edge id = ti*3 + k, or source B-Rep
+// face id) of the multi-selection entry at `index`, or 0 when out of range.
+uint64_t MirEngineGetSelectionItemElementId(
+    void* viewport,
+    int index
+);
+
+// Returns the geometric metric of an arbitrary element addressed by object id
+// + kind + element id. `outArea` receives the summed face area (when kind is
+// Face), `outLength` receives the chord length (when kind is Edge). Either
+// output pointer may be NULL. Returns true when the element was found.
+bool MirEngineGetElementMetric(
+    void* viewport,
+    uint64_t objectId,
+    int kind,
+    uint64_t elementId,
+    double* outArea,
+    double* outLength
+);
+
 // Applies an in-place sculpt/push/pull deformation to the selected object's
 // tessellated mesh. `x,y,z` is the world-space brush centre, `radius` a
 // world-space radius, `strength` a signed displacement magnitude in world
@@ -548,6 +575,16 @@ bool MirEngineGetSelectedObjectMetrics(
     size_t outCapacity
 );
 
+// Same JSON geometry brief as MirEngineGetSelectedObjectMetrics, but for an
+// arbitrary object addressed by id. Used by the multi-selection inspector to
+// show per-item metrics (bounding box, volume, surface area, mesh counts).
+bool MirEngineGetObjectMetricsById(
+    void* viewport,
+    uint64_t objectId,
+    char* outJson,
+    size_t outCapacity
+);
+
 // Returns the world-space surface area (in scene units) of the currently
 // selected face. Returns 0.0 when the selection is not a face, the element has
 // no B-Rep face provenance, or nothing is selected.
@@ -556,6 +593,11 @@ double MirEngineGetSelectionFaceArea(void* viewport);
 // Returns the world-space length (in scene units) of the currently selected
 // edge. Returns 0.0 when the selection is not an edge or nothing is selected.
 double MirEngineGetSelectionEdgeLength(void* viewport);
+
+// Returns the stable source B-Rep edge id of the currently selected edge, or
+// UINT64_MAX (mir::kInvalidSourceEdge) when the selection is not an edge or has
+// no B-Rep provenance. The id mirrors BRepEdgeHandle::index.
+uint64_t MirEngineGetSelectionEdgeSourceId(void* viewport);
 
 bool MirEngineImportMesh(
     void* viewport,

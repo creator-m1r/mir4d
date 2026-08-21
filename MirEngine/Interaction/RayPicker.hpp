@@ -143,7 +143,46 @@ public:
                     continue;
                 const Transform& transform = node->transform();
                 const auto& mesh = node->model()->mesh();
-                for (std::size_t vi = 0; vi < mesh.vertices.size(); ++vi)
+
+                // Accelerate with the per-mesh local-space BVH. A conservative
+                // screen->world radius (pixel tolerance scaled by the world
+                // units-per-pixel at the node's far depth, inflated by the node
+                // bounding radius) guarantees every true hit survives as a
+                // candidate; the exact screen-space test below is unchanged.
+                const Transform inv = transform.inverse();
+                const PickRay localRay{inv.transformPoint(ray.origin),
+                                       inv.transformDirection(ray.direction).normalized()};
+                const Scalar minScale = std::max(
+                    Scalar(1e-6),
+                    std::min({std::abs(transform.scale.x),
+                              std::abs(transform.scale.y),
+                              std::abs(transform.scale.z)}));
+                const Point3 wbmin = transform.transformPoint(mesh.boundsMin());
+                const Point3 wbmax = transform.transformPoint(mesh.boundsMax());
+                const Point3 wcenter{
+                    (wbmin.x + wbmax.x) * Scalar(0.5),
+                    (wbmin.y + wbmax.y) * Scalar(0.5),
+                    (wbmin.z + wbmax.z) * Scalar(0.5)};
+                const Scalar nodeRadius = (wbmax - wcenter).length();
+                const Scalar tFar =
+                    std::max(Scalar(0),
+                             Vector3::dot(Vector3{wcenter.x - ray.origin.x,
+                                                  wcenter.y - ray.origin.y,
+                                                  wcenter.z - ray.origin.z},
+                                          ray.direction)) +
+                    nodeRadius;
+                const Scalar invCot = Scalar(1) / camera.projectionMatrix()(1, 1);
+                const Scalar worldPerPixel =
+                    (camera.projection() == CameraProjection::Perspective)
+                        ? Scalar(2) * tFar * invCot / Scalar(viewportHeight)
+                        : Scalar(2) * invCot / Scalar(viewportHeight);
+                const Scalar localVR =
+                    (filter.vertexPixelRadius * worldPerPixel + nodeRadius) / minScale;
+                std::vector<std::size_t> candidates;
+                cachedVertexBVH(mesh).queryRay(
+                    localRay.origin, localRay.direction, localVR, candidates);
+                std::sort(candidates.begin(), candidates.end());
+                for (std::size_t vi : candidates)
                 {
                     const Point3 wp = transform.transformPoint(mesh.vertices[vi]);
                     const auto p = project(wp);
@@ -179,30 +218,63 @@ public:
                     continue;
                 const Transform& transform = node->transform();
                 const auto& mesh = node->model()->mesh();
-                for (std::size_t ti = 0; ti < mesh.triangles.size(); ++ti)
+
+                const Transform inv = transform.inverse();
+                const PickRay localRay{inv.transformPoint(ray.origin),
+                                       inv.transformDirection(ray.direction).normalized()};
+                const Scalar minScale = std::max(
+                    Scalar(1e-6),
+                    std::min({std::abs(transform.scale.x),
+                              std::abs(transform.scale.y),
+                              std::abs(transform.scale.z)}));
+                const Point3 wbmin = transform.transformPoint(mesh.boundsMin());
+                const Point3 wbmax = transform.transformPoint(mesh.boundsMax());
+                const Point3 wcenter{
+                    (wbmin.x + wbmax.x) * Scalar(0.5),
+                    (wbmin.y + wbmax.y) * Scalar(0.5),
+                    (wbmin.z + wbmax.z) * Scalar(0.5)};
+                const Scalar nodeRadius = (wbmax - wcenter).length();
+                const Scalar tFar =
+                    std::max(Scalar(0),
+                             Vector3::dot(Vector3{wcenter.x - ray.origin.x,
+                                                  wcenter.y - ray.origin.y,
+                                                  wcenter.z - ray.origin.z},
+                                          ray.direction)) +
+                    nodeRadius;
+                const Scalar invCot = Scalar(1) / camera.projectionMatrix()(1, 1);
+                const Scalar worldPerPixel =
+                    (camera.projection() == CameraProjection::Perspective)
+                        ? Scalar(2) * tFar * invCot / Scalar(viewportHeight)
+                        : Scalar(2) * invCot / Scalar(viewportHeight);
+                const Scalar localER =
+                    (filter.edgePixelRadius * worldPerPixel + nodeRadius) / minScale;
+                std::vector<std::size_t> candidates;
+                cachedEdgeBVH(mesh).queryRay(
+                    localRay.origin, localRay.direction, localER, candidates);
+                std::sort(candidates.begin(), candidates.end());
+                for (std::size_t ei : candidates)
                 {
+                    const std::size_t ti = ei / 3;
+                    const int e = static_cast<int>(ei % 3);
                     const auto& tri = mesh.triangles[ti];
                     const std::size_t edges[3][2] = {
                         {tri.a, tri.b}, {tri.b, tri.c}, {tri.c, tri.a}};
-                    for (int e = 0; e < 3; ++e)
+                    const Point3 wa = transform.transformPoint(mesh.vertices[edges[e][0]]);
+                    const Point3 wb = transform.transformPoint(mesh.vertices[edges[e][1]]);
+                    const auto pa = project(wa);
+                    const auto pb = project(wb);
+                    if (!pa || !pb)
+                        continue;
+                    const Scalar d = pointSegmentDistance2D(
+                        screenX, screenY, pa->first, pa->second, pb->first, pb->second);
+                    if (d <= static_cast<Scalar>(filter.edgePixelRadius))
                     {
-                        const Point3 wa = transform.transformPoint(mesh.vertices[edges[e][0]]);
-                        const Point3 wb = transform.transformPoint(mesh.vertices[edges[e][1]]);
-                        const auto pa = project(wa);
-                        const auto pb = project(wb);
-                        if (!pa || !pb)
-                            continue;
-                        const Scalar d = pointSegmentDistance2D(
-                            screenX, screenY, pa->first, pa->second, pb->first, pb->second);
-                        if (d <= static_cast<Scalar>(filter.edgePixelRadius))
+                        if (!best || d < best->screenDist)
                         {
-                            if (!best || d < best->screenDist)
-                            {
-                                const Point3 mid{(wa.x + wb.x) * Scalar(0.5),
-                                                 (wa.y + wb.y) * Scalar(0.5),
-                                                 (wa.z + wb.z) * Scalar(0.5)};
-                                best = {node->id(), ti * 3u + static_cast<std::uint64_t>(e), mid, d};
-                            }
+                            const Point3 mid{(wa.x + wb.x) * Scalar(0.5),
+                                             (wa.y + wb.y) * Scalar(0.5),
+                                             (wa.z + wb.z) * Scalar(0.5)};
+                            best = {node->id(), ti * 3u + static_cast<std::uint64_t>(e), mid, d};
                         }
                     }
                 }
@@ -312,6 +384,7 @@ public:
                 std::vector<std::size_t> candidates;
                 cachedVertexBVH(mesh).queryRay(
                     localRay.origin, localRay.direction, localVertexRadius, candidates);
+                std::sort(candidates.begin(), candidates.end());
                 for (std::size_t vi : candidates)
                 {
                     const Point3 wp = transform.transformPoint(mesh.vertices[vi]);
@@ -325,8 +398,8 @@ public:
                                          ray.origin.y + dir.y * t,
                                          ray.origin.z + dir.z * t};
                     const Vector3 diff{wp.x - closest.x,
-                                       wp.y - closest.y,
-                                       wp.z - closest.z};
+                                        wp.y - closest.y,
+                                        wp.z - closest.z};
                     const Scalar d = diff.length();
                     if (d <= vertexWorldRadius)
                     {
@@ -376,6 +449,7 @@ public:
                 std::vector<std::size_t> candidates;
                 cachedEdgeBVH(mesh).queryRay(
                     localRay.origin, localRay.direction, localEdgeRadius, candidates);
+                std::sort(candidates.begin(), candidates.end());
                 for (std::size_t ei : candidates)
                 {
                     const std::size_t ti = ei / 3;
@@ -505,30 +579,38 @@ private:
         bool hit{false};
     };
 
-    /// Per-mesh BVH caches. Meshes are stable for the lifetime of a pick
-    /// session, so the trees are built once and reused. Keyed by mesh pointer;
-    /// the cache is intentionally never evicted (our meshes are long-lived
-    /// scene geometry). Picking is single-threaded, so a plain mutex is enough.
-    inline static std::unordered_map<const TriangleMesh3*, std::shared_ptr<BoundingVolumeHierarchy>> vertexBVHCache_;
-    inline static std::unordered_map<const TriangleMesh3*, std::shared_ptr<BoundingVolumeHierarchy>> edgeBVHCache_;
+    /// Per-mesh BVH caches. The tree is built once and reused until the mesh
+    /// geometry epoch changes (see TriangleMesh3::geometryEpoch), which happens
+    /// on every in-place mutation or replacement. Keyed by mesh pointer with
+    /// the epoch captured at build time, so a stale tree is transparently
+    /// rebuilt. Picking is single-threaded, so a plain mutex is enough.
+    using BVHEntry = std::pair<std::shared_ptr<BoundingVolumeHierarchy>, std::uint32_t>;
+    inline static std::unordered_map<const TriangleMesh3*, BVHEntry> vertexBVHCache_;
+    inline static std::unordered_map<const TriangleMesh3*, BVHEntry> edgeBVHCache_;
     inline static std::mutex bvhMutex_;
 
     static const BoundingVolumeHierarchy& cachedVertexBVH(const TriangleMesh3& mesh)
     {
         std::lock_guard<std::mutex> lock(bvhMutex_);
-        if (auto it = vertexBVHCache_.find(&mesh); it != vertexBVHCache_.end())
-            return *it->second;
+        auto it = vertexBVHCache_.find(&mesh);
+        if (it != vertexBVHCache_.end() && it->second.second == mesh.geometryEpoch)
+            return *it->second.first;
         auto bvh = std::make_shared<BoundingVolumeHierarchy>();
         bvh->buildPoints(mesh.vertices);
-        auto result = vertexBVHCache_.emplace(&mesh, std::move(bvh));
-        return *result.first->second;
+        // operator[] inserts-or-replaces: emplace() would silently keep the
+        // stale entry when the key already exists (e.g. after an epoch bump),
+        // which is exactly the deform scenario we must invalidate.
+        auto& entry = vertexBVHCache_[&mesh];
+        entry = BVHEntry{std::move(bvh), mesh.geometryEpoch};
+        return *entry.first;
     }
 
     static const BoundingVolumeHierarchy& cachedEdgeBVH(const TriangleMesh3& mesh)
     {
         std::lock_guard<std::mutex> lock(bvhMutex_);
-        if (auto it = edgeBVHCache_.find(&mesh); it != edgeBVHCache_.end())
-            return *it->second;
+        auto it = edgeBVHCache_.find(&mesh);
+        if (it != edgeBVHCache_.end() && it->second.second == mesh.geometryEpoch)
+            return *it->second.first;
         auto bvh = std::make_shared<BoundingVolumeHierarchy>();
         std::vector<BVHAABB> boxes;
         boxes.reserve(mesh.triangles.size() * 3);
@@ -550,8 +632,9 @@ private:
             }
         }
         bvh->build(boxes, idx);
-        auto result = edgeBVHCache_.emplace(&mesh, std::move(bvh));
-        return *result.first->second;
+        auto& entry = edgeBVHCache_[&mesh];
+        entry = BVHEntry{std::move(bvh), mesh.geometryEpoch};
+        return *entry.first;
     }
 
 

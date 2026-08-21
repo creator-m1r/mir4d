@@ -266,18 +266,102 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 
-    /// Attaches engine-computed geometric metrics (face area / edge length)
-    /// to the current primary selection without replacing it.
-    func setSelectionElementMetrics(faceArea: Double, edgeLength: Double) {
+    /// Attaches engine-computed geometric metrics (face area / edge length /
+    /// stable source B-Rep edge id) to the current primary selection without
+    /// replacing it.
+    func setSelectionElementMetrics(faceArea: Double, edgeLength: Double, edgeSourceId: UInt64 = 0) {
         guard selection.hasSelection else { return }
         selection.faceArea = faceArea
         selection.edgeLength = edgeLength
+        selection.edgeSourceId = edgeSourceId
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 
     /// Records how many objects are held by the current box (multi) selection.
     func setSelectionCount(_ count: Int) {
         selection.multiCount = count
+        MirEventBus.shared.publish(.selectionChanged(selection))
+    }
+
+    /// Parses the JSON geometry brief for an arbitrary object id into a
+    /// `CADObjectMetrics` value, or nil when the object has no mesh.
+    private func objectMetrics(for objectId: UInt64) -> CADObjectMetrics? {
+        guard let viewport = MIR4DModelRuntime.shared.viewport else { return nil }
+        var buffer = [CChar](repeating: 0, count: 1024)
+        guard MirEngineGetObjectMetricsById(viewport, objectId, &buffer, buffer.count) else { return nil }
+
+        let json = String(
+            decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+            as: UTF8.self
+        )
+        guard let data = json.data(using: .utf8),
+              let dict = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any],
+              (dict["hasGeometry"] as? Bool) == true else { return nil }
+
+        return CADObjectMetrics(
+            objectId: (dict["objectId"] as? NSNumber)?.uint64Value ?? objectId,
+            sizeX: dict["sizeX"] as? Double ?? 0,
+            sizeY: dict["sizeY"] as? Double ?? 0,
+            sizeZ: dict["sizeZ"] as? Double ?? 0,
+            volume: dict["volume"] as? Double ?? 0,
+            surfaceArea: dict["surfaceArea"] as? Double ?? 0,
+            vertexCount: dict["vertexCount"] as? Int ?? 0,
+            faceCount: dict["faceCount"] as? Int ?? 0
+        )
+    }
+
+    /// Builds a `CADSelectedItem` for the given object / sub-element, attaching
+    /// a compact metric line: per-face area, per-edge length, or (for bodies)
+    /// the bounding-box / volume. `kindRaw` follows the PickKind numbering
+    /// (1 Body, 2 Face, 3 Edge, 4 Vertex).
+    func selectedItem(for objectId: UInt64, kindRaw: Int32 = 1, elementId: UInt64 = 0) -> CADSelectedItem {
+        let ru = ui.language == .russian
+        let kind: CADSelectionKind = {
+            switch kindRaw {
+                case 2: return .face
+                case 3: return .edge
+                case 4: return .vertex
+                case 1: return .body
+                default: return .none
+            }
+        }()
+        var label: String
+        var detail = ""
+        switch kindRaw {
+        case 2:
+            label = ru ? "Грань #\(elementId)" : "Face #\(elementId)"
+            var area: Double = 0
+            var len: Double = 0
+            if let vp = MIR4DModelRuntime.shared.viewport,
+               MirEngineGetElementMetric(vp, objectId, 2, elementId, &area, &len) {
+                detail = ru ? String(format: "Площадь: %.4g", area)
+                            : String(format: "Area: %.4g", area)
+            }
+        case 3:
+            label = ru ? "Ребро #\(elementId)" : "Edge #\(elementId)"
+            var area: Double = 0
+            var len: Double = 0
+            if let vp = MIR4DModelRuntime.shared.viewport,
+               MirEngineGetElementMetric(vp, objectId, 3, elementId, &area, &len) {
+                detail = ru ? String(format: "Длина: %.4g", len)
+                            : String(format: "Length: %.4g", len)
+            }
+        case 4:
+            label = ru ? "Вершина #\(elementId)" : "Vertex #\(elementId)"
+        default:
+            label = ru ? "Объект #\(objectId)" : "Object #\(objectId)"
+            if let geo = objectMetrics(for: objectId) {
+                detail = ru
+                    ? String(format: "▢ %.4g × %.4g × %.4g · V %.4g", geo.sizeX, geo.sizeY, geo.sizeZ, geo.volume)
+                    : String(format: "▢ %.4g × %.4g × %.4g · V %.4g", geo.sizeX, geo.sizeY, geo.sizeZ, geo.volume)
+            }
+        }
+        return CADSelectedItem(objectId: objectId, kind: kind, elementId: elementId, label: label, detail: detail)
+    }
+
+    /// Replaces the multi-selection item list shown by the inspector.
+    func setSelectionItems(_ items: [CADSelectedItem]) {
+        selection.selectedItems = items
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 
