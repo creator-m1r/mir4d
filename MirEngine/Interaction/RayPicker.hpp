@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MirEngine/Interaction/PickTypes.hpp"
+#include "MirEngine/Interaction/BoundingVolumeHierarchy.hpp"
 #include "MirEngine/Geometry/Scene/Scene.hpp"
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
 #include "MirEngine/Math/Point.hpp"
@@ -11,7 +12,10 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 namespace mir
@@ -290,7 +294,25 @@ public:
                 const auto& mesh = node->model()->mesh();
                 if (nodeOutsideRaySphere(ray, transform, mesh, broadTolerance))
                     continue;
-                for (std::size_t vi = 0; vi < mesh.vertices.size(); ++vi)
+
+                // Accelerate the vertex pass with a per-mesh BVH built in the
+                // node's local space. The ray is transformed into that space and
+                // queried with a conservatively inflated radius (world radius
+                // divided by the minimum node scale), so every true hit survives
+                // as a candidate; the precise world-space test below is unchanged.
+                const Transform inv = transform.inverse();
+                const PickRay localRay{inv.transformPoint(ray.origin),
+                                       inv.transformDirection(dir).normalized()};
+                const Scalar minScale = std::max(
+                    Scalar(1e-6),
+                    std::min({std::abs(transform.scale.x),
+                              std::abs(transform.scale.y),
+                              std::abs(transform.scale.z)}));
+                const Scalar localVertexRadius = vertexWorldRadius / minScale;
+                std::vector<std::size_t> candidates;
+                cachedVertexBVH(mesh).queryRay(
+                    localRay.origin, localRay.direction, localVertexRadius, candidates);
+                for (std::size_t vi : candidates)
                 {
                     const Point3 wp = transform.transformPoint(mesh.vertices[vi]);
                     const Vector3 op = Vector3{wp.x - ray.origin.x,
@@ -337,36 +359,52 @@ public:
                 const auto& mesh = node->model()->mesh();
                 if (nodeOutsideRaySphere(ray, transform, mesh, broadTolerance))
                     continue;
-                for (std::size_t ti = 0; ti < mesh.triangles.size(); ++ti)
+
+                // Same local-space BVH acceleration for the edge pass. The edge
+                // hierarchy is built over every triangle edge; decoded candidates
+                // keep the identical (ti*3 + e) element-id encoding and the same
+                // precise world-space acceptance test.
+                const Transform inv = transform.inverse();
+                const PickRay localRay{inv.transformPoint(ray.origin),
+                                       inv.transformDirection(dir).normalized()};
+                const Scalar minScale = std::max(
+                    Scalar(1e-6),
+                    std::min({std::abs(transform.scale.x),
+                              std::abs(transform.scale.y),
+                              std::abs(transform.scale.z)}));
+                const Scalar localEdgeRadius = edgeWorldRadius / minScale;
+                std::vector<std::size_t> candidates;
+                cachedEdgeBVH(mesh).queryRay(
+                    localRay.origin, localRay.direction, localEdgeRadius, candidates);
+                for (std::size_t ei : candidates)
                 {
+                    const std::size_t ti = ei / 3;
+                    const int e = static_cast<int>(ei % 3);
                     const auto& tri = mesh.triangles[ti];
                     const std::size_t edges[3][2] = {
                         {tri.a, tri.b}, {tri.b, tri.c}, {tri.c, tri.a}};
-                    for (int e = 0; e < 3; ++e)
+                    const Point3 wa = transform.transformPoint(mesh.vertices[edges[e][0]]);
+                    const Point3 wb = transform.transformPoint(mesh.vertices[edges[e][1]]);
+                    const Point3 mid{(wa.x + wb.x) * Scalar(0.5),
+                                    (wa.y + wb.y) * Scalar(0.5),
+                                    (wa.z + wb.z) * Scalar(0.5)};
+                    const Vector3 op{mid.x - ray.origin.x,
+                                     mid.y - ray.origin.y,
+                                     mid.z - ray.origin.z};
+                    const Scalar t = Vector3::dot(op, dir);
+                    if (t <= Scalar(0))
+                        continue;
+                    const Point3 closest{ray.origin.x + dir.x * t,
+                                         ray.origin.y + dir.y * t,
+                                         ray.origin.z + dir.z * t};
+                    const Vector3 diff{mid.x - closest.x,
+                                       mid.y - closest.y,
+                                       mid.z - closest.z};
+                    const Scalar d = diff.length();
+                    if (d <= edgeWorldRadius)
                     {
-                        const Point3 wa = transform.transformPoint(mesh.vertices[edges[e][0]]);
-                        const Point3 wb = transform.transformPoint(mesh.vertices[edges[e][1]]);
-                        const Point3 mid{(wa.x + wb.x) * Scalar(0.5),
-                                        (wa.y + wb.y) * Scalar(0.5),
-                                        (wa.z + wb.z) * Scalar(0.5)};
-                        const Vector3 op{mid.x - ray.origin.x,
-                                         mid.y - ray.origin.y,
-                                         mid.z - ray.origin.z};
-                        const Scalar t = Vector3::dot(op, dir);
-                        if (t <= Scalar(0))
-                            continue;
-                        const Point3 closest{ray.origin.x + dir.x * t,
-                                             ray.origin.y + dir.y * t,
-                                             ray.origin.z + dir.z * t};
-                        const Vector3 diff{mid.x - closest.x,
-                                           mid.y - closest.y,
-                                           mid.z - closest.z};
-                        const Scalar d = diff.length();
-                        if (d <= edgeWorldRadius)
-                        {
-                            if (!best || d < best->screenDist)
-                                best = {node->id(), ti * 3u + static_cast<std::uint64_t>(e), mid, d};
-                        }
+                        if (!best || d < best->screenDist)
+                            best = {node->id(), ti * 3u + static_cast<std::uint64_t>(e), mid, d};
                     }
                 }
             }
@@ -467,6 +505,56 @@ private:
         bool hit{false};
     };
 
+    /// Per-mesh BVH caches. Meshes are stable for the lifetime of a pick
+    /// session, so the trees are built once and reused. Keyed by mesh pointer;
+    /// the cache is intentionally never evicted (our meshes are long-lived
+    /// scene geometry). Picking is single-threaded, so a plain mutex is enough.
+    inline static std::unordered_map<const TriangleMesh3*, std::shared_ptr<BoundingVolumeHierarchy>> vertexBVHCache_;
+    inline static std::unordered_map<const TriangleMesh3*, std::shared_ptr<BoundingVolumeHierarchy>> edgeBVHCache_;
+    inline static std::mutex bvhMutex_;
+
+    static const BoundingVolumeHierarchy& cachedVertexBVH(const TriangleMesh3& mesh)
+    {
+        std::lock_guard<std::mutex> lock(bvhMutex_);
+        if (auto it = vertexBVHCache_.find(&mesh); it != vertexBVHCache_.end())
+            return *it->second;
+        auto bvh = std::make_shared<BoundingVolumeHierarchy>();
+        bvh->buildPoints(mesh.vertices);
+        auto result = vertexBVHCache_.emplace(&mesh, std::move(bvh));
+        return *result.first->second;
+    }
+
+    static const BoundingVolumeHierarchy& cachedEdgeBVH(const TriangleMesh3& mesh)
+    {
+        std::lock_guard<std::mutex> lock(bvhMutex_);
+        if (auto it = edgeBVHCache_.find(&mesh); it != edgeBVHCache_.end())
+            return *it->second;
+        auto bvh = std::make_shared<BoundingVolumeHierarchy>();
+        std::vector<BVHAABB> boxes;
+        boxes.reserve(mesh.triangles.size() * 3);
+        std::vector<std::size_t> idx;
+        idx.reserve(mesh.triangles.size() * 3);
+        for (std::size_t ti = 0; ti < mesh.triangles.size(); ++ti)
+        {
+            const auto& t = mesh.triangles[ti];
+            const std::size_t edges[3][2] = {{t.a, t.b}, {t.b, t.c}, {t.c, t.a}};
+            for (int k = 0; k < 3; ++k)
+            {
+                const Point3 p0 = mesh.vertices[edges[k][0]];
+                const Point3 p1 = mesh.vertices[edges[k][1]];
+                BVHAABB b{};
+                b.min = Point3{std::min(p0.x, p1.x), std::min(p0.y, p1.y), std::min(p0.z, p1.z)};
+                b.max = Point3{std::max(p0.x, p1.x), std::max(p0.y, p1.y), std::max(p0.z, p1.z)};
+                boxes.push_back(b);
+                idx.push_back(ti * 3u + static_cast<std::size_t>(k));
+            }
+        }
+        bvh->build(boxes, idx);
+        auto result = edgeBVHCache_.emplace(&mesh, std::move(bvh));
+        return *result.first->second;
+    }
+
+
     struct SubHit
     {
         mir4d::ObjectId objectId{mir4d::InvalidObjectId};
@@ -541,6 +629,7 @@ private:
         return best;
     }
 
+public:
     /// Projects a world point to viewport pixel coordinates (origin bottom-left).
     /// Returns nullopt for points behind the camera or outside the clip volume.
     [[nodiscard]] static std::optional<std::pair<Scalar, Scalar>> projectToScreen(

@@ -124,6 +124,14 @@ final class MirGLCustomView: NSView {
     private var leftMouseDownPoint: NSPoint?
     private var leftMouseDidDrag = false
 
+    // Box (rectangle) selection drag state. Triggered by holding the Option
+    // key while dragging; the resulting screen rectangle is forwarded to the
+    // engine as a multi (box) selection.
+    private var boxSelectStart: NSPoint?
+    private var boxSelectCurrent: NSPoint?
+    private var isBoxSelecting = false
+    private let boxOverlay = BoxSelectionOverlayView()
+
     // MARK: Radial menu
 
     private enum RadialTrigger {
@@ -1187,14 +1195,14 @@ final class MirGLCustomView: NSView {
                 guard let modeString = notification.userInfo?["mode"] as? String else {
                     return
                 }
-                // 0 = Body, 1 = Face, 2 = Edge, 3 = Vertex
+                // Mirrors PickKind: 0 = None, 1 = Body, 2 = Face, 3 = Edge, 4 = Vertex
                 let modeIndex: Int32
                 switch modeString {
-                    case "body": modeIndex = 0
-                    case "face": modeIndex = 1
-                    case "edge": modeIndex = 2
-                    case "vertex": modeIndex = 3
-                    default: modeIndex = 0
+                    case "body": modeIndex = 1
+                    case "face": modeIndex = 2
+                    case "edge": modeIndex = 3
+                    case "vertex": modeIndex = 4
+                    default: modeIndex = 1
                 }
                 DispatchQueue.main.async { [weak self] in
                     MirGLCustomView.engineLock.lock()
@@ -1743,6 +1751,13 @@ final class MirGLCustomView: NSView {
         MirGLCustomView.engineLock.unlock()
 
         onSelectionChanged?(objectID, kind, elementId)
+
+        if let viewport {
+            let faceArea = MirEngineGetSelectionFaceArea(viewport)
+            let edgeLength = MirEngineGetSelectionEdgeLength(viewport)
+            appState?.setSelectionElementMetrics(faceArea: faceArea, edgeLength: edgeLength)
+            appState?.setSelectionCount(Int(MirEngineGetSelectionCount(viewport)))
+        }
     }
 
     // MARK: Radial Menu
@@ -2045,6 +2060,15 @@ final class MirGLCustomView: NSView {
                 from: nil
             )
 
+        // Option-drag starts a rectangle (box) selection instead of orbit.
+        if event.modifierFlags.contains(.option) {
+            isBoxSelecting = true
+            boxSelectStart = localPoint
+            boxSelectCurrent = localPoint
+            updateBoxOverlay()
+            return
+        }
+
         leftMouseDownPoint = localPoint
 
         leftMouseDidDrag = false
@@ -2060,6 +2084,40 @@ final class MirGLCustomView: NSView {
     override func mouseUp(
         with event: NSEvent
     ) {
+
+        // Finish a rectangle selection drag.
+        if isBoxSelecting {
+            defer {
+                isBoxSelecting = false
+                boxSelectStart = nil
+                boxSelectCurrent = nil
+                boxOverlay.isHidden = true
+            }
+
+            guard
+                let start = boxSelectStart,
+                let end = boxSelectCurrent
+            else {
+                return
+            }
+
+            let a = enginePoint(start)
+            let b = enginePoint(end)
+            let additive = event.modifierFlags.contains(.shift)
+
+            MirGLCustomView.engineLock.lock()
+            if let viewport {
+                MirEngineViewportBoxSelect(
+                    viewport,
+                    a.0, a.1, b.0, b.1,
+                    additive
+                )
+            }
+            MirGLCustomView.engineLock.unlock()
+
+            publishSelection()
+            return
+        }
 
         let localPoint =
             convert(
@@ -2146,6 +2204,17 @@ final class MirGLCustomView: NSView {
             return
         }
 
+        // Rectangle selection drag: update the overlay and the engine rect.
+        if isBoxSelecting {
+            boxSelectCurrent =
+                convert(
+                    event.locationInWindow,
+                    from: nil
+                )
+            updateBoxOverlay()
+            return
+        }
+
         radialActivationWorkItem?.cancel()
         radialActivationWorkItem = nil
 
@@ -2153,6 +2222,37 @@ final class MirGLCustomView: NSView {
 
         forwardMouseMove(event)
         publishCameraOrientation()
+    }
+
+    // MARK: Box selection overlay
+
+    private func updateBoxOverlay() {
+        if boxOverlay.superview == nil {
+            boxOverlay.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(boxOverlay)
+            NSLayoutConstraint.activate([
+                boxOverlay.leadingAnchor.constraint(equalTo: leadingAnchor),
+                boxOverlay.trailingAnchor.constraint(equalTo: trailingAnchor),
+                boxOverlay.topAnchor.constraint(equalTo: topAnchor),
+                boxOverlay.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
+
+        guard
+            let start = boxSelectStart,
+            let end = boxSelectCurrent
+        else {
+            boxOverlay.isHidden = true
+            return
+        }
+
+        let x = min(start.x, end.x)
+        let y = min(start.y, end.y)
+        let w = abs(end.x - start.x)
+        let h = abs(end.y - start.y)
+        boxOverlay.rect = NSRect(x: x, y: y, width: w, height: h)
+        boxOverlay.isHidden = (w < 1 && h < 1)
+        boxOverlay.needsDisplay = true
     }
 
     // MARK: Hover
@@ -2713,4 +2813,26 @@ struct MirGLView: NSViewRepresentable {
         nsView.onCameraOrientationChanged =
             onCameraOrientationChanged
     }
+}
+
+/// Transparent overlay used to draw the rectangle (box) selection marquee.
+/// It never receives mouse events (hitTest returns nil) so drags keep flowing
+/// to the underlying viewport.
+private final class BoxSelectionOverlayView: NSView {
+
+    var rect: NSRect = .zero
+
+    override var isOpaque: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard !rect.isEmpty else { return }
+        NSColor.controlAccentColor.withAlphaComponent(0.18).setFill()
+        NSColor.controlAccentColor.setStroke()
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 1.0 / max(1.0, window?.backingScaleFactor ?? 1.0)
+        path.fill()
+        path.stroke()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

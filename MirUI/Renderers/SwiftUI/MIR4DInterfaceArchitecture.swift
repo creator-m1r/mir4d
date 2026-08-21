@@ -359,12 +359,35 @@ enum CADSelectionKind: String, Hashable {
     case unknown
 }
 
+extension CADSelectionKind {
+    /// Single source of truth mapping the engine `PickKind` integer
+    /// (None=0, Body=1, Face=2, Edge=3, Vertex=4) to the UI selection kind.
+    init(engineKind: Int32) {
+        switch engineKind {
+            case 1: self = .body
+            case 2: self = .face
+            case 3: self = .edge
+            case 4: self = .vertex
+            default: self = .none
+        }
+    }
+}
+
 struct CADSelectionState: Equatable {
     var ids: [String] = []
     var primaryKind: CADSelectionKind = .none
     /// Element id of the primary sub-object selection (vertex / edge / face
     /// index as reported by the engine). 0 for body-level or empty selection.
     var primaryElementId: UInt64 = 0
+
+    /// Geometric metrics of the primary sub-object selection (world units).
+    /// Populated by the engine when the selection is a face (area) or edge (length).
+    var faceArea: Double = 0
+    var edgeLength: Double = 0
+
+    /// Number of objects held by the box (multi) selection. 1 for a single
+    /// pick, >1 after a rectangle selection, 0 when nothing is selected.
+    var multiCount: Int = 0
 
     var count: Int { ids.count }
     var hasSelection: Bool { !ids.isEmpty }
@@ -380,6 +403,19 @@ struct CADSelectionState: Equatable {
             case .face: return "Грань #\(primaryElementId)"
             case .body: return "Тело"
             default: return "Элемент"
+        }
+    }
+
+    /// Metric text for the primary sub-object selection, e.g.
+    /// "Площадь: 1.23", "Длина: 0.45", or empty for body/vertex/none.
+    var primaryMetricText: String {
+        switch primaryKind {
+            case .face where faceArea > 0:
+                return "Площадь: \(String(format: "%.4g", faceArea))"
+            case .edge where edgeLength > 0:
+                return "Длина: \(String(format: "%.4g", edgeLength))"
+            default:
+                return ""
         }
     }
 }

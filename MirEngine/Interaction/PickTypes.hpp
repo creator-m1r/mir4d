@@ -16,11 +16,11 @@ namespace mir
 /// kinds are allowed (see PickFilter).
 enum class PickKind
 {
-    None,
-    Vertex,
-    Edge,
-    Face,
-    Body
+    None = 0,
+    Body = 1,
+    Face = 2,
+    Edge = 3,
+    Vertex = 4
 };
 
 /// Result of a pick query. `kind == None` means nothing was hit.
@@ -61,26 +61,27 @@ struct PickFilter
 };
 
 /// Builds a pick filter from a coarse selection mode.
-/// 0 = Body, 1 = Face, 2 = Edge, 3 = Vertex.
+/// Uses the same numbering as `PickKind`:
+/// 0 = None, 1 = Body, 2 = Face, 3 = Edge, 4 = Vertex.
 [[nodiscard]] inline PickFilter makePickFilter(int mode) noexcept
 {
     PickFilter f{};
     switch (mode)
     {
-        case 0: // Body
+        case 1: // Body
             f.body = true;
             f.face = f.edge = f.vertex = false;
             break;
-        case 1: // Face
+        case 2: // Face
             f.face = true;
             f.vertex = true; // face mode may still snap to nearby vertices
             f.body = f.edge = false;
             break;
-        case 2: // Edge
+        case 3: // Edge
             f.edge = true;
             f.body = f.face = f.vertex = false;
             break;
-        case 3: // Vertex
+        case 4: // Vertex
             f.vertex = true;
             f.body = f.face = f.edge = false;
             break;

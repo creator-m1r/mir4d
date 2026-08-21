@@ -1099,6 +1099,55 @@ uint64_t MirEngineGetSelectionElementId(
     return native->runtime->state().selection.elementId();
 }
 
+void MirEngineViewportBoxSelect(
+    void* viewport,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    bool additive
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->selectInRect(
+        x0,
+        y0,
+        x1,
+        y1,
+        additive
+    );
+}
+
+int MirEngineGetSelectionCount(
+    void* viewport
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return 0;
+
+    return static_cast<int>(native->runtime->state().multiSelectionCount());
+}
+
+uint64_t MirEngineGetSelectionItem(
+    void* viewport,
+    int index
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime)
+        return 0;
+
+    return static_cast<uint64_t>(
+        native->runtime->state().multiSelectionAt(
+            static_cast<std::size_t>(index < 0 ? 0 : index)
+        )
+    );
+}
+
 
 bool MirEngineDeformSelected(
     void* viewport,
@@ -1263,6 +1312,72 @@ bool MirEngineGetSelectedObjectMetrics(
         double(bmin.x), double(bmin.y), double(bmin.z),
         double(bmax.x), double(bmax.y), double(bmax.z));
     return true;
+}
+
+double MirEngineGetSelectionFaceArea(void* viewport)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return 0.0;
+
+    const auto& sel = native->runtime->state().selection;
+    if (sel.kind() != mir::PickKind::Face)
+        return 0.0;
+
+    const auto node = native->scene->find(sel.primary());
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return 0.0;
+
+    const auto& mesh = node->model()->mesh();
+    const std::uint64_t faceId = sel.elementId();
+    const mir::Transform transform = node->transform();
+
+    double area = 0.0;
+    bool found = false;
+    for (const auto& tri : mesh.triangles)
+    {
+        if (tri.sourceFaceId != faceId)
+            continue;
+        found = true;
+        const mir::Point3 a = transform.transformPoint(mesh.vertices[tri.a]);
+        const mir::Point3 b = transform.transformPoint(mesh.vertices[tri.b]);
+        const mir::Point3 c = transform.transformPoint(mesh.vertices[tri.c]);
+        const mir::Vector3 e1 = b - a;
+        const mir::Vector3 e2 = c - a;
+        area += 0.5 * mir::Vector3::cross(e1, e2).length();
+    }
+    return found ? area : 0.0;
+}
+
+double MirEngineGetSelectionEdgeLength(void* viewport)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return 0.0;
+
+    const auto& sel = native->runtime->state().selection;
+    if (sel.kind() != mir::PickKind::Edge)
+        return 0.0;
+
+    const auto node = native->scene->find(sel.primary());
+    if (!node || !node->model() || node->model()->mesh().empty())
+        return 0.0;
+
+    const auto& mesh = node->model()->mesh();
+    const std::uint64_t elementId = sel.elementId();
+    const std::size_t ti = static_cast<std::size_t>(elementId / 3);
+    const int e = static_cast<int>(elementId % 3);
+    if (ti >= mesh.triangles.size())
+        return 0.0;
+
+    const auto& tri = mesh.triangles[ti];
+    const std::size_t ends[2] = {
+        (e == 0) ? tri.a : (e == 1) ? tri.b : tri.c,
+        (e == 0) ? tri.b : (e == 1) ? tri.c : tri.a};
+    const mir::Transform transform = node->transform();
+    const mir::Point3 a = transform.transformPoint(mesh.vertices[ends[0]]);
+    const mir::Point3 b = transform.transformPoint(mesh.vertices[ends[1]]);
+    return (b - a).length();
 }
 
 // Deletes the primary selection through the canonical Scene API.

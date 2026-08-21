@@ -24,6 +24,18 @@ struct CADViewportContextActionBar: View {
         if hasSelection {
             HStack(spacing: 6) {
                 selectionBadge
+                if !appState.selection.primaryMetricText.isEmpty {
+                    Text(appState.selection.primaryMetricText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(MirTheme.Colors.textSecondary)
+                        .lineLimit(1)
+                }
+                if appState.selection.multiCount > 1 {
+                    Text("· \(appState.selection.multiCount) объектов")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(MirTheme.Colors.accent)
+                        .lineLimit(1)
+                }
                 Divider().frame(height: 22)
 
                 ForEach(commands) { command in

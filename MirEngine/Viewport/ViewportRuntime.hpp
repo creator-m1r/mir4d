@@ -501,12 +501,13 @@ public:
     }
 
     /// Picks against an explicit world-space ray (hand tracking input).
+    /// Uses the active selection filter so spatial input honours the mode.
     [[nodiscard]] PickResult pickWorldRay(
         const Point3& origin, const Vector3& direction) const noexcept
     {
         if (!scene_)
             return {};
-        return RayPicker::pick(*scene_, PickRay{origin, direction});
+        return RayPicker::pick(*scene_, PickRay{origin, direction}, state_.pickFilter);
     }
 
     /// Assigns a MaterialLibrary material id to an object.
@@ -539,6 +540,20 @@ public:
         else
             state_.selection.selectElement(result.kind, result.objectId, result.elementId);
         return true;
+    }
+
+    /// Selects all objects whose projected bounds intersect the screen-space
+    /// rectangle. See ViewportState::selectInRect for the picking semantics.
+    bool selectInRect(Scalar x0, Scalar y0, Scalar x1, Scalar y1, bool additive = false) noexcept
+    {
+        if (!scene_)
+        {
+            if (!additive)
+                state_.selection.clear();
+            return false;
+        }
+        state_.selectInRect(*scene_, x0, y0, x1, y1, additive);
+        return !state_.multiSelection.empty();
     }
 
     void update(double /*deltaTime*/) noexcept
@@ -658,27 +673,28 @@ public:
 
         // Selection highlight set for the geometry pass. Sub-object selection
         // (face / edge / vertex) highlights only that element; the whole object
-        // still receives a subtle selection tint.
+        // still receives a subtle selection tint. A box (rectangle) selection
+        // populates state_.multiSelection, which is highlighted as a set of
+        // bodies; in that case the primary selection mirrors the first hit.
         const auto& sel = state_.selection;
+        const bool hasBoxSelection = !state_.multiSelection.empty();
+        const auto& highlightSet = hasBoxSelection ? state_.multiSelection : sel.ids();
         const auto primaryId =
             static_cast<std::uint64_t>(sel.primary());
+
+        context.setSelection(&highlightSet);
+
         if (sel.kind() == PickKind::Face && sel.elementId() != 0)
         {
             context.setSelectionFace(primaryId, sel.elementId());
         }
         else if (sel.kind() == PickKind::Edge)
         {
-            context.setSelection(&sel.ids());
             context.setSelectionEdge(primaryId, sel.elementId());
         }
         else if (sel.kind() == PickKind::Vertex)
         {
-            context.setSelection(&sel.ids());
             context.setSelectionVertex(primaryId, sel.elementId());
-        }
-        else
-        {
-            context.setSelection(&sel.ids());
         }
 
         if (state_.hoveredObjectId != mir4d::InvalidObjectId)

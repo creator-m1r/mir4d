@@ -266,6 +266,21 @@ final class CADAppState: ObservableObject {
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 
+    /// Attaches engine-computed geometric metrics (face area / edge length)
+    /// to the current primary selection without replacing it.
+    func setSelectionElementMetrics(faceArea: Double, edgeLength: Double) {
+        guard selection.hasSelection else { return }
+        selection.faceArea = faceArea
+        selection.edgeLength = edgeLength
+        MirEventBus.shared.publish(.selectionChanged(selection))
+    }
+
+    /// Records how many objects are held by the current box (multi) selection.
+    func setSelectionCount(_ count: Int) {
+        selection.multiCount = count
+        MirEventBus.shared.publish(.selectionChanged(selection))
+    }
+
     func toggleGrid() { gridVisible.toggle() }
     func toggleAxes() { axesVisible.toggle() }
     func toggleSection() { sectionMode.toggle() }

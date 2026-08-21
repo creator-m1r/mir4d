@@ -1,8 +1,13 @@
 #include "MirEngine/Document/Document.hpp"
 #include "MirEngine/Geometry/Model/Model.hpp"
 #include "MirEngine/Interaction/RayPicker.hpp"
+#include "MirEngine/Interaction/BoundingVolumeHierarchy.hpp"
 #include "MirEngine/Viewport/Camera.hpp"
+#include "MirEngine/Viewport/ViewportState.hpp"
 #include "MirEngine/Math/Transform.hpp"
+
+#include <random>
+#include <set>
 
 #include <cassert>
 #include <cmath>
@@ -33,6 +38,121 @@ std::shared_ptr<mir::Model> makeBoxModel()
     auto model = std::make_shared<mir::Model>();
     model->setMesh(makeBox());
     return model;
+}
+
+void runHierarchicalTests()
+{
+    // Single unit cube at the origin: deterministic geometry for sub-object
+    // picking. Vertex indices follow makeBox()'s ordering.
+    mir4d::Document doc("hierarchical");
+    auto model = makeBoxModel();
+    auto node = doc.scene().createNode(model);
+    const auto id = node->id();
+
+    const mir::Point3 v0{-1.0, -1.0, -1.0};                  // vertex index 0
+    const mir::Point3 edgeMid{0.0, -1.0, -1.0};             // midpoint of edge (v0,v1): tri 0, edge 0
+    const mir::Point3 faceMid{1.0 / 3.0, -1.0 / 3.0, -1.0}; // centroid of triangle 0
+
+    auto rayThrough = [](const mir::Point3& p) {
+        return mir::PickRay{mir::Point3{p.x, p.y, p.z + 0.05}, mir::Vector3{0.0, 0.0, -1.0}};
+    };
+
+    // Vertex mode (filter index 4) through vertex 0 -> Vertex, elementId 0.
+    {
+        const auto r = mir::RayPicker::pick(doc.scene(), rayThrough(v0), mir::makePickFilter(4));
+        assert(r.hit());
+        assert(r.kind == mir::PickKind::Vertex);
+        assert(r.objectId == id);
+        assert(r.elementId == 0);
+    }
+
+    // Edge mode (filter index 3) through edge midpoint -> Edge, elementId 0.
+    {
+        const auto r = mir::RayPicker::pick(doc.scene(), rayThrough(edgeMid), mir::makePickFilter(3));
+        assert(r.hit());
+        assert(r.kind == mir::PickKind::Edge);
+        assert(r.elementId == 0);
+    }
+
+    // Face mode (filter index 2) through face centroid -> Face.
+    {
+        const auto r = mir::RayPicker::pick(doc.scene(), rayThrough(faceMid), mir::makePickFilter(2));
+        assert(r.hit());
+        assert(r.kind == mir::PickKind::Face);
+        assert(r.objectId == id);
+    }
+
+    // Body mode (filter index 1) through centroid -> Body, elementId 0.
+    {
+        const auto r = mir::RayPicker::pick(doc.scene(), rayThrough(faceMid), mir::makePickFilter(1));
+        assert(r.hit());
+        assert(r.kind == mir::PickKind::Body);
+        assert(r.elementId == 0);
+    }
+
+    // Vertex mode (filter 4) but cursor far from any vertex -> strict miss.
+    {
+        const auto r = mir::RayPicker::pick(doc.scene(), rayThrough(faceMid), mir::makePickFilter(4));
+        assert(!r.hit());
+        assert(r.kind == mir::PickKind::None);
+    }
+}
+
+} // namespace
+
+namespace
+{
+
+void runBoxSelectionTests()
+{
+    mir4d::Document doc("box-selection");
+
+    auto leftNode = doc.scene().createNode(makeBoxModel());
+    mir::Transform leftT;
+    leftT.position = {-18.0, 0.0, 0.0};
+    leftNode->setTransform(leftT);
+
+    auto rightNode = doc.scene().createNode(makeBoxModel());
+    mir::Transform rightT;
+    rightT.position = {18.0, 0.0, 0.0};
+    rightNode->setTransform(rightT);
+
+    mir::Camera camera;
+    camera.setTarget({0.0, 0.0, 0.0});
+    camera.setOrbit(0.0, 0.0, 20.0);
+    camera.setProjection(mir::CameraProjection::Orthographic);
+    camera.setAspect(800.0 / 600.0);
+
+    const std::uint32_t width = 800;
+    const std::uint32_t height = 600;
+
+    mir::ViewportState state;
+    state.camera = camera;
+    state.resize(width, height);
+
+    mir::Scene& scene = doc.scene();
+
+    // Right-half rectangle intersects only the right node.
+    state.selectInRect(scene, width * 0.55f, 0.0f, width * 0.95f,
+                       static_cast<float>(height), false);
+    assert(state.multiSelectionCount() == 1);
+    assert(state.multiSelectionAt(0) == rightNode->id());
+    assert(state.selection.primary() == rightNode->id());
+
+    // Whole-viewport rectangle selects both cubes.
+    state.selectInRect(scene, 0.0f, 0.0f, static_cast<float>(width),
+                       static_cast<float>(height), false);
+    assert(state.multiSelectionCount() == 2);
+
+    // Additive selection over the right half unions with the existing set.
+    state.selectInRect(scene, width * 0.55f, 0.0f, width * 0.95f,
+                       static_cast<float>(height), true);
+    assert(state.multiSelectionCount() == 2);
+
+    // A rectangle in empty space clears the selection (non-additive).
+    state.selectInRect(scene, 1.0f, 1.0f, 2.0f, 2.0f, false);
+    assert(state.multiSelectionCount() == 0);
+    assert(state.selection.primary() == mir4d::InvalidObjectId);
 }
 
 } // namespace
@@ -87,6 +207,9 @@ int main()
 
     // The two hits must be different objects.
     assert(topHit.objectId != bottomHit.objectId);
+
+    runHierarchicalTests();
+    runBoxSelectionTests();
 
     std::cout << "MIR4D RAYPICKER: OK\n";
     return 0;

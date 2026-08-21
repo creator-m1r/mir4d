@@ -307,6 +307,32 @@ uint64_t MirEngineGetSelectionElementId(
     void* viewport
 );
 
+// Performs a rectangle (box) selection in screen space. `x0,y0,x1,y1` are
+// pixel coordinates with a bottom-left origin. Every object whose projected
+// bounding box intersects the rectangle becomes part of the multi selection;
+// the primary selection is set to the first hit. When `additive` is true the
+// new hits are unioned with the existing set instead of replacing it.
+void MirEngineViewportBoxSelect(
+    void* viewport,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    bool additive
+);
+
+// Returns the number of objects held by the current multi (box) selection.
+int MirEngineGetSelectionCount(
+    void* viewport
+);
+
+// Returns the object id at `index` within the multi selection, or 0 when the
+// index is out of range.
+uint64_t MirEngineGetSelectionItem(
+    void* viewport,
+    int index
+);
+
 // Applies an in-place sculpt/push/pull deformation to the selected object's
 // tessellated mesh. `x,y,z` is the world-space brush centre, `radius` a
 // world-space radius, `strength` a signed displacement magnitude in world
@@ -521,6 +547,15 @@ bool MirEngineGetSelectedObjectMetrics(
     char* outJson,
     size_t outCapacity
 );
+
+// Returns the world-space surface area (in scene units) of the currently
+// selected face. Returns 0.0 when the selection is not a face, the element has
+// no B-Rep face provenance, or nothing is selected.
+double MirEngineGetSelectionFaceArea(void* viewport);
+
+// Returns the world-space length (in scene units) of the currently selected
+// edge. Returns 0.0 when the selection is not an edge or nothing is selected.
+double MirEngineGetSelectionEdgeLength(void* viewport);
 
 bool MirEngineImportMesh(
     void* viewport,

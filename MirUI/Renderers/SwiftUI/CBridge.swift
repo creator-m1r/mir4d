@@ -107,6 +107,11 @@ public func MirEngineViewportHoverClear(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineSetSelectionFilter(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32) {}
 public func MirEngineGetSelectionKind(_ viewport: UnsafeMutableRawPointer?) -> Int32 { 0 }
 public func MirEngineGetSelectionElementId(_ viewport: UnsafeMutableRawPointer?) -> UInt64 { 0 }
+public func MirEngineGetSelectionFaceArea(_ viewport: UnsafeMutableRawPointer?) -> Double { 0 }
+public func MirEngineGetSelectionEdgeLength(_ viewport: UnsafeMutableRawPointer?) -> Double { 0 }
+public func MirEngineViewportBoxSelect(_ viewport: UnsafeMutableRawPointer?, _ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float, _ additive: Bool) {}
+public func MirEngineGetSelectionCount(_ viewport: UnsafeMutableRawPointer?) -> Int32 { 0 }
+public func MirEngineGetSelectionItem(_ viewport: UnsafeMutableRawPointer?, _ index: Int32) -> UInt64 { 0 }
 public func MirEngineSetCursor(_ renderer: UnsafeMutableRawPointer?, _ ndcX: Float, _ ndcY: Float, _ active: Bool) {}
 public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func mirEngineDeformSelected(_ viewport: UnsafeMutableRawPointer?, _ x: Double, _ y: Double, _ z: Double, _ radius: Double, _ strength: Double, _ mode: Int32) -> Bool { false }
@@ -252,6 +257,11 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineSetSelectionFilter") public func MirEngineSetSelectionFilter(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32)
 @_silgen_name("MirEngineGetSelectionKind") public func MirEngineGetSelectionKind(_ viewport: UnsafeMutableRawPointer?) -> Int32
 @_silgen_name("MirEngineGetSelectionElementId") public func MirEngineGetSelectionElementId(_ viewport: UnsafeMutableRawPointer?) -> UInt64
+@_silgen_name("MirEngineGetSelectionFaceArea") public func MirEngineGetSelectionFaceArea(_ viewport: UnsafeMutableRawPointer?) -> Double
+@_silgen_name("MirEngineGetSelectionEdgeLength") public func MirEngineGetSelectionEdgeLength(_ viewport: UnsafeMutableRawPointer?) -> Double
+@_silgen_name("MirEngineViewportBoxSelect") public func MirEngineViewportBoxSelect(_ viewport: UnsafeMutableRawPointer?, _ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float, _ additive: Bool)
+@_silgen_name("MirEngineGetSelectionCount") public func MirEngineGetSelectionCount(_ viewport: UnsafeMutableRawPointer?) -> Int32
+@_silgen_name("MirEngineGetSelectionItem") public func MirEngineGetSelectionItem(_ viewport: UnsafeMutableRawPointer?, _ index: Int32) -> UInt64
 @_silgen_name("MirEngineDeleteSelectedObject") public func MirEngineDeleteSelectedObject(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineDeformSelected") public func mirEngineDeformSelected(_ viewport: UnsafeMutableRawPointer?, _ x: Double, _ y: Double, _ z: Double, _ radius: Double, _ strength: Double, _ mode: Int32) -> Bool
 @_silgen_name("MirEngineBeginDeformSelected") public func mirEngineBeginDeformSelected(_ viewport: UnsafeMutableRawPointer?) -> Bool

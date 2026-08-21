@@ -100,16 +100,7 @@ struct MIR4DCreativeWorkspaceView: View {
         GeometryReader { _ in
             CreativeViewportRepresentable(appState: appState,
                 onSelectionChanged: { objectID, kind, elementId in
-                    let mapped: CADSelectionKind = {
-                        switch kind {
-                            case 1: return .vertex
-                            case 2: return .edge
-                            case 3: return .face
-                            case 4: return .body
-                            default: return .none
-                        }
-                    }()
-                    let finalKind: CADSelectionKind = objectID > 0 ? mapped : .none
+                    let finalKind: CADSelectionKind = objectID > 0 ? CADSelectionKind(engineKind: kind) : .none
                     appState.setSelection(
                         ids: objectID > 0 ? ["\(objectID)"] : [],
                         kind: finalKind,
