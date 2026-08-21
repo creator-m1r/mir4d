@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+/// Owns floating windows for dockable panels placed in `.floating` zone.
+/// Panel windows are movable and resizable macOS panels.
 @MainActor
 final class FloatingPanelManager: NSObject, NSWindowDelegate {
     static let shared = FloatingPanelManager()
@@ -25,6 +27,7 @@ final class FloatingPanelManager: NSObject, NSWindowDelegate {
         for panel in Array(windows.keys) { close(panel, animated: false) }
     }
 
+    /// Applies a common live size to all currently floating panels.
     func applySizeToAll(width: Double, height: Double) {
         let size = NSSize(width: max(300, width), height: max(280, height))
         for window in windows.values { window.setContentSize(size) }

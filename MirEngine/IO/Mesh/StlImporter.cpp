@@ -123,7 +123,7 @@ ImportResult parseAscii(const std::string& path, const std::vector<char>& data, 
     accumulator.finalizeNormals(options.generateNormals); if (!accumulator.mesh.isValid()) { result.error = "ASCII STL contains no valid facets"; return result; }
     result.mesh = std::make_shared<TriangleMesh3>(std::move(accumulator.mesh)); result.boundsMin = result.mesh->boundsMin(); result.boundsMax = result.mesh->boundsMax(); result.triangleCount = result.mesh->triangles.size(); return result;
 }
-}
+} // namespace
 
 ImportResult StlImporter::importFile(const std::string& path, const ImportOptions& options) const
 {
@@ -132,4 +132,4 @@ ImportResult StlImporter::importFile(const std::string& path, const ImportOption
     return isBinaryStl(data) ? parseBinary(path, data, options) : parseAscii(path, data, options);
 }
 
-}
+} // namespace mir::io

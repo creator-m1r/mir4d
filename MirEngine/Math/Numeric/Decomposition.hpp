@@ -1,3 +1,17 @@
+// MirEngine/Math/Numeric/Decomposition.hpp
+// 🧮 Матричные разложения — основа линейной алгебры MIR 4D.
+//
+// Содержит:
+//   • luDecompose / luSolve — LU с частичным выбором ведущего элемента
+//     (повторное решение для многих правых частей).
+//   • cholesky            — разложение L·Lᵀ для симметрично-положительно
+//     определённых (SPD) матриц (градиентный спуск, ковариации).
+//   • qrDecompose         — QR (модифицированный Грам–Шмидт) для
+//     устойчивого МНК и ортогонализации.
+//
+// Все методы возвращают mir4d::Result при вырожденности/несовпадении.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -23,13 +37,15 @@ namespace mir::math
 using MatrixN = std::vector<std::vector<Scalar>>;
 using VectorN = std::vector<Scalar>;
 
+/// Результат LU-разложения: A = Pᵀ·L·U.
 struct LUDecomposition
 {
-    MatrixN L;
-    MatrixN U;
-    std::vector<std::size_t> piv;
+    MatrixN L;                  // Нижняя треугольная (единичная диагональ).
+    MatrixN U;                  // Верхняя треугольная.
+    std::vector<std::size_t> piv; // Перестановка строк: piv[i] — исходная строка i-й.
 };
 
+/// LU-разложение с частичным выбором ведущего элемента (Doolittle).
 [[nodiscard]] inline mir4d::Result<LUDecomposition> luDecompose(const MatrixN& A)
 {
     const std::size_t n = A.size();
@@ -85,25 +101,29 @@ struct LUDecomposition
     return mir4d::success(std::move(lu));
 }
 
+/// Решает A·x = b, используя ранее вычисленное LU-разложение.
 [[nodiscard]] inline mir4d::Result<VectorN> luSolve(const LUDecomposition& lu, const VectorN& b)
 {
     const std::size_t n = lu.L.size();
     if (b.size() != n)
         return fail(mir4d::ErrorCode::InvalidArgument, "Размер b не совпадает");
 
+    // Переставленная правая часть.
     VectorN pb(n);
     for (std::size_t i = 0; i < n; ++i)
         pb[i] = b[lu.piv[i]];
 
+    // Прямая подстановка: L·y = pb.
     VectorN y(n, Scalar(0));
     for (std::size_t i = 0; i < n; ++i)
     {
         Scalar s = pb[i];
         for (std::size_t j = 0; j < i; ++j)
             s -= lu.L[i][j] * y[j];
-        y[i] = s;
+        y[i] = s; // L[i][i] == 1
     }
 
+    // Обратная подстановка: U·x = y.
     VectorN x(n, Scalar(0));
     for (std::size_t i = n; i-- > 0;)
     {
@@ -116,6 +136,8 @@ struct LUDecomposition
     return mir4d::success(std::move(x));
 }
 
+/// Разложение Холесского L·Lᵀ для симметрично-положительно определённой
+/// матрицы A. Возвращает нижнюю треугольную L.
 [[nodiscard]] inline mir4d::Result<MatrixN> cholesky(const MatrixN& A)
 {
     const std::size_t n = A.size();
@@ -152,6 +174,8 @@ struct LUDecomposition
     return mir4d::success(std::move(L));
 }
 
+/// QR-разложение (модифицированный Грам–Шмидт) для матрицы A размера m×n (m ≥ n).
+/// Возвращает Q (m×n ортонормированные столбцы) и R (n×n верхняя треугольная).
 [[nodiscard]] inline mir4d::Result<std::pair<MatrixN, MatrixN>> qrDecompose(const MatrixN& A)
 {
     if (A.empty())
@@ -166,6 +190,7 @@ struct LUDecomposition
     if (m < n)
         return fail(mir4d::ErrorCode::InvalidArgument, "Требуется m ≥ n для QR");
 
+    // Столбцы A.
     auto column = [&](std::size_t col) -> VectorN
     {
         VectorN v(m);
@@ -209,4 +234,4 @@ struct LUDecomposition
     return mir4d::success(std::make_pair(std::move(Q), std::move(R)));
 }
 
-}
+} // namespace mir::math

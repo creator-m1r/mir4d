@@ -5,6 +5,7 @@
 
 namespace mir {
 
+/// Stable identifier for an object referenced by assembly components.
 struct ObjectID {
     std::uint64_t value{0};
 
@@ -16,7 +17,7 @@ struct ObjectID {
 
 inline constexpr ObjectID InvalidObjectID{};
 
-}
+} // namespace mir
 
 namespace std {
 template <>
@@ -25,4 +26,4 @@ struct hash<mir::ObjectID> {
         return std::hash<std::uint64_t>{}(id.value);
     }
 };
-}
+} // namespace std

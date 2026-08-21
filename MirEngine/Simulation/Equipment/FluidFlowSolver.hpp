@@ -53,6 +53,7 @@ public:
             ++result.elementsProcessed;
         }
 
+        // Propagate the resulting fluid state along the connected fluid network.
         for (const auto equipmentId : system.equipmentIds)
         {
             for (const auto& connection : connections.forEquipment(equipmentId))
@@ -117,6 +118,7 @@ private:
         if (area > 0.0)
             model.state.velocity.x = model.state.flowRate / area;
 
+        // Lightweight pressure-loss model. A future CFD solver can replace this.
         const Scalar resistance = std::clamp(dt * 0.02, 0.0, 1.0);
         model.state.pressure *= (1.0 - resistance);
     }
@@ -164,4 +166,4 @@ private:
     }
 };
 
-}
+} // namespace mir

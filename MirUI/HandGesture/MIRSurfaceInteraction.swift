@@ -1,6 +1,7 @@
 import Foundation
 import simd
 
+/// Converts contact motion into a non-destructive surface interaction sample.
 struct MIRSurfaceInteraction: Equatable, Sendable {
     enum Operation: String, Sendable {
         case hover

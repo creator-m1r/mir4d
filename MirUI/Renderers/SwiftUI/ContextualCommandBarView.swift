@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Стабильная строка «Вид» для активного рабочего стола МИР 4D.
+///
+/// По ТЗ (единая верхняя панель) команды режима показываются только в
+/// `CADRibbonToolGroupsView`. Эта строка НЕ дублирует их — здесь только
+/// глобальные элементы управления отображением (Сетка / Оси / Сечение),
+/// которые доступны во всех режимах независимо от выбора.
 struct ContextualCommandBarView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

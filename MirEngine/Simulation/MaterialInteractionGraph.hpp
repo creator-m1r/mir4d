@@ -75,11 +75,12 @@ public:
 private:
     static std::uint64_t interfaceCountHint(const MaterialInterfaceStore& interfaces) noexcept
     {
-
+        // The current store exposes size rather than its internal identifiers.
+        // This keeps the graph independent from the store implementation.
         return static_cast<std::uint64_t>(interfaces.size());
     }
 
     std::vector<MaterialInteractionEdge> edges_;
 };
 
-}
+} // namespace mir

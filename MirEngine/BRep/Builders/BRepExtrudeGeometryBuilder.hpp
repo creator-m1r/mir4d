@@ -53,6 +53,7 @@ public:
             if (!surface)
                 return std::nullopt;
 
+            // Face-to-surface association is owned by the topology binder.
             (void)links;
         }
 
@@ -60,4 +61,4 @@ public:
     }
 };
 
-}
+} // namespace mir

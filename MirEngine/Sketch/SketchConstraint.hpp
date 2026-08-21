@@ -82,4 +82,4 @@ private:
     std::vector<SketchConstraint> constraints_;
 };
 
-}
+} // namespace mir

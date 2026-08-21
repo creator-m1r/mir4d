@@ -17,6 +17,7 @@ int main()
 {
     const fs::path path = fs::temp_directory_path() / "mir4d_step_roundtrip.step";
 
+    // Build a tetrahedron (4 vertices, 4 triangles) as the source mesh.
     mir::TriangleMesh3 mesh;
     mesh.vertices = {
         {0.0, 0.0, 0.0},
@@ -47,6 +48,7 @@ int main()
     assert(exportResult.triangleCount == 4);
     assert(fs::exists(path));
 
+    // Re-import the written STEP file and verify the geometry round-trips.
     const auto importResult =
         mir::io::step::StepImporter{}.importFile(path.string());
 

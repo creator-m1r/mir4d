@@ -24,7 +24,7 @@ final class PinchTests: XCTestCase {
         var committed: [MIRHandGestureEvent] = []
         for _ in 0..<10 {
             var pose = MIRHandPoseMock.mockPinch()
-
+            // Add small jitter to one landmark to simulate camera noise.
             if let idx = pose.landmarks.firstIndex(where: { $0.id == .middleTip }) {
                 let jittered = SIMD3(
                     pose.landmarks[idx].normalizedPosition.x + Double.random(in: -0.005...0.005),
@@ -54,10 +54,12 @@ final class PinchTests: XCTestCase {
         let strong = MIRHandPoseMock.pose(curls: [.index: 0.5, .middle: 0.8, .ring: 0.8, .little: 0.8, .thumb: 0.5], pinch: 1.0)
         let weak = MIRHandPoseMock.pose(curls: [.index: 0.5, .middle: 0.8, .ring: 0.8, .little: 0.8, .thumb: 0.5], pinch: 0.75)
 
+        // Warm up so the pinch gesture is committed.
         for _ in 0..<8 {
             _ = recognizer.ingest(pose: strong, scenePosition: mapper.map(normalized: strong.palmPosition), timestamp: Date())
         }
 
+        // Alternate strong/weak; raw strength would swing ~0.25 each frame.
         var emitted: [Double] = []
         for i in 0..<10 {
             let p = (i % 2 == 0) ? strong : weak
@@ -74,7 +76,7 @@ final class PinchTests: XCTestCase {
         for i in 1..<emitted.count {
             maxDelta = max(maxDelta, abs(emitted[i] - emitted[i - 1]))
         }
-
+        // EMA(0.4) must damp the raw 0.25 swing substantially.
         XCTAssertLessThan(maxDelta, 0.2, "smoothed pinch strength must not snap to raw frame-to-frame values")
     }
 }

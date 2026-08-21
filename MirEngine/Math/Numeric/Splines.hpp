@@ -1,3 +1,12 @@
+// MirEngine/Math/Numeric/Splines.hpp
+// 🧮 Кубические сплайны — интерполяция гладкими кривыми для геометрии CAD.
+//
+// buildCubicSpline строит натуральный кубический сплайн (вторые производные
+// на концах равны нулю) через прогонку (алгоритм Томаса) для трёхдиагональной
+// системы. evalSpline вычисляет значение в любой точке за O(log n) бинарным
+// поиском интервала.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -21,15 +30,19 @@ namespace mir::math
 }
 #endif
 
+/// Кубический сплайн: для каждого интервала [x_i, x_{i+1}] полином
+/// S_i(u) = a + b·u + c·u² + d·u³, где u = x − x_i.
 struct CubicSpline
 {
-    std::vector<Scalar> xs;
-    std::vector<Scalar> a;
-    std::vector<Scalar> b;
-    std::vector<Scalar> c;
-    std::vector<Scalar> d;
+    std::vector<Scalar> xs;   // узлы (строго возрастающие)
+    std::vector<Scalar> a;    // S_i(0)
+    std::vector<Scalar> b;    // первая производная в узле
+    std::vector<Scalar> c;    // половина второй производной
+    std::vector<Scalar> d;    // (M_{i+1} − M_i)/(6h)
 };
 
+/// Строит натуральный кубический сплайн по узлам (x_i, y_i).
+/// Узлы должны быть строго возрастающими, их количество ≥ 2.
 [[nodiscard]] inline mir4d::Result<CubicSpline> buildCubicSpline(
     std::vector<Scalar> xs,
     std::vector<Scalar> ys)
@@ -42,13 +55,14 @@ struct CubicSpline
         if (xs[i] <= xs[i - 1])
             return fail(mir4d::ErrorCode::InvalidArgument, "Узлы x должны быть строго возрастающими");
 
+    // Вторые производные M_i (индексы 0..n-1), M_0 = M_{n-1} = 0.
     std::vector<Scalar> M(n, Scalar(0));
     if (n > 2)
     {
-
-        std::vector<Scalar> low(n, Scalar(0));
-        std::vector<Scalar> diag(n, Scalar(0));
-        std::vector<Scalar> up(n, Scalar(0));
+        // Трёхдиагональная система для внутренних узлов (1..n-2).
+        std::vector<Scalar> low(n, Scalar(0));   // поддиагональ
+        std::vector<Scalar> diag(n, Scalar(0));  // диагональ
+        std::vector<Scalar> up(n, Scalar(0));    // наддиагональ
         std::vector<Scalar> rhs(n, Scalar(0));
 
         for (std::size_t i = 1; i < n - 1; ++i)
@@ -63,6 +77,7 @@ struct CubicSpline
             rhs[i]  = Scalar(6) * (slopeR - slopeL);
         }
 
+        // Прогонка Томаса (нижний/верхний — 0 на концах).
         for (std::size_t i = 2; i < n - 1; ++i)
         {
             const Scalar w = low[i] / diag[i - 1];
@@ -91,6 +106,7 @@ struct CubicSpline
     return mir4d::success(std::move(sp));
 }
 
+/// Возвращает индекс интервала i такой, что xs[i] ≤ x ≤ xs[i+1].
 [[nodiscard]] inline std::size_t splineInterval(const CubicSpline& sp, Scalar x) noexcept
 {
     const auto it = std::upper_bound(sp.xs.begin(), sp.xs.end(), x);
@@ -102,6 +118,7 @@ struct CubicSpline
     return i - 1;
 }
 
+/// Значение сплайна в точке x (линейная экстраполяция за краями).
 [[nodiscard]] inline Scalar evalSpline(const CubicSpline& sp, Scalar x) noexcept
 {
     const std::size_t i = splineInterval(sp, x);
@@ -109,6 +126,7 @@ struct CubicSpline
     return sp.a[i] + u * (sp.b[i] + u * (sp.c[i] + u * sp.d[i]));
 }
 
+/// Первая производная сплайна в точке x.
 [[nodiscard]] inline Scalar evalSplineDerivative(const CubicSpline& sp, Scalar x) noexcept
 {
     const std::size_t i = splineInterval(sp, x);
@@ -116,4 +134,4 @@ struct CubicSpline
     return sp.b[i] + u * (Scalar(2) * sp.c[i] + u * Scalar(3) * sp.d[i]);
 }
 
-}
+} // namespace mir::math

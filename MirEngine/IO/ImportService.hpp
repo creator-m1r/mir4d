@@ -28,4 +28,4 @@ private:
     [[nodiscard]] static std::map<Format, ImporterFn>& registry();
 };
 
-}
+} // namespace mir::io

@@ -22,11 +22,11 @@ struct MaterialProperties
 {
     std::uint64_t id{0};
     std::string name;
-    Scalar density{1000.0};
-    Scalar viscosity{0.001};
-    Scalar specificHeat{4181.0};
-    Scalar thermalConductivity{0.6};
-    Scalar referenceTemperature{293.15};
+    Scalar density{1000.0};                 // kg/m³
+    Scalar viscosity{0.001};                 // Pa·s
+    Scalar specificHeat{4181.0};            // J/(kg·K)
+    Scalar thermalConductivity{0.6};        // W/(m·K)
+    Scalar referenceTemperature{293.15};    // K
     std::vector<MaterialComponent> composition;
 
     void normalizeComposition() noexcept
@@ -71,4 +71,4 @@ private:
     std::unordered_map<std::uint64_t, MaterialProperties> materials_;
 };
 
-}
+} // namespace mir

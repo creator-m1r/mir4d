@@ -1,3 +1,4 @@
+// swift-tools-version: 6.0
 
 import PackageDescription
 
@@ -35,7 +36,11 @@ let package = Package(
         .executableTarget(
             name: "MIR4DApp",
             dependencies: ["MirServer", "MirUIHandGesture"],
-
+            // SwiftPM must see this target as Swift-only. The SwiftUI directory
+            // also contains legacy C++/Objective-C++ bridge files used by Xcode
+            // and the CMake UI target, so they must be explicitly excluded.
+            // The hand-gesture subsystem lives under `MirUI/HandGesture` and is
+            // consumed as the `MirUIHandGesture` library (see above).
             path: "MirUI",
             exclude: [
                 "CMakeLists.txt",

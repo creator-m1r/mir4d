@@ -22,6 +22,8 @@ struct SketchExtrudeFace
     bool side{false};
 };
 
+/// Mathematical result of an extrusion before conversion to the solid kernel.
+/// The result is deliberately independent from rendering meshes.
 struct SketchExtrudeResult
 {
     std::vector<SketchExtrudePoint3D> vertices;
@@ -35,4 +37,4 @@ struct SketchExtrudeResult
     }
 };
 
-}
+} // namespace mir

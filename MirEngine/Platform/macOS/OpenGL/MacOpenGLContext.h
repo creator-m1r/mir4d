@@ -27,6 +27,6 @@ private:
     Impl* m_impl = nullptr;
 };
 
-}
-}
-}
+} // namespace macOS
+} // namespace Platform
+} // namespace MirEngine

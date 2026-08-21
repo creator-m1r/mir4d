@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Draws the spatial fan: intention ring, directional submenu rings, the
+/// gesture ray, the centre core and the voice hint.
+///
+/// Segments are arcs, not buttons. There is nothing to click: selection is
+/// direction and release. Highlight states follow
+/// `idle → hover → selected → active → disabled`.
 struct MIRSpatialMenuRenderer: View {
     let tree: [MIRSpatialMenuItem]
     let state: MIRSpatialMenuState
@@ -46,6 +52,8 @@ struct MIRSpatialMenuRenderer: View {
         .animation(MIRSpatialMenuAnimation.ringReveal, value: state.level)
     }
 
+    // MARK: - Centre core
+
     private var centerCore: some View {
         let hasTool = state.toolIndex != nil
         return ZStack {
@@ -79,6 +87,8 @@ struct MIRSpatialMenuRenderer: View {
         return "МИР"
     }
 
+    // MARK: - Gesture ray
+
     private var gestureRay: some View {
         let c = containerCenter
         let length = max(state.distance, 1)
@@ -98,6 +108,8 @@ struct MIRSpatialMenuRenderer: View {
         }
     }
 
+    // MARK: - Level 1: intention ring
+
     private var intentionRing: some View {
         let c = containerCenter
         let count = visibleIntents.count
@@ -116,7 +128,7 @@ struct MIRSpatialMenuRenderer: View {
                     labelAtRadius: settings.intentRadius - 14
                 )
             }
-
+            // Quiet legibility ring.
             Circle()
                 .stroke(.white.opacity(0.08), lineWidth: 1)
                 .frame(width: CGFloat(settings.intentRadius * 2 + 34), height: CGFloat(settings.intentRadius * 2 + 34))
@@ -130,6 +142,8 @@ struct MIRSpatialMenuRenderer: View {
         guard state.level == .intent else { return .selected }
         return .hover
     }
+
+    // MARK: - Level 2: category fan
 
     private func categoryFan(intent: MIRSpatialMenuItem) -> some View {
         let c = containerCenter
@@ -174,6 +188,8 @@ struct MIRSpatialMenuRenderer: View {
         guard state.level == .category else { return .selected }
         return .hover
     }
+
+    // MARK: - Level 3: tool fan
 
     private func toolFan(category: MIRSpatialMenuItem) -> some View {
         let c = containerCenter
@@ -221,6 +237,8 @@ struct MIRSpatialMenuRenderer: View {
         return .active
     }
 
+    // MARK: - Voice hint
+
     private func hintChip(_ hint: String) -> some View {
         Text(hint)
             .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -232,6 +250,8 @@ struct MIRSpatialMenuRenderer: View {
             .position(x: containerCenter.x, y: containerCenter.y + 214)
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
     }
+
+    // MARK: - Angles
 
     private func sectorStart(index: Int, count: Int) -> Double {
         MIRSpatialMenuLayout.angle(forIndex: index, count: count) - Double.pi / Double(max(count, 1)) + 0.035
@@ -250,6 +270,9 @@ struct MIRSpatialMenuRenderer: View {
     }
 }
 
+// MARK: - Fan arc segment
+
+/// One arc segment of the fan with glow, label and highlight animation.
 struct MIRSpatialMenuArcSegment: View {
     let center: CGPoint
     let radius: Double

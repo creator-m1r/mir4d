@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+/// Explicit project-level consent switches for optional runtime modules.
+/// All optional modules start disabled until the user enables them.
 @MainActor
 final class MIR4DProjectPermissions: ObservableObject {
     static let shared = MIR4DProjectPermissions()
@@ -38,6 +40,7 @@ final class MIR4DProjectPermissions: ObservableObject {
         aiEnabled = false
     }
 
+    /// Commits the user's choices to the runtime immediately before a project starts.
     func applyAtLaunch() {
         MIR4DOptionalModuleRuntime.shared.apply(enabledModules)
         NotificationCenter.default.post(

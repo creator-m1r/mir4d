@@ -2,6 +2,11 @@ import SwiftUI
 import AppKit
 import MirServer
 
+/// Модель-мост между SwiftUI и подсистемой MirServer.
+///
+/// Изолирована на главном потоке (`@MainActor`): подписывается на Event Bus
+/// `MirServer` и зеркалирует состояние в `@Published` поля для представления,
+/// а пользовательские действия перенаправляет в `MirServerManager` / `MirTeamChat`.
 @MainActor
 final class MIR4DTeamServerModel: ObservableObject {
     @Published var status: MirServerConnectionStatus = .disconnected
@@ -9,6 +14,7 @@ final class MIR4DTeamServerModel: ObservableObject {
     @Published var messages: [MirTeamMessage] = []
     @Published var lastError: String?
 
+    // Редактируемая конфигурация.
     @Published var baseURLString: String
     @Published var webAppURLString: String
     @Published var apiToken: String
@@ -16,6 +22,7 @@ final class MIR4DTeamServerModel: ObservableObject {
     @Published var userID: String
     @Published var userName: String
 
+    // Ввод чата.
     @Published var draft: String = ""
     @Published var lastExportURL: String?
 
@@ -64,6 +71,8 @@ final class MIR4DTeamServerModel: ObservableObject {
         }
     }
 
+    // MARK: - Действия
+
     func applyConfiguration() {
         guard let base = URL(string: baseURLString), let web = URL(string: webAppURLString) else {
             lastError = "Некорректный URL"
@@ -86,6 +95,7 @@ final class MIR4DTeamServerModel: ObservableObject {
         Task { await manager.connect() }
     }
 
+    /// Автоматически подключиться при открытии окна, если заданы учётные данные.
     func autoConnectIfConfigured() {
         guard status == .disconnected else { return }
         guard let token = manager.configuration.apiToken, !token.isEmpty,
@@ -152,6 +162,7 @@ final class MIR4DTeamServerModel: ObservableObject {
     }
 }
 
+/// Панель «Сервер MIR 4D»: подключение, состав команды, чат, экспорт проекта.
 struct MIR4DTeamServerView: View {
     @StateObject private var model = MIR4DTeamServerModel()
 
@@ -298,6 +309,7 @@ struct MIR4DTeamServerView: View {
     }
 }
 
+/// Команда меню для открытия окон «Сервер MIR 4D» и «Совместная работа».
 struct MIR4DServerCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 

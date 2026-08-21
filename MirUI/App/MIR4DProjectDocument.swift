@@ -1,5 +1,8 @@
 import Foundation
 
+/// Canonical in-memory representation of a MIR 4D project.
+/// The document is intentionally independent from SwiftUI views so the same
+/// state can later be shared by MirEngine, the web client and collaboration services.
 struct MIR4DProjectDocument: Codable, Equatable {
     var formatVersion: Int = 1
     var name: String

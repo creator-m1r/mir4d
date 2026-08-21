@@ -1,3 +1,16 @@
+// MirEngine/Math/Numeric/Svd.hpp
+// 🧮 Сингулярное разложение (SVD) — устойчивый МНК и понижение ранга.
+//
+// Тонкий SVD матрицы A (m×n):
+//   A ≈ U · diag(σ) · Vᵀ,
+//   U — m×k ортонормированные столбцы,
+//   V — n×k ортонормированные столбцы,
+//   σ — k = min(m,n) неотрицательных сингулярных чисел (по убыванию).
+//
+// Реализация — односторонний метод Якоби (ортогонализация столбцов A),
+// численно устойчивее, чем AᵀA. При m < n вход транспонируется.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -20,11 +33,12 @@ namespace mir::math
 }
 #endif
 
+/// Результат тонкого SVD: A ≈ U · diag(sigma) · Vᵀ.
 struct SVD
 {
-    std::vector<std::vector<Scalar>> U;
-    std::vector<Scalar> sigma;
-    std::vector<std::vector<Scalar>> V;
+    std::vector<std::vector<Scalar>> U;   // m × k
+    std::vector<Scalar> sigma;            // k = min(m, n)
+    std::vector<std::vector<Scalar>> V;   // n × k
 };
 
 [[nodiscard]] inline Scalar columnNorm2(
@@ -50,6 +64,7 @@ struct SVD
     return s;
 }
 
+/// Тонкий SVD матрицы A (поддерживает m ≥ n и m < n).
 [[nodiscard]] inline mir4d::Result<SVD> svdDecompose(const std::vector<std::vector<Scalar>>& A)
 {
     if (A.empty())
@@ -61,6 +76,7 @@ struct SVD
         if (row.size() != n)
             return fail(mir4d::ErrorCode::InvalidArgument, "Строки разной длины");
 
+    // При m < n — транспонируем и меняем U, V местами.
     if (m < n)
     {
         std::vector<std::vector<Scalar>> At(n, std::vector<Scalar>(m, Scalar(0)));
@@ -68,13 +84,14 @@ struct SVD
             for (std::size_t j = 0; j < n; ++j)
                 At[j][i] = A[i][j];
 
-        auto sub = svdDecompose(At);
+        auto sub = svdDecompose(At); // At: n × m, n ≥ m
         if (!sub)
             return sub;
-
+        // At = Ua · Σ · Vaᵀ  ⇒  A = Va · Σ · Uaᵀ
         return mir4d::success(SVD{sub.value().V, sub.value().sigma, sub.value().U});
     }
 
+    // Случай m ≥ n: односторонний Якоби по столбцам A.
     std::vector<std::vector<Scalar>> U = A;
     std::vector<std::vector<Scalar>> V(n, std::vector<Scalar>(n, Scalar(0)));
     for (std::size_t i = 0; i < n; ++i)
@@ -142,6 +159,7 @@ struct SVD
         }
     }
 
+    // Сортировка по убыванию.
     for (std::size_t i = 0; i < n; ++i)
     {
         std::size_t best = i;
@@ -161,6 +179,10 @@ struct SVD
     return mir4d::success(SVD{std::move(U), std::move(sigma), std::move(V)});
 }
 
+/// Решает задачу линейных наименьших квадратов min‖A·x − b‖₂ методом SVD.
+/// Работает для переопределённых (m > n) и вырожденных систем (нулевые
+/// сингулярные числа отбрасываются → минимально-нормальное решение).
+/// A — m×n, b — длины m; возвращает x длины n.
 [[nodiscard]] inline mir4d::Result<std::vector<Scalar>> solveLeastSquaresSVD(
     const std::vector<std::vector<Scalar>>& A,
     const std::vector<Scalar>& b)
@@ -179,6 +201,7 @@ struct SVD
 
     const Scalar tol = (s.sigma.empty() ? Scalar(0) : s.sigma.front()) * Scalar(1e-12);
 
+    // y = Uᵀ·b  (k-вектор, k = min(m, n))
     const std::size_t k = s.sigma.size();
     std::vector<Scalar> y(k, Scalar(0));
     for (std::size_t i = 0; i < k; ++i)
@@ -189,11 +212,13 @@ struct SVD
         y[i] = acc;
     }
 
+    // z = Σ⁻¹·y (отбрасываем нулевые сингулярные числа)
     std::vector<Scalar> z(k, Scalar(0));
     for (std::size_t i = 0; i < k; ++i)
         if (s.sigma[i] > tol)
             z[i] = y[i] / s.sigma[i];
 
+    // x = V·z
     std::vector<Scalar> x(n, Scalar(0));
     for (std::size_t j = 0; j < n; ++j)
         for (std::size_t i = 0; i < k; ++i)
@@ -202,4 +227,4 @@ struct SVD
     return mir4d::success(std::move(x));
 }
 
-}
+} // namespace mir::math

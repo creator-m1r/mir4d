@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 
+/// Combines short-lived input signals into a single engineering intention.
+/// No CAD command is executed here; the resolver only produces a coherent intent.
 @MainActor
 final class MIRIntentResolver: ObservableObject {
     static let shared = MIRIntentResolver()

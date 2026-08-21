@@ -1,3 +1,6 @@
+// MirEngine/Math/Quaternion/Quaternion.hpp
+// Quaternion for stable 3D rotations.
+// C++23, no external dependencies.
 
 #pragma once
 
@@ -237,4 +240,4 @@ public:
     }
 };
 
-}
+} // namespace mir

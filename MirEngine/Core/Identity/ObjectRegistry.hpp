@@ -10,6 +10,10 @@
 namespace mir4d
 {
 
+/// Owns the allocation and reservation of engineering object identifiers.
+///
+/// The registry is intentionally independent from Document so it can be
+/// supplied as a service and reused by document/history infrastructure.
 class ObjectRegistry
 {
 public:
@@ -67,4 +71,4 @@ private:
     ObjectId next_{1};
 };
 
-}
+} // namespace mir4d

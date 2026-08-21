@@ -62,4 +62,4 @@ struct WorldSettings
     bool adaptiveQuality{true};
 };
 
-}
+} // namespace mir

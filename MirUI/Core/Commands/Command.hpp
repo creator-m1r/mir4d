@@ -1,3 +1,6 @@
+// MirUI/Core/Commands/Command.hpp
+// Descriptor of a command with its metadata.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -9,12 +12,12 @@ namespace MirUI {
 struct Command {
     CommandID id;
 
-    std::string title;
-    std::string description;
-    std::string icon;
+    std::string title;       // human-readable name (e.g. "Select")
+    std::string description; // tooltip / description
+    std::string icon;        // icon identifier (platform-agnostic string)
 
     bool enabled = true;
-    bool checked = false;
+    bool checked = false;    // for toggle commands
 };
 
-}
+} // namespace MirUI

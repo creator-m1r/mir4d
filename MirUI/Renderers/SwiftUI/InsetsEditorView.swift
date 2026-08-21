@@ -1,15 +1,29 @@
+// MirUI/Renderers/SwiftUI/InsetsEditorView.swift
+// 📏 Редактор отступов (Insets / Padding) для инспектора свойств.
+//
+// Swift 6 / macOS 14+
+// View не выполняет работу с @StateObject в init.
+// Первичная загрузка выполняется через .task { }.
 
 import SwiftUI
 
+// MARK: - View Model
+
 @MainActor
 final class InsetsEditorViewModel: ObservableObject {
+
+    // MARK: Published values
 
     @Published var top: String = "0"
     @Published var right: String = "0"
     @Published var bottom: String = "0"
     @Published var left: String = "0"
 
+    // MARK: Selection
+
     private(set) var widgetIds: [Int64] = []
+
+    // MARK: Loading
 
     func load(from widgetId: Int64) {
         load(from: [widgetId])
@@ -31,6 +45,8 @@ final class InsetsEditorViewModel: ObservableObject {
         bottom = getStringProperty(firstId, "paddingBottom") ?? "0"
         left = getStringProperty(firstId, "paddingLeft") ?? "0"
     }
+
+    // MARK: Apply
 
     func applyAll() {
         guard !widgetIds.isEmpty else {
@@ -75,6 +91,8 @@ final class InsetsEditorViewModel: ObservableObject {
         MirUI_RenderFrame()
     }
 
+    // MARK: Reset
+
     func resetValues() {
         top = "0"
         right = "0"
@@ -86,6 +104,8 @@ final class InsetsEditorViewModel: ObservableObject {
         resetValues()
         applyAll()
     }
+
+    // MARK: Helpers
 
     private func getStringProperty(
         _ id: Int64,
@@ -113,6 +133,8 @@ final class InsetsEditorViewModel: ObservableObject {
     }
 }
 
+// MARK: - View
+
 struct InsetsEditorView: View {
 
     let widgetIds: [Int64]
@@ -128,6 +150,8 @@ struct InsetsEditorView: View {
             alignment: .leading,
             spacing: 10
         ) {
+
+            // MARK: Header
 
             HStack {
 
@@ -153,6 +177,8 @@ struct InsetsEditorView: View {
                 }
             }
 
+            // MARK: Top
+
             HStack {
 
                 Spacer()
@@ -164,6 +190,8 @@ struct InsetsEditorView: View {
 
                 Spacer()
             }
+
+            // MARK: Left / Right
 
             HStack(
                 spacing: 16
@@ -180,6 +208,8 @@ struct InsetsEditorView: View {
                 )
             }
 
+            // MARK: Bottom
+
             HStack {
 
                 Spacer()
@@ -193,6 +223,8 @@ struct InsetsEditorView: View {
             }
 
             Divider()
+
+            // MARK: Actions
 
             HStack(
                 spacing: 8
@@ -225,10 +257,16 @@ struct InsetsEditorView: View {
         }
         .padding(8)
 
+        // ВАЖНО:
+        // загрузка выполняется после создания View,
+        // поэтому ошибка "Escaping closure captures mutating self"
+        // полностью устраняется.
         .task(id: widgetIds) {
             vm.load(from: widgetIds)
         }
     }
+
+    // MARK: - Field
 
     @ViewBuilder
     private func insetField(

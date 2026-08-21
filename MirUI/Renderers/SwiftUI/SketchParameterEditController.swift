@@ -1,6 +1,8 @@
 import Foundation
 import CoreGraphics
 
+/// Coordinates Inspector edits before they are committed to MirEngine.
+/// This layer deliberately contains no CAD geometry authority.
 @MainActor
 final class SketchParameterEditController: ObservableObject {
     @Published private(set) var pendingValue: Double?

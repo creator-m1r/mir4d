@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Reusable viewport interaction HUD. Keeps presentation state local and emits
+/// neutral notifications so the rendering/engine layers remain decoupled.
 struct CADViewportInteractionOverlay: View {
     @ObservedObject var appState: CADAppState
     @State private var selectionMode: SelectionMode = .body
@@ -102,6 +104,7 @@ struct CADViewportInteractionOverlay: View {
     }
 }
 
+/// Persistent bottom status surface for the CAD workspace.
 struct CADWorkspaceStatusBar: View {
     @ObservedObject var appState: CADAppState
 

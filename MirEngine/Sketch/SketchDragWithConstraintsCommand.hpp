@@ -11,6 +11,9 @@
 namespace mir
 {
 
+/// Commits one completed endpoint drag together with all high-confidence
+/// constraints inferred from its preview. The whole interaction is one
+/// history entry.
 class SketchDragWithConstraintsCommand final : public ISketchCommand
 {
 public:
@@ -105,7 +108,8 @@ private:
                 0.0};
         case SketchInferenceType::Midpoint:
         case SketchInferenceType::None:
-
+            // Midpoint needs an explicit point/segment relationship in the
+            // constraint model; do not approximate it as Symmetric.
             return std::nullopt;
         }
 
@@ -138,4 +142,4 @@ private:
     std::vector<std::uint32_t> constraintIds_;
 };
 
-}
+} // namespace mir

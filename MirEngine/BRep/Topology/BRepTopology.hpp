@@ -1,5 +1,10 @@
 #pragma once
 
+// MirEngine/BRep/Topology/BRepTopology.hpp
+// Канонические топологические сущности B-Rep.
+// Геометрия хранится отдельно в BRepGeometryStore; здесь находятся
+// только топология, ссылки и ориентация обхода.
+
 #include "MirEngine/BRep/Topology/BRepTypes.hpp"
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 #include "MirEngine/BRep/Geometry/BRepGeometry.hpp"
@@ -133,4 +138,4 @@ struct BRepSolid
     }
 };
 
-}
+} // namespace mir

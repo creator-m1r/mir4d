@@ -1,5 +1,9 @@
 #pragma once
 
+// MirEngine/BRep/Geometry/BRepGeometry.hpp
+// Геометрические носители BRep (точки, кривые, поверхности).
+// Топология ссылается на них через handle, не дублируя координаты.
+
 #include "MirEngine/BRep/Topology/BRepTypes.hpp"
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 #include "MirEngine/Math/Vector/Vector.hpp"
@@ -225,4 +229,4 @@ struct BRepSurfaceGeometry
     }
 };
 
-}
+} // namespace mir

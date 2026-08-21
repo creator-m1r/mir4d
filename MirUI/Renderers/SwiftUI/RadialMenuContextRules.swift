@@ -1,5 +1,7 @@
 import Foundation
 
+/// Canonical context policy for the radial tool navigator.
+/// The policy never mutates menu configuration; it only evaluates the current CAD context.
 enum RadialMenuContextRules {
     static func selectionTitle(_ selection: CADSelectionState, language: CADLanguage = .russian) -> String {
         guard selection.hasSelection else {
@@ -47,6 +49,8 @@ enum RadialMenuContextRules {
             : "\(workbench) · \(selection)"
     }
 
+    /// Returns whether a radial command is meaningful in the current engineering context.
+    /// Registered commands still perform the final availability check in CADCommandRegistry.
     static func isMeaningful(command: String, context: CADActiveContext) -> Bool {
         switch command {
         case "create.body":

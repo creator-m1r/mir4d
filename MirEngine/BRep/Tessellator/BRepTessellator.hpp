@@ -1,5 +1,8 @@
 #pragma once
 
+// MirEngine/BRep/Tessellator/BRepTessellator.hpp
+// Планарная MVP-триангуляция BRep для render mesh.
+
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Geometry/BRepAdaptor.hpp"
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
@@ -290,4 +293,4 @@ private:
     }
 };
 
-}
+} // namespace mir

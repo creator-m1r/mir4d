@@ -39,4 +39,4 @@ private:
     std::vector<SketchEquation> equations_;
 };
 
-}
+} // namespace mir

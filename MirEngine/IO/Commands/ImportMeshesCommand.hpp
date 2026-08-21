@@ -9,6 +9,9 @@
 namespace mir::io
 {
 
+/// Factory for the persistent document action used by mesh import.
+/// Arguments are intentionally plain strings so Document history remains
+/// serializable and independent from the IO implementation.
 struct ImportMeshesCommand
 {
     [[nodiscard]] static mir4d::Command make(
@@ -30,4 +33,4 @@ struct ImportMeshesCommand
     }
 };
 
-}
+} // namespace mir::io

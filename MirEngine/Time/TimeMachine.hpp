@@ -10,6 +10,7 @@
 namespace mir4d
 {
 
+/// Deterministic navigation through document history and snapshots.
 class TimeMachine
 {
 public:
@@ -136,4 +137,4 @@ private:
     std::vector<Checkpoint> checkpoints_;
 };
 
-}
+} // namespace mir4d

@@ -1,3 +1,11 @@
+// MirEngine/Rendering/OpenGL/OpenGLDevice.h
+// =================================================================================
+// OpenGL implementation of the RenderDevice interface.
+//
+// Owns a pointer to the OpenGL context and the OpenGL state manager. Executes
+// draw commands against the mesh / material caches and translates
+// backend-neutral state overrides into GL calls.
+// =================================================================================
 
 #pragma once
 
@@ -14,7 +22,7 @@ namespace MirEngine::Rendering {
 
 class OpenGLDevice final : public RenderDevice {
 public:
-
+    // Takes an already-created context (does not own it).
     explicit OpenGLDevice(OpenGLContext* context);
 
     ~OpenGLDevice() override;
@@ -22,6 +30,7 @@ public:
     OpenGLDevice(const OpenGLDevice&) = delete;
     OpenGLDevice& operator=(const OpenGLDevice&) = delete;
 
+    // RenderDevice interface.
     bool initialize() override;
 
     void clear(const ColorRGBA& color,
@@ -52,6 +61,7 @@ public:
     void registerMesh(MeshHandle handle, std::shared_ptr<VertexArray> mesh) override;
     void registerMaterial(MaterialHandle handle, std::shared_ptr<Shader> shader) override;
 
+    // Convenience frame hooks.
     void beginFrame();
     void endFrame();
 
@@ -63,11 +73,13 @@ private:
     OpenGLContext* m_context{nullptr};
     OpenGLState m_state;
 
+    // GPU resource caches indexed by MeshHandle / MaterialHandle.
     std::unordered_map<MeshHandle, std::shared_ptr<VertexArray>> m_meshes;
     std::unordered_map<MaterialHandle, std::shared_ptr<Shader>> m_materials;
 
+    // Current matrices (loaded into shader uniforms at draw time).
     Matrix4Raw m_viewMatrix{IdentityMatrix4()};
     Matrix4Raw m_projectionMatrix{IdentityMatrix4()};
 };
 
-}
+} // namespace MirEngine::Rendering

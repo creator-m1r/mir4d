@@ -18,7 +18,8 @@ MIR4DEngineDocumentBridge::~MIR4DEngineDocumentBridge() { delete impl_; }
 void MIR4DEngineDocumentBridge::reset(const char* projectName)
 {
     const std::string name = (projectName != nullptr && *projectName != '\0') ? projectName : "Новый проект";
-
+    // A Document owns its registry and ObjectStore, so reset both ownership
+    // and history explicitly instead of replacing the non-assignable Document.
     impl_->document.scene().clear();
     impl_->document.objectRegistry().clear();
     impl_->document.history().clear();
@@ -66,7 +67,7 @@ std::size_t MIR4DEngineDocumentBridge::meshTriangleCount(std::uint64_t objectId)
     if (!node || !node->model() || !node->model()->hasMesh()) return 0;
     return node->model()->mesh().triangles.size();
 }
-}
+} // namespace MirUI
 
 extern "C"
 {

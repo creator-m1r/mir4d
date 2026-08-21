@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Presentation-only preferences for the MIR 4D workspace.
+/// Engineering data remains owned by MirEngine/CADAppState.
 @MainActor
 final class MIR4DWorkspaceCustomizationStore: ObservableObject {
     static let shared = MIR4DWorkspaceCustomizationStore()
@@ -58,6 +60,7 @@ final class MIR4DWorkspaceCustomizationStore: ObservableObject {
     }
 }
 
+/// Full live editor for MirUI. All changes are presentation-only.
 struct MIR4DWorkspaceCustomizationView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject private var workspace = MIR4DWorkspaceCustomizationStore.shared

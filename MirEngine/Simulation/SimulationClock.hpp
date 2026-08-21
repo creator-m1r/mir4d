@@ -48,4 +48,4 @@ private:
     bool running_{false};
 };
 
-}
+} // namespace mir

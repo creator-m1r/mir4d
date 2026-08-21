@@ -1,5 +1,14 @@
 #pragma once
 
+// MirEngine/BRep/BRepPrimAPI_MakeBox.hpp
+//
+// Построение прямоугольного параллелепипеда как полноценного BRep solid:
+// 8 vertices, 12 edges, 6 planar faces, 1 closed shell, 1 solid.
+//
+// buildOriented — тот же box в произвольном ортонормированном базисе
+// (повёрнутый box). Фундамент обобщения булева kernel на произвольные
+// грани (P2.4): оси-параллельный box — частный случай единичного базиса.
+
 #include "BRepBuilderAPI.hpp"
 #include "../Validator/BRepValidator.hpp"
 
@@ -19,7 +28,7 @@ struct BRepMakeBoxResult
 class BRepPrimAPI_MakeBox
 {
 public:
-
+    // Box от origin с размерами dx, dy, dz (все > 0) в осях X/Y/Z.
     [[nodiscard]] static BRepMakeBoxResult build(
         BRepModel& model,
         Scalar dx,
@@ -34,6 +43,9 @@ public:
             tolerance);
     }
 
+    // Box в произвольном ортонормированном базисе: рёбра длиной dx вдоль
+    // axisX, dy вдоль axisY, dz вдоль axisZ = cross(axisX, axisY).
+    // axisX и axisY должны быть единичными и ортогональными.
     [[nodiscard]] static BRepMakeBoxResult buildOriented(
         BRepModel& model,
         Scalar dx,
@@ -80,6 +92,16 @@ public:
 
         BRepBuilderAPI builder(model);
 
+        // Vertex numbering:
+        //   4------5
+        //  /|     /|
+        // 7------6 |
+        // | 0----|-1
+        // |/     |/
+        // 3------2
+        //
+        // axisZ up, axisY depth, axisX width
+
         const Vector3 p0 = origin;
         const Vector3 p1 = origin + axisX * dx;
         const Vector3 p2 = origin + axisX * dx + axisY * dy;
@@ -111,16 +133,17 @@ public:
             return builder.makeEdgeLine(vertices[a], vertices[b], tolerance.linear);
         };
 
+        // Bottom
         const BRepEdgeHandle e01 = edge(0, 1);
         const BRepEdgeHandle e12 = edge(1, 2);
         const BRepEdgeHandle e23 = edge(2, 3);
         const BRepEdgeHandle e30 = edge(3, 0);
-
+        // Top
         const BRepEdgeHandle e45 = edge(4, 5);
         const BRepEdgeHandle e56 = edge(5, 6);
         const BRepEdgeHandle e67 = edge(6, 7);
         const BRepEdgeHandle e74 = edge(7, 4);
-
+        // Vertical
         const BRepEdgeHandle e04 = edge(0, 4);
         const BRepEdgeHandle e15 = edge(1, 5);
         const BRepEdgeHandle e26 = edge(2, 6);
@@ -147,6 +170,9 @@ public:
             return {h, o};
         };
 
+        // Wires are oriented CCW when viewed against face normal (outward).
+
+        // Bottom face normal -axisZ
         const BRepWireHandle bottomWire = builder.makeWire(
             {
                 oriented(e01, BRepOrientation::Reversed),
@@ -156,6 +182,7 @@ public:
             },
             true);
 
+        // Top face normal +axisZ
         const BRepWireHandle topWire = builder.makeWire(
             {
                 oriented(e45, BRepOrientation::Forward),
@@ -165,6 +192,7 @@ public:
             },
             true);
 
+        // Front face (v=0) normal -axisY
         const BRepWireHandle frontWire = builder.makeWire(
             {
                 oriented(e01, BRepOrientation::Forward),
@@ -174,6 +202,7 @@ public:
             },
             true);
 
+        // Back face (v=dy) normal +axisY
         const BRepWireHandle backWire = builder.makeWire(
             {
                 oriented(e23, BRepOrientation::Forward),
@@ -183,6 +212,7 @@ public:
             },
             true);
 
+        // Left face (u=0) normal -axisX
         const BRepWireHandle leftWire = builder.makeWire(
             {
                 oriented(e30, BRepOrientation::Forward),
@@ -192,6 +222,7 @@ public:
             },
             true);
 
+        // Right face (u=dx) normal +axisX
         const BRepWireHandle rightWire = builder.makeWire(
             {
                 oriented(e12, BRepOrientation::Forward),
@@ -321,4 +352,4 @@ public:
     }
 };
 
-}
+} // namespace mir

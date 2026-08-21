@@ -52,4 +52,4 @@ private:
     std::vector<SimulationField> fields_{};
 };
 
-}
+} // namespace mir

@@ -12,6 +12,11 @@
 namespace mir4d
 {
 
+/// Document-owned engineering object instance.
+///
+/// The implementation is owned by the Document layer. Geometry remains a
+/// lower-level dependency; the old Geometry/Model/ModelNode.hpp path is only
+/// a compatibility alias during migration.
 class ModelNode
 {
 public:
@@ -54,6 +59,8 @@ public:
         touch();
     }
 
+    /// Optional exact B-Rep source for round-tripping through native STEP.
+    /// Null for nodes that were created without an exact B-Rep origin.
     [[nodiscard]] const std::shared_ptr<mir::BRepModel>& brep() const noexcept
     {
         return brep_;
@@ -85,4 +92,4 @@ private:
     std::uint64_t revision_{0};
 };
 
-}
+} // namespace mir4d

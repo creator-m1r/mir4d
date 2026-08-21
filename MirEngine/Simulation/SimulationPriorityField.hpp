@@ -36,4 +36,4 @@ struct SimulationPriorityField
     }
 };
 
-}
+} // namespace mir

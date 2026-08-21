@@ -1,3 +1,19 @@
+// MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
+// =================================================================================
+// Реализация индексного буфера OpenGL.
+// Инкапсулирует работу с GL_ELEMENT_ARRAY_BUFFER: создание, загрузку данных,
+// привязку и удаление. Все вызовы gl* находятся здесь, изолируя остальной
+// движок от знания о конкретном API.
+//
+// Зависимости:
+//   - glbinding (OpenGL-функции)
+//   - spdlog (логирование ошибок и отладки)
+// =================================================================================
+
+// MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.cpp
+// =================================================================================
+// Реализация OpenGLIndexBuffer.
+// =================================================================================
 
 #include "OpenGLIndexBuffer.h"
 #include "OpenGLVertexArray.h"
@@ -46,6 +62,9 @@ void OpenGLIndexBuffer::uploadIndices(const uint32_t* data, size_t count,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData. Bind the
+    // scratch VAO here (not inside bind(), which is also invoked while a real
+    // VAO is already bound during setupAttributes).
     BindDefaultVertexArray();
     bind();
 
@@ -103,5 +122,5 @@ size_t OpenGLIndexBuffer::getSize() const
     return m_indexCount * sizeof(uint32_t);
 }
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

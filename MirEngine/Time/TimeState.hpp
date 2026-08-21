@@ -5,6 +5,9 @@
 namespace mir
 {
 
+/// Time state shared by future physical and process simulations.
+/// Geometry itself remains timeless; simulation systems use this state to
+/// evaluate material, kinematic and process changes at a given instant.
 struct TimeState
 {
     Time current{};
@@ -17,4 +20,4 @@ struct TimeState
     }
 };
 
-}
+} // namespace mir

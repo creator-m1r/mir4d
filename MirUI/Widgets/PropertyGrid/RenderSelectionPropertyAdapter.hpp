@@ -16,4 +16,4 @@ public:
         const MirEngine::Rendering::RenderSelectionProperties& selectionProperties);
 };
 
-}
+} // namespace MirUI

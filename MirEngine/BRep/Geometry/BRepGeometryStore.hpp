@@ -1,5 +1,8 @@
 #pragma once
 
+// MirEngine/BRep/Geometry/BRepGeometryStore.hpp
+// Owning storage for canonical B-Rep geometry records.
+
 #include "MirEngine/BRep/Geometry/BRepGeometry.hpp"
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 
@@ -25,6 +28,8 @@ public:
         return {points_.size(), curves_.size(), surfaces_.size()};
     }
 
+    // Roll back only records appended after the checkpoint. Existing handles
+    // remain valid because the store is append-only between checkpoints.
     void rollback(Checkpoint checkpoint) noexcept
     {
         if (checkpoint.pointCount <= points_.size())
@@ -127,4 +132,4 @@ private:
     std::vector<BRepSurfaceGeometry> surfaces_;
 };
 
-}
+} // namespace mir

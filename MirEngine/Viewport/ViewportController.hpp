@@ -9,6 +9,16 @@
 namespace mir
 {
 
+/// Platform-neutral camera interaction controller.
+/// Middle-button orbit/pan/zoom policies are intentionally configurable by the UI.
+///
+/// Industrial CAD navigation semantics:
+///   - orbit: turntable around the target (yaw/pitch clamped);
+///   - pan:   moves the target inside the camera view plane (screen X/Y),
+///            so panning never "drifts" relative to the view orientation;
+///   - zoom:  exponential dolly, optionally anchored to the point under the
+///            cursor (perspective keeps the cursor point fixed on the screen;
+///            orthographic rescales the visible volume around it).
 class ViewportController
 {
 public:
@@ -69,6 +79,11 @@ public:
         camera_->setOrbit(camera_->theta(), camera_->phi(), camera_->distance() * factor);
     }
 
+    /// Continuous two-finger / gesture panning.
+    /// Deltas follow the touchpad gesture direction, independent of Mode,
+    /// so trackpad panning never conflicts with mouse button state.
+    /// Pan is performed in the camera view plane (right/up vectors), so the
+    /// scene follows the pointer regardless of the orbit orientation.
     void panBy(Scalar dx, Scalar dy) noexcept
     {
         if (!camera_)
@@ -85,6 +100,9 @@ public:
             target.z + (-right.z * dx + up.z * dy) * scale});
     }
 
+    /// Continuous two-finger / gesture orbiting.
+    /// Deltas follow the touchpad gesture direction, independent of Mode,
+    /// so trackpad orbiting never conflicts with mouse button state.
     void orbitBy(Scalar dx, Scalar dy) noexcept
     {
         if (!camera_)
@@ -96,6 +114,12 @@ public:
             camera_->distance());
     }
 
+    /// Exponential zoom anchored at the world point hit by the picking ray.
+    ///
+    /// rayOrigin/rayDirection describe the ray from the eye through the cursor
+    /// pixel (see RayPicker::buildRay). The cursor point stays under the
+    /// pointer: perspective adjusts the target along the ray; orthographic
+    /// rescales the visible volume around the cursor point.
     void zoomAt(Scalar delta,
                 const Point3& rayOrigin,
                 const Vector3& rayDirection) noexcept
@@ -111,6 +135,10 @@ public:
         const Vector3 forward = camera_->forward();
         const Scalar cosAngle = std::max(Vector3::dot(rayDirection, forward), Scalar(1e-6));
 
+        // P: intersection of the picking ray with the plane through the
+        // target perpendicular to the view direction. rayOrigin lies on the
+        // near clip plane (not at the eye), so the parameterization uses the
+        // target-relative distance along the ray.
         const Point3 target = camera_->target();
         const Scalar t0 = (Vector3{target.x - rayOrigin.x,
                                    target.y - rayOrigin.y,
@@ -169,4 +197,4 @@ private:
     static constexpr Scalar kMaxPhi = Scalar(3.14159265358979) - Scalar(0.05);
 };
 
-}
+} // namespace mir

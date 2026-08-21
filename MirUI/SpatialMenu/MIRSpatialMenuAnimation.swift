@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Animation palette and highlight styles for the spatial fan.
+/// Transitions are smooth and continuous; there is no harsh colour switching.
 enum MIRSpatialMenuAnimation {
     static let appear = Animation.easeOut(duration: 0.22)
     static let disappear = Animation.easeIn(duration: 0.16)
@@ -8,6 +10,8 @@ enum MIRSpatialMenuAnimation {
     static let haloBreath = Animation.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
     static let blurTransition = Animation.easeInOut(duration: 0.24)
 
+    /// Scale of a segment by highlight state: hover grows, selected grows further,
+    /// disabled stays quiet.
     static func scale(for state: MIRSpatialMenuHighlightState) -> CGFloat {
         switch state {
         case .idle: return 1.0
@@ -18,6 +22,7 @@ enum MIRSpatialMenuAnimation {
         }
     }
 
+    /// Stroke width of a segment by highlight state.
     static func strokeWidth(for state: MIRSpatialMenuHighlightState) -> CGFloat {
         switch state {
         case .idle: return 1.0
@@ -28,6 +33,7 @@ enum MIRSpatialMenuAnimation {
         }
     }
 
+    /// Opacity of a segment by highlight state.
     static func opacity(for state: MIRSpatialMenuHighlightState) -> Double {
         switch state {
         case .idle: return 0.55
@@ -38,6 +44,7 @@ enum MIRSpatialMenuAnimation {
         }
     }
 
+    /// Glow (shadow blur radius) of a selected segment.
     static func glow(for state: MIRSpatialMenuHighlightState) -> CGFloat {
         switch state {
         case .selected: return 18
@@ -47,6 +54,7 @@ enum MIRSpatialMenuAnimation {
     }
 }
 
+/// Soft halo behind the selected segment: a quiet breathing glow.
 struct MIRSpatialMenuHalo: View {
     let color: Color
     let active: Bool
@@ -61,6 +69,8 @@ struct MIRSpatialMenuHalo: View {
     }
 }
 
+/// Short transition when the selection moves to another segment: the glow
+/// travels instead of popping. Applied as a ViewModifier on the fan segment.
 struct MIRSpatialMenuSegmentTransition: ViewModifier {
     let isHighlighted: Bool
 

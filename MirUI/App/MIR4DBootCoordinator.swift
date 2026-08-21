@@ -1,3 +1,19 @@
+//
+//  MIR4DBootCoordinator.swift
+//  MIR 4D
+//
+//  Центральный координатор запуска MIR 4D.
+//
+//  Задачи:
+//
+//  1. Запустить предварительную проверку.
+//  2. Показать ход загрузки.
+//  3. Не создавать OpenGL.
+//  4. Не обращаться напрямую к MirEngine.
+//  5. Не создавать CVDisplayLink.
+//  6. Передать управление основной CAD-среде
+//     после достижения 100%.
+//
 
 import Foundation
 import SwiftUI
@@ -7,6 +23,8 @@ import Metal
 @MainActor
 final class MIR4DBootCoordinator: ObservableObject {
 
+    // MARK: - State
+
     enum State: Equatable {
         case idle
         case booting
@@ -15,12 +33,16 @@ final class MIR4DBootCoordinator: ObservableObject {
         case failed
     }
 
+    // MARK: - Severity
+
     enum Severity {
         case info
         case success
         case warning
         case error
     }
+
+    // MARK: - Step
 
     struct Step: Identifiable {
 
@@ -34,6 +56,8 @@ final class MIR4DBootCoordinator: ObservableObject {
 
         let severity: Severity
     }
+
+    // MARK: - Published
 
     @Published private(set) var state: State = .idle
 
@@ -51,9 +75,13 @@ final class MIR4DBootCoordinator: ObservableObject {
 
     @Published private(set) var warningCount = 0
 
+    // MARK: - Internal
+
     private var hasStarted = false
 
     private let totalSteps = 11
+
+    // MARK: - Start
 
     func start() async {
 
@@ -73,6 +101,10 @@ final class MIR4DBootCoordinator: ObservableObject {
 
         warningCount = 0
 
+        // -------------------------------------------------
+        // 1
+        // -------------------------------------------------
+
         await execute(
             index: 1,
             title: "Проверка платформы",
@@ -81,6 +113,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.checkPlatform()
         }
+
+        // -------------------------------------------------
+        // 2
+        // -------------------------------------------------
 
         await execute(
             index: 2,
@@ -91,6 +127,10 @@ final class MIR4DBootCoordinator: ObservableObject {
             self.checkSwiftUI()
         }
 
+        // -------------------------------------------------
+        // 3
+        // -------------------------------------------------
+
         await execute(
             index: 3,
             title: "Проверка ресурсов",
@@ -99,6 +139,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.checkResources()
         }
+
+        // -------------------------------------------------
+        // 4
+        // -------------------------------------------------
 
         await execute(
             index: 4,
@@ -109,6 +153,10 @@ final class MIR4DBootCoordinator: ObservableObject {
             self.checkEventBus()
         }
 
+        // -------------------------------------------------
+        // 5
+        // -------------------------------------------------
+
         await execute(
             index: 5,
             title: "Проверка GPU",
@@ -117,6 +165,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.checkGPU()
         }
+
+        // -------------------------------------------------
+        // 6
+        // -------------------------------------------------
 
         await execute(
             index: 6,
@@ -127,6 +179,10 @@ final class MIR4DBootCoordinator: ObservableObject {
             self.checkDisplay()
         }
 
+        // -------------------------------------------------
+        // 7
+        // -------------------------------------------------
+
         await execute(
             index: 7,
             title: "Проверка памяти",
@@ -135,6 +191,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.checkMemory()
         }
+
+        // -------------------------------------------------
+        // 8
+        // -------------------------------------------------
 
         await execute(
             index: 8,
@@ -145,6 +205,10 @@ final class MIR4DBootCoordinator: ObservableObject {
             self.prepareEngineeringEnvironment()
         }
 
+        // -------------------------------------------------
+        // 9
+        // -------------------------------------------------
+
         await execute(
             index: 9,
             title: "Проверка файловой системы",
@@ -153,6 +217,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.checkFileSystem()
         }
+
+        // -------------------------------------------------
+        // 10
+        // -------------------------------------------------
 
         await execute(
             index: 10,
@@ -163,6 +231,10 @@ final class MIR4DBootCoordinator: ObservableObject {
             self.checkApplicationIntegrity()
         }
 
+        // -------------------------------------------------
+        // 11
+        // -------------------------------------------------
+
         await execute(
             index: 11,
             title: "Финальная проверка",
@@ -171,6 +243,10 @@ final class MIR4DBootCoordinator: ObservableObject {
         ) {
             self.finalizeBoot()
         }
+
+        // -------------------------------------------------
+        // Final state
+        // -------------------------------------------------
 
         if errorCount > 0 {
 
@@ -205,6 +281,8 @@ final class MIR4DBootCoordinator: ObservableObject {
 
         progress = 1.0
     }
+
+    // MARK: - Execute
 
     private func execute(
         index: Int,
@@ -262,6 +340,8 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - Step result
+
     private enum StepResult {
 
         case success(String)
@@ -270,6 +350,8 @@ final class MIR4DBootCoordinator: ObservableObject {
 
         case failure(String)
     }
+
+    // MARK: - Platform
 
     private func checkPlatform()
         -> StepResult
@@ -314,6 +396,8 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - SwiftUI
+
     private func checkSwiftUI()
         -> StepResult
     {
@@ -322,6 +406,8 @@ final class MIR4DBootCoordinator: ObservableObject {
             "SwiftUI runtime доступен."
         )
     }
+
+    // MARK: - Resources
 
     private func checkResources()
         -> StepResult
@@ -352,9 +438,29 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - Event Bus
+
     private func checkEventBus()
         -> StepResult
     {
+
+        /*
+         Swift 6:
+
+         НЕ используем:
+
+             var received = false
+
+         внутри NotificationCenter closure.
+
+         Это приводит к:
+
+             Mutation of captured var
+             in concurrently-executing code
+
+         Нам достаточно проверить возможность регистрации
+         и публикации уведомления.
+        */
 
         let name =
             Notification.Name(
@@ -367,7 +473,7 @@ final class MIR4DBootCoordinator: ObservableObject {
                 object: nil,
                 queue: .main
             ) { _ in
-                
+                // Проверка регистрации NotificationCenter.
             }
 
         NotificationCenter.default.post(
@@ -383,6 +489,8 @@ final class MIR4DBootCoordinator: ObservableObject {
             "NotificationCenter / Event Bus доступны."
         )
     }
+
+    // MARK: - GPU
 
     private func checkGPU()
         -> StepResult
@@ -401,6 +509,8 @@ final class MIR4DBootCoordinator: ObservableObject {
             "GPU: \(device.name). Metal доступен."
         )
     }
+
+    // MARK: - Display
 
     private func checkDisplay()
         -> StepResult
@@ -437,7 +547,7 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
-    
+    // MARK: - Memory
 
     private func checkMemory()
         -> StepResult
@@ -484,6 +594,7 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - File system
 
     private func checkFileSystem()
         -> StepResult
@@ -542,7 +653,8 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
-    
+    // MARK: - Application integrity
+
     private func checkApplicationIntegrity()
         -> StepResult
     {
@@ -574,19 +686,52 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
-    
+    // MARK: - Engineering environment
 
     private func prepareEngineeringEnvironment()
         -> StepResult
     {
 
+        /*
+         ВАЖНО.
+
+         Здесь НЕ вызываем:
+
+             MirEngineCreateMacOpenGLContext
+             MirEngineCreateOpenGLRenderer
+             MirEngineCreateViewport
+             CVDisplayLink
+
+         Эти объекты принадлежат реальному
+         жизненному циклу MirGLCustomView.
+
+         Архитектура:
+
+                 Boot
+                  │
+                  ▼
+              Start UI
+                  │
+                  ▼
+            CADMainView
+                  │
+                  ▼
+             MirGLView
+                  │
+                  ▼
+          MirGLCustomView
+                  │
+                  ▼
+              MirEngine
+        */
 
         return .success(
             "Базовая инженерная среда подготовлена."
         )
     }
 
-    
+    // MARK: - Finalize
+
     private func finalizeBoot()
         -> StepResult
     {
@@ -610,6 +755,8 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
+    // MARK: - Add step
+
     private func addStep(
         index: Int,
         title: String,
@@ -627,7 +774,8 @@ final class MIR4DBootCoordinator: ObservableObject {
         )
     }
 
-    
+    // MARK: - Reset
+
     func reset() {
 
         hasStarted = false

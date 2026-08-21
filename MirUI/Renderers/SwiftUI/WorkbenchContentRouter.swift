@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Central presentation router for MIR 4D workbenches.
+///
+/// The router owns no engineering state. It only translates the current
+/// ActiveContext into a small presentation layer: title, mode description,
+/// contextual hints and optional workbench-specific controls.
 struct WorkbenchContentRouter: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

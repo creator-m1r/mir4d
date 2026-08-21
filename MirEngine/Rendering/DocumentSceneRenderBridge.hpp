@@ -11,6 +11,12 @@
 namespace mir::rendering
 {
 
+/// Document-to-render metadata bridge.
+///
+/// This component deliberately does not create a second Scene, Mesh or GPU
+/// representation. Rendering consumes mir::Scene directly. The bridge only
+/// caches document-derived metadata needed by presentation services such as
+/// camera framing, status overlays and render scheduling.
 class DocumentSceneRenderBridge
 {
 public:
@@ -48,4 +54,4 @@ private:
     std::vector<mir4d::ObjectId> objectIds_;
 };
 
-}
+} // namespace mir::rendering

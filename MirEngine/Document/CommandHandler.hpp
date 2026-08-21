@@ -9,6 +9,7 @@
 namespace mir4d
 {
 
+/// Result of executing one document command.
 struct CommandResult
 {
     bool success{false};
@@ -28,6 +29,8 @@ struct CommandResult
     }
 };
 
+/// Command execution boundary between the document and geometry.
+/// Scene remains a legacy geometry type until the Geometry migration.
 class CommandHandler
 {
 public:
@@ -38,4 +41,4 @@ public:
         mir::Scene& scene) = 0;
 };
 
-}
+} // namespace mir4d

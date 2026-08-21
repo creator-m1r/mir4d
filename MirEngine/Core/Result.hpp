@@ -30,4 +30,4 @@ template <typename T>
     return Error{code, std::move(message)};
 }
 
-}
+} // namespace mir4d

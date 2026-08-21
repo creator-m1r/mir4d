@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// 2D overlay that mirrors the air-sculpt brush position published by
+/// `MIR4DBrushIndicator`. Drawn on top of the 3D viewport so the user can see
+/// where the hand-driven deformation will land.
 struct MIR4DBrushOverlay: View {
     @ObservedObject private var indicator = MIR4DBrushIndicator.shared
 

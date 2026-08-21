@@ -47,6 +47,8 @@ final class TwoHandGestureTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    // MARK: - Session integration (camera-less)
+
     @MainActor
     func testSessionEmitsTwoHandScale() async {
         let session = MIRHandTrackingSession()

@@ -164,4 +164,4 @@ private:
     std::unordered_map<std::uint64_t, SimulationState> states_;
 };
 
-}
+} // namespace mir

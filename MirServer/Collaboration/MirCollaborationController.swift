@@ -1,20 +1,35 @@
 import Foundation
 
+/// Адаптер проекта MIR 4D к подсистеме совместной работы.
+///
+/// Позволяет применять входящие операции к реальной геометрии/документу
+/// (MirEngine), не связывая подсистему MirServer с CAD-ядром.
+/// Реализация предоставляется уровнем приложения (см. MIR4DModelRuntime).
 @MainActor
 public protocol MirCollaborativeDocument: AnyObject {
-
+    /// Применить операцию к документу проекта.
     func applyCollaborationOperation(_ operation: MirCollaborationOperation) throws
-
+    /// Текущий снимок состояния сущностей проекта для начальной синхронизации.
     func currentCollaborationSnapshot() throws -> MirProjectSnapshot
 }
 
+/// Элемент стека отмены локальной операции пользователя.
 private struct MirLocalUndoItem {
     let entityID: String
     let kind: MirCollaborationOperation.OperationKind
-
+    /// Параметры для обратной операции (матрица — для transform, исходные — для delete).
     let inverseParameters: Data
 }
 
+/// Координатор совместной работы инженеров над одним проектом.
+///
+/// Изолирован на главном потоке (`@MainActor`) и является `ObservableObject`
+/// для SwiftUI. Сетевая отправка делегируется `MirServerManager`, а входящие
+/// сообщения принимаются через Event Bus (`NotificationCenter`).
+///
+/// Состояние сущностей хранится в конвергентном CRDT (LWW-Register), что
+/// гарантирует идентичный результат у всех участников независимо от порядка
+/// доставки операций. Локальные операции пользователя поддерживают undo/redo.
 @MainActor
 public final class MirCollaborationController: ObservableObject {
     public static let shared = MirCollaborationController()
@@ -29,6 +44,7 @@ public final class MirCollaborationController: ObservableObject {
     @Published public private(set) var canUndo = false
     @Published public private(set) var canRedo = false
 
+    /// Адаптер документа для применения операций к реальной геометрии.
     public var document: MirCollaborativeDocument?
 
     private var localCollaborator: MirCollaborator?
@@ -57,6 +73,9 @@ public final class MirCollaborationController: ObservableObject {
         }
     }
 
+    // MARK: - Управление сессией
+
+    /// Подключиться к совместной работе над указанным общим проектом.
     public func startSharedSession(projectID: String) {
         let cfg = manager.configuration
         let color = Self.color(for: cfg.currentUserID)
@@ -83,6 +102,7 @@ public final class MirCollaborationController: ObservableObject {
         notifyStateChanged()
     }
 
+    /// Выйти из совместной работы.
     public func leave() {
         if let me = localCollaborator {
             broadcast(.presence(MirCollaborator(id: me.id, displayName: me.displayName, role: me.role, color: me.color, permission: .editor, active: false)))
@@ -91,6 +111,13 @@ public final class MirCollaborationController: ObservableObject {
         resetPresence()
     }
 
+    // MARK: - Локальные операции
+
+    /// Применить локальную операцию, сохранить и разослать команде.
+    ///
+    /// Локальная операция уже применена пользователем к документу в момент
+    /// вызова CAD-команды, поэтому здесь она только регистрируется в CRDT и
+    /// транслируется удалённым участникам (повторно к документу не применяется).
     @discardableResult
     public func applyLocal(kind: MirCollaborationOperation.OperationKind, entityID: String, parameters: Data = Data()) -> MirCollaborationOperation {
         localClockCounter &+= 1
@@ -107,6 +134,7 @@ public final class MirCollaborationController: ObservableObject {
         return op
     }
 
+    /// Отменить последнюю локальную операцию пользователя (с трансляцией инверсии).
     public func undoLastLocal() {
         guard let item = undoStack.popLast() else { return }
         let inverseKind: MirCollaborationOperation.OperationKind
@@ -122,6 +150,7 @@ public final class MirCollaborationController: ObservableObject {
         updateUndoRedoFlags()
     }
 
+    /// Повторить отменённую локальную операцию.
     public func redoLastLocal() {
         guard let item = redoStack.popLast() else { return }
         let kind = item.kind
@@ -131,6 +160,7 @@ public final class MirCollaborationController: ObservableObject {
         updateUndoRedoFlags()
     }
 
+    /// Опубликовать версию общего проекта (тег автосохранения).
     public func tagVersion(label: String) {
         let number = (versions.last?.number ?? 0) &+ 1
         let version = MirProjectVersion(label: label, number: number, authorID: localCollaborator?.id ?? "local")
@@ -138,6 +168,8 @@ public final class MirCollaborationController: ObservableObject {
         notifyStateChanged()
     }
 
+    /// Локальная демонстрация коллеги без реального сервера (loopback-эмулятор).
+    /// Создаёт фиктивного участника и операцию создания тела от его имени.
     public func simulateRemoteColleague() {
         guard joined else { return }
         let peerID = "peer-demo-\(Int.random(in: 1000...9999))"
@@ -162,6 +194,8 @@ public final class MirCollaborationController: ObservableObject {
         receiveRemote(MirCollaborationEnvelope(projectID: projectID, message: .operation(op)))
     }
 
+    // MARK: - Входящие сообщения
+
     public func receiveRemote(_ envelope: MirCollaborationEnvelope) {
         guard joined, envelope.projectID == projectID else { return }
         switch envelope.message {
@@ -175,6 +209,8 @@ public final class MirCollaborationController: ObservableObject {
             respondWithSnapshot()
         }
     }
+
+    // MARK: - Внутреннее
 
     private func handleRemoteOperation(_ op: MirCollaborationOperation) {
         localClockCounter = max(localClockCounter, op.clock.counter)
@@ -218,7 +254,7 @@ public final class MirCollaborationController: ObservableObject {
             let snapshot = try document.currentCollaborationSnapshot()
             broadcast(.snapshot(snapshot))
         } catch {
-
+            // Документ не готов к снимку — игнорируем запрос.
         }
     }
 
@@ -270,6 +306,8 @@ public final class MirCollaborationController: ObservableObject {
     private func notifyStateChanged() {
         NotificationCenter.default.post(name: .mir4DCollaborationStateChanged, object: nil)
     }
+
+    // MARK: - Цвет присутствия
 
     private static let palette = ["#FF6B6B", "#4DABF7", "#51CF66", "#FFD43B", "#CC5DE8", "#FF922B", "#22B8CF"]
 

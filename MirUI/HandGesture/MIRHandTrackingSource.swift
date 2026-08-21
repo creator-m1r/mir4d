@@ -5,17 +5,21 @@ import AVFoundation
 import Vision
 import os
 
+/// Whether a tracking source can currently provide frames.
 enum MIRHandTrackingAvailability: Sendable {
     case notDetermined
     case available
     case unavailable
 }
 
+/// A replaceable source of hand poses.
 protocol MIRHandTrackingSource: Sendable {
     var availability: MIRHandTrackingAvailability { get }
     func start() -> AsyncStream<[MIRHandPose]>
     func stop()
 }
+
+// MARK: - Mock source
 
 struct MIRMockTrackingSource: MIRHandTrackingSource {
     enum Mode: Sendable { case once, loop }
@@ -54,6 +58,16 @@ struct MIRMockTrackingSource: MIRHandTrackingSource {
     func stop() {}
 }
 
+// MARK: - Camera source
+
+/// Camera/Vision source.
+///
+/// Important concurrency rule: every mutation of AVCaptureSession, its inputs
+/// and outputs is serialized on `sessionQueue`. Vision callbacks only read the
+/// sample buffer and publish immutable pose snapshots through the locked
+/// AsyncStream continuation. This prevents AVFoundation/libdispatch queue
+/// assertions when the hand module is started/stopped from SwiftUI or a
+/// background task.
 final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
@@ -61,8 +75,13 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     private let visionQueue = DispatchQueue(label: "com.mir4d.hand-vision", qos: .userInteractive)
     private let continuationLock = OSAllocatedUnfairLock<AsyncStream<[MIRHandPose]>.Continuation?>(initialState: nil)
 
+    /// Защищает generation-счётчик (ТЗ §11). Каждый start()/stop() увеличивают
+    /// поколение; отложенный permission-callback запускает камеру только если
+    /// его поколение совпадает с текущим — иначе startRunning() после stop()
+    /// не происходит.
     private let generationLock = OSAllocatedUnfairLock<UInt64>(initialState: 0)
 
+    /// These flags are accessed only on `sessionQueue`.
     private var configured = false
     private var running = false
 
@@ -82,14 +101,21 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
 
             continuationLock.withLock { $0 = continuation }
 
+            // Захватываем поколение для ЭТОГО start(). Любой последующий stop()
+            // (или повторный start()) увеличит поколение, и отложенный запуск
+            // камеры ниже будет пропущен (ТЗ §11, Test 5).
             let myGeneration = generationLock.withLock { state in
                 state &+= 1
                 return state
             }
 
+            // Permission is asynchronous and must not block the camera queue.
             Task.detached { [weak self] in
                 guard let self else { return }
 
+                // TCC-запрос разрешения должен выполняться на главном потоке:
+                // иначе remote view сервис диалога разрешений (RemoteViewService)
+                // завершается с ViewBridge error (ТЗ §5, macOS TCC quirk).
                 let granted: Bool = await withCheckedContinuation { continuation in
                     Task { @MainActor in
                         continuation.resume(returning: await AVCaptureDevice.requestAccess(for: .video))
@@ -100,9 +126,13 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                     return
                 }
 
+                // AVFoundation session configuration and startRunning are both
+                // serialized on exactly the same queue.
                 self.sessionQueue.async { [weak self] in
                     guard let self else { return }
 
+                    // Поколение могло измениться (stop() пришёл до ответа
+                    // permission) — в этом случае НЕ запускаем камеру.
                     let current = self.generationLock.withLock { $0 }
                     guard current == myGeneration else {
                         self.finishStream()
@@ -120,11 +150,13 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
     }
 
     func stop() {
-
+        // Finish the stream immediately so consumers stop processing frames.
         finishStream()
 
+        // Инвалидируем любой отложенный start от предыдущего поколения.
         generationLock.withLock { $0 &+= 1 }
 
+        // All AVCaptureSession mutations remain serialized on sessionQueue.
         sessionQueue.async { [weak self] in
             guard let self else { return }
             if self.session.isRunning {
@@ -141,6 +173,14 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
         }
     }
 
+    /// Конфигурирует `AVCaptureSession` строго на `sessionQueue`. Тело всегда
+    /// выполняется через `sessionQueue.async`, поэтому вызов из любой другой
+    /// очереди (visionQueue / Thread 12 при старте сессии из 3D-сцены, либо из
+    /// `captureOutput`) безопасен и не вызывает EXC_BREAKPOINT в
+    /// `dispatch_assert_queue_fail` (ТЗ §5). Внутри вызываются
+    /// `AVCaptureSession.beginConfiguration` / `addInput`, которые внутренне
+    /// assert-ят выполнение именно на очереди сессии. `then` вызывается после
+    /// успешной конфигурации (также на `sessionQueue`).
     private func configureIfNeededOnSessionQueue(then startIfConfigured: @Sendable @escaping () -> Void) {
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -175,6 +215,8 @@ final class MIRCameraTrackingSource: NSObject, MIRHandTrackingSource, @unchecked
                 connection.videoRotationAngle = 90
             }
 
+            // Коммитим конфигурацию ДО startRunning (иначе сессия может
+            // заблокироваться внутри открытой транзакции конфигурации).
             self.session.commitConfiguration()
             self.configured = true
             startIfConfigured()

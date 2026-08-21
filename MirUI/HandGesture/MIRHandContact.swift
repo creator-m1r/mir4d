@@ -1,6 +1,10 @@
 import Foundation
 import simd
 
+/// Contact state of a hand against the (virtual or real) interaction volume.
+/// It is the module's bridge toward downstream consumers such as
+/// `MIRAirContactField`, `MIRAirSculptController` and `MIRSurfaceContactSolver`.
+/// The hand module never creates geometry itself.
 struct MIRHandContact: Sendable {
     enum State: String, Sendable {
         case hovering
@@ -34,6 +38,7 @@ struct MIRHandContact: Sendable {
         self.timestamp = timestamp
     }
 
+    /// Bridge into the shared air-contact representation consumed by sculpt layers.
     func toAirContactField() -> MIRAirContactField {
         let airState: MIRAirContactField.State
         switch state {

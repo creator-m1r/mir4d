@@ -47,4 +47,4 @@ enum class Format
            format == Format::Fbx;
 }
 
-}
+} // namespace mir::io

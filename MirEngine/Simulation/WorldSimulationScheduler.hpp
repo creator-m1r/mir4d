@@ -137,4 +137,4 @@ private:
     std::array<SimulationTaskBudget, 7> budgets_{};
 };
 
-}
+} // namespace mir

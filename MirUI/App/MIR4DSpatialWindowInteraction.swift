@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Device-independent interaction state for future mouse, touch and hand input.
+/// Gesture/hand agents can feed the same state without changing window views.
 @MainActor
 final class MIR4DSpatialWindowInteraction: ObservableObject {
     @Published private(set) var isDragging = false
@@ -74,7 +76,7 @@ struct MIR4DSpatialWindowInteractionModifier: ViewModifier {
 }
 
 extension View {
-
+    /// Enables the same spatial transform layer that will later receive hand intents.
     func mir4DSpatialManipulation(enabled: Bool = true) -> some View {
         modifier(MIR4DSpatialWindowInteractionModifier(allowsTouchManipulation: enabled))
     }

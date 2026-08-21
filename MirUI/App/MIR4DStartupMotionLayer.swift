@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Lightweight SwiftUI-only motion layer for the launch sequence.
+/// No renderer, Metal/OpenGL, or MirEngine work is performed here.
 struct MIR4DStartupMotionLayer: View {
     var phase: Double = 0
     @State private var pulse = false

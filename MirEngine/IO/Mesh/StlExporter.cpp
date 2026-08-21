@@ -173,7 +173,7 @@ void writeU32Le(std::ostream& output, std::uint32_t value)
     output << "endsolid MIR4D\n";
     return static_cast<bool>(output);
 }
-}
+} // namespace
 
 ExportResult StlExporter::exportTo(
     const std::string& path,
@@ -205,4 +205,4 @@ ExportResult StlExporter::exportTo(
     return result;
 }
 
-}
+} // namespace mir::io

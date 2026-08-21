@@ -1,3 +1,6 @@
+// MirUI/Widgets/Toolbar/Toolbar.hpp
+// Toolbar widget that holds a list of child widget IDs (buttons, etc.).
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -19,6 +22,7 @@ public:
         : Widget(WidgetType::Toolbar)
     {}
 
+    // Manage toolbar items by their widget ID.
     void addItem(WidgetID id) {
         if (std::find(m_items.begin(), m_items.end(), id) == m_items.end()) {
             m_items.push_back(id);
@@ -32,6 +36,7 @@ public:
 
     [[nodiscard]] const std::vector<WidgetID>& items() const { return m_items; }
 
+    // Orientation
     void setOrientation(ToolbarOrientation orientation) { m_orientation = orientation; }
     [[nodiscard]] ToolbarOrientation orientation() const { return m_orientation; }
 
@@ -40,4 +45,4 @@ private:
     ToolbarOrientation m_orientation = ToolbarOrientation::Horizontal;
 };
 
-}
+} // namespace MirUI

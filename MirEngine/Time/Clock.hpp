@@ -5,6 +5,8 @@
 namespace mir
 {
 
+/// Deterministic simulation clock for the 4D engine.
+/// One tick is the engine's elementary simulation step; the default is one second.
 class Clock
 {
 public:
@@ -50,4 +52,4 @@ private:
     double tickPeriodSeconds_{1.0};
 };
 
-}
+} // namespace mir

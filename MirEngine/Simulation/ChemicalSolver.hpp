@@ -124,4 +124,4 @@ private:
     ChemicalQuality quality_{ChemicalQuality::Fast};
 };
 
-}
+} // namespace mir

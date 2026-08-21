@@ -1,3 +1,35 @@
+// MirUI/Designer/Canvas/AlignmentManager.hpp
+// 📐 Менеджер выравнивания виджетов.
+//
+// Когда на холсте выделено несколько кнопок, пользователь может захотеть
+// выровнять их по левому краю, по центру, по правому краю или равномерно
+// распределить. AlignmentManager содержит статические методы, которые
+// по набору прямоугольников (Rect) вычисляют новые позиции, следуя
+// выбранной стратегии выравнивания.
+//
+// Важно: AlignmentManager не изменяет дерево виджетов и не создаёт команд.
+// Он только вычисляет новые значения bounds. Применение этих значений
+// (создание MoveWidgetCommand или ResizeWidgetCommand) остаётся за
+// вызывающим кодом — холстом или мостом. Так мы сохраняем чистоту
+// разделения: геометрические расчёты отдельно, выполнение команд отдельно.
+//
+// Поддерживаемые стратегии выравнивания (enum AlignStrategy):
+//   • Left              — по левому краю первого выделенного
+//   • CenterHorizontal  — горизонтально по центру первого
+//   • Right             — по правому краю первого
+//   • Top               — по верхнему краю первого
+//   • CenterVertical    — вертикально по центру первого
+//   • Bottom            — по нижнему краю первого
+//   • DistributeHorizontal — равномерно распределить по горизонтали
+//   • DistributeVertical   — равномерно распределить по вертикали
+//
+// Пример использования (в мосте или холсте):
+//   1. Собрать Rect всех выделенных виджетов.
+//   2. Вызвать AlignmentManager::align(rects, AlignStrategy::Left).
+//   3. Для каждого виджета сравнить старый и новый Rect,
+//      создать ResizeWidgetCommand (которая умеет менять и позицию) и выполнить.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -8,6 +40,7 @@
 
 namespace MirUI {
 
+// ── Стратегии выравнивания ──────────────────────────────────
 enum class AlignStrategy {
     Left,
     CenterHorizontal,
@@ -21,7 +54,11 @@ enum class AlignStrategy {
 
 class AlignmentManager {
 public:
-
+    // ── Главный метод выравнивания ──────────────────────────
+    // Принимает вектор прямоугольников (bounds виджетов) и стратегию.
+    // Возвращает новый вектор прямоугольников с изменёнными позициями,
+    // но с сохранением размеров каждого виджета.
+    // Порядок прямоугольников сохраняется.
     [[nodiscard]] static std::vector<Rect> align(const std::vector<Rect>& rects,
                                                   AlignStrategy strategy) {
         if (rects.empty()) return {};
@@ -44,11 +81,12 @@ public:
             case AlignStrategy::DistributeVertical:
                 return distributeVertical(rects);
         }
-        return rects;
+        return rects; // неизвестная стратегия — возвращаем как есть
     }
 
 private:
-
+    // ── Выравнивание по левому краю ─────────────────────────
+    // Все прямоугольники получают координату X, равную X первого прямоугольника.
     static std::vector<Rect> alignLeft(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetX = rects[0].x;
@@ -60,6 +98,8 @@ private:
         return result;
     }
 
+    // ── Выравнивание по горизонтальному центру ──────────────
+    // Центр каждого прямоугольника по X становится равным центру первого.
     static std::vector<Rect> alignCenterHorizontal(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetCenter = rects[0].x + rects[0].width * 0.5;
@@ -72,6 +112,7 @@ private:
         return result;
     }
 
+    // ── Выравнивание по правому краю ────────────────────────
     static std::vector<Rect> alignRight(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetRight = rects[0].x + rects[0].width;
@@ -84,6 +125,7 @@ private:
         return result;
     }
 
+    // ── Выравнивание по верхнему краю ───────────────────────
     static std::vector<Rect> alignTop(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetY = rects[0].y;
@@ -95,6 +137,7 @@ private:
         return result;
     }
 
+    // ── Выравнивание по вертикальному центру ────────────────
     static std::vector<Rect> alignCenterVertical(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetCenter = rects[0].y + rects[0].height * 0.5;
@@ -107,6 +150,7 @@ private:
         return result;
     }
 
+    // ── Выравнивание по нижнему краю ────────────────────────
     static std::vector<Rect> alignBottom(const std::vector<Rect>& rects) {
         if (rects.empty()) return {};
         double targetBottom = rects[0].y + rects[0].height;
@@ -119,8 +163,11 @@ private:
         return result;
     }
 
+    // ── Равномерное распределение по горизонтали ────────────
+    // Сохраняем левый край первого и правый край последнего,
+    // остальные равномерно размещаем между ними.
     static std::vector<Rect> distributeHorizontal(const std::vector<Rect>& rects) {
-        if (rects.size() <= 2) return rects;
+        if (rects.size() <= 2) return rects; // нечего распределять
 
         double minX = rects.front().x;
         double maxRight = rects.back().x + rects.back().width;
@@ -139,6 +186,7 @@ private:
         return result;
     }
 
+    // ── Равномерное распределение по вертикали ──────────────
     static std::vector<Rect> distributeVertical(const std::vector<Rect>& rects) {
         if (rects.size() <= 2) return rects;
 
@@ -160,4 +208,4 @@ private:
     }
 };
 
-}
+} // namespace MirUI

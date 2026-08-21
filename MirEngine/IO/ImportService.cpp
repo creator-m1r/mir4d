@@ -21,7 +21,7 @@ namespace
                    });
     return extension;
 }
-}
+} // namespace
 
 Format ImportService::detectFormat(const std::string& path) noexcept
 {
@@ -87,4 +87,4 @@ ImportResult ImportService::importFile(
     return result;
 }
 
-}
+} // namespace mir::io

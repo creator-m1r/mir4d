@@ -10,6 +10,8 @@ extension Notification.Name {
     static let mir4DCAEResult = Notification.Name("MIR4D.CAEResult")
 }
 
+/// Live parameter/document model used by the SwiftUI workspace.
+/// The C++ bridge is the authoritative evaluated MirEngine document.
 @MainActor
 final class MIR4DModelRuntime: ObservableObject {
     static let shared = MIR4DModelRuntime()
@@ -23,51 +25,84 @@ final class MIR4DModelRuntime: ObservableObject {
     @Published private(set) var engineIsModified: Bool = false
 
 #if !MIR4D_SWIFTPM
-
+    // C handle owned exclusively on the main actor. It is marked
+    // nonisolated(unsafe) so the deinit can release it; the instance is a
+    // process-lifetime singleton, so no cross-thread access can occur.
     nonisolated(unsafe) private var engineDocument: UnsafeMutableRawPointer?
 #endif
 
+    /// Live viewport engine handle published by MirGLView. Used by the CAE
+    /// geometry bridge to read real metrics of the selected CAD object.
     nonisolated(unsafe) var viewport: UnsafeMutableRawPointer?
 
+    /// Live OpenGL renderer handle published by MirGLView. Required to push the
+    /// 2D sketch overlay (and other immediate-mode draws) from App-layer bridges.
     nonisolated(unsafe) var renderer: UnsafeMutableRawPointer?
 
+    /// Live OpenGL context handle. Owned process-lifetime: survives NSView
+    /// remounts so the (expensive) NSOpenGLContext is created once and merely
+    /// rebound to the new view, instead of being destroyed and recreated.
     nonisolated(unsafe) var glContext: UnsafeMutableRawPointer?
 
+    /// Active sketch plane basis mirrored from `CADAppState.sketchPlane`, used by
+    /// the sketch command bridge to orient hand-drawn strokes onto the chosen
+    /// work plane (XY/YZ/ZX) instead of a fixed base plane.
     nonisolated(unsafe) var activeSketchPlane: SketchPlaneAnchor?
 
+    /// Closed-loop hand grab controller (Vertical Slice v0.1). It subscribes to
+    /// the hand intent stream and drives the real MirEngine through this runtime;
+    /// when no viewport is present its calls are safe no-ops.
     private let handGrabController = MIRHandGrabController()
 
+    /// Подписки на потоки данных hand-подсистемы (скелет и т.п.).
     private var cancellables = Set<AnyCancellable>()
 
+    /// Состояние моста визуализации скелета.
     private var handSkeletonTopologySent = false
     private var lastSkeletonStyleSignature: String?
     private var lastSkeletonDataSignature: String?
 
+    /// Runtime-only mapping from persisted geometry identity to the fresh
+    /// MirEngine object identity created during evaluation. Engine IDs are not
+    /// persisted because the engine document is rebuilt when a project opens.
     private var engineObjectIDs: [UUID: UInt64] = [:]
 
+    /// Maps a persisted body UUID to the runtime viewport engine object ID.
+    /// The viewport scene owns a separate registry, so its selection IDs must
+    /// be bridged back to persisted model identity without inventing a second
+    /// CAD ID scheme.
     private var viewportObjectIDs: [UUID: UInt64] = [:]
 
+    /// Registers the viewport engine object identity created for a body.
     func registerViewportEngineID(bodyID: UUID, engineObjectID: UInt64) {
         guard engineObjectID > 0 else { return }
         viewportObjectIDs[bodyID] = engineObjectID
     }
 
+    /// Applies an in-place sculpt stroke to the selected object through MirEngine.
+    /// `x,y,z` and `radius` are in CAD world units; `strength` is a signed
+    /// displacement magnitude; `mode` matches `MIR4DSculptIntent.Mode` ordering.
     @discardableResult
     func deformSelected(x: Double, y: Double, z: Double, radius: Double, strength: Double, mode: Int) -> Bool {
         guard let viewport else { return false }
         return mirEngineDeformSelected(viewport, x, y, z, radius, strength, Int32(mode))
     }
 
+    /// Snapshots the selected mesh so a subsequent `deformSelected` stroke is a
+    /// single undoable command. Pairs with `endDeformStroke`.
     func beginDeformStroke() {
         guard let viewport else { return }
         _ = mirEngineBeginDeformSelected(viewport)
     }
 
+    /// Commits one undoable deform command for the active stroke. Pairs with
+    /// `beginDeformStroke`.
     func endDeformStroke() {
         guard let viewport else { return }
         _ = mirEngineEndDeformSelected(viewport)
     }
 
+    /// Resolves a persisted body UUID from a viewport engine object ID.
     func persistedBodyID(forViewportEngineObjectID objectID: UInt64) -> UUID? {
         guard objectID > 0 else { return nil }
         for (bodyID, viewportID) in viewportObjectIDs where viewportID == objectID {
@@ -76,12 +111,19 @@ final class MIR4DModelRuntime: ObservableObject {
         return nil
     }
 
+    /// Selects a persisted body in the MirEngine viewport by its UUID so that
+    /// selection-driven tools (sculpt) work even when the body was picked from
+    /// the CAD tree rather than the 3D viewport (which already sets it).
     func selectBody(persistedID: UUID) {
         guard let viewport else { return }
         guard let objectID = viewportObjectIDs[persistedID], objectID > 0 else { return }
         mirEngineSelectObject(viewport, objectID)
     }
 
+    /// Ray-casts the viewport camera through normalized screen coords (nx, ny in
+    /// -1..1, screen-centred, y up) and returns the world hit point plus the hit
+    /// engine object id. Used to place the air-sculpt brush where the hand points,
+    /// regardless of camera orientation. Returns nil on a miss.
     func pickWorldPoint(nx: Double, ny: Double) -> (point: SIMD3<Double>, objectId: UInt64)? {
         guard let viewport else { return nil }
         var x = 0.0, y = 0.0, z = 0.0
@@ -90,6 +132,10 @@ final class MIR4DModelRuntime: ObservableObject {
         return (SIMD3(x, y, z), objectId)
     }
 
+    // MARK: - Hand Grab (Vertical Slice v0.1: Pinch → point → grab → move → commit)
+
+    /// World-space camera eye, used by the hand-grab controller to build the
+    /// picking ray (eye → calibrated hand point).
     func cameraEye() -> SIMD3<Double>? {
         guard let viewport else { return nil }
         var x = 0.0, y = 0.0, z = 0.0
@@ -97,6 +143,7 @@ final class MIR4DModelRuntime: ObservableObject {
         return SIMD3(x, y, z)
     }
 
+    /// Casts a world-space hand ray and returns the first hit object id.
     func pickHandRay(origin: SIMD3<Double>, direction: SIMD3<Double>) -> (objectId: UInt64, distance: Double)? {
         guard let viewport else { return nil }
         var objectId: UInt64 = 0
@@ -107,27 +154,32 @@ final class MIR4DModelRuntime: ObservableObject {
         return (objectId, distance)
     }
 
+    /// Arms a grab on `objectId`, snapshots its transform and selects it.
     func beginGrab(objectId: UInt64) {
         guard let viewport, objectId > 0 else { return }
         MirEngineBeginGrab(viewport, objectId)
     }
 
+    /// Live preview of the grabbed object transform (no history entry yet).
     func previewGrab(objectId: UInt64, transform: MirTransform) {
         guard let viewport, objectId > 0 else { return }
         _ = MirEnginePreviewGrab(viewport, objectId, transform)
     }
 
+    /// Commits exactly one undoable transform command; returns false if nothing moved.
     @discardableResult
     func commitGrab(objectId: UInt64) -> Bool {
         guard let viewport, objectId > 0 else { return false }
         return MirEngineCommitGrab(viewport, objectId)
     }
 
+    /// Cancels the active grab, restoring the snapshot transform.
     func cancelGrab() {
         guard let viewport else { return }
         MirEngineCancelGrab(viewport)
     }
 
+    /// Current world transform of an object (seed for preview deltas).
     func getObjectTransform(objectId: UInt64) -> MirTransform? {
         guard let viewport, objectId > 0 else { return nil }
         var t = MirTransform()
@@ -135,11 +187,16 @@ final class MIR4DModelRuntime: ObservableObject {
         return t
     }
 
+    /// Highlights the object currently under the hand (hover, no selection change).
     func setHandHover(objectId: UInt64) {
         guard let viewport, objectId > 0 else { return }
         MirEngineSetHandHover(viewport, objectId)
     }
 
+    /// Передаёт кадры скелета кистей в растератор (отдельный debug / assist
+    /// режим). Суставы в кадре — в порядке `LandmarkID.allCases`, что совпадает
+    /// с индексами костей на стороне C++ (`HandSkeletonPass`). Ничего не меняет
+    /// в CAD-сцене, Document или History.
     func setHandSkeleton(frames: [MIRHandSkeletonFrame]) {
         guard let viewport else { return }
         let mode = MIRHandGestureModule.shared.configuration.skeletonVisualizationMode
@@ -148,6 +205,7 @@ final class MIR4DModelRuntime: ObservableObject {
             return
         }
 
+        // Топология — единый источник (Swift MIRHandSkeletonTopology). Шлём один раз.
         if !handSkeletonTopologySent {
             let topo = MIRHandSkeletonBuilder.topologyIndices()
             topo.withUnsafeBufferPointer { buf in
@@ -201,11 +259,14 @@ final class MIR4DModelRuntime: ObservableObject {
         }
     }
 
+    /// Очищает оверлей скелета в растераторе.
     func clearHandSkeleton() {
         guard let viewport else { return }
         MirEngineClearHandSkeleton(viewport)
     }
 
+    /// Передаёт стиль оверлея скелета в движок (цвета/размеры/глубина).
+    /// Вызывается каждый тик, но реальный C-вызов только при изменении конфигурации.
     private func pushHandSkeletonStyleIfNeeded() {
         guard let viewport else { return }
         let c = MIRHandGestureModule.shared.configuration
@@ -221,6 +282,8 @@ final class MIR4DModelRuntime: ObservableObject {
             Float(c.skeletonAlpha), c.skeletonDepthTest ? 1 : 0)
     }
 
+    /// Лёгкая сигнатура кадра для throttle: меняется, когда рука движется
+    /// или переключается режим, — иначе повторная отправка пропускается.
     private func skeletonSignature(frames: [MIRHandSkeletonFrame],
                                    mode: MIRHandSkeletonVisMode) -> String {
         var s = "\(mode.rawValue)|\(frames.count)"
@@ -233,6 +296,8 @@ final class MIR4DModelRuntime: ObservableObject {
         return s
     }
 
+    /// Removes a body (with its operations and geometry) from the persisted    /// model after the MirEngine scene deleted the object. MirEngine Scene is
+    /// the source of truth; this keeps the navigation tree in sync.
     @discardableResult
     func removeBody(forViewportObjectID objectID: UInt64) -> Bool {
         guard let bodyID = persistedBodyID(forViewportEngineObjectID: objectID) else {
@@ -266,6 +331,7 @@ final class MIR4DModelRuntime: ObservableObject {
         return true
     }
 
+    /// Переименовывает тело модели по его идентификатору (для совместной работы).
     func renameBody(_ bodyID: UUID, to name: String) {
         guard let index = document.bodies.firstIndex(where: { $0.id == bodyID }) else { return }
         document.bodies[index].name = name
@@ -276,6 +342,9 @@ final class MIR4DModelRuntime: ObservableObject {
         publishChange()
     }
 
+    /// Применяет матрицу преобразования (4x4, построчно) к телу модели.
+    /// Матрица хранится в CRDT совместной работы; здесь фиксируется факт
+    /// изменения для синхронизации дерева проекта.
     func applyCollaborationTransform(bodyID: UUID, matrix: [Double]) {
         _ = matrix
         guard document.operations.contains(where: { $0.bodyID == bodyID }) else { return }
@@ -291,6 +360,9 @@ final class MIR4DModelRuntime: ObservableObject {
 #endif
         handGrabController.start()
 
+        // Мост визуализации скелета кистей: кадры из сессии → растератор.
+        // Режим выключен по умолчанию, поэтому без активного режима оверлей
+        // не загружается (нулевая стоимость).
         MIRHandGestureModule.shared.session.$skeletonFrames
             .receive(on: DispatchQueue.main)
             .sink { [weak self] frames in
@@ -332,6 +404,8 @@ final class MIR4DModelRuntime: ObservableObject {
         if engineDocument == nil { engineDocument = MIR4DDocumentCreate() }
         document.root.title.withCString { MIR4DDocumentReset(engineDocument, $0) }
 
+        // Rebuild the evaluated MirEngine document from the persisted
+        // parameter model. The renderer receives the fresh runtime IDs below.
         for geometry in document.geometry where geometry.kind == .box {
             let width = geometry.parameters["width"] ?? 0
             let depth = geometry.parameters["depth"] ?? 0
@@ -450,6 +524,9 @@ final class MIR4DModelRuntime: ObservableObject {
 
         guard !payloads.isEmpty else { return }
 
+        // CADMainView creates the native OpenGL view immediately after the
+        // project is loaded. Replay on the next run-loop turn so the renderer
+        // can consume the evaluated geometry during workspace hydration.
         DispatchQueue.main.async { [weak self] in
             guard self != nil else { return }
             for payload in payloads {

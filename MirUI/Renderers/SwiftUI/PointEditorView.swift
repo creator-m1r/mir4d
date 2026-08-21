@@ -1,8 +1,25 @@
+// MirUI/Renderers/SwiftUI/PointEditorView.swift
+// 📍 Редактор координат точки (Point) для инспектора свойств.
+//
+// Назначение:
+// - отображение координат X/Y;
+// - загрузка координат из MirUI;
+// - редактирование координат;
+// - применение позиции к одному или нескольким объектам;
+// - безопасная работа со Swift 6 concurrency.
+//
+// Архитектурный принцип:
+// PointEditorView отвечает только за интерфейс.
+// PointEditorViewModel отвечает за состояние и взаимодействие с MirUI C API.
 
 import SwiftUI
 
+// MARK: - View Model
+
 @MainActor
 final class PointEditorViewModel: ObservableObject {
+
+    // MARK: Published state
 
     @Published var x: String = "0"
     @Published var y: String = "0"
@@ -11,11 +28,17 @@ final class PointEditorViewModel: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var hasLoaded = false
 
+    // MARK: Selection
+
     private(set) var widgetIds: [Int64] = []
+
+    // MARK: Initialization
 
     init(widgetIds: [Int64] = []) {
         self.widgetIds = widgetIds
     }
+
+    // MARK: Loading
 
     func load(from widgetId: Int64) {
         widgetIds = [widgetId]
@@ -55,6 +78,8 @@ final class PointEditorViewModel: ObservableObject {
 
         hasLoaded = true
     }
+
+    // MARK: Apply
 
     func applyPosition() {
 
@@ -120,6 +145,8 @@ final class PointEditorViewModel: ObservableObject {
         isApplying = false
     }
 
+    // MARK: Reset
+
     func resetPosition() {
 
         x = "0"
@@ -127,6 +154,8 @@ final class PointEditorViewModel: ObservableObject {
 
         applyPosition()
     }
+
+    // MARK: Property access
 
     private func getStringProperty(
         _ id: Int64,
@@ -155,11 +184,19 @@ final class PointEditorViewModel: ObservableObject {
     }
 }
 
+// MARK: - Point Editor View
+
 struct PointEditorView: View {
+
+    // MARK: Input
 
     let widgetIds: [Int64]
 
+    // MARK: State
+
     @StateObject private var vm: PointEditorViewModel
+
+    // MARK: Initialization
 
     init(widgetIds: [Int64]) {
 
@@ -173,12 +210,16 @@ struct PointEditorView: View {
         )
     }
 
+    // MARK: Body
+
     var body: some View {
 
         VStack(
             alignment: .leading,
             spacing: 10
         ) {
+
+            // Header
 
             HStack {
 
@@ -198,6 +239,8 @@ struct PointEditorView: View {
                 }
             }
 
+            // Coordinates
+
             HStack(
                 spacing: 12
             ) {
@@ -212,6 +255,8 @@ struct PointEditorView: View {
                     text: $vm.y
                 )
             }
+
+            // Actions
 
             HStack(
                 spacing: 8
@@ -253,6 +298,8 @@ struct PointEditorView: View {
                 .disabled(vm.isApplying)
             }
 
+            // Error
+
             if let error = vm.lastError {
 
                 Label(
@@ -271,6 +318,8 @@ struct PointEditorView: View {
             )
         }
     }
+
+    // MARK: Coordinate field
 
     @ViewBuilder
     private func coordinateField(

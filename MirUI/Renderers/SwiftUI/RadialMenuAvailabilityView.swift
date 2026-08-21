@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Compact feedback shown while the radial menu is held.
+/// The live CADActiveContext remains authoritative; this view only explains it.
 struct RadialMenuAvailabilityView: View {
     let tool: RadialMenuTool?
     let context: CADActiveContext

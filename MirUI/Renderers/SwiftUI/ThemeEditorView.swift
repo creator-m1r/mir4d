@@ -1,3 +1,5 @@
+// MirUI/Renderers/SwiftUI/ThemeEditorView.swift
+// 🎨 Редактор темы MIR 4D.
 
 import SwiftUI
 #if os(macOS)

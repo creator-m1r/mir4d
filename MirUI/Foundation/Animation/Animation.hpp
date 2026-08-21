@@ -1,3 +1,6 @@
+// MirUI/Foundation/Animation/Animation.hpp
+// Animation curve enumeration for MirUI.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -11,4 +14,4 @@ enum class AnimationCurve {
     Spring
 };
 
-}
+} // namespace MirUI

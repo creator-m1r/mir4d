@@ -1,3 +1,11 @@
+// MirEngine/Document/SceneCommandHistory.hpp
+// Undoable scene mutation commands (execute / undo / redo).
+//
+// MirEngine Scene is the single source of truth; commands mutate only the
+// scene through the canonical API and the renderer observes the changes.
+// This history extends the existing document Command model (CommandType::Move
+// / CommandType::Delete) with executable implementations; it is not a second
+// command system.
 
 #pragma once
 
@@ -13,6 +21,7 @@
 namespace mir4d
 {
 
+/// Undoable scene mutation command.
 class SceneCommand
 {
 public:
@@ -24,6 +33,8 @@ public:
     [[nodiscard]] virtual const char* description() const noexcept = 0;
 };
 
+/// Moves one object from a captured start transform to a target transform.
+/// The transform is captured at drag start, so redo/undo are exact.
 class MoveObjectCommand final : public SceneCommand
 {
 public:
@@ -64,8 +75,15 @@ private:
     mir::Transform to_;
 };
 
+/// Vertical Slice v0.1 naming for the transform command committed by a hand
+/// grab. A grab is a transform (pinch → point → move → release), so it reuses
+/// `MoveObjectCommand` rather than duplicating the implementation; this alias
+/// keeps the grab code readable against the hand-modeling specification.
 using GrabTransformCommand = MoveObjectCommand;
 
+/// Removes one object from the scene; undo re-inserts it with its original
+/// identity (the scene registry releases the id on remove and re-reserves it
+/// on add).
 class DeleteObjectCommand final : public SceneCommand
 {
 public:
@@ -95,6 +113,9 @@ private:
     std::shared_ptr<mir::ModelNode> node_;
 };
 
+/// Restores a selected object's mesh to a captured vertex set (an undoable
+/// sculpt stroke). Normals are recomputed from the restored vertices so the
+/// renderer stays consistent after undo/redo.
 class DeformObjectCommand final : public SceneCommand
 {
 public:
@@ -127,6 +148,8 @@ private:
             return;
         mesh.vertices = verts;
 
+        // Recompute smooth vertex normals from the deformed triangles (mirrors
+        // the in-place recompute in MirEngineDeformSelected).
         if (mesh.normals.size() != mesh.vertices.size())
             mesh.normals.resize(mesh.vertices.size());
         std::vector<mir::Vector3> acc(mesh.vertices.size(), mir::Vector3(0, 0, 0));
@@ -153,6 +176,7 @@ private:
     std::vector<mir::Point3> to_;
 };
 
+/// Stack-based history of scene commands (single undo/redo chain).
 class SceneCommandHistory
 {
 public:
@@ -163,6 +187,7 @@ public:
 
         command->execute(scene);
 
+        // A new action invalidates the redo branch.
         redo_.clear();
         undo_.push_back(std::move(command));
     }
@@ -205,4 +230,4 @@ private:
     std::vector<std::unique_ptr<SceneCommand>> redo_;
 };
 
-}
+} // namespace mir4d

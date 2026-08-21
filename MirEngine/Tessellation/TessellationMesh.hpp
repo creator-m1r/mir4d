@@ -22,6 +22,8 @@ struct TessellationTriangle
     std::uint32_t b{0};
     std::uint32_t c{0};
 
+    // Stable source B-Rep face identifier.
+    // Zero means that provenance is not available.
     std::uint64_t sourceFaceId{0};
 };
 
@@ -36,4 +38,4 @@ struct TessellationMesh
     }
 };
 
-}
+} // namespace mir

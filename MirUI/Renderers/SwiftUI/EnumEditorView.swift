@@ -1,3 +1,5 @@
+// MirUI/Renderers/SwiftUI/EnumEditorView.swift
+// 📋 Редактор перечисления (Enum) для инспектора свойств.
 
 import SwiftUI
 

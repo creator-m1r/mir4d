@@ -1,3 +1,5 @@
+// MirEngine/Tests/BRep/BRepStep.cpp
+// Native B-Rep STEP codec round-trip test (no OpenCASCADE).
 
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Builders/BRepPrimAPI_MakeBox.hpp"

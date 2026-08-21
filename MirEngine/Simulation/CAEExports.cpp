@@ -7,6 +7,11 @@
 
 extern "C" {
 
+/// Runs a CAE multiphysics campaign defined by the text grammar accepted by
+/// mir::CAECampaign::loadFromText and writes the JSON result report into the
+/// caller-provided buffer. Returns false only when the definition cannot be
+/// parsed or the output buffer is invalid. A campaign whose cases fail still
+/// produces a valid JSON report (passed=false).
 bool MirEngineRunCAECampaign(const char* definitionText, char* outJson, size_t outCapacity)
 {
     if (outJson == nullptr || outCapacity == 0)
@@ -25,4 +30,4 @@ bool MirEngineRunCAECampaign(const char* definitionText, char* outJson, size_t o
     return true;
 }
 
-}
+} // extern "C"

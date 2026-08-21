@@ -1,6 +1,10 @@
 import Foundation
 import simd
 
+/// Interprets two tracked hands as spatial manipulation gestures.
+/// Pure, side-effect-free and actor-agnostic so it can run in the background
+/// recognition pipeline. It emits a neutral result; the session turns it into a
+/// `MIRHandIntent`. Scene geometry is never mutated here.
 struct MIRAirGestureController: Sendable {
     enum Gesture: Sendable {
         case none
@@ -24,6 +28,10 @@ struct MIRAirGestureController: Sendable {
     private var previousDistance: Double?
     private var previousAngle: Double?
 
+    /// Evaluate a two-hand frame. `leftPinch`/`rightPinch` are the per-hand
+    /// pinch strengths (0...1); `leftGrab`/`rightGrab` indicate closed grasps.
+    /// Returns the active gesture together with a strength and confidence, or
+    /// `nil` when the hands are not yet in a recognised spatial relationship.
     mutating func ingest(
         left: SIMD3<Double>,
         right: SIMD3<Double>,

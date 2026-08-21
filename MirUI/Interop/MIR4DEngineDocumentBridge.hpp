@@ -29,8 +29,10 @@ private:
     struct Impl;
     Impl* impl_;
 };
-}
+} // namespace MirUI
 
+// Stable C ABI used by SwiftUI/Xcode. C++ implementation details stay behind
+// an opaque handle, so Swift never imports C++ types.
 extern "C"
 {
     void* MIR4DDocumentCreate();

@@ -1,5 +1,8 @@
 import Foundation
 
+/// Stable, renderer-independent selection state exchanged between the SwiftUI
+/// controls and the native viewport. Geometry picking remains owned by the
+/// renderer/engine; this value only describes the request/state.
 struct MirViewportSelectionState: Equatable, Sendable {
     var filter: MirSelectionFilter
     var snapEnabled: Bool

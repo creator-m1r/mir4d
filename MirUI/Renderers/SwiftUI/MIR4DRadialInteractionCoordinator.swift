@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 
+/// Global interaction bridge for the immersive radial menu.
+/// `]` is a hold gesture: press = open, trackpad motion = navigate, release = commit.
+/// While held, the directional vector is magnetically stabilized so the selection feels
+/// like a physical radial instrument rather than a collection of buttons.
 @MainActor
 final class MIR4DRadialInteractionCoordinator: ObservableObject {
     static let shared = MIR4DRadialInteractionCoordinator()
@@ -85,6 +89,9 @@ final class MIR4DRadialInteractionCoordinator: ObservableObject {
             return
         }
 
+        // Hysteresis prevents the highlight from flickering when the finger travels
+        // near a sector boundary. A sector can only change after crossing its inner
+        // boundary plus a small angular buffer derived from the user setting.
         if let current = lockedSector, current != candidate {
             let currentCenter = RadialMenuGeometry.sectorCenter(current, panels.count)
             let delta = angularDistance(normalizedAngle(atan2(rawVector.dy, rawVector.dx)), currentCenter)

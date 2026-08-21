@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Inspector for the currently selected sketch entity.
+/// Editing is intentionally kept UI-side until a MirEngine command bridge is connected.
 struct SketchParameterInspectorView: View {
     @ObservedObject var state: SketchInspectorState
     @ObservedObject var dimensions: SketchDimensionState

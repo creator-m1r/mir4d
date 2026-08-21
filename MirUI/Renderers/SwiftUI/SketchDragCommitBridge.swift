@@ -1,5 +1,7 @@
 import CoreGraphics
 
+/// Connects a completed SwiftUI drag with the atomic MirEngine drag command.
+/// Preview remains transient; only mouse-up reaches the engine.
 @MainActor
 final class SketchDragCommitBridge {
     typealias Inference = (type: String, firstGeometryID: UInt32, secondGeometryID: UInt32, confidence: Double)

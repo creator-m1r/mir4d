@@ -24,4 +24,4 @@ struct ImportResult
     [[nodiscard]] bool ok() const noexcept { return error.empty() && mesh != nullptr && mesh->isValid(); }
 };
 
-}
+} // namespace mir::io

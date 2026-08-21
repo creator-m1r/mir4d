@@ -122,7 +122,7 @@ const char* kStepContext[] = {
     "#18 = ( GEOMETRIC_REPRESENTATION_CONTEXT ( 3 ) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT ( ( #19 ) ) GLOBAL_UNIT_ASSIGNED_CONTEXT ( ( #14,#15,#16,#17 ) ) REPRESENTATION_CONTEXT ( 'NONE','3D' ) ) ;",
     "#19 = UNCERTAINTY_MEASURE_WITH_UNIT ( LENGTH_MEASURE ( 1.0E-06 ) ,  #14,  'distance_accuracy_value','' ) ;"};
 
-}
+} // namespace
 
 ExportResult StepExporter::exportTo(
     const std::string& path,
@@ -151,6 +151,7 @@ ExportResult StepExporter::exportTo(
         return result;
     }
 
+    // Geometry entities begin after the fixed context block (1..19).
     int nextId = 20;
     auto allocate = [&]() -> int { return nextId++; };
 
@@ -312,4 +313,4 @@ ExportResult StepExporter::exportTo(
     return result;
 }
 
-}
+} // namespace mir::io::step

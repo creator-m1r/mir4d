@@ -83,4 +83,4 @@ private:
     std::vector<ISimulationSolver*> solvers_;
 };
 
-}
+} // namespace mir

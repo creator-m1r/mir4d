@@ -23,6 +23,8 @@ struct SketchExtrudeParameters
     }
 };
 
+/// Mathematical description of an extrusion feature.
+/// It deliberately does not generate a mesh or B-Rep yet.
 struct SketchExtrudeFeature
 {
     std::uint32_t id{0};
@@ -45,4 +47,4 @@ struct SketchExtrudeFeature
     }
 };
 
-}
+} // namespace mir

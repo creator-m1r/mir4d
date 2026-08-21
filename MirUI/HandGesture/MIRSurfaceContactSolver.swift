@@ -1,6 +1,8 @@
 import Foundation
 import simd
 
+/// Resolves an air-contact sphere against a renderable surface supplied by the CAD layer.
+/// The solver does not mutate geometry.
 @MainActor
 final class MIRSurfaceContactSolver {
     struct Hit: Equatable, Sendable {

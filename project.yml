@@ -161,6 +161,7 @@ targets:
       - path: MirEngine/Rendering/Passes/GeometryPass.cpp
       - path: MirEngine/Rendering/Passes/PlanePass.cpp
       - path: MirEngine/Rendering/Passes/SketchPass.cpp
+      - path: MirEngine/Rendering/Passes/HandSkeletonPass.cpp
       - path: MirEngine/Rendering/Resources/ShaderLibrary.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp

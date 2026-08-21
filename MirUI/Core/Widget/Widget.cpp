@@ -1,3 +1,15 @@
+// MirUI/Core/Widget/Widget.cpp
+// 🧱 Реализация базового класса Widget.
+// Содержит не-inline методы, объявленные в Widget.hpp.
+// Это позволяет держать заголовок компактным, а реализацию —
+// в отдельной единице трансляции, что ускоряет сборку при изменениях.
+//
+// Чистый C++23, без платформенных зависимостей.
+
+// MirUI/Core/Widget/Widget.cpp
+// 🧱 Реализация базового класса Widget.
+// Весь код, который ранее был inline, теперь находится здесь.
+// Чистый C++23, без платформенных зависимостей.
 
 #include "Widget.hpp"
 #include <algorithm>
@@ -10,8 +22,9 @@ namespace
 
 std::atomic<std::uint64_t> gNextWidgetID{1};
 
-}
+} // namespace
 
+// ── Конструктор ──────────────────────────────────────────────
 Widget::Widget(WidgetType type)
     : m_id(WidgetID(gNextWidgetID.fetch_add(1)))
     , m_type(type)
@@ -26,12 +39,14 @@ Widget::Widget(WidgetType type)
     m_properties["name"]    = StateValue(std::string(""));
 }
 
+// ── Деструктор ───────────────────────────────────────────────
 Widget::~Widget() {
     for (Widget* child : m_children) {
         delete child;
     }
 }
 
+// ── Идентификация ────────────────────────────────────────────
 WidgetID Widget::id() const noexcept {
     return m_id;
 }
@@ -40,6 +55,7 @@ WidgetType Widget::type() const noexcept {
     return m_type;
 }
 
+// ── Имя ──────────────────────────────────────────────────────
 std::string Widget::name() const {
     auto it = m_properties.find("name");
     if (it != m_properties.end() && std::holds_alternative<std::string>(it->second)) {
@@ -52,6 +68,7 @@ void Widget::setName(const std::string& newName) {
     m_properties["name"] = StateValue(newName);
 }
 
+// ── Видимость и доступность ──────────────────────────────────
 void Widget::setVisible(bool visible) {
     m_properties["visible"] = StateValue(visible);
 }
@@ -74,6 +91,7 @@ bool Widget::isEnabled() const {
                : true;
 }
 
+// ── Геометрия ────────────────────────────────────────────────
 void Widget::setBounds(const Rect& bounds) noexcept {
     m_bounds = bounds;
 }
@@ -82,6 +100,7 @@ const Rect& Widget::bounds() const noexcept {
     return m_bounds;
 }
 
+// ── Данные компоновки ───────────────────────────────────────
 void Widget::setLayoutData(const LayoutData& ld) {
     m_layoutData = ld;
 }
@@ -94,6 +113,7 @@ LayoutData& Widget::layoutData() {
     return m_layoutData;
 }
 
+// ── Дерево ───────────────────────────────────────────────────
 Widget* Widget::parent() const noexcept {
     return m_parent;
 }
@@ -123,6 +143,7 @@ bool Widget::removeChild(WidgetID id) {
     return false;
 }
 
+// ── Фокус ────────────────────────────────────────────────────
 void Widget::requestFocus() noexcept {
     m_focused = true;
 }
@@ -135,6 +156,7 @@ void Widget::setFocusInternal(bool focused) noexcept {
     m_focused = focused;
 }
 
+// ── Универсальные свойства ──────────────────────────────────
 bool Widget::setProperty(const std::string& propertyName, const StateValue& value) {
     if (propertyName == "visible") {
         if (std::holds_alternative<bool>(value)) {
@@ -209,7 +231,7 @@ bool Widget::setProperty(const std::string& propertyName, const StateValue& valu
 std::optional<StateValue> Widget::getProperty(const std::string& propertyName) const {
     if (propertyName == "visible")  return StateValue(isVisible());
     if (propertyName == "enabled")  return StateValue(isEnabled());
-    if (propertyName == "name")     return StateValue(this->name());
+    if (propertyName == "name")     return StateValue(this->name());   // исправлено
     if (propertyName == "width")    return StateValue(m_layoutData.widthValue);
     if (propertyName == "height")   return StateValue(m_layoutData.heightValue);
     if (propertyName == "minWidth") return StateValue(m_layoutData.minimumSize.width);
@@ -228,4 +250,4 @@ const std::unordered_map<std::string, StateValue>& Widget::allProperties() const
     return m_properties;
 }
 
-}
+} // namespace MirUI

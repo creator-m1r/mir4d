@@ -2,7 +2,9 @@
 
 int main()
 {
-
+    // Compile-time contract for the canonical public B-Rep API.
+    // The test intentionally performs no modeling work: its purpose is to
+    // ensure the complete public umbrella remains self-consistent.
     mir::BRepModel model;
     mir::BRepValidator validator;
 

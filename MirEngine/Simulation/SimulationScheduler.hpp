@@ -103,4 +103,4 @@ private:
     std::vector<Task> tasks_;
 };
 
-}
+} // namespace mir

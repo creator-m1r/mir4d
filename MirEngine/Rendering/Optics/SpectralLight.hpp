@@ -48,4 +48,4 @@ struct SpectralLight
     }
 };
 
-}
+} // namespace mir

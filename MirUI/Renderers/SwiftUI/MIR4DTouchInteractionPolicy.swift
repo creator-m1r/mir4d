@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Device-adaptive interaction constants for the MIR 4D touch-first UX.
+/// The policy contains no CAD commands and does not alter viewport state.
 enum MIR4DTouchInteractionPolicy {
     enum Platform {
         case iPad
@@ -65,6 +67,9 @@ enum MIR4DTouchInteractionPolicy {
         #endif
     }
 
+    /// The radial interface is intentionally centred on the usable display,
+    /// never on the finger. This keeps the second orbit reachable and makes
+    /// the same spatial language work on iPad and Mac.
     static func radialCenter(in size: CGSize, topInset: CGFloat = 0, bottomInset: CGFloat = 0) -> CGPoint {
         let usableTop = max(0, topInset)
         let usableBottom = max(0, bottomInset)

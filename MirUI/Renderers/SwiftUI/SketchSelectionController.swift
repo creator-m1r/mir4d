@@ -1,6 +1,8 @@
 import Foundation
 import CoreGraphics
 
+/// Lightweight interaction state for selecting and dragging sketch entities.
+/// Engine geometry remains authoritative; this controller only manages UI interaction.
 @MainActor
 final class SketchSelectionController: ObservableObject {
     @Published private(set) var selectedIDs: Set<UUID> = []

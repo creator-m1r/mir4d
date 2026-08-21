@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Full-screen presentation layer for the creative radial menu.
+/// The menu is centered on the display and temporarily creates a calm focus field around the scene.
 struct MIR4DRadialCenterOverlay: View {
     @ObservedObject var store: RadialMenuSettingsStore
     let vector: CGVector
@@ -112,6 +114,8 @@ struct MIR4DRadialCenterOverlay: View {
     }
 }
 
+/// Native macOS backdrop blur. It lives above the scene and below the menu,
+/// so the model becomes softly defocused while the radial command space stays crisp.
 private struct MIR4DSceneSoftBlur: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()

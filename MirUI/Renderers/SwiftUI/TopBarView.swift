@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Верхняя навигация MIR 4D.
+/// Верхняя полоса отвечает только на: где я, что я делаю и что делать дальше.
+/// Специализированные команды остаются контекстными или доступны через ⌘K.
 struct TopBarView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

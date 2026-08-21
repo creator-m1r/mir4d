@@ -25,4 +25,4 @@ struct SimulationTelemetry
     bool running{false};
 };
 
-}
+} // namespace mir

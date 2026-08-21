@@ -13,6 +13,7 @@
 namespace mir
 {
 
+/// Deterministic text serializer for the .m1r project container.
 class DocumentSerializer
 {
 public:
@@ -78,4 +79,4 @@ public:
     }
 };
 
-}
+} // namespace mir

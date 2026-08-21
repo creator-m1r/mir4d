@@ -1,5 +1,7 @@
 import Foundation
 
+/// Boundary between SwiftUI parameter editing and MirEngine.
+/// The bridge intentionally does not mutate geometry itself.
 @MainActor
 final class SketchGeometryEditBridge: ObservableObject {
     @Published private(set) var lastCommitted: SketchGeometryEditCommand?

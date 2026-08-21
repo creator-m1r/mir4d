@@ -2,8 +2,15 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 
+/// Единая сессия режима построения эскизов.
+///
+/// Владеет документом MirEngine (`SketchDocument` + `SketchDocumentSolver`) и
+/// зеркалирует решённую геометрию для рендера, привязки и выбора в SwiftUI.
+/// Документ ядра пересобирается из проекции (`entities`/`constraints`) после
+/// каждого изменения — это даёт корректные идентификаторы и стабильный undo/redo.
 @MainActor
 final class SketchInputController: ObservableObject {
+    // MARK: - Геометрия и ограничения (проекция ядра)
 
     struct Entity: Identifiable, Equatable {
         let id: UInt32
@@ -47,6 +54,8 @@ final class SketchInputController: ObservableObject {
         let value: Double
     }
 
+    // MARK: - Публикуемое состояние
+
     @Published private(set) var entities: [Entity] = []
     @Published private(set) var constraints: [Constraint] = []
     @Published private(set) var solverStatus: String = "Пусто"
@@ -71,10 +80,16 @@ final class SketchInputController: ObservableObject {
 
     weak var commandBridge: SketchCommandBridge?
 
+    /// Выбранная плоскость построения эскиза (задаётся при входе в режим).
     var planeAnchor: SketchPlaneAnchor?
 
+    /// Провайдер проекций геометрии 3D-сцены на плоскость эскиза для привязки.
+    /// Заполняется renderer'ом/сценой; по умолчанию `nil` (привязка только к
+    /// собственной геометрии эскиза). Реализация позволяет «привязываться к
+    /// вершинам и линиям (их проекциям)» существующей 3D-модели.
     var sceneProjectionProvider: (() -> [SketchSnapCandidate])?
 
+    /// Анкерует документ эскиза к выбранной плоскости построения.
     func setPlane(_ anchor: SketchPlaneAnchor?) {
         planeAnchor = anchor
         guard let doc, let a = anchor else { return }
@@ -86,6 +101,10 @@ final class SketchInputController: ObservableObject {
             Float(a.yAxis.x), Float(a.yAxis.y), Float(a.yAxis.z))
     }
 
+    // MARK: - Внутреннее состояние
+
+    // nonisolated(unsafe): owned by this controller; the deinit is the only
+    // nonisolated accessor, and the raw pointer is never shared across actors.
     nonisolated(unsafe) private var doc: UnsafeMutableRawPointer?
     private var nextID: UInt32 = 1
     private var past: [SketchSnapshot] = []
@@ -114,6 +133,8 @@ final class SketchInputController: ObservableObject {
 
     private var dragState: DragState?
 
+    // MARK: - Жизненный цикл
+
     init() {
         doc = MirEngineSketchCreateDocument()
     }
@@ -121,6 +142,8 @@ final class SketchInputController: ObservableObject {
     deinit {
         if let doc { MirEngineSketchDestroyDocument(doc) }
     }
+
+    // MARK: - Подрежимы и инструменты
 
     func setSubMode(_ mode: CADSubMode) {
         subMode = mode
@@ -143,6 +166,8 @@ final class SketchInputController: ObservableObject {
         activeTool = tool
         phase = .idle
     }
+
+    // MARK: - Ввод
 
     func pointerMoved(to world: CGPoint) {
         cursor = world
@@ -198,6 +223,8 @@ final class SketchInputController: ObservableObject {
         previewSpline = nil
     }
 
+    // MARK: - Реализация ввода
+
     private var effectiveMode: Mode {
         switch subMode {
         case .sketchConstraint: return .constraint
@@ -250,7 +277,7 @@ final class SketchInputController: ObservableObject {
                     phase = .idle
                 } else if let last = pts.last,
                           hypot(p.x - last.x, p.y - last.y) <= snapTolerance {
-
+                    // ignore a click on top of the previous point
                 } else {
                     phase = .splineCollecting(pts + [p])
                 }
@@ -313,6 +340,8 @@ final class SketchInputController: ObservableObject {
         selection = [e.id]
     }
 
+    // MARK: - Коммиты геометрии
+
     @discardableResult
     func commitLine(_ start: CGPoint, _ end: CGPoint) -> UInt32 {
         let id = nextID
@@ -354,6 +383,7 @@ final class SketchInputController: ObservableObject {
         return id
     }
 
+    /// Завершает набор контрольных точек сплайна (Enter) как разомкнутую кривую.
     func finishSpline() {
         if case let .splineCollecting(pts) = phase, pts.count >= 2 {
             commitSpline(pts, closed: false)
@@ -392,6 +422,8 @@ final class SketchInputController: ObservableObject {
         selection.removeAll()
     }
 
+    // MARK: - Drag
+
     private func startDrag() {
         past.append(SketchSnapshot(entities: entities, constraints: constraints))
         future.removeAll()
@@ -422,6 +454,8 @@ final class SketchInputController: ObservableObject {
         }
         rebuildEngine()
     }
+
+    // MARK: - Undo / Redo
 
     func undo() {
         guard let last = past.popLast() else { return }
@@ -455,6 +489,8 @@ final class SketchInputController: ObservableObject {
         constraints = snap.constraints
         rebuildEngine()
     }
+
+    // MARK: - Пересборка ядра
 
     private func rebuildEngine() {
         guard let doc else { return }
@@ -558,6 +594,8 @@ final class SketchInputController: ObservableObject {
         }
     }
 
+    // MARK: - Привязка
+
     func snapped(_ world: CGPoint) -> CGPoint {
         var best: (point: CGPoint, kind: SketchSnapKind, dist: CGFloat)?
         for e in entities {
@@ -591,6 +629,8 @@ final class SketchInputController: ObservableObject {
         return world
     }
 
+    // MARK: - Hit-тест
+
     private func hitTest(_ p: CGPoint) -> (id: UInt32, endpoint: Bool, ref: EndpointRef)? {
         var best: (id: UInt32, endpoint: Bool, ref: EndpointRef, dist: CGFloat)?
         for e in entities {
@@ -619,6 +659,8 @@ final class SketchInputController: ObservableObject {
         return nil
     }
 
+    // MARK: - Превью
+
     private func updatePreview(for p: CGPoint) {
         previewLine = nil
         previewCircle = nil
@@ -645,6 +687,8 @@ final class SketchInputController: ObservableObject {
             break
         }
     }
+
+    // MARK: - Аналитика
 
     private func distanceToSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
         let dx = b.x - a.x
@@ -685,6 +729,7 @@ final class SketchInputController: ObservableObject {
         return max(0, 2 * points.count - constraints.count)
     }
 
+    /// Samples a Catmull-Rom spline through `controlPoints`.
     private func sampleSpline(_ controlPoints: [CGPoint], closed: Bool, segmentsPerSpan: Int) -> [CGPoint] {
         let n = controlPoints.count
         guard n >= 2 else { return controlPoints }
@@ -716,6 +761,8 @@ final class SketchInputController: ObservableObject {
         result.append(closed ? controlPoints[0] : controlPoints[n - 1])
         return result
     }
+
+    // MARK: - Геометрия дуги по трём точкам
 
     private func arcFromPoints(_ s: CGPoint, _ e: CGPoint, _ bulge: CGPoint) -> (center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat)? {
         let mx = (s.x + e.x) / 2
@@ -759,6 +806,10 @@ final class SketchInputController: ObservableObject {
     }
 }
 
+// MARK: - Сэмплирование сплайна (Catmull-Rom)
+
+/// Возвращает полилинию, аппроксимирующую кривую через контрольные точки.
+/// Реализация — однородный Catmull-Rom; кривая проходит через все точки.
 func sampleSpline(_ points: [CGPoint], closed: Bool, segmentsPerSpan: Int = 16) -> [CGPoint] {
     guard points.count >= 2 else { return points }
     let n = points.count
@@ -797,6 +848,8 @@ func sampleSpline(_ points: [CGPoint], closed: Bool, segmentsPerSpan: Int = 16) 
     out.append(points[closed ? 0 : n - 1])
     return out
 }
+
+// MARK: - Вспомогательные типы
 
 struct SketchSnapCandidate: Equatable {
     let point: CGPoint

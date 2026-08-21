@@ -28,5 +28,5 @@ struct RenderSelection
     static RenderSelection none() noexcept { return {}; }
 };
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Основной холст режима построения эскизов.
+///
+/// Отрисовывает решённую геометрию из `SketchInputController`, превью,
+/// привязку, размеры и ограничения. Все координаты переводятся через
+/// `SketchCoordinateSpace`; модель остаётся в ведении ядра MirEngine.
 struct SketchViewportView: View {
     @EnvironmentObject private var appState: CADAppState
     @StateObject private var controller = SketchInputController()
@@ -26,6 +31,8 @@ struct SketchViewportView: View {
             }
         }
     }
+
+    // MARK: - Панель инструментов
 
     private var sketchToolbar: some View {
         HStack(spacing: 6) {
@@ -99,6 +106,8 @@ struct SketchViewportView: View {
         .tint(controller.activeTool == tool ? .accentColor : nil)
     }
 
+    // MARK: - Холст
+
     private var canvas: some View {
         GeometryReader { proxy in
             let cs = coordinateSpace(in: proxy.size)
@@ -148,6 +157,8 @@ struct SketchViewportView: View {
             flipY: true
         )
     }
+
+    // MARK: - Слои отрисовки
 
     private func axes(in size: CGSize) -> some View {
         let center = CGPoint(x: size.width / 2 + navigation.pan.width, y: size.height / 2 + navigation.pan.height)
@@ -286,19 +297,19 @@ struct SketchViewportView: View {
 
     private func constraintSymbol(_ type: Int32) -> String {
         switch type {
-        case 0: return "●"
-        case 1: return "—"
-        case 2: return "|"
-        case 3: return "∥"
-        case 4: return "⊥"
-        case 5: return "⌒"
-        case 6: return "◎"
-        case 7: return "="
-        case 8: return "≅"
-        case 9: return "⚡"
-        case 10: return "∠"
-        case 11: return "R"
-        case 12: return "⌀"
+        case 0: return "●"   // совпадение
+        case 1: return "—"   // горизонтально
+        case 2: return "|"   // вертикально
+        case 3: return "∥"   // параллельно
+        case 4: return "⊥"   // перпендикулярно
+        case 5: return "⌒"   // касание
+        case 6: return "◎"   // концентрично
+        case 7: return "="   // равенство
+        case 8: return "≅"   // симметрия
+        case 9: return "⚡"   // дистанция
+        case 10: return "∠"  // угол
+        case 11: return "R"  // радиус
+        case 12: return "⌀"  // диаметр
         default: return "?"
         }
     }
@@ -405,6 +416,8 @@ struct SketchViewportView: View {
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(8)
     }
+
+    // MARK: - Строка состояния
 
     private var statusBar: some View {
         HStack {

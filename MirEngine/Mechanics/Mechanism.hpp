@@ -43,4 +43,4 @@ private:
     LinearState linear_{};
 };
 
-}
+} // namespace mir

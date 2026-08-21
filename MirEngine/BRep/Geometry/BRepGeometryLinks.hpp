@@ -10,6 +10,8 @@
 namespace mir
 {
 
+// Geometry links use canonical typed handles exclusively.
+// No parallel ID typedefs are permitted in the BRep module.
 struct BRepOrientedCurve
 {
     BRepCurveHandle curve{};
@@ -89,4 +91,4 @@ private:
     std::vector<BRepFaceGeometryLink> faceLinks_;
 };
 
-}
+} // namespace mir

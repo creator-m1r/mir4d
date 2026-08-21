@@ -32,4 +32,4 @@ private:
     std::vector<AcousticEvent> events_{};
 };
 
-}
+} // namespace mir

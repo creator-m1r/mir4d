@@ -1,3 +1,29 @@
+// MirUI/Designer/Application/DesignerApplication.hpp
+// 🧠 Главный объект MirUI Designer — связывает воедино все компоненты редактора.
+//
+// DesignerApplication — это «мозг» визуального редактора интерфейсов.
+// Он владеет документом (UIDocument), холстом (DesignerCanvas),
+// панелью инструментов (Toolbox), инспектором (InspectorModel),
+// историей (DesignerHistory) и предпросмотром (PreviewManager).
+//
+// Все эти части не существуют сами по себе — они работают вместе.
+// Когда пользователь перетаскивает кнопку из тулбокса на холст,
+// Toolbox создаёт команду, DesignerHistory выполняет её,
+// изменяется UIDocument, холст перерисовывается, инспектор обновляется,
+// а PreviewManager следит, находимся ли мы в режиме редактирования или просмотра.
+//
+// DesignerApplication предоставляет единый интерфейс для всех операций:
+//   • Создать новый документ
+//   • Открыть / сохранить файл .mirui
+//   • Отменить / повторить действие
+//   • Переключить режим предпросмотра
+//   • Получить доступ к холсту, тулбоксу, инспектору
+//
+// Сам DesignerApplication НЕ привязан к платформе — это чистый C++.
+// SwiftUI или WinUI будут создавать окно редактора и «подключать»
+// этот объект к своим визуальным представлениям.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -14,7 +40,8 @@ namespace MirUI {
 
 class DesignerApplication {
 public:
-
+    // ── Конструктор ──────────────────────────────────────────
+    // Создаёт все внутренние компоненты и связывает их с документом.
     DesignerApplication()
         : m_document(std::make_unique<UIDocument>())
         , m_history(std::make_unique<DesignerHistory>(*m_document))
@@ -23,10 +50,11 @@ public:
         , m_canvas(std::make_unique<DesignerCanvas>(*m_document))
         , m_preview(std::make_unique<PreviewManager>())
     {
-
+        // При создании нового документа автоматически ставим чистый документ.
         newDocument();
     }
 
+    // ── Доступ к компонентам ─────────────────────────────────
     [[nodiscard]] UIDocument& document() { return *m_document; }
     [[nodiscard]] const UIDocument& document() const { return *m_document; }
 
@@ -45,9 +73,13 @@ public:
     [[nodiscard]] PreviewManager& preview() { return *m_preview; }
     [[nodiscard]] const PreviewManager& preview() const { return *m_preview; }
 
+    // ── Управление документом ────────────────────────────────
+
+    // Создать новый пустой документ (сбрасывает всё).
     void newDocument() {
         m_document->clear();
 
+        // Создаём корневое окно по умолчанию.
         auto window = WidgetFactory::create(WidgetType::Window);
         if (window) {
             window->setName("MainWindow");
@@ -60,13 +92,14 @@ public:
         m_preview->exitPreview();
     }
 
+    // Открыть документ из файла.
     bool open(const std::string& path) {
         UIReader reader;
-        UIDocument tempDoc;
+        UIDocument tempDoc; // загружаем во временный документ
         if (!reader.load(path, tempDoc)) {
             return false;
         }
-
+        // Заменяем текущий документ загруженным.
         *m_document = std::move(tempDoc);
         m_history->clear();
         m_inspector->inspectWidget(std::nullopt);
@@ -74,10 +107,11 @@ public:
         return true;
     }
 
+    // Сохранить документ в файл.
     bool save() {
         const std::string& path = m_document->filePath();
         if (path.empty()) {
-            return false;
+            return false; // нужно использовать saveAs
         }
         UIWriter writer;
         if (writer.save(path, *m_document)) {
@@ -87,6 +121,7 @@ public:
         return false;
     }
 
+    // Сохранить документ под новым именем.
     bool saveAs(const std::string& path) {
         UIWriter writer;
         if (writer.save(path, *m_document)) {
@@ -96,9 +131,10 @@ public:
         return false;
     }
 
+    // ── Undo / Redo ──────────────────────────────────────────
     void undo() {
         m_history->undo();
-
+        // После отмены действия нужно обновить холст и инспектор.
         m_inspector->inspectWidget(m_document->selection().singleSelected());
     }
 
@@ -107,6 +143,7 @@ public:
         m_inspector->inspectWidget(m_document->selection().singleSelected());
     }
 
+    // ── Предпросмотр ─────────────────────────────────────────
     void enterPreview() {
         m_preview->enterPreview();
     }
@@ -132,4 +169,4 @@ private:
     std::unique_ptr<PreviewManager>    m_preview;
 };
 
-}
+} // namespace MirUI

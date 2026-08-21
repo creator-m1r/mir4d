@@ -1,6 +1,8 @@
 import Foundation
 import CoreGraphics
 
+/// UI-side parametric dimension state.
+/// Values are proposals until committed through MirEngine commands.
 @MainActor
 final class SketchDimensionState: ObservableObject {
     enum Kind: String, CaseIterable {

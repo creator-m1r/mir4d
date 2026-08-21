@@ -1,3 +1,6 @@
+// MirUI/Core/Events/EventType.hpp
+// Enumeration of all event types recognized by MirUI core.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -36,4 +39,4 @@ enum class EventType
     ViewportChanged
 };
 
-}
+} // namespace MirUI

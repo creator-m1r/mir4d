@@ -12,6 +12,8 @@
 namespace mir
 {
 
+/// Atomically creates one geometry entity and commits only high-confidence
+/// inferred constraints that reference it.
 class SketchCreateGeometryWithConstraintsCommand final : public ISketchCommand
 {
 public:
@@ -126,4 +128,4 @@ private:
     bool inserted_{false};
 };
 
-}
+} // namespace mir

@@ -4,6 +4,7 @@ import XCTest
 import CoreGraphics
 import simd
 
+/// Unit tests for the typed sculpt intent payload.
 final class MIR4DSculptIntentTests: XCTestCase {
 
     private func handIntent(gesture: MIRHandGestureType, strength: CGFloat, position: SIMD3<Double> = SIMD3(10, 20, 0)) -> MIRHandIntent {

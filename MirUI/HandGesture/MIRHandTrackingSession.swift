@@ -2,6 +2,7 @@ import Foundation
 import simd
 import Combine
 
+/// Status of the hand-tracking pipeline.
 enum MIRHandTrackingStatus: Sendable { case inactive, running, cameraUnavailable }
 
 @MainActor
@@ -9,7 +10,8 @@ public final class MIRHandTrackingSession: ObservableObject {
     @Published var status: MIRHandTrackingStatus = .inactive
     @Published private(set) var lastIntents: [MIRHandIntent] = []
     @Published private(set) var debugInfo: MIRHandGestureDebugInfo?
-
+    /// Кадры скелета кистей в scene space (режим визуализации). Пусты, когда
+    /// режим выключен или руки не отслеживаются.
     @Published public private(set) var skeletonFrames: [MIRHandSkeletonFrame] = []
 
     private let intentSubject = PassthroughSubject<MIRHandIntent, Never>()
@@ -22,6 +24,9 @@ public final class MIRHandTrackingSession: ObservableObject {
     private var poolConfiguration: MIRHandGestureConfiguration
     private let emitter = MIRHandIntentEmitter()
 
+    /// Независимая от MainActor копия source для гарантированной остановки
+    /// камеры в `deinit` (ТЗ §10/§36): из nonisolated deinit нельзя читать
+    /// MainActor-свойство `source`, поэтому держим nonisolated(unsafe) зеркало.
     nonisolated(unsafe) private var sourceRef: (any MIRHandTrackingSource)?
 
     init(configuration: MIRHandGestureConfiguration = .init()) {
@@ -29,6 +34,8 @@ public final class MIRHandTrackingSession: ObservableObject {
         self.poolConfiguration = configuration
     }
 
+    /// Background recognition never captures this @MainActor object. Results
+    /// cross back through a Sendable AsyncStream, avoiding Swift 6 data-race diagnostics.
     func start(with source: (any MIRHandTrackingSource)? = nil) {
         guard status != .running else { return }
         let src = source ?? MIRCameraTrackingSource()
@@ -75,7 +82,9 @@ public final class MIRHandTrackingSession: ObservableObject {
     }
 
     deinit {
-
+        // Гарантируем остановку камеры/потока даже если `stop()` не был
+        // вызван явно (ТЗ §10/§36). sourceRef — nonisolated(unsafe), чтение
+        // из nonisolated deinit допустимо.
         sourceRef?.stop()
         sourceRef = nil
         task?.cancel()
@@ -179,6 +188,8 @@ private final class MIRHandRecognizerPool: @unchecked Sendable {
         let context = MIRHandSpatialContext(hands: handEntries.map { .init(handedness: $0.handedness, gesture: $0.gesture, position: $0.position, pinch: $0.pinch, direction: $0.direction) }, twoHandGesture: twoHandEntry?.gesture ?? .rest)
         let debug = MIRHandGestureDebugInfo(hands: handEntries, twoHand: twoHandEntry, spatialContext: context)
 
+        // Кадры скелета строятся только когда режим включён (нулевая
+        // стоимость при выключенном режиме: никакой маппинга/загрузки).
         var skeletonFrames: [MIRHandSkeletonFrame] = []
         if configuration.skeletonVisualizationMode != .off {
             let classifier = MIRHandGestureClassifier()

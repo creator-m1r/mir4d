@@ -118,4 +118,4 @@ private:
     }
 };
 
-}
+} // namespace mir

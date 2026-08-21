@@ -1,18 +1,30 @@
 import Foundation
 import simd
 
+/// A recognised gesture together with its lifecycle phase.
 struct MIRHandGestureEvent: Sendable {
     let gesture: MIRHandGesture
     let phase: MIRHandGesturePhase
 }
 
+/// Stateful, single-hand gesture recognizer.
+///
+/// Responsibilities:
+/// - temporal smoothing of position/velocity;
+/// - confidence filtering (low-confidence frames are ignored);
+/// - outlier rejection (implausible jumps are dropped);
+/// - lost-frame tolerance (a few missing frames are tolerated);
+/// - debounced gesture commitment (avoids spurious command bursts);
+/// - gesture lifecycle phases: began → changed → ended/cancelled.
 struct MIRHandGestureRecognizer: Sendable {
     struct Configuration: Sendable {
         var minConfidence: Double = 0.5
         var minHoldFrames: Int = 3
         var lostFrameTolerance: Int = 8
         var maxPositionJump: Double = 0.6
-
+        /// Exponential smoothing factor for pinch strength (0...1). Lower = smoother,
+        /// removes high-frequency "buzz" on `pressure`/sculpt strength without
+        /// delaying discrete gesture transitions (those are debounced separately).
         var strengthSmoothing: Double = 0.4
         var motion: MIRHandMotion.Configuration = .init()
         var classifying: MIRHandGestureClassifier.Configuration = .init()
@@ -41,16 +53,19 @@ struct MIRHandGestureRecognizer: Sendable {
     var currentVelocity: SIMD3<Double> { motion.currentVelocity }
     var currentDirection: SIMD3<Double> { lastDirection }
 
+    /// Feed a freshly tracked pose (in normalised space) plus its scene-space
+    /// palm position. Returns a gesture event when one should be emitted, else nil.
     mutating func ingest(pose: MIRHandPose, scenePosition: SIMD3<Double>, timestamp: Date) -> MIRHandGestureEvent? {
         classifier.configuration = configuration.classifying
         motion.configuration = configuration.motion
 
+        // Confidence filtering + outlier rejection.
         guard pose.confidence >= configuration.minConfidence else {
             return handleMissing(timestamp: timestamp)
         }
         if let previous = smoothedPosition,
            simd_distance(previous, scenePosition) > configuration.maxPositionJump {
-
+            // Treat as a dropped/outlier frame but keep tolerance alive.
             return handleMissing(timestamp: timestamp, penalise: false)
         }
 
@@ -68,6 +83,8 @@ struct MIRHandGestureRecognizer: Sendable {
         lastDirection = movement.direction
         let result = classifier.classify(pose)
 
+        // Smooth pinch strength (feeds MIRHandIntent.strength → pressure/sculpt).
+        // Position is already smoothed; strength was raw and flickered frame to frame.
         let rawStrength = result.pinchStrength
         if strengthInitialized {
             let a = min(max(configuration.strengthSmoothing, 0), 1)
@@ -81,6 +98,7 @@ struct MIRHandGestureRecognizer: Sendable {
         let interacting = [MIRHandGestureType.pinch, .grab, .point, .twoFinger, .threeFinger].contains(result.type)
         state = state.next(observed: observed, interacting: interacting)
 
+        // Debounce: only commit after the candidate is stable for minHoldFrames.
         if result.type == pendingType {
             pendingFrames += 1
         } else {
@@ -106,6 +124,7 @@ struct MIRHandGestureRecognizer: Sendable {
         return nil
     }
 
+    /// Call when no pose arrived for this hand this frame.
     mutating func handleMissing(timestamp: Date, penalise: Bool = true) -> MIRHandGestureEvent? {
         if penalise { lostFrames += 1 }
         guard lostFrames > configuration.lostFrameTolerance else { return nil }

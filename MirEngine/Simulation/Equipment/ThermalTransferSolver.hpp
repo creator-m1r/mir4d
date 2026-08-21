@@ -105,4 +105,4 @@ private:
     }
 };
 
-}
+} // namespace mir

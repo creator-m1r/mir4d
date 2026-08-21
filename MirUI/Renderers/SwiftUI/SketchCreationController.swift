@@ -48,7 +48,10 @@ final class SketchCreationController {
             return commitCircle?(firstPoint, radius) ?? false
 
         case .arc:
-
+            // The creation bridge can interpret firstPoint as the center and
+            // point as the current radial endpoint. A later phase can add a
+            // third click for the final sweep angle without changing the API
+            // of the existing line/circle tools.
             return commitArc?(firstPoint, firstPoint, point) ?? false
         }
     }

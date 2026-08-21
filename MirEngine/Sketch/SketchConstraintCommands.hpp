@@ -55,4 +55,4 @@ private:
     std::uint32_t constraintId_{0};
 };
 
-}
+} // namespace mir

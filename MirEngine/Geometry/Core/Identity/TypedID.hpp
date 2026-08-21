@@ -54,7 +54,7 @@ using ShellID = TypedID<ShellIDTag>;
 using SolidID = TypedID<SolidIDTag>;
 using BodyID = TypedID<BodyIDTag>;
 
-}
+} // namespace mir
 
 namespace std
 {
@@ -68,4 +68,4 @@ struct hash<mir::TypedID<Tag>>
     }
 };
 
-}
+} // namespace std

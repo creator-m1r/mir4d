@@ -1,6 +1,8 @@
 import Foundation
 import simd
 
+/// Represents the virtual contact volume produced by an engineer's hand.
+/// It is independent of rendering and geometry mutation.
 struct MIRAirContactField: Equatable, Sendable {
     enum State: String, Sendable {
         case hovering
@@ -37,6 +39,7 @@ struct MIRAirContactField: Equatable, Sendable {
     }
 }
 
+/// Maps a hand point from normalized camera space into the CAD interaction volume.
 @MainActor
 final class MIRAirContactFieldBuilder {
     struct Configuration: Equatable, Sendable {

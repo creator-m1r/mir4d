@@ -57,4 +57,4 @@ private:
     std::unordered_set<std::uint32_t> selected_;
 };
 
-}
+} // namespace mir

@@ -10,6 +10,11 @@
 namespace mir
 {
 
+/// Deterministic command executor foundation.
+///
+/// The executor keeps an ordered command log and can replay commands up to a
+/// selected simulation time. Actual geometry mutations are intentionally
+/// delegated to the document/application layer in the next stage.
 class CommandExecutor
 {
 public:
@@ -69,4 +74,4 @@ private:
     std::size_t cursor_{0};
 };
 
-}
+} // namespace mir

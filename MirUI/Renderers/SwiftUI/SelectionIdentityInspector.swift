@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Context-first identity card for the Properties area.
+/// It deliberately stays small: detailed editors remain in InspectorTabsView.
 struct SelectionIdentityInspector: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject private var runtime = MIR4DModelRuntime.shared

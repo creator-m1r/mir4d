@@ -125,4 +125,4 @@ private:
     std::unordered_map<SimulationLayer, SimulationLayerState> layers_;
 };
 
-}
+} // namespace mir

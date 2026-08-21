@@ -85,4 +85,4 @@ namespace mir::io
     return result;
 }
 
-}
+} // namespace mir::io

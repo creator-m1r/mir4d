@@ -121,4 +121,4 @@ private:
     }
 };
 
-}
+} // namespace mir

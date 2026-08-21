@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Pure interaction layer for the Sketch workbench.
+/// Keeps pointer/navigation rules separate from SwiftUI rendering.
 struct SketchInteractionController {
     var zoom: CGFloat = 1
     var pan: CGSize = .zero

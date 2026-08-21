@@ -92,4 +92,4 @@ private:
     double tolerance_;
 };
 
-}
+} // namespace mir

@@ -1,6 +1,8 @@
 import Foundation
 import MirUIHandGesture
 
+/// Derives the interaction target from the live scene presentation state so the
+/// hand-gesture resolver can map a raw gesture into a semantic action.
 extension MIRSpatialMenuSceneContext {
     var interactionTarget: MIR4DInteractionTarget {
         if sculptActive && (bodySelected || hasSelection) { return .sculpt }
@@ -11,6 +13,8 @@ extension MIRSpatialMenuSceneContext {
     }
 }
 
+/// A lightweight snapshot of the scene that decides which tools are meaningful.
+/// The menu never reads the CAD model directly; it only reads UI presentation state.
 struct MIRSpatialMenuSceneContext: Equatable, Sendable {
     var workbench: String
     var selectionKind: String
@@ -31,6 +35,9 @@ struct MIRSpatialMenuSceneContext: Equatable, Sendable {
     )
 }
 
+/// Builds the spatial intent tree for the current scene context.
+/// Level 1 holds human intentions, not concrete commands. Context only reshapes
+/// level 2/3 contents: the engineer is never shown meaningless tools.
 enum MIRSpatialMenuContext {
     @MainActor
     static func resolve(appState: CADAppState) -> MIRSpatialMenuSceneContext {
@@ -58,6 +65,8 @@ enum MIRSpatialMenuContext {
         ]
         return Array(intents.prefix(8))
     }
+
+    // MARK: - Level 1: intentions
 
     private static func createIntent(context: MIRSpatialMenuSceneContext) -> MIRSpatialMenuItem {
         MIRSpatialMenuItem(
@@ -115,7 +124,7 @@ enum MIRSpatialMenuContext {
     private static func editIntent(context: MIRSpatialMenuSceneContext) -> MIRSpatialMenuItem {
         let geometryChildren: [MIRSpatialMenuItem]
         if context.faceSelected {
-
+            // Surface is selected: only surface-meaningful operations are shown.
             geometryChildren = [
                 tool("edit.face.extrude", "Выдавить", "Extrude", "cube.fill", "model.extrude"),
                 tool("edit.face.offset", "Смещение", "Offset", "arrow.up.and.down", "modify.offset"),
@@ -333,7 +342,7 @@ enum MIRSpatialMenuContext {
     private static func sketchIntent(context: MIRSpatialMenuSceneContext) -> MIRSpatialMenuItem {
         let categories: [MIRSpatialMenuItem]
         if context.sketchActive {
-
+            // A sketch is active: drawing tools become level-2 categories.
             categories = [
                 MIRSpatialMenuItem(
                     id: "sketch.draw",

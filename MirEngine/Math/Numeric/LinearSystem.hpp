@@ -1,3 +1,21 @@
+// MirEngine/Math/Numeric/LinearSystem.hpp
+// 🧮 Численное решение линейных систем — ядро инженерной математики MIR 4D.
+//
+// Содержит:
+//   • solveLinearSystem — решение квадратной СЛАУ A·x = b
+//     методом Гаусса–Жордана с частичным выбором ведущего элемента.
+//   • solveLeastSquares — решение переопределённой СЛАУ методом
+//     наименьших квадратов (нормальная система (AᵀA)x = Aᵀb).
+//
+// Обе функции возвращают mir4d::Result: при вырожденности матрицы или
+// несогласованных размерах возвращается описание ошибки, а не «мусор».
+//
+// Представление матрицы: std::vector<std::vector<Scalar>> (построчно).
+// Это естественный и читаемый формат для инженерных расчётов; для
+// сверхбольших систем позже можно добавить разреженные форматы, не
+// меняя контракт функций.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -14,13 +32,20 @@ namespace mir::math
 
 #ifndef MIR_MATH_NUMERIC_FAIL_DEFINED
 #define MIR_MATH_NUMERIC_FAIL_DEFINED
-
+/// Возвращает «неудачу» в виде std::unexpected<Error> для функций Result.
 [[nodiscard]] inline auto fail(mir4d::ErrorCode code, std::string_view message)
 {
     return std::unexpected(mir4d::Error(code, message));
 }
 #endif
 
+/// Решает квадратную СЛАУ A·x = b методом Гаусса–Жордана
+/// с частичным выбором ведущего элемента.
+///
+/// \param A квадратная матрица n×n (построчно).
+/// \param b правые части длины n.
+/// \return решение x или ошибку (неквадратная/несогласованная матрица,
+///         вырожденная матрица).
 [[nodiscard]] inline mir4d::Result<std::vector<Scalar>> solveLinearSystem(
     const std::vector<std::vector<Scalar>>& A,
     const std::vector<Scalar>& b)
@@ -41,13 +66,14 @@ namespace mir::math
                 "Матрица A не квадратная");
     }
 
+    // Рабочая копия: расширенная матрица [M | x].
     std::vector<std::vector<Scalar>> M = A;
     std::vector<Scalar> x = b;
     const Scalar epsilon = Scalar(1e-12);
 
     for (std::size_t col = 0; col < n; ++col)
     {
-
+        // Частичный выбор ведущего элемента по столбцу.
         std::size_t pivotRow = col;
         Scalar maxValue = std::abs(M[col][col]);
 
@@ -71,11 +97,13 @@ namespace mir::math
             std::swap(x[col], x[pivotRow]);
         }
 
+        // Нормализация ведущей строки.
         const Scalar diag = M[col][col];
         for (std::size_t c = col; c < n; ++c)
             M[col][c] /= diag;
         x[col] /= diag;
 
+        // Исключение элементов вне ведущей строки.
         for (std::size_t row = 0; row < n; ++row)
         {
             if (row == col)
@@ -94,6 +122,13 @@ namespace mir::math
     return mir4d::success(std::move(x));
 }
 
+/// Решает переопределённую СЛАУ A·x = b (m ≥ n) методом наименьших квадратов.
+///
+/// Минимизирует ‖A·x − b‖² через нормальную систему (AᵀA)x = Aᵀb,
+/// которая решается solveLinearSystem. Подходит для аппроксимации,
+/// регрессии и сглаживания измерений.
+///
+/// \return решение x (длины n) или ошибку.
 [[nodiscard]] inline mir4d::Result<std::vector<Scalar>> solveLeastSquares(
     const std::vector<std::vector<Scalar>>& A,
     const std::vector<Scalar>& b)
@@ -120,6 +155,7 @@ namespace mir::math
         return fail(mir4d::ErrorCode::InvalidArgument,
             "Число уравнений меньше числа неизвестных (m < n)");
 
+    // Построение нормальной системы (AᵀA)x = Aᵀb.
     std::vector<std::vector<Scalar>> ata(n, std::vector<Scalar>(n, Scalar(0)));
     std::vector<Scalar> atb(n, Scalar(0));
 
@@ -142,4 +178,4 @@ namespace mir::math
     return solveLinearSystem(ata, atb);
 }
 
-}
+} // namespace mir::math

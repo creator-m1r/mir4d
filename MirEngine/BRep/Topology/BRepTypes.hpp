@@ -1,5 +1,10 @@
 #pragma once
 
+// MirEngine/BRep/Topology/BRepTypes.hpp
+//
+// Фундаментальные идентификаторы и ориентации BRep.
+// Топология и геометрия ссылаются только на эти типы.
+
 #include <cstdint>
 #include <limits>
 
@@ -93,4 +98,4 @@ struct BRepTolerance
 
 inline constexpr BRepTolerance DefaultBRepTolerance{};
 
-}
+} // namespace mir

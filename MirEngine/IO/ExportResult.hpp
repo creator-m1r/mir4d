@@ -21,4 +21,4 @@ struct ExportResult
     }
 };
 
-}
+} // namespace mir::io

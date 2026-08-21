@@ -1,6 +1,9 @@
 import Foundation
 import CoreGraphics
 
+/// Cursor/preselection request state. Hit-testing remains owned by the native
+/// viewport; this contract only transports the cursor and current selection
+/// filter to the picking layer.
 struct MirViewportHoverState: Equatable, Sendable {
     var point: CGPoint
     var filter: MirSelectionFilter

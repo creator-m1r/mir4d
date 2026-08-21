@@ -107,7 +107,7 @@ void generateNormals(TriangleMesh3& mesh)
         normal = normal.normalized();
 }
 
-}
+} // namespace
 
 ImportResult AssimpImporter::importFile(
     const std::string& path,
@@ -175,6 +175,6 @@ struct AssimpRegistrar
 };
 
 static const AssimpRegistrar g_assimpRegistrar;
-}
+} // namespace
 
-}
+} // namespace mir::io

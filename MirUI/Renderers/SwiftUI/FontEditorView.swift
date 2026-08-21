@@ -1,3 +1,5 @@
+// MirUI/Renderers/SwiftUI/FontEditorView.swift
+// 🔤 Редактор шрифта для инспектора свойств.
 
 import SwiftUI
 

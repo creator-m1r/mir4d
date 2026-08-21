@@ -274,4 +274,4 @@ private:
     std::unordered_map<WorldObject::Id, AerodynamicState> aerodynamics_{};
 };
 
-}
+} // namespace mir

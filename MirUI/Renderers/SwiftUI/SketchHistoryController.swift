@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// UI adapter for the sketch command history.
+/// The application composition root injects the real MirEngine history callbacks.
 @MainActor
 final class SketchHistoryController: ObservableObject {
     typealias HistoryHandler = () -> Bool

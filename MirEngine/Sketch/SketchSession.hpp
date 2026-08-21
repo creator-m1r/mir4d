@@ -28,6 +28,8 @@ struct SketchSessionState
     bool canRedo{false};
 };
 
+/// Runtime facade for one active sketch editing session.
+/// It is the single model-facing object that the UI should observe.
 class SketchSession
 {
 public:
@@ -91,4 +93,4 @@ private:
     SketchSessionState state_;
 };
 
-}
+} // namespace mir

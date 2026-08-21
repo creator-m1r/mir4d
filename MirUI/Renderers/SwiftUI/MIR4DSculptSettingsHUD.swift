@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Small on-screen panel to tune the air-sculpt brush while working. Shown while
+/// a sculpt stroke is active so the radius/strength can be adjusted live.
 struct MIR4DSculptSettingsHUD: View {
     @ObservedObject private var settings = MIR4DSculptSettings.shared
     @ObservedObject private var indicator = MIR4DBrushIndicator.shared

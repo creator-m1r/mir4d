@@ -71,6 +71,12 @@ public:
                 return result;
             }
 
+            // Build a finite-difference Jacobian and solve the damped normal
+            // equations (J^T J + lambda I) * delta = -J^T r. This updates all
+            // sketch variables together and is substantially more stable than
+            // coordinate-wise Newton steps for coupled constraints such as a
+            // rectangle, where changing one coordinate immediately affects
+            // several equations.
             std::vector<double> residuals(equationCount, 0.0);
             for (std::size_t row = 0; row < equationCount; ++row)
                 residuals[row] = system.all()[row].residual(variables);
@@ -121,6 +127,9 @@ public:
                 rhs[i] = -value;
             }
 
+            // Small Tikhonov damping keeps singular or nearly singular sketch
+            // systems solvable without changing the exact solution of a well
+            // conditioned system.
             double damping = 1.0e-10;
             std::vector<double> delta;
             bool solved = false;
@@ -243,4 +252,4 @@ private:
     }
 };
 
-}
+} // namespace mir

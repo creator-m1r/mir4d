@@ -42,6 +42,8 @@ struct SketchExtrudeBoundary
     }
 };
 
+/// Analytical boundary of an extrusion before conversion to B-Rep.
+/// It preserves source sketch IDs and orientation instead of tessellating curves.
 class SketchExtrudeBoundaryBuilder
 {
 public:
@@ -95,4 +97,4 @@ private:
     }
 };
 
-}
+} // namespace mir

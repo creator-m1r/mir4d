@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 
+/// Coordinates lifecycle of optional subsystems without coupling them to UI.
+/// Camera permission controls both camera and hand-tracking agents.
 @MainActor
 final class MIR4DOptionalModuleCoordinator: ObservableObject {
     static let shared = MIR4DOptionalModuleCoordinator()
@@ -54,6 +56,7 @@ final class MIR4DOptionalModuleCoordinator: ObservableObject {
         aiRunning = false
     }
 
+    /// Hand tracking is intentionally gated by camera consent.
     func startHandTracking() -> Bool {
         guard runtime.isEnabled(.camera) else { return false }
         return runtime.start(.camera)

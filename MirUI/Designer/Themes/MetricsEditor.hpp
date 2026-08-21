@@ -1,3 +1,17 @@
+// MirUI/Designer/Themes/MetricsEditor.hpp
+// 📏 Редактор метрик темы — расстояний, радиусов, стандартных размеров.
+//
+// Позволяет изменять числовые значения дизайн-токенов, определённых
+// в структуре Metrics (spacingXS..XL, radiusS..L, borderWidth,
+// controlHeight, toolbarHeight, panelWidth). Каждое изменение создаёт
+// команду в истории Undo/Redo и немедленно обновляет Theme в документе.
+//
+// Использует команду, аналогичную той, что в ColorTokenEditor,
+// но для double-значений. В будущем команда будет заменена на
+// универсальную ChangePropertyCommand, когда система свойств темы
+// будет расширена.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -14,17 +28,21 @@ namespace MirUI {
 
 class MetricsEditor {
 public:
-
+    // ── Конструктор ──────────────────────────────────────────
+    // Принимает документ и имя токена метрики (например, "metrics.spacingM").
     MetricsEditor(UIDocument& doc, const std::string& tokenName)
         : m_doc(doc)
         , m_tokenName(tokenName)
     {
-
+        // Загружаем текущее значение из темы.
         m_currentValue = getTokenValue();
     }
 
+    // ── Текущее значение ─────────────────────────────────────
     [[nodiscard]] double currentValue() const { return m_currentValue; }
 
+    // ── Установка нового значения ────────────────────────────
+    // Создаёт команду изменения метрики темы и выполняет её.
     void setValue(double newValue) {
         if (newValue == m_currentValue) return;
 
@@ -32,6 +50,7 @@ public:
         m_doc.history().execute(std::move(cmd));
     }
 
+    // ── Имя токена ───────────────────────────────────────────
     [[nodiscard]] const std::string& tokenName() const { return m_tokenName; }
 
 private:
@@ -39,6 +58,7 @@ private:
     std::string m_tokenName;
     double m_currentValue;
 
+    // ── Внутренняя команда изменения метрики темы ─────────────
     class ThemeMetricCommand : public ICommand {
     public:
         ThemeMetricCommand(MetricsEditor& editor, double oldValue, double newValue)
@@ -71,10 +91,13 @@ private:
         double m_newValue;
     };
 
+    // ── Применить значение к теме ────────────────────────────
     void applyValue(double value) {
         Theme& theme = m_doc.themeManager().theme();
         Metrics& metrics = theme.metrics;
 
+        // Таблица указателей на члены Metrics для двойных значений.
+        // Все поля Metrics — double, поэтому тип указателя: double Metrics::*.
         using MetricMemberPtr = double Metrics::*;
         static const std::unordered_map<std::string, MetricMemberPtr> tokenMap = {
             {"metrics.spacingXS",   &Metrics::spacingXS},
@@ -97,6 +120,7 @@ private:
         }
     }
 
+    // ── Получить текущее значение из темы ────────────────────
     [[nodiscard]] double getTokenValue() const {
         const Theme& theme = m_doc.themeManager().theme();
         const Metrics& metrics = theme.metrics;
@@ -125,4 +149,4 @@ private:
     }
 };
 
-}
+} // namespace MirUI

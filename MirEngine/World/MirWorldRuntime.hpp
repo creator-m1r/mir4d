@@ -111,4 +111,4 @@ private:
     WorldSimulationSchedule schedule_{};
 };
 
-}
+} // namespace mir

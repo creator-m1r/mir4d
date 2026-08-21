@@ -1,3 +1,9 @@
+// MirUI/Renderers/SwiftUI/SwiftUIRenderer.mm
+// 🍏 Реализация SwiftUI-рендерера — теперь работает только с UIContext.
+// Поддержка новых виджетов (CheckBox, TextField, ComboBox, Slider)
+// и ThemeResolver для автоматического применения стилей из темы.
+//
+// Чистый C++23 внутри, Objective-C++ снаружи.
 
 #import <Foundation/Foundation.h>
 #include "SwiftUIRenderer.hpp"
@@ -20,21 +26,25 @@ void SwiftUIRenderer::beginFrame() {
 }
 
 void SwiftUIRenderer::requestUpdate(int64_t widgetId) {
-    (void)widgetId;
+    (void)widgetId; // заглушка
 }
 
 void SwiftUIRenderer::endFrame() {
     flushToSwift();
 }
 
+// ── Применение стиля из темы к узлу ──────────────────────────
 void SwiftUIRenderer::applyWidgetStyle(SwiftUIViewNode& node, WidgetType type, WidgetState state) {
-    if (!m_context) return;
+    if (!m_context) return;  // нет контекста — используем значения по умолчанию
 
+    // Получаем актуальную тему и создаём резолвер
     Theme currentTheme = m_context->themeManager().current();
     ThemeResolver resolver(currentTheme);
 
+    // Получаем стиль для этого типа виджета и состояния
     WidgetStyle style = resolver.resolve(type, state);
 
+    // Заполняем поля узла из стиля
     node.backgroundHex   = colorToHex(style.background);
     node.foregroundHex   = colorToHex(style.foreground);
     node.borderHex       = colorToHex(style.border);
@@ -46,11 +56,14 @@ void SwiftUIRenderer::applyWidgetStyle(SwiftUIViewNode& node, WidgetType type, W
     node.opacity         = style.opacity;
     node.visible         = style.visible;
 
+    // Тень
     node.shadowOffsetX   = style.shadow.offsetX;
     node.shadowOffsetY   = style.shadow.offsetY;
     node.shadowBlur      = style.shadow.blurRadius;
     node.shadowColorHex  = colorToHex(style.shadow.color);
 }
+
+// ── Отрисовка всех виджетов (каждый метод теперь использует applyWidgetStyle) ──
 
 void SwiftUIRenderer::renderButton(Widget& widget) {
     SwiftUIViewNode node;
@@ -258,6 +271,8 @@ void SwiftUIRenderer::renderUnknownWidget(Widget& widget) {
     addViewNode(std::move(node));
 }
 
+// ── Вспомогательные методы ──────────────────────────────────
+
 void SwiftUIRenderer::fillBaseNode(SwiftUIViewNode& node, Widget& widget) {
     node.widgetId = static_cast<int64_t>(widget.id().value());
     Rect bounds = widget.bounds();
@@ -319,7 +334,7 @@ int SwiftUIRenderer::fontWeightToInt(FontWeight weight) {
 void SwiftUIRenderer::flushToSwift() {
     if (m_viewNodes.empty()) return;
     NSLog(@"[MirUI SwiftUI Renderer] Передаём %lu узлов в SwiftUI", (unsigned long)m_viewNodes.size());
-
+    // MirUI_SwiftUI_UpdateViewNodes(m_viewNodes.data(), (int)m_viewNodes.size(), 0);
 }
 
 extern "C" void MirUI_SwiftUI_UpdateViewNodes(const SwiftUIViewNode* nodes, int count, int rootIndex) {
@@ -327,4 +342,4 @@ extern "C" void MirUI_SwiftUI_UpdateViewNodes(const SwiftUIViewNode* nodes, int 
     (void)nodes;
 }
 
-}
+} // namespace MirUI

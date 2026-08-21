@@ -1,3 +1,18 @@
+// MirUI/Designer/Inspector/NumberEditor.hpp
+// 🔢 Редактор числового свойства — для целых и дробных чисел в инспекторе.
+//
+// В инспекторе свойств поля «Ширина», «Высота», «Радиус», «Отступ» —
+// это всё числовые значения. NumberEditor управляет одним таким значением:
+// он хранит текущее число и позволяет изменить его через поле ввода.
+//
+// При изменении значения редактор создаёт ChangePropertyCommand и выполняет
+// её через историю документа, автоматически поддерживая Undo/Redo.
+// NumberEditor работает как с целыми (int64_t), так и с дробными (double) числами.
+//
+// Сам редактор не рисует поле ввода — он только хранит значение и логику.
+// Отображение (поле с цифрами и стрелочками) делает платформенный рендерер.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -13,7 +28,10 @@ namespace MirUI {
 
 class NumberEditor {
 public:
-
+    // ── Конструктор ──────────────────────────────────────────
+    // Принимает документ, ID виджета и имя свойства (например, "width").
+    // Загружает текущее значение из виджета. Поддерживает и целые, и дробные.
+    // Можно указать минимальное, максимальное значение и шаг (для стрелочек).
     NumberEditor(UIDocument& doc,
                  WidgetID widgetId,
                  const std::string& propertyName,
@@ -28,12 +46,12 @@ public:
         , m_step(step)
         , m_isInteger(false)
     {
-
+        // Загружаем текущее значение.
         Widget* widget = doc.widgetTree().find(widgetId);
         if (widget) {
             auto optVal = widget->getProperty(propertyName);
             if (optVal.has_value()) {
-
+                // Смотрим, что за тип значения.
                 if (std::holds_alternative<int64_t>(*optVal)) {
                     m_currentValue = static_cast<double>(std::get<int64_t>(*optVal));
                     m_isInteger = true;
@@ -46,22 +64,28 @@ public:
                 }
             }
         }
-
+        // Обрезаем по min/max.
         m_currentValue = std::clamp(m_currentValue, m_minValue, m_maxValue);
     }
 
+    // ── Текущее значение ─────────────────────────────────────
     [[nodiscard]] double value() const { return m_currentValue; }
 
+    // ── Установка нового значения ────────────────────────────
+    // Принимает число (double), обрезает по min/max,
+    // и если свойство целочисленное — округляет.
+    // Затем создаёт ChangePropertyCommand и выполняет её.
     void setValue(double newValue) {
-
+        // Округляем, если нужно.
         if (m_isInteger) {
             newValue = std::round(newValue);
         }
-
+        // Обрезаем.
         newValue = std::clamp(newValue, m_minValue, m_maxValue);
 
-        if (std::abs(newValue - m_currentValue) < 1e-9) return;
+        if (std::abs(newValue - m_currentValue) < 1e-9) return; // не изменилось
 
+        // Создаём команду с правильным типом (int64_t или double).
         StateValue stateVal;
         if (m_isInteger) {
             stateVal = StateValue(static_cast<int64_t>(newValue));
@@ -74,17 +98,21 @@ public:
         );
         m_doc.history().execute(std::move(cmd));
 
+        // Обновляем локальное значение.
         m_currentValue = newValue;
     }
 
+    // ── Увеличение на шаг (стрелка вверх) ───────────────────
     void increment() {
         setValue(m_currentValue + m_step);
     }
 
+    // ── Уменьшение на шаг (стрелка вниз) ────────────────────
     void decrement() {
         setValue(m_currentValue - m_step);
     }
 
+    // ── Параметры ограничений ────────────────────────────────
     [[nodiscard]] double minValue() const { return m_minValue; }
     [[nodiscard]] double maxValue() const { return m_maxValue; }
     [[nodiscard]] double step() const { return m_step; }
@@ -102,4 +130,4 @@ private:
     bool        m_isInteger;
 };
 
-}
+} // namespace MirUI

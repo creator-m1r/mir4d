@@ -55,7 +55,7 @@ void includeNodeBounds(DocumentSceneRenderBridge::Bounds& bounds,
         includePoint(bounds, transform.transformPoint(corner));
 }
 
-}
+} // namespace
 
 double DocumentSceneRenderBridge::Bounds::radius() const noexcept
 {
@@ -91,4 +91,4 @@ DocumentSceneRenderBridge::Bounds DocumentSceneRenderBridge::rebuild(
     return cachedBounds_;
 }
 
-}
+} // namespace mir::rendering

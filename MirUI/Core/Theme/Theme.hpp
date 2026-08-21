@@ -1,3 +1,22 @@
+// MirUI/Core/Theme/Theme.hpp
+// 🎨 Тема MirUI — чистое описание внешнего вида интерфейса (только данные).
+//
+// Theme — это "паспорт" визуального стиля всего приложения.
+// Она НЕ содержит логики загрузки, сохранения или переключения —
+// это делают ThemeManager и UIProjectSerializer.
+//
+// Тема объединяет в себе:
+//   • id и name                — уникальный идентификатор и человекочитаемое имя.
+//   • colors (ColorPalette)    — все цвета интерфейса и вьюпорта.
+//   • metrics (Metrics)        — размеры, отступы, радиусы.
+//   • typography (Typography)  — шрифты для разных элементов.
+//   • animations (AnimationSettings) — настройки анимаций по умолчанию.
+//
+// Создавать тему можно либо через конструктор, либо через статические
+// фабричные методы (createLight, createDark). В будущем темы будут
+// загружаться из .mirtheme файлов через UIProjectSerializer.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -32,6 +51,7 @@ struct Theme {
     Typography   typography;
     AnimationSettings animations;
 
+    // Явное сравнение всех полей
     bool operator==(const Theme& other) const {
         return id == other.id &&
                name == other.name &&
@@ -67,4 +87,4 @@ struct Theme {
     }
 };
 
-}
+} // namespace MirUI

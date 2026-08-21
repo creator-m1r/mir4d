@@ -1,3 +1,6 @@
+// MirEngine/Math/Transform.hpp
+// Позиция, вращение и масштаб объекта в одном canonical типе.
+// C++23
 
 #pragma once
 
@@ -12,6 +15,10 @@
 namespace mir4d
 {
 
+/// Canonical engineering transform.
+///
+/// Lower-level mathematical value types are still temporarily provided by
+/// the legacy mir namespace. Transform ownership itself belongs to mir4d.
 class Transform
 {
 public:
@@ -105,11 +112,12 @@ private:
     }
 };
 
-}
+} // namespace mir4d
 
 namespace mir
 {
 
+/// Compatibility alias. Transform is owned by mir4d.
 using Transform = mir4d::Transform;
 
-}
+} // namespace mir

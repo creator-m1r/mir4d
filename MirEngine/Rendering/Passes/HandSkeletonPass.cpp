@@ -1,3 +1,12 @@
+// MirEngine/Rendering/Passes/HandSkeletonPass.cpp
+// =================================================================================
+// Отдельный режим визуализации скелета кистей (debug / assist).
+//
+// Рисует 21 сустав как GL_POINTS и кости как GL_LINES в реальном пространстве
+// сцены, используя view-projection матрицу кадра. Не изменяет CAD-сцену,
+// Document или историю команд. Данные приходят через RenderContext.handSkeleton
+// (транзиентный sensor-view из подсистемы трекинга рук).
+// =================================================================================
 
 #include "HandSkeletonPass.h"
 
@@ -64,18 +73,18 @@ inline Vector3 lerp(const Vector3& a, const Vector3& b, float t) noexcept
                    a.z + (b.z - a.z) * t);
 }
 
-}
+} // namespace
 
 std::vector<std::pair<int, int>> HandSkeletonPass::defaultBoneIndices()
 {
     return {
-        {0, 1},  {0, 5},  {0, 9},  {0, 13}, {0, 17},
-        {1, 2},  {2, 3},  {3, 4},
-        {5, 6},  {6, 7},  {7, 8},
-        {9, 10}, {10, 11}, {11, 12},
-        {13, 14}, {14, 15}, {15, 16},
-        {17, 18}, {18, 19}, {19, 20},
-        {5, 9},  {9, 13}, {13, 17}
+        {0, 1},  {0, 5},  {0, 9},  {0, 13}, {0, 17}, // wrist -> finger bases
+        {1, 2},  {2, 3},  {3, 4},                  // thumb
+        {5, 6},  {6, 7},  {7, 8},                  // index
+        {9, 10}, {10, 11}, {11, 12},               // middle
+        {13, 14}, {14, 15}, {15, 16},              // ring
+        {17, 18}, {18, 19}, {19, 20},              // little
+        {5, 9},  {9, 13}, {13, 17}                 // palm
     };
 }
 
@@ -85,20 +94,25 @@ void HandSkeletonPass::setTopology(const std::vector<std::pair<int, int>>& bones
         m_boneIndices = bones;
 }
 
+// Accent colour for the active gesture. `gestureCode` is the index into
+// MIRHandGestureType.allCases:
+//   0 openPalm, 1 point, 2 pinch, 3 grab, 4 fist, 5 twoFinger, 6 threeFinger,
+//   7 vSign, 8 thumbsUp, 9 rest, 10 twoHandTranslate, 11 twoHandScale,
+//   12 twoHandRotate, 13 twoHandPinch, 14 twoHandGrab.
 void HandSkeletonPass::gestureAccent(int gestureCode, float out[3]) noexcept
 {
     switch (gestureCode)
     {
-        case 2:
-        case 13:
-            out[0] = 1.0f; out[1] = 0.85f; out[2] = 0.20f; break;
-        case 3:
-        case 14:
-            out[0] = 0.30f; out[1] = 1.00f; out[2] = 0.40f; break;
-        case 1:
-            out[0] = 0.60f; out[1] = 0.80f; out[2] = 1.00f; break;
+        case 2:   // pinch
+        case 13:  // twoHandPinch
+            out[0] = 1.0f; out[1] = 0.85f; out[2] = 0.20f; break; // amber
+        case 3:   // grab
+        case 14:  // twoHandGrab
+            out[0] = 0.30f; out[1] = 1.00f; out[2] = 0.40f; break; // green
+        case 1:   // point
+            out[0] = 0.60f; out[1] = 0.80f; out[2] = 1.00f; break; // light blue
         default:
-            out[0] = 1.0f; out[1] = 1.0f; out[2] = 1.0f; break;
+            out[0] = 1.0f; out[1] = 1.0f; out[2] = 1.0f; break;   // white
     }
 }
 
@@ -135,7 +149,7 @@ bool HandSkeletonPass::initialize(RenderDevice& device)
 }
 
 void HandSkeletonPass::execute(RenderContext& context,
-                               mir::Scene& ,
+                               mir::Scene& /*scene*/,
                                RenderDevice& device)
 {
     if (!m_initialized)
@@ -143,7 +157,7 @@ void HandSkeletonPass::execute(RenderContext& context,
 
     const HandSkeletonRenderData& sk = context.handSkeleton;
     if (sk.mode <= 0 || sk.handCount <= 0)
-        return;
+        return; // zero-cost no-op when off / no hands tracked
 
     const int handCount = std::min(sk.handCount, HandSkeletonRenderData::kMaxHands);
 
@@ -167,6 +181,7 @@ void HandSkeletonPass::execute(RenderContext& context,
         gestureAccent(sk.gesture[h], accent);
         const Vector3 accentCol(accent[0], accent[1], accent[2]);
 
+        // Joints as points.
         for (int j = 0; j < HandSkeletonRenderData::kMaxJoints; ++j)
         {
             const float c = conf[j];
@@ -174,7 +189,7 @@ void HandSkeletonPass::execute(RenderContext& context,
                 continue;
             const bool isTip = (j == 4 || j == 8 || j == 12 || j == 16 || j == 20);
             Vector3 col = baseCol;
-
+            // Active gesture tints the fingertips; pinch strength controls blend.
             if (isTip)
                 col = lerp(baseCol, accentCol, std::min(pinch, 1.0f) * 0.8f);
             const float size = (j == 0) ? m_style.wristSize
@@ -186,6 +201,7 @@ void HandSkeletonPass::execute(RenderContext& context,
         if (!drawBones)
             continue;
 
+        // Bones as lines.
         for (const auto& bone : m_boneIndices)
         {
             const float ca = conf[bone.first];
@@ -199,6 +215,8 @@ void HandSkeletonPass::execute(RenderContext& context,
             lines.push_back(Vertex(pb, baseCol, Vector2(a, 0.0f)));
         }
 
+        // Pinch line: thumb tip (4) <-> index tip (8). Intensity scales with
+        // pinch strength; colour follows the active gesture accent.
         if (pinch > 0.05f)
         {
             const float pa2 = conf[4];
@@ -219,7 +237,7 @@ void HandSkeletonPass::execute(RenderContext& context,
 
         if (drawRay)
         {
-
+            // Pointing ray: wrist (0) through index tip (8), extended.
             const Vector3 wrist(pos[0], pos[1], pos[2]);
             const Vector3 tip(pos[8 * 3], pos[8 * 3 + 1], pos[8 * 3 + 2]);
             const Vector3 dir = Vector3(tip.x - wrist.x, tip.y - wrist.y, tip.z - wrist.z);
@@ -235,6 +253,8 @@ void HandSkeletonPass::execute(RenderContext& context,
     if (points.empty() && lines.empty())
         return;
 
+    // Sensor overlay. Depth test is disabled by default so the skeleton stays
+    // readable behind solid geometry; optional depth-test mode enables it.
     device.setCullFace(false);
     device.setBlend(true);
     if (m_style.depthTest)
@@ -275,4 +295,4 @@ void HandSkeletonPass::execute(RenderContext& context,
     device.setCullFace(true);
 }
 
-}
+} // namespace MirEngine::Rendering

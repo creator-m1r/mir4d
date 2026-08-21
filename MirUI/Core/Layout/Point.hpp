@@ -1,3 +1,6 @@
+// MirUI/Core/Layout/Point.hpp
+// 2D point with arithmetic operations.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -12,6 +15,7 @@ struct Point {
 
     static constexpr Point zero() noexcept { return {}; }
 
+    // Arithmetic operators
     friend constexpr Point operator+(const Point& a, const Point& b) noexcept {
         return { a.x + b.x, a.y + b.y };
     }
@@ -26,4 +30,4 @@ struct Point {
     }
 };
 
-}
+} // namespace MirUI

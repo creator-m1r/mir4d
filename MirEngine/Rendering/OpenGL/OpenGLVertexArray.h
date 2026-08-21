@@ -1,3 +1,24 @@
+// MirEngine/Rendering/OpenGL/OpenGLVertexArray.h
+// =================================================================================
+// Конкретная реализация вершинного массива для OpenGL.
+//
+// Инкапсулирует объект Vertex Array Object (VAO) и связывает вершинный буфер
+// (OpenGLVertexBuffer) и индексный буфер (OpenGLIndexBuffer) с описанием атрибутов
+// вершин, соответствующих структуре MirEngine::Rendering::Vertex.
+//
+// Принцип изоляции:
+//   Все вызовы gl* скрыты внутри этого класса и его .cpp. Внешний код работает
+//   через интерфейс VertexArray, не зная о GLuint и внутренних состояниях OpenGL.
+//   Исключением является метод getHandle(), необходимый для низкоуровневых операций
+//   в OpenGLDevice, где требуется прямой доступ к нативному объекту VAO.
+//
+// Использование:
+//   1. Создать экземпляр (обычно через фабрику в OpenGLDevice).
+//   2. Привязать вершинный буфер через setVertexBuffer().
+//   3. Привязать индексный буфер через setIndexBuffer() (опционально).
+//   4. Вызвать bind() перед рисованием.
+//   5. Передать массив в RenderDevice::draw().
+
 
 #pragma once
 
@@ -43,6 +64,7 @@ public:
         return m_vao != 0 && m_vertexBuffer != nullptr;
     }
 
+    // Нативный handle (только для внутреннего использования)
     [[nodiscard]] GLuint handle() const noexcept { return m_vao; }
 
 private:
@@ -53,9 +75,19 @@ private:
     void setupAttributes();
 };
 
+// OpenGL 4.1 Core has no default VAO: a VAO must always be bound when calling
+// glBindBuffer(GL_ARRAY_BUFFER / GL_ELEMENT_ARRAY_BUFFER) or glBufferData,
+// otherwise the driver raises GL_INVALID_OPERATION. BindDefaultVertexArray()
+// lazily creates and binds a persistent scratch VAO so buffer uploads never run
+// with an unbound VAO.
 void BindDefaultVertexArray() noexcept;
 
+// Must be called when the owning OpenGL context/device is torn down so the
+// lazily-created scratch VAO is regenerated for the next context. Without this
+// the global handle keeps pointing at a VAO that belonged to the destroyed
+// context, and the next BindDefaultVertexArray() binds a dead VAO (raising
+// GL_INVALID_OPERATION on buffer uploads and producing a black viewport).
 void ResetDefaultVertexArray() noexcept;
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

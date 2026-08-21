@@ -1,3 +1,29 @@
+// MirUI/Schema/ThemeSchema.hpp
+// 🎨 Схема темы MirUI — реестр всех стандартных токенов темы.
+//
+// Тема MirUI (Theme) состоит из трёх групп токенов:
+//   1. Цвета (ColorPalette) — background, surface, accent, textPrimary и т.д.
+//   2. Метрики (Metrics) — spacingXS..XL, radiusS..L, borderWidth, высоты панелей.
+//   3. Типографика (Typography) — title, subtitle, body, caption, button, code.
+//
+// ThemeSchema описывает КАЖДЫЙ из этих токенов в едином реестре:
+//   • id          — строковый идентификатор (например, "colors.background")
+//   • type        — тип значения: Color, Double, Font
+//   • category    — категория для группировки ("Цвета", "Метрики", "Типографика")
+//   • name        — отображаемое имя на русском ("Фон", "Акцент", "Заголовок")
+//   • description — подробное описание (тултип)
+//   • defaultValue — значение по умолчанию (в виде StateValue)
+//
+// Благодаря этой схеме:
+//   • ThemeEditor (и его подредакторы) может автоматически построить
+//     интерфейс для изменения темы, просто перебирая токены из схемы.
+//   • InspectorModel может показать список доступных цветов/шрифтов
+//     для выбора в любом свойстве виджета (например, выбор цвета из палитры).
+//   • Рендереры (SwiftUI, WinUI) могут прочитать схему и применить
+//     тему, даже если не знают всех токенов заранее.
+//   • Локализация строк — все названия и описания лежат в одном месте.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -8,28 +34,33 @@
 
 namespace MirUI {
 
+// ── Типы значений, используемых в токенах темы ─────────────
 enum class ThemeValueType {
-    Color,
-    Double,
-    Font
+    Color,   // хранится как строка HEX "#RRGGBBAA"
+    Double,  // хранится как double (для метрик)
+    Font     // хранится как строка "family;size;weight;style"
 };
 
+// ── Дескриптор одного токена темы ──────────────────────────
 struct ThemeDescriptor {
-    std::string id;
-    ThemeValueType type;
-    std::string category;
-    std::string name;
-    std::string description;
-    StateValue defaultValue;
+    std::string id;              // уникальный идентификатор токена ("colors.background")
+    ThemeValueType type;         // тип значения (Color, Double, Font)
+    std::string category;        // категория ("Цвета", "Метрики", "Типографика")
+    std::string name;            // отображаемое имя на русском ("Фон", "Отступ S")
+    std::string description;     // подробное описание (тултип)
+    StateValue defaultValue;     // значение по умолчанию (в формате StateValue)
 };
 
+// ── Схема (реестр) токенов темы ────────────────────────────
 class ThemeSchema {
 public:
-
+    // Получить полный список всех токенов темы.
     [[nodiscard]] static const std::vector<ThemeDescriptor>& allTokens() {
         return tokens();
     }
 
+    // Найти токен по его строковому идентификатору.
+    // Возвращает указатель на дескриптор или nullptr, если не найден.
     [[nodiscard]] static const ThemeDescriptor* find(const std::string& id) {
         auto& toks = tokens();
         auto it = std::find_if(toks.begin(), toks.end(),
@@ -37,6 +68,7 @@ public:
         return (it != toks.end()) ? &(*it) : nullptr;
     }
 
+    // Найти все токены из заданной категории.
     [[nodiscard]] static std::vector<const ThemeDescriptor*> findByCategory(const std::string& category) {
         std::vector<const ThemeDescriptor*> result;
         for (const auto& desc : tokens()) {
@@ -47,6 +79,7 @@ public:
         return result;
     }
 
+    // Получить список всех уникальных категорий токенов темы.
     [[nodiscard]] static std::vector<std::string> allCategories() {
         std::vector<std::string> categories;
         for (const auto& desc : tokens()) {
@@ -57,6 +90,7 @@ public:
         return categories;
     }
 
+    // Получить значение по умолчанию для заданного токена.
     [[nodiscard]] static std::optional<StateValue> defaultValue(const std::string& id) {
         auto desc = find(id);
         if (desc) {
@@ -66,10 +100,10 @@ public:
     }
 
 private:
-
+    // Статический реестр всех встроенных токенов темы.
     static std::vector<ThemeDescriptor>& tokens() {
         static std::vector<ThemeDescriptor> s_tokens = {
-
+            // ── Цвета (ColorPalette) ─────────────────────────
             {
                 "colors.background",
                 ThemeValueType::Color,
@@ -183,6 +217,7 @@ private:
                 StateValue(std::string("#43A047FF"))
             },
 
+            // ── Метрики (Metrics) ─────────────────────────────
             {
                 "metrics.spacingXS",
                 ThemeValueType::Double,
@@ -280,6 +315,7 @@ private:
                 StateValue(260.0)
             },
 
+            // ── Типографика (Typography) ──────────────────────
             {
                 "typography.title",
                 ThemeValueType::Font,
@@ -333,4 +369,4 @@ private:
     }
 };
 
-}
+} // namespace MirUI

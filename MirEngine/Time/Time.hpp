@@ -6,6 +6,8 @@
 namespace mir4d
 {
 
+/// Deterministic simulation time expressed in seconds from the document origin.
+/// This is engine time, independent from the computer wall clock.
 class Time
 {
 public:
@@ -51,4 +53,4 @@ private:
     double seconds_{0.0};
 };
 
-}
+} // namespace mir4d

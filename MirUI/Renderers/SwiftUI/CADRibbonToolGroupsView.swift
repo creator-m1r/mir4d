@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Compact industrial CAD command surface for the active workbench.
+/// Commands remain owned by CADCommandRegistry; this view only groups and presents them.
 struct CADRibbonToolGroupsView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

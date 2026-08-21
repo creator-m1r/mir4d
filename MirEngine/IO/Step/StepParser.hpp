@@ -7,6 +7,11 @@
 #include <unordered_map>
 #include <vector>
 
+// Header-only ISO 10303-21 (STEP) parser used by the native tessellated
+// STEP codec. It intentionally covers the subset MIR 4D emits (faceted_brep)
+// and the common AP242 tessellated representations, without linking
+// OpenCASCADE. Exact B-Rep mapping is provided natively by BRepStepBridge.
+
 namespace mir::io::step::parser
 {
 
@@ -25,7 +30,7 @@ struct Param
     Kind kind{Kind::List};
     double realValue{0.0};
     long long intValue{0};
-    std::string text;
+    std::string text; // String content, raw Enum (e.g. ".T.") or Reference digits
     std::vector<Param> items;
 
     [[nodiscard]] bool asReference(int& outId) const
@@ -123,6 +128,7 @@ public:
 
     char next() { return pos_ < s_.size() ? s_[pos_++] : '\0'; }
 
+    // Reads one parameter value (recursively for nested lists).
     Param readParam()
     {
         skipWhitespaceAndComments();
@@ -130,7 +136,7 @@ public:
 
         if (peek() == '(')
         {
-            next();
+            next(); // consume '('
             p.kind = Param::Kind::List;
             for (;;)
             {
@@ -140,7 +146,8 @@ public:
                     next();
                     break;
                 }
-
+                // A list element (combined EXPRESS instance members may be
+                // whitespace-separated rather than comma-separated).
                 p.items.push_back(readParam());
                 skipWhitespaceAndComments();
                 if (peek() == ',')
@@ -153,7 +160,8 @@ public:
                     next();
                     break;
                 }
-
+                // Whitespace-only separator: continue and let the next
+                // iteration either read the next item or stop at ')'.
             }
             return p;
         }
@@ -171,13 +179,13 @@ public:
 
         if (peek() == '\'')
         {
-            next();
+            next(); // opening quote
             std::string str;
             while (!atEnd() && peek() != '\'')
                 str.push_back(next());
             if (peek() == '\'')
                 next();
-
+            // STEP doubles an embedded quote as '' — collapse them.
             std::string collapsed;
             collapsed.reserve(str.size());
             for (std::size_t i = 0; i < str.size(); ++i)
@@ -209,7 +217,8 @@ public:
                              c == '+' || c == '-';
         if (!isNumberStart && c == '.')
         {
-
+            // '.' starts a number only when followed by a digit (e.g. ".5").
+            // Enum tokens like .T. / .FALSE. start with '.' + letter.
             if (pos_ + 1 < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_ + 1])) != 0)
                 isNumberStart = true;
         }
@@ -243,6 +252,7 @@ public:
             return p;
         }
 
+        // Enum / keyword token, e.g. .T. .FALSE. .PLUS.FC.
         std::string token;
         while (!atEnd())
         {
@@ -257,6 +267,7 @@ public:
         return p;
     }
 
+    // Reads "#id = TYPE( ... );"
     bool readEntity(Entity& out)
     {
         skipWhitespaceAndComments();
@@ -297,7 +308,7 @@ public:
         skipWhitespaceAndComments();
         if (peek() != '(')
             return false;
-
+        // The top-level parameter list is a list; reuse readParam.
         Param root = readParam();
         out.params = std::move(root.items);
 
@@ -317,6 +328,7 @@ inline std::unique_ptr<StepFile> parse(const std::string& text)
     auto file = std::make_unique<StepFile>();
     Scanner scanner(text);
 
+    // Jump to the DATA section.
     std::size_t dataPos = text.find("DATA;");
     if (dataPos != std::string::npos)
         scanner.advance(dataPos + 5);
@@ -341,4 +353,4 @@ inline std::unique_ptr<StepFile> parse(const std::string& text)
     return file;
 }
 
-}
+} // namespace mir::io::step::parser

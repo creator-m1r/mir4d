@@ -1,6 +1,8 @@
 import Foundation
 import simd
 
+/// Geometry-agnostic deformation request produced by air contact.
+/// MirEngine is responsible for applying this command to the active model.
 struct MIRSurfaceDeformationCommand: Equatable, Sendable {
     enum Mode: String, Sendable {
         case push

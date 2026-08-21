@@ -32,4 +32,4 @@ struct SimulationPort
     SimulationMaterial material{};
 };
 
-}
+} // namespace mir

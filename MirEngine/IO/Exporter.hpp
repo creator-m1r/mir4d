@@ -24,4 +24,4 @@ public:
         const ExportOptions& options) = 0;
 };
 
-}
+} // namespace mir::io

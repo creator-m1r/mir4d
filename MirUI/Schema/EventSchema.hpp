@@ -1,3 +1,26 @@
+// MirUI/Schema/EventSchema.hpp
+// 📡 Схема событий MirUI — реестр всех стандартных событий системы.
+//
+// Аналогично CommandSchema, EventSchema определяет полный перечень
+// встроенных типов событий (MouseDown, KeyUp, FocusGained, Click…),
+// их категории для группировки, человекочитаемые имена, описания и
+// типовые источники. Это служит контрактом между ядром и платформенными
+// адаптерами: рендереры (SwiftUI, WinUI, WebUI) могут читать схему
+// и автоматически настраивать маршрутизацию системных событий
+// в универсальные события MirUI.
+//
+// Кроме того, Designer использует схему для отображения списка событий,
+// которые можно привязать к виджету (например, «при щелчке»), и генерации
+// кода/конфигурации.
+//
+// Структура EventDescriptor содержит:
+//   • type        — EventType (из перечисления Core/Events/EventType.hpp)
+//   • category    — категория (например, "Мышь", "Клавиатура", "Фокус")
+//   • name        — короткое имя на русском (например, "Щелчок мыши")
+//   • description — подробное описание (тултип)
+//   • source      — тип источника: "mouse", "keyboard", "focus", "drag", "layout"
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -8,21 +31,24 @@
 
 namespace MirUI {
 
+// ── Дескриптор одного события ──────────────────────────────
 struct EventDescriptor {
-    EventType   type;
-    std::string category;
-    std::string name;
-    std::string description;
-    std::string source;
+    EventType   type;         // тип события из перечисления
+    std::string category;     // категория для группировки ("Мышь", "Клавиатура", …)
+    std::string name;         // отображаемое имя ("Щелчок мыши")
+    std::string description;  // подробное описание
+    std::string source;       // источник: "mouse", "keyboard", "focus", "drag", "layout", "system"
 };
 
+// ── Схема (реестр) событий ─────────────────────────────────
 class EventSchema {
 public:
-
+    // Получить полный список всех зарегистрированных событий.
     [[nodiscard]] static const std::vector<EventDescriptor>& allEvents() {
         return events();
     }
 
+    // Найти событие по его типу. Возвращает указатель на дескриптор или nullptr.
     [[nodiscard]] static const EventDescriptor* find(EventType type) {
         auto& evts = events();
         auto it = std::find_if(evts.begin(), evts.end(),
@@ -30,6 +56,7 @@ public:
         return (it != evts.end()) ? &(*it) : nullptr;
     }
 
+    // Найти все события из заданной категории.
     [[nodiscard]] static std::vector<const EventDescriptor*> findByCategory(const std::string& category) {
         std::vector<const EventDescriptor*> result;
         for (const auto& desc : events()) {
@@ -40,6 +67,7 @@ public:
         return result;
     }
 
+    // Получить список всех уникальных категорий событий.
     [[nodiscard]] static std::vector<std::string> allCategories() {
         std::vector<std::string> categories;
         for (const auto& desc : events()) {
@@ -51,10 +79,10 @@ public:
     }
 
 private:
-
+    // Статический реестр всех встроенных событий.
     static std::vector<EventDescriptor>& events() {
         static std::vector<EventDescriptor> s_events = {
-
+            // ── Мышь ─────────────────────────────────────────
             {
                 EventType::MouseMove,
                 "Мышь",
@@ -98,6 +126,7 @@ private:
                 "mouse"
             },
 
+            // ── Перетаскивание ───────────────────────────────
             {
                 EventType::DragBegin,
                 "Перетаскивание",
@@ -120,6 +149,7 @@ private:
                 "drag"
             },
 
+            // ── Клавиатура ───────────────────────────────────
             {
                 EventType::KeyDown,
                 "Клавиатура",
@@ -135,6 +165,7 @@ private:
                 "keyboard"
             },
 
+            // ── Фокус ────────────────────────────────────────
             {
                 EventType::FocusGained,
                 "Фокус",
@@ -150,6 +181,7 @@ private:
                 "focus"
             },
 
+            // ── Изменение размера и компоновки ───────────────
             {
                 EventType::Resize,
                 "Размер",
@@ -169,4 +201,4 @@ private:
     }
 };
 
-}
+} // namespace MirUI

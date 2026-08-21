@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Compact CAD tool palette for the sketch workspace.
+/// Tool selection is UI state only; geometry changes remain command-driven.
 struct SketchToolPalette: View {
     @Binding var activeTool: SketchTool
 

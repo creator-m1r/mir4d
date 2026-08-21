@@ -100,4 +100,4 @@ private:
     std::unordered_map<std::uint64_t, EquipmentSystem> systems_;
 };
 
-}
+} // namespace mir

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+/// Hierarchical navigation level of the radial menu.
 enum RadialMenuLevel: String, CaseIterable, Equatable {
     case root
     case panel
@@ -9,6 +10,8 @@ enum RadialMenuLevel: String, CaseIterable, Equatable {
     case confirmation
 }
 
+/// Single source of truth for the radial menu's navigation state.
+/// All visual components and the interaction coordinator read from one instance.
 struct RadialMenuState {
     var isOpen: Bool = false
     var level: RadialMenuLevel = .root

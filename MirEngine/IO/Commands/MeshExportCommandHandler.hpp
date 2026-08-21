@@ -20,4 +20,4 @@ private:
     ExportService service_;
 };
 
-}
+} // namespace mir::io

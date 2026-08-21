@@ -10,6 +10,7 @@
 namespace mir
 {
 
+/// Common geometric contract for three-dimensional parametric curves.
 class Curve3
 {
 public:
@@ -37,4 +38,4 @@ public:
     }
 };
 
-}
+} // namespace mir

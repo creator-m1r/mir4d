@@ -17,6 +17,9 @@ struct SketchManipulationResult
     bool changed{false};
 };
 
+/// Computes a proposed geometry state from a selected handle.
+/// It does not mutate the document; the caller can wrap the result in
+/// SketchGeometryEditCommand and commit it atomically.
 class SketchGeometryManipulator
 {
 public:
@@ -78,4 +81,4 @@ public:
     }
 };
 
-}
+} // namespace mir

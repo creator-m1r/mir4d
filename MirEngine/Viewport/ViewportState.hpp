@@ -8,12 +8,17 @@
 namespace mir
 {
 
+/// Canonical runtime state owned by a single viewport.
+/// Engineering Scene/Document remains the source of truth; this object contains
+/// only presentation and interaction state.
 struct ViewportState
 {
     Camera camera{};
     ViewportController controller{&camera};
     SelectionState selection{};
 
+    // Object id currently under the cursor (hover). Invalid when the cursor
+    // is over empty space. Hover never mutates selection.
     mir4d::ObjectId hoveredObjectId{mir4d::InvalidObjectId};
 
     std::uint32_t width{1};
@@ -34,4 +39,4 @@ struct ViewportState
     }
 };
 
-}
+} // namespace mir

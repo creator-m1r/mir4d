@@ -1,6 +1,8 @@
 import SwiftUI
 import Combine
 
+/// Shared UI state for the interactive Sketch workbench.
+/// The model is intentionally UI-facing; authoritative geometry remains in MirEngine.
 @MainActor
 final class SketchModeState: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {

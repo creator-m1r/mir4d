@@ -12,7 +12,9 @@ namespace mir
 
 struct SketchVariableMap
 {
-
+    // Line: x1,y1,x2,y2
+    // Circle: cx,cy,r
+    // Arc: cx,cy,r,a0,a1
     static constexpr std::size_t line(std::uint32_t id, std::size_t stride = 4)
     {
         return static_cast<std::size_t>(id) * stride;
@@ -80,4 +82,4 @@ public:
     }
 };
 
-}
+} // namespace mir

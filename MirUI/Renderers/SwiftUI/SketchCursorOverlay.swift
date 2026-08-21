@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// CAD-style crosshair and coordinate readout.
+/// Rendering only; it does not own sketch geometry.
 struct SketchCursorOverlay: View {
     let cursor: CGPoint
     let coordinateSpace: SketchCoordinateSpace

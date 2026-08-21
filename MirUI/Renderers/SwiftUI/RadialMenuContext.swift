@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+/// Snapshot of the active CAD situation that decides which radial commands are meaningful.
 @MainActor
 struct RadialMenuContext {
     var workbench: CADWorkbench

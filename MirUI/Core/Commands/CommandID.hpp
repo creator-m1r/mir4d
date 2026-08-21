@@ -1,3 +1,6 @@
+// MirUI/Core/Commands/CommandID.hpp
+// String-based command identifier – allows dynamic registration by plugins.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -27,7 +30,7 @@ private:
     std::string m_value;
 };
 
-}
+} // namespace MirUI
 
 namespace std {
 template <>
@@ -36,4 +39,4 @@ struct hash<MirUI::CommandID> {
         return hash<std::string>{}(id.value());
     }
 };
-}
+} // namespace std

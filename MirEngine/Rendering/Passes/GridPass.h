@@ -15,13 +15,22 @@ class IndexBuffer;
 class RenderDevice;
 class OpenGLShader;
 
+/// Engineering workspace plane for the grid.
 enum class GridPlane
 {
-    XY = 0,
-    XZ,
-    YZ
+    XY = 0, ///< normal +Z (Z-up documents)
+    XZ,     ///< ground plane, normal +Y (default, Y-up workspace)
+    YZ      ///< normal +X
 };
 
+/// Engineering grid overlay.
+///
+/// The grid is a procedural infinite grid rendered as a single full-screen
+/// triangle. The fragment shader reconstructs the world-space point on the
+/// ground plane for every pixel and draws anti-aliased minor/major lines plus
+/// the two in-plane axes. No per-frame vertex buffer uploads are performed, so
+/// the pass is cheap and free of GL buffer churn (the previous CPU-quad
+/// builder re-uploaded dynamic buffers every frame).
 class GridPass final : public RenderPass
 {
 public:
@@ -54,6 +63,7 @@ private:
     std::unique_ptr<OpenGLShader> m_bgShader;
     std::unique_ptr<OpenGLShader> m_axisShader;
 
+    // Static full-screen geometry (built once in initialize).
     std::shared_ptr<VertexBuffer> m_gridVBO;
     std::shared_ptr<IndexBuffer> m_gridIBO;
     std::shared_ptr<VertexArray> m_gridVAO;
@@ -62,6 +72,7 @@ private:
     std::shared_ptr<IndexBuffer> m_bgIBO;
     std::shared_ptr<VertexArray> m_bgVAO;
 
+    // Static world-space axis gizmo (built once in initialize).
     std::shared_ptr<VertexBuffer> m_axisVBO;
     std::shared_ptr<VertexArray> m_axisVAO;
 
@@ -78,4 +89,4 @@ private:
                           float vDir[3]) noexcept;
 };
 
-}
+} // namespace MirEngine::Rendering

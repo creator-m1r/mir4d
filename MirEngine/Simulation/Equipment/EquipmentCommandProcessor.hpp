@@ -90,4 +90,4 @@ private:
     }
 };
 
-}
+} // namespace mir

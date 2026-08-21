@@ -1,5 +1,7 @@
 import Foundation
 
+/// UI-side representation of a MirEngine selection event.
+/// The numeric values are intentionally identical to MirUI.SelectionKind.
 public enum SelectionEventKind: UInt64, Equatable, Sendable {
     case none = 0
     case vertex = 1
@@ -20,7 +22,8 @@ public struct SelectionEvent: Equatable, Sendable {
 }
 
 public extension SelectionInspector {
-
+    /// Applies the lightweight selection event before the detailed properties
+    /// are requested from the C++ inspector bridge.
     func receiveSelectionEvent(_ event: SelectionEvent) {
         if event.kind == .none || event.id == 0 {
             clear()

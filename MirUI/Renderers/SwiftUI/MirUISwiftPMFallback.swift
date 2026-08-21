@@ -1,3 +1,13 @@
+// MARK: - Link-safe fallback for the MirUI C ABI
+//
+// MirUICppBridge.mm is legacy Objective-C++ UI code that is not part of the
+// current build (MirUI CMake target and SwiftPM exclude it). Swift still needs
+// the MirUI_* C symbols declared in CBridge.swift, so this file provides
+// link-safe implementations for both SwiftPM and the Xcode target.
+//
+// This file is intentionally a fallback only. The SwiftUI bridge itself,
+// MirUISwiftBridge.swift, owns MirUI_SwiftUI_UpdateViewNodes in both SwiftPM
+// and native builds. Therefore that symbol must NOT be duplicated here.
 
 import Foundation
 

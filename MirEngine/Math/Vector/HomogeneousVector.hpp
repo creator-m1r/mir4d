@@ -91,4 +91,4 @@ struct Vector4
     { return !(a == b); }
 };
 
-}
+} // namespace mir

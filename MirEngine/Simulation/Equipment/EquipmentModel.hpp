@@ -94,4 +94,4 @@ private:
     std::unordered_map<std::uint64_t, EquipmentModel> models_;
 };
 
-}
+} // namespace mir

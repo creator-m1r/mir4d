@@ -162,4 +162,4 @@ private:
     std::unordered_map<SpatialCellCoordinate, SpatialCell, SpatialCellCoordinateHash> cells_;
 };
 
-}
+} // namespace mir

@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Spatial project launcher used by the MIR 4D start experience.
+/// It intentionally contains presentation only; project/session operations remain
+/// owned by MIR4DProjectCommands and MIR4DProjectSession.
 struct MIR4DProjectWindowHub: View {
     @EnvironmentObject private var appState: CADAppState
     @StateObject private var permissions = MIR4DProjectPermissions.shared
@@ -130,7 +133,8 @@ struct MIR4DProjectWindowHub: View {
     }
 
     private func launchWithPermissions(_ action: @escaping () -> Void) {
-
+        // The checkboxes are the user's explicit consent for this project launch.
+        // No optional subsystem is enabled before this point.
         permissions.applyAtLaunch()
         action()
     }

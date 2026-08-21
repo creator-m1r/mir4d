@@ -31,14 +31,22 @@ void dbgTimestamp(const char* what)
                  static_cast<long long>(ms), what);
 }
 
-}
+} // namespace
 
 namespace MirEngine::Rendering
 {
 
 namespace
 {
-
+// Camera-relative rendering contract (shared with GeometryPass):
+//   - u_model carries the world translation already shifted by -cameraPosition
+//     (computed in double precision on the CPU, so large CAD coordinates stay
+//     numerically stable on the GPU);
+//   - u_view must therefore be the rotation-only view matrix; passing the full
+//     translated view would subtract the camera position a second time and move
+//     every model out of its expected position.
+// Matrix4Raw is column-major (element (row, col) lives at row + col * 4), so
+// the camera translation column (rows 0..2, column 3) occupies indices 12..14.
 Matrix4Raw makeCameraRelativeView(const Matrix4Raw& view) noexcept
 {
     Matrix4Raw result = view;
@@ -47,7 +55,7 @@ Matrix4Raw makeCameraRelativeView(const Matrix4Raw& view) noexcept
     result[14] = 0.0f;
     return result;
 }
-}
+} // namespace
 
 OpenGLRenderer::OpenGLRenderer(OpenGLContext* context)
     : m_context(context)
@@ -107,6 +115,9 @@ bool OpenGLRenderer::initialize()
     }
     dbgTimestamp("initialize: sketchPass ok");
 
+    // Hand-skeleton overlay (debug / assist). Drawn last (over the solid
+    // geometry) using the frame's view-projection matrix; it is a transient
+    // sensor view that never mutates the CAD scene or command history.
     m_handSkeletonPass = std::make_unique<HandSkeletonPass>();
     if (!m_handSkeletonPass->initialize(*m_device))
     {
@@ -115,6 +126,7 @@ bool OpenGLRenderer::initialize()
     }
     dbgTimestamp("initialize: handSkeletonPass ok");
 
+    // OpenGL diagnostics: context, limits, extensions.
     dbgTimestamp("initialize: resetErrors");
     OpenGLDebug::resetErrors();
     dbgTimestamp("initialize: logReport");
@@ -144,6 +156,10 @@ void OpenGLRenderer::render(mir::Scene& scene,
 
     m_context->makeCurrent();
 
+    // TEMP DIAGNOSTIC: when MIR4D_SCREENSHOT=1 is set, render the first frame
+    // into an offscreen FBO (works headlessly) and write it as a PPM instead
+    // of presenting to the window. Remove once the black-screen issue is
+    // understood.
     if (std::getenv("MIR4D_SCREENSHOT") != nullptr)
     {
         captureDiagnosticFrame(context, scene, *m_device);
@@ -153,6 +169,10 @@ void OpenGLRenderer::render(mir::Scene& scene,
     m_device->beginFrame();
     m_device->clear(ColorRGBA{0.055f, 0.065f, 0.085f, 1.0f});
 
+    // GeometryPass performs camera-relative rendering: model translations are
+    // shifted by -cameraPosition in double precision.  Keep only the camera
+    // rotation in the device view matrix so the camera translation is applied
+    // exactly once.
     const Matrix4Raw cameraRelativeView = makeCameraRelativeView(context.viewMatrix);
     m_device->setViewMatrix(cameraRelativeView);
     m_device->setProjectionMatrix(context.projectionMatrix);
@@ -160,6 +180,9 @@ void OpenGLRenderer::render(mir::Scene& scene,
     if (m_gridPass && m_gridPass->isInitialized())
         m_gridPass->execute(context, scene, *m_device);
 
+    // Work planes overlay (ТЗ Этап 1): feed the renderer's planes into the
+    // per-frame context, then draw under the solid geometry so bodies can
+    // occlude the translucent surface.
     if (!m_planes.empty())
         context.planes = m_planes;
     else
@@ -172,6 +195,7 @@ void OpenGLRenderer::render(mir::Scene& scene,
     if (m_planePass && m_planePass->isInitialized())
         m_planePass->execute(context, scene, *m_device);
 
+    // 2D sketch overlay (ТЗ Этап 2): feed the renderer's sketch and draw it.
     if (!m_sketches.empty())
         context.sketches = m_sketches;
     else
@@ -183,6 +207,7 @@ void OpenGLRenderer::render(mir::Scene& scene,
     if (m_geometryPass)
         m_geometryPass->execute(context, scene, *m_device);
 
+    // Hand-skeleton overlay drawn after the solid geometry (sensor view).
     if (m_handSkeletonPass && m_handSkeletonPass->isInitialized())
         m_handSkeletonPass->execute(context, scene, *m_device);
 
@@ -236,6 +261,8 @@ void OpenGLRenderer::captureDiagnosticFrame(RenderContext& context,
     glClearColor(0.055f, 0.065f, 0.085f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Same state setup as render(): rotation-only view (camera-relative
+    // rendering contract), then the same passes in the same order.
     const Matrix4Raw cameraRelativeView =
         makeCameraRelativeView(context.viewMatrix);
     device.setViewMatrix(cameraRelativeView);
@@ -313,4 +340,4 @@ void OpenGLRenderer::resize(std::uint32_t width, std::uint32_t height)
     m_device->setViewportSize(width, height);
 }
 
-}
+} // namespace MirEngine::Rendering

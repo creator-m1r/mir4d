@@ -1,3 +1,6 @@
+// MirUI/Core/State/StateKey.hpp
+// String-based key for the state store.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -21,8 +24,9 @@ private:
     std::string m_name;
 };
 
-}
+} // namespace MirUI
 
+// Specialise std::hash so StateKey can be used in unordered_map.
 namespace std {
 template <>
 struct hash<MirUI::StateKey> {
@@ -30,4 +34,4 @@ struct hash<MirUI::StateKey> {
         return hash<std::string>()(key.name());
     }
 };
-}
+} // namespace std

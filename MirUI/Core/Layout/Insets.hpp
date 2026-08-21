@@ -1,3 +1,6 @@
+// MirUI/Core/Layout/Insets.hpp
+// Padding / margin structure for layout.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -26,4 +29,4 @@ struct Insets {
     }
 };
 
-}
+} // namespace MirUI

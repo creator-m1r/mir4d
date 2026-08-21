@@ -3,6 +3,12 @@ import simd
 import Combine
 import MirUIHandGesture
 
+/// Maps normalised hand-scene coordinates into CAD world space.
+///
+/// v0.1 default is an identity mapping: the spatial-mapper interaction volume
+/// is already centred on the scene origin / camera target, so the hand point
+/// lands inside the visible frustum. `scale`/`offset` are exposed for a later
+/// calibration UI (per-user reach, desk height, camera framing).
 struct MIRHandCalibration: Sendable {
     var scale: SIMD3<Double> = .init(1, 1, 1)
     var offset: SIMD3<Double> = .zero
@@ -12,12 +18,16 @@ struct MIRHandCalibration: Sendable {
     }
 }
 
+/// Temporal filtering for the hand grab: pinch dead-zone/hysteresis plus
+/// position smoothing and velocity estimation. Keeps the interaction stable
+/// against raw recognition buzz without adding latency.
 struct MIRHandTemporalFilter: Sendable {
-
+    /// Pinch strength (0..1) that arms the grab.
     var pinchBegin: Double = 0.65
-
+    /// Pinch strength (0..1) that releases the grab (hysteresis vs `pinchBegin`).
     var pinchEnd: Double = 0.40
-
+    /// Exponential smoothing factor for the hand position (0..1; lower = smoother).
+    /// 0.6 damps raw recognition jitter without adding noticeable drag latency.
     var smoothing: Double = 0.6
 
     private var active = false
@@ -25,6 +35,7 @@ struct MIRHandTemporalFilter: Sendable {
     private var lastPosition: SIMD3<Double>?
     private var lastTime: Date?
 
+    /// Hysteresis gate for the pinch strength. Returns the stable on/off state.
     mutating func updatePinch(_ strength: Double) -> Bool {
         if active {
             if strength < pinchEnd { active = false }
@@ -34,6 +45,7 @@ struct MIRHandTemporalFilter: Sendable {
         return active
     }
 
+    /// Smooths the hand position and estimates instantaneous velocity (world/s).
     mutating func updatePosition(_ position: SIMD3<Double>, at time: Date = Date()) -> (position: SIMD3<Double>, velocity: SIMD3<Double>) {
         let a = min(max(smoothing, 0), 1)
         let newPos: SIMD3<Double>
@@ -64,6 +76,12 @@ struct MIRHandTemporalFilter: Sendable {
     }
 }
 
+/// Closed-loop hand grab controller for Vertical Slice v0.1.
+///
+/// Pipeline: `Pinch → point → ray (camera → hand) → pick → grab → move → commit`.
+/// Translation-only in v0.1 (rotation/scale arrive with two-hand in v0.2).
+/// The controller lives in the App target so it can drive the real MirEngine
+/// through `MIR4DModelRuntime`; it owns interaction state only.
 @MainActor
 final class MIRHandGrabController {
     enum State: Equatable {
@@ -77,10 +95,16 @@ final class MIRHandGrabController {
     private var cancellables = Set<AnyCancellable>()
     private var tickTask: Task<Void, Never>?
 
+    /// Grab anchor: object seed transform + the hand world point at grab start,
+    /// so preview keeps the grabbed point under the hand (relative offset).
     private var seedTransform: MirTransform?
     private var grabAnchorWorld: SIMD3<Double> = .zero
     private var lastIntentTime: Date = .distantPast
 
+    /// Lost-tracking grace period: hold the preview, then commit so the object
+    /// stays where it was last moved instead of snapping back. Kept generous
+    /// (1.0s) because camera hand-tracking routinely drops a few frames; a short
+    /// grace made the grab "let go" mid-drag whenever recognition blinked.
     var graceInterval: TimeInterval = 1.0
 
     func start() {
@@ -111,8 +135,10 @@ final class MIRHandGrabController {
         state = .idle
     }
 
-    private func handle(intent: MIRHandIntent) {
+    // MARK: - Intent handling
 
+    private func handle(intent: MIRHandIntent) {
+        // Only pinch drives the grab in v0.1.
         guard intent.gesture.type == .pinch else {
             releaseIfGrabbing(reason: "non-pinch gesture")
             return
@@ -139,10 +165,12 @@ final class MIRHandGrabController {
     private func tick() {
         if case .grabbing = state,
            Date().timeIntervalSince(lastIntentTime) > graceInterval {
-
+            // Tracking lost: finalize the move so the object stays in place.
             releaseIfGrabbing(reason: "tracking lost (grace period)")
         }
     }
+
+    // MARK: - Grab phases
 
     private func beginGrab(world: SIMD3<Double>) {
         guard let eye = MIR4DModelRuntime.shared.cameraEye() else { return }
@@ -161,7 +189,7 @@ final class MIRHandGrabController {
 
     private func previewGrab(objectId: UInt64, world: SIMD3<Double>) {
         guard let seed = seedTransform else { return }
-
+        // Keep the grabbed point under the hand: offset = seedPos - anchorWorld.
         let offset = SIMD3(seed.px, seed.py, seed.pz) - grabAnchorWorld
         let newPos = world + offset
         var t = seed

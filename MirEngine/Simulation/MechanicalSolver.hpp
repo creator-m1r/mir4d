@@ -81,4 +81,4 @@ struct MechanicalTransmission
     }
 };
 
-}
+} // namespace mir

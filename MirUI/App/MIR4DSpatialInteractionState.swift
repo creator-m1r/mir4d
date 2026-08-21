@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Canonical interaction state shared by touch, pointer and future hand input.
 struct MIR4DSpatialInteractionState: Equatable {
     var isActive = false
     var isFocused = false

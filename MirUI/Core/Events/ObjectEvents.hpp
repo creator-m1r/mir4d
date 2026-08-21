@@ -43,4 +43,4 @@ struct ObjectModifiedEvent : Event
     }
 };
 
-}
+} // namespace MirUI

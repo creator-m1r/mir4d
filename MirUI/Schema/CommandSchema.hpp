@@ -1,3 +1,37 @@
+// MirUI/Schema/CommandSchema.hpp
+// 📋 Схема команд MirUI — реестр всех стандартных команд приложения.
+//
+// В MirUI команды идентифицируются строковыми идентификаторами (CommandID),
+// такими как "transform.move", "selection.select", "view.fit".
+// Такая гибкость позволяет плагинам добавлять свои команды, но при этом
+// стандартные команды должны быть описаны централизованно.
+//
+// CommandSchema решает несколько задач:
+//   1. Определяет перечень всех встроенных команд и их метаданные:
+//      категорию, отображаемое имя, описание, иконку, горячие клавиши.
+//   2. Служит контрактом между ядром и рендерерами: SwiftUI, WinUI,
+//      WebUI читают схему и автоматически строят меню, тулбары,
+//      контекстные меню, списки горячих клавиш.
+//   3. Позволяет Designer показывать редактор команд: разработчик
+//      может привязать любую команду к кнопке, выбрав её из списка,
+//      который формируется на основе этой схемы.
+//   4. Упрощает локализацию: все строки имён и описаний команд
+//      хранятся в одном месте и могут быть переведены.
+//
+// Структура CommandDescriptor содержит:
+//   • id          — CommandID (например, "transform.move")
+//   • category    — категория для группировки в меню (например, "Трансформация")
+//   • name        — короткое имя на русском (например, "Переместить")
+//   • description — подробное описание (тултип)
+//   • icon        — идентификатор иконки (не SF Symbol, а платформонезависимый)
+//   • defaultShortcut — строка горячей клавиши по умолчанию (например, "Ctrl+M")
+//                      в формате, понятном платформенному рендереру.
+//
+// Сам класс CommandSchema — это статический реестр, который содержит
+// вектор всех предопределённых команд и предоставляет методы поиска.
+// В будущем он может загружать дополнительные команды из конфигурации.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -10,22 +44,25 @@
 
 namespace MirUI {
 
+// ── Дескриптор одной команды ────────────────────────────────
 struct CommandDescriptor {
-    CommandID   id;
-    std::string category;
-    std::string name;
-    std::string description;
-    IconID      icon;
-    std::string defaultShortcut;
+    CommandID   id;               // строковый идентификатор (например, "transform.move")
+    std::string category;         // категория (например, "Трансформация", "Файл")
+    std::string name;             // отображаемое имя (например, "Переместить")
+    std::string description;      // описание для тултипа
+    IconID      icon;             // иконка (платформонезависимая строка, как "move")
+    std::string defaultShortcut;  // горячая клавиша по умолчанию (например, "Ctrl+M")
 };
 
+// ── Схема (реестр) команд ──────────────────────────────────
 class CommandSchema {
 public:
-
+    // Получить полный список всех зарегистрированных команд.
     [[nodiscard]] static const std::vector<CommandDescriptor>& allCommands() {
         return commands();
     }
 
+    // Найти команду по её идентификатору. Возвращает указатель на дескриптор или nullptr.
     [[nodiscard]] static const CommandDescriptor* find(const CommandID& id) {
         auto& cmds = commands();
         auto it = std::find_if(cmds.begin(), cmds.end(),
@@ -33,6 +70,7 @@ public:
         return (it != cmds.end()) ? &(*it) : nullptr;
     }
 
+    // Найти все команды из заданной категории.
     [[nodiscard]] static std::vector<const CommandDescriptor*> findByCategory(const std::string& category) {
         std::vector<const CommandDescriptor*> result;
         for (const auto& desc : commands()) {
@@ -43,6 +81,7 @@ public:
         return result;
     }
 
+    // Получить список всех уникальных категорий.
     [[nodiscard]] static std::vector<std::string> allCategories() {
         std::vector<std::string> categories;
         for (const auto& desc : commands()) {
@@ -54,10 +93,11 @@ public:
     }
 
 private:
-
+    // Статический реестр всех встроенных команд.
+    // В будущем может быть дополнен из файла конфигурации.
     static std::vector<CommandDescriptor>& commands() {
         static std::vector<CommandDescriptor> s_commands = {
-
+            // ── Трансформация ────────────────────────────────
             {
                 CommandID("transform.move"),
                 "Трансформация",
@@ -83,6 +123,7 @@ private:
                 "R"
             },
 
+            // ── Выделение ────────────────────────────────────
             {
                 CommandID("selection.select"),
                 "Выделение",
@@ -100,6 +141,7 @@ private:
                 "Ctrl+A"
             },
 
+            // ── Вид ──────────────────────────────────────────
             {
                 CommandID("view.fit"),
                 "Вид",
@@ -125,6 +167,7 @@ private:
                 "Ctrl+Minus"
             },
 
+            // ── Файл ─────────────────────────────────────────
             {
                 CommandID("file.new"),
                 "Файл",
@@ -158,6 +201,7 @@ private:
                 "Ctrl+Shift+S"
             },
 
+            // ── Правка ───────────────────────────────────────
             {
                 CommandID("edit.undo"),
                 "Правка",
@@ -207,6 +251,7 @@ private:
                 "Delete"
             },
 
+            // ── Рабочее пространство ─────────────────────────
             {
                 CommandID("workspace.toggleNavigator"),
                 "Рабочее пространство",
@@ -240,6 +285,7 @@ private:
                 "Ctrl+4"
             },
 
+            // ── Инструменты измерения ────────────────────────
             {
                 CommandID("measure.distance"),
                 "Измерение",
@@ -261,4 +307,4 @@ private:
     }
 };
 
-}
+} // namespace MirUI

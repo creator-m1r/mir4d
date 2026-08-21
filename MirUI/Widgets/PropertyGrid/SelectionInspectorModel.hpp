@@ -35,4 +35,4 @@ private:
     std::vector<Property> properties_{};
 };
 
-}
+} // namespace MirUI

@@ -15,9 +15,10 @@ struct WorldParticle
     float z{0.0F};
     float radius{0.01F};
 
+    // Optical response is generated from physical/material properties.
     MaterialOpticalProperties optical{};
 
     bool visible{true};
 };
 
-}
+} // namespace mir

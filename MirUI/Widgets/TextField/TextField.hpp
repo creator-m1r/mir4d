@@ -1,3 +1,24 @@
+// MirUI/Widgets/TextField/TextField.hpp
+// 📝 Виджет «Текстовое поле» (TextField) — поле для ввода текста пользователем.
+//
+// TextField позволяет пользователю вводить и редактировать одну строку текста.
+// Это один из самых важных элементов интерфейса: через текстовые поля
+// заполняют формы, вводят названия, ищут информацию.
+//
+// Основные свойства:
+//   • text         — текущий текст, который видит и может редактировать пользователь.
+//   • placeholder  — подсказка внутри поля, которая исчезает при начале ввода
+//                    (например, «Введите имя»).
+//   • enabled      — можно ли редактировать текст (если false, поле серое).
+//   • readOnly     — если true, текст можно выделить и скопировать, но нельзя изменить.
+//   • maxLength    — максимальное количество символов (0 = без ограничения).
+//   • textAlignment — выравнивание текста внутри поля (Left, Center, Right).
+//
+// TextField, как и все виджеты MirUI, является чистым C++ описанием.
+// SwiftUI/WinUI адаптеры будут читать его свойства и создавать
+// соответствующие нативные элементы: TextField в SwiftUI, TextBox в WinUI.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -9,12 +30,13 @@ namespace MirUI {
 
 class TextField : public Widget {
 public:
-
+    // ── Конструктор ──────────────────────────────────────────
+    // Создаёт текстовое поле с заданным текстом и placeholder'ом.
     explicit TextField(const std::string& initialText = "",
                        const std::string& placeholder = "Введите текст...")
-        : Widget(WidgetType::TextField)
+        : Widget(WidgetType::TextField)  // тип должен быть добавлен в WidgetType.hpp
     {
-
+        // Устанавливаем свойства по умолчанию.
         setProperty("text", StateValue(initialText));
         setProperty("placeholder", StateValue(placeholder));
         setProperty("enabled", StateValue(true));
@@ -22,9 +44,11 @@ public:
         setProperty("maxLength", StateValue(static_cast<int64_t>(0)));
         setProperty("textAlignment", StateValue(std::string("Left")));
 
-        setLayoutData(LayoutData::fixed(200, 28));
+        // Текстовое поле обычно имеет фиксированную высоту и растягивается по ширине.
+        setLayoutData(LayoutData::fixed(200, 28)); // ширина 200, высота 28 пикселей по умолчанию
     }
 
+    // ── Текст ─────────────────────────────────────────────────
     void setText(const std::string& text) {
         setProperty("text", StateValue(text));
     }
@@ -36,6 +60,7 @@ public:
         return "";
     }
 
+    // ── Подсказка (placeholder) ──────────────────────────────
     void setPlaceholder(const std::string& placeholder) {
         setProperty("placeholder", StateValue(placeholder));
     }
@@ -47,6 +72,7 @@ public:
         return "";
     }
 
+    // ── Только для чтения ────────────────────────────────────
     void setReadOnly(bool readOnly) {
         setProperty("readOnly", StateValue(readOnly));
     }
@@ -58,6 +84,7 @@ public:
         return false;
     }
 
+    // ── Максимальная длина ───────────────────────────────────
     void setMaxLength(int64_t maxLen) {
         setProperty("maxLength", StateValue(maxLen));
     }
@@ -69,6 +96,7 @@ public:
         return 0;
     }
 
+    // ── Выравнивание текста ──────────────────────────────────
     void setTextAlignment(const std::string& alignment) {
         setProperty("textAlignment", StateValue(alignment));
     }
@@ -80,6 +108,7 @@ public:
         return "Left";
     }
 
+    // ── Универсальный доступ к свойствам ─────────────────────
     bool setProperty(const std::string& name, const StateValue& value) override {
         if (name == "text" && std::holds_alternative<std::string>(value)) {
             m_properties[name] = value;
@@ -115,4 +144,4 @@ public:
     }
 };
 
-}
+} // namespace MirUI

@@ -28,4 +28,4 @@ struct OpticalParticle
     }
 };
 
-}
+} // namespace mir

@@ -1,3 +1,12 @@
+// MirEngine/Math/Numeric/Numeric.hpp
+// 🧮 Единая точка входа в модуль численных методов MIR 4D.
+//
+// Подключает решение линейных систем и численный анализ.
+// Использование:
+//   #include "Math/Numeric/Numeric.hpp"
+//   using namespace mir::math;
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 

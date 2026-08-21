@@ -1,5 +1,13 @@
 import Foundation
 
+/// Presentation-side bridge between SwiftUI selection controls and the native
+/// viewport. It deliberately does not own CAD selection state.
+///
+/// The current MirGLCustomView exposes the rendering/picking surface through
+/// its existing callback and C ABI. We therefore publish a small, stable
+/// notification payload here instead of inventing Swift properties on the
+/// native view. The native viewport can subscribe when its picking API is
+/// ready, without coupling SwiftUI to MirEngine internals.
 final class ViewportSelectionBridge: NSObject {
     static let shared = ViewportSelectionBridge()
 

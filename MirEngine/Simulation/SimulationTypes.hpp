@@ -64,4 +64,4 @@ struct SimulationSettings
     bool acoustics{true};
 };
 
-}
+} // namespace mir

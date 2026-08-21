@@ -381,4 +381,4 @@ Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,
     return result;
 }
 
-}
+} // namespace MirEngine::Rendering

@@ -21,5 +21,5 @@ public:
         const RenderSelectionProperties& properties);
 };
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

@@ -56,4 +56,4 @@ private:
     SimulationTelemetry telemetry_{};
 };
 
-}
+} // namespace mir

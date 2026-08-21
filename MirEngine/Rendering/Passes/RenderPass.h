@@ -11,6 +11,9 @@ namespace MirEngine::Rendering
 class RenderContext;
 class RenderDevice;
 
+/// Backend-neutral render pass contract.
+/// Camera-derived matrices and frame data arrive through RenderContext;
+/// passes never depend on a concrete camera implementation.
 class RenderPass
 {
 public:
@@ -36,4 +39,4 @@ protected:
     RenderPass() = default;
 };
 
-}
+} // namespace MirEngine::Rendering

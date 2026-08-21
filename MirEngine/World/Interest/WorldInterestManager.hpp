@@ -107,4 +107,4 @@ private:
     std::unordered_map<std::uint64_t, WorldInterestSource> sources_;
 };
 
-}
+} // namespace mir

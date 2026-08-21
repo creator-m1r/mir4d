@@ -93,4 +93,4 @@ private:
     EquipmentSafetySystem safety_{};
 };
 
-}
+} // namespace mir

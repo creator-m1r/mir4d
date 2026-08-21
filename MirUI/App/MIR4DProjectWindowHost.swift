@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Adaptive host for the project workspace windows.
+/// The host is intentionally independent from project creation/opening logic.
 struct MIR4DProjectWindowHost<Content: View>: View {
     let title: String
     let subtitle: String?

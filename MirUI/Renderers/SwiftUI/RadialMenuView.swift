@@ -16,6 +16,7 @@ struct RadialMenuSettings: Codable {
     var magneticStrength: Double = 0.72; var magneticHysteresis: Double = 0.08
     var panels: [RadialMenuPanel] = RadialMenuSettings.defaultPanels
 
+    // Context & feedback (Radial Menu 2.0)
     var hideUnavailable = false
     var showPreview = true
     var soundEnabled = false
@@ -115,14 +116,20 @@ struct RadialMenuSettings: Codable {
 }
 
 enum RadialMenuGeometry {
-
+    // MARK: - Angle helpers
     static func normalizedAngle(_ angle:Double)->Double{var value=angle.truncatingRemainder(dividingBy:Double.pi*2);if value<0{value += Double.pi*2};return value}
     static func shortestSignedAngle(from:Double,to:Double)->Double{atan2(sin(to-from),cos(to-from))}
 
+    // MARK: - Layout (single source of truth)
+    /// Centre angle of sector `index` for `count` equally spaced sectors.
+    /// Sector 0 sits at the top (-π/2) and sectors advance clockwise.
+    /// Rendering and hit-testing must both use this value.
     static func sectorCenter(_ index:Int,_ count:Int)->Double{guard count>0 else{return -Double.pi/2};return normalizedAngle(-Double.pi/2+(Double.pi*2/Double(count))*Double(index))}
 
     static func nearestIndex(angle:Double,count:Int)->Int?{guard count>0 else{return nil};let sector=Double.pi*2/Double(count);return min(max(Int(floor((normalizedAngle(angle)+sector/2)/sector)),0),count-1)}
 
+    /// Stable sector selection: holds `previous` across small movements using
+    /// `hysteresis`, otherwise snaps to the nearest sector centre.
     static func hystereticSector(angle:Double,count:Int,previous:Int?,hysteresis:Double)->Int{
         guard count>0 else{return 0}
         let sector=Double.pi*2/Double(count)
@@ -135,6 +142,9 @@ enum RadialMenuGeometry {
         return distance>threshold ? candidate : previous
     }
 
+    // MARK: - Magnetic strength
+    /// Distance-scaled magnetic strength derived from the user setting.
+    /// Near the dead zone the hand stays free; farther out the selection locks.
     static func magneticStrength(forDistance distance:Double,settings s:RadialMenuSettings)->Double{
         guard distance>s.deadZone else{return 0}
         let normalized=min(max((distance-s.deadZone)/120.0,0),1)
@@ -143,10 +153,15 @@ enum RadialMenuGeometry {
 
     static func magneticAngle(raw:Double,count:Int,strength:Double)->Double{guard count>0 else{return raw};let sector=Double.pi*2/Double(count);let center=Double(nearestIndex(angle:raw,count:count) ?? 0)*sector;let delta=atan2(sin(center-raw),cos(center-raw));return normalizedAngle(raw+delta*min(max(strength,0),1))}
 
+    // MARK: - Selection
+    /// Unified first-level selection. Applies magnetic pull, the angular
+    /// `sectorGap` dead-band, and hysteresis. `previous` enables stickiness
+    /// during a continuous gesture; pass `nil` for a stateless lookup.
     static func panelIndex(for dx:Double,dy:Double,settings s:RadialMenuSettings,previous:Int?=nil)->Int?{
         panelIndex(for:dx,dy:dy,panels:enabledPanels(s),settings:s,previous:previous)
     }
 
+    /// Unified first-level selection over an explicit panel list.
     static func panelIndex(for dx:Double,dy:Double,panels:[RadialMenuPanel],settings s:RadialMenuSettings,previous:Int?=nil)->Int?{
         guard !panels.isEmpty else{return nil}
         let distance=hypot(dx,dy)
@@ -156,10 +171,12 @@ enum RadialMenuGeometry {
         return selectSector(angle:stabilized,count:panels.count,gap:s.sectorGap,previous:previous,hysteresis:s.magneticHysteresis)
     }
 
+    /// Unified second-level (tool) selection, fanned around the active direction.
     static func toolIndex(for dx:Double,dy:Double,panel:RadialMenuPanel,settings s:RadialMenuSettings,previous:Int?=nil)->Int?{
         toolIndex(for:dx,dy:dy,tools:panel.tools,settings:s,previous:previous)
     }
 
+    /// Unified second-level selection over an explicit tool list.
     static func toolIndex(for dx:Double,dy:Double,tools:[RadialMenuTool],settings s:RadialMenuSettings,previous:Int?=nil)->Int?{
         guard hypot(dx,dy)>=s.activationRadius,!tools.isEmpty else{return nil}
         let raw=normalizedAngle(atan2(dy,dx))
@@ -167,6 +184,9 @@ enum RadialMenuGeometry {
         return selectSector(angle:stabilized,count:tools.count,gap:s.sectorGap,previous:previous,hysteresis:s.magneticHysteresis)
     }
 
+    /// Single hit-test: combine the angular gap (dead-band between sectors) with
+    /// hysteresis. Inside the gap the previous sector is retained; with no
+    /// history the nearest sector is returned so a direction always resolves.
     static func selectSector(angle:Double,count:Int,gap:Double,previous:Int?,hysteresis:Double)->Int{
         guard count>0 else{return 0}
         let sector=Double.pi*2/Double(count)

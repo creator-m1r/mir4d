@@ -47,4 +47,4 @@ private:
     std::unordered_map<EventType, std::vector<Handler>> handlers_{};
 };
 
-}
+} // namespace MirUI

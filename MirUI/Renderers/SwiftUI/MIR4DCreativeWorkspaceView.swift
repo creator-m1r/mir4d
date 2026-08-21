@@ -10,6 +10,9 @@ private let mir4DCreativeImportTypes: [UTType] = [
     UTType(filenameExtension: "step", conformingTo: .data), UTType(filenameExtension: "stp", conformingTo: .data)
 ].compactMap { $0 }
 
+/// Immersive MIR 4D workspace.
+/// The scene is the product. Navigation is deliberately reduced to a quiet bottom dock;
+/// tools appear in the center only while held. Voice is an ambient system capability.
 struct MIR4DCreativeWorkspaceView: View {
     @ObservedObject var appState: CADAppState
     @StateObject private var registry = CADCommandRegistry()
@@ -76,7 +79,10 @@ struct MIR4DCreativeWorkspaceView: View {
                 voiceAssistant.start(appState: appState)
             }
             MIR4DRadialInteractionCoordinator.shared.start()
-
+            // Hand tracking is started here — not during the launch transition —
+            // so the camera capture subsystem comes up only once the workspace
+            // is stable, and only when the user enabled it. `startCamera()` is
+            // idempotent: it no-ops if already running.
             if MIR4DProjectPermissions.shared.cameraEnabled {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     MIRHandGestureModule.shared.startCamera()
@@ -123,6 +129,7 @@ struct MIR4DCreativeWorkspaceView: View {
         }
     }
 
+    /// The sphere is a quiet spatial instrument in the upper-left corner.
     private var navigationSphere: some View {
         NavigationSphereView(theta: cameraTheta, phi: cameraPhi, distance: cameraDistance, isOrthographic: isOrthographic)
             .opacity(0.16)
@@ -151,6 +158,7 @@ struct MIR4DCreativeWorkspaceView: View {
         }
     }
 
+    /// The dock is navigation between worlds, not a command bar.
     private var bottomDock: some View {
         HStack(spacing: 3) {
             dockItem("cube.transparent", russian ? "Модель" : "Model", active: appState.workbench == .model) { appState.selectWorkbench(.model) }
@@ -175,6 +183,8 @@ struct MIR4DCreativeWorkspaceView: View {
         .allowsHitTesting(true)
         .popover(isPresented: $skeletonMenuPresented) { skeletonSettingsPopover }
     }
+
+    // MARK: - Hand skeleton visualization settings
 
     private var skeletonSettingsPopover: some View {
         VStack(alignment: .leading, spacing: 14) {

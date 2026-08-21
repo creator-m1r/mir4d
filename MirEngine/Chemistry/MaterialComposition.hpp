@@ -52,6 +52,8 @@ public:
         components_.push_back(std::move(component));
     }
 
+    /// Adjust an existing component's molar fraction without exposing the
+    /// internal component container to solver code.
     [[nodiscard]] bool adjustMolarFraction(
         std::uint32_t componentId,
         float delta) noexcept
@@ -112,4 +114,4 @@ private:
     std::vector<ChemicalComponent> components_;
 };
 
-}
+} // namespace mir

@@ -59,4 +59,4 @@ private:
     SimulationViewSettings settings_{};
 };
 
-}
+} // namespace mir

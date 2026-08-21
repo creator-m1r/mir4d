@@ -31,4 +31,4 @@ struct SketchDragPreviewState
     }
 };
 
-}
+} // namespace mir

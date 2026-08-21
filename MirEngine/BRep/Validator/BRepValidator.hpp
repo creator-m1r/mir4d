@@ -1,5 +1,8 @@
 #pragma once
 
+// MirEngine/BRep/Validator/BRepValidator.hpp
+// Structural and geometric validation for the BRep model.
+
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Topology/BRepTypes.hpp"
 
@@ -331,4 +334,4 @@ private:
     BRepTolerance tolerance_;
 };
 
-}
+} // namespace mir

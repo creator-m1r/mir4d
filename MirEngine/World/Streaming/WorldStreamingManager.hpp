@@ -131,4 +131,4 @@ private:
     std::unordered_set<SpatialCellCoordinate, SpatialCellCoordinateHash> active_;
 };
 
-}
+} // namespace mir

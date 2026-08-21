@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Context controls over the viewport. Presentation only; engine actions are
+/// routed through the existing event/notification interfaces.
 struct CADViewportContextBar: View {
     @ObservedObject var appState: CADAppState
     @State private var selectionMode: SelectionMode = .body

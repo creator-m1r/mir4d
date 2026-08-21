@@ -37,4 +37,4 @@ private:
     SimulationMaterials materials_{};
 };
 
-}
+} // namespace mir

@@ -10,6 +10,10 @@
 namespace mir4d
 {
 
+/// Canonical document object store.
+///
+/// Object identity and ModelNode ownership belong to the Document layer.
+/// Scene remains only as a transitional spatial compatibility view.
 class ObjectStore
 {
 public:
@@ -56,4 +60,4 @@ private:
     mir::Scene scene_;
 };
 
-}
+} // namespace mir4d

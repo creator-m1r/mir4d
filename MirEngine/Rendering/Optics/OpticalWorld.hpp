@@ -49,4 +49,4 @@ private:
     std::vector<OpticalParticle> particles_;
 };
 
-}
+} // namespace mir

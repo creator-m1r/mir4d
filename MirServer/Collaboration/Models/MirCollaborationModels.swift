@@ -1,7 +1,16 @@
 import Foundation
 
+/// Модели подсистемы совместной работы инженеров над одним проектом.
+///
+/// Все типы `Sendable`/`Codable`, чтобы безопасно передаваться между
+/// сетевым `actor`-транспортом и главным потоком UI и сериализоваться
+/// в Wire-формат (JSON) для WebSocket-потока.
 public enum MirCollaborationModels {}
 
+// MARK: - Lamport-часы упорядочивания операций
+
+/// Логические часы Лампорта для детерминированного упорядочивания операций
+/// при одновременном редактировании одного проекта несколькими инженерами.
 public struct MirOperationClock: Codable, Sendable, Equatable, Comparable {
     public var counter: UInt64
     public var authorID: String
@@ -17,11 +26,15 @@ public struct MirOperationClock: Codable, Sendable, Equatable, Comparable {
     }
 }
 
+// MARK: - Участник совместной работы (presence)
+
+/// Право доступа участника к общему проекту.
 public enum MirCollaboratorPermission: String, Codable, Sendable, Equatable {
     case editor
     case viewer
 }
 
+/// Нормализованная позиция курсора/выделения участника в视口е (0…1).
 public struct MirCollaboratorCursor: Codable, Sendable, Equatable {
     public var x: Double
     public var y: Double
@@ -39,7 +52,7 @@ public struct MirCollaborator: Codable, Identifiable, Sendable, Equatable {
     public var displayName: String
     public var role: String
     public var permission: MirCollaboratorPermission
-
+    /// Цвет присутствия в формате hex (#RRGGBB) для выделения выбора/курсора.
     public var color: String
     public var lastSeen: Date
     public var active: Bool
@@ -66,6 +79,9 @@ public struct MirCollaborator: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+// MARK: - Версионирование общего проекта
+
+/// Тег версии опубликованного общего проекта (для автосохранения/веток).
 public struct MirProjectVersion: Codable, Sendable, Equatable, Identifiable {
     public var id: String
     public var label: String
@@ -82,6 +98,8 @@ public struct MirProjectVersion: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+// MARK: - Операция над проектом
+
 public struct MirCollaborationOperation: Codable, Identifiable, Sendable, Equatable {
     public enum OperationKind: String, Codable, Sendable, Equatable {
         case create
@@ -89,7 +107,7 @@ public struct MirCollaborationOperation: Codable, Identifiable, Sendable, Equata
         case delete
         case rename
         case updateMeta
-
+        /// Только индикация выбора/курсора, не меняет геометрию.
         case select
     }
 
@@ -97,7 +115,7 @@ public struct MirCollaborationOperation: Codable, Identifiable, Sendable, Equata
     public var clock: MirOperationClock
     public var entityID: String
     public var kind: OperationKind
-
+    /// Параметры операции в JSON (позиция, размеры, матрица преобразования и т.п.).
     public var parameters: Data
     public var authorID: String
     public var timestamp: Date
@@ -121,10 +139,12 @@ public struct MirCollaborationOperation: Codable, Identifiable, Sendable, Equata
     }
 }
 
+// MARK: - Снимок состояния проекта (начальная синхронизация)
+
 public struct MirCollaborationEntityState: Codable, Sendable, Equatable {
     public var entityID: String
     public var type: String
-
+    /// Матрица преобразования 4x4 (16 значений) для позиции/ориентации.
     public var transform: [Double]
     public var name: String
 
@@ -148,6 +168,8 @@ public struct MirProjectSnapshot: Codable, Sendable, Equatable {
     }
 }
 
+// MARK: - Конфликт
+
 public struct MirConflict: Codable, Identifiable, Sendable, Equatable {
     public var id: String
     public var entityID: String
@@ -164,6 +186,9 @@ public struct MirConflict: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+// MARK: - Wire-конверт для WebSocket-потока
+
+/// Сообщение совместной работы в транспортном потоке `/api/team/stream`.
 public enum MirCollaborationWireMessage: Codable, Sendable {
     case operation(MirCollaborationOperation)
     case presence(MirCollaborator)
@@ -181,6 +206,10 @@ public struct MirCollaborationEnvelope: Codable, Sendable {
     }
 }
 
+// MARK: - CRDT состояния сущностей (LWW-Register)
+
+/// Состояние сущности как LWW-регистр: побеждает операция с большим часам
+/// Лампорта (при равенстве — по authorID). Слияние коммутативно и идемпотентно.
 public struct MirEntityState: Codable, Sendable, Equatable {
     public var transform: [Double]
     public var name: String
@@ -194,16 +223,23 @@ public struct MirEntityState: Codable, Sendable, Equatable {
         self.clock = clock
     }
 
+    /// Объединить входящее состояние по правилу LWW.
     public func merged(with incoming: MirEntityState) -> MirEntityState {
         incoming.clock >= clock ? incoming : self
     }
 }
 
+/// Конвергентный CRDT множества сущностей общего проекта.
+///
+/// Гарантирует, что после обмена всеми операциями все участники получают
+/// идентичное состояние, независимо от порядка доставки (в отличие от
+/// наивного last-writer-wins, который не был коммутативным).
 public struct MirCollaborationCRDT: Codable, Sendable {
     private var entities: [String: MirEntityState] = [:]
 
     public init() {}
 
+    /// Применить операцию к CRDT (возвращает true, если состояние сущности изменилось).
     @discardableResult
     public mutating func apply(_ op: MirCollaborationOperation) -> Bool {
         let prev = entities[op.entityID]
@@ -230,6 +266,7 @@ public struct MirCollaborationCRDT: Codable, Sendable {
         return merged != previous
     }
 
+    /// Слить состояние другого узла (коммутативно).
     public mutating func merge(_ other: MirCollaborationCRDT) {
         for (id, state) in other.entities {
             if let local = entities[id] {
@@ -247,6 +284,9 @@ public struct MirCollaborationCRDT: Codable, Sendable {
     public var allEntityIDs: [String] { Array(entities.keys) }
 }
 
+// MARK: - Параметры операций
+
+/// Параметры операции создания примитива (параллелепипеда).
 public struct MirCollaborationCreateParameters: Codable, Sendable {
     public var width: Double
     public var depth: Double
@@ -259,6 +299,7 @@ public struct MirCollaborationCreateParameters: Codable, Sendable {
     }
 }
 
+/// Параметры преобразования сущности. Матрица 4x4, построчно (16 значений).
 public struct MirCollaborationTransform: Codable, Sendable {
     public static let identity: [Double] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]
 
@@ -269,6 +310,7 @@ public struct MirCollaborationTransform: Codable, Sendable {
     }
 }
 
+/// Параметры переименования сущности.
 public struct MirCollaborationRenameParameters: Codable, Sendable {
     public var name: String
 

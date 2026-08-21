@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import MirServer
 
+/// Панель «Совместная работа»: редактирование одного проекта командой инженеров.
 struct MIR4DCollaborationView: View {
     @StateObject private var collab = MirCollaborationController.shared
     @State private var projectIDInput: String = ""
@@ -176,6 +177,8 @@ struct MIR4DCollaborationView: View {
         }
     }
 
+    // MARK: - Действия
+
     private func shareCurrentProject() {
         guard let url = MIR4DProjectSession.shared.projectURL else {
             lastError = "Сначала откройте проект MIR 4D"
@@ -225,6 +228,7 @@ struct MIR4DCollaborationView: View {
     }
 }
 
+/// Оверлей присутствия: плавающие метки участников с их курсорами.
 struct MIR4DCollaborationPresenceOverlay: View {
     let collaborators: [MirCollaborator]
 

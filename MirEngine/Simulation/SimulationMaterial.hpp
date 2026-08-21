@@ -21,4 +21,4 @@ struct SimulationMaterial
     bool fluid{true};
 };
 
-}
+} // namespace mir

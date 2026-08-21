@@ -1,3 +1,7 @@
+//
+//  MIR4DApp.swift
+//  MIR 4D
+//
 
 import SwiftUI
 import AppKit
@@ -70,6 +74,8 @@ struct MIR4DApp: App {
     }
 }
 
+/// Native macOS window configuration. The system title bar and traffic-light
+/// controls remain owned by AppKit; MIR 4D renders only inside the content area.
 struct MIR4DWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowConfiguratorView { WindowConfiguratorView() }
 

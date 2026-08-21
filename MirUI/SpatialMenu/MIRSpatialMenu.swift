@@ -3,6 +3,15 @@ import SwiftUI
 import AppKit
 import Combine
 
+/// The spatial menu coordinator.
+///
+/// Single flow for every input device:
+/// ```text
+/// Spatial Menu → MIRIntent → MIRIntentRouter → Command → MirEngine
+/// ```
+/// The coordinator owns presentation state only. CAD commands are executed
+/// through the existing CADCommandRegistry / CADAppState / Event Bus layers;
+/// MirEngine is never touched directly.
 @MainActor
 final class MIRSpatialMenuController: ObservableObject {
     static let shared = MIRSpatialMenuController()
@@ -25,6 +34,8 @@ final class MIRSpatialMenuController: ObservableObject {
 
     private init() {}
 
+    // MARK: - Lifecycle
+
     func install(appState: CADAppState, registry: CADCommandRegistry) {
         self.appState = appState
         self.registry = registry
@@ -33,6 +44,8 @@ final class MIRSpatialMenuController: ObservableObject {
         MIRSpatialMenuGesture.shared.start()
         MIRSpatialMenuVoiceAdapter.shared.connect(appState: appState)
 
+        // Hand-gesture pipeline: run the camera source and bridge intents into
+        // the same Spatial Menu event path used by the trackpad/voice.
         Task { @MainActor in
             MIRSpatialMenuHandAdapter.shared.start()
             MIRHandGestureModule.shared.startCamera()
@@ -61,6 +74,10 @@ final class MIRSpatialMenuController: ObservableObject {
                 self?.voiceHint = hint
             }
 
+        // Keep the hand-adapter interaction target in sync with the live scene
+        // state so that entering / leaving the sculpt tool (by any input path:
+        // hand menu, keyboard, palette) immediately switches pinch between
+        // "navigate the radial menu" and "deform the selected body".
         toolObserver = Publishers.CombineLatest(appState.$selectedTool, appState.$selection)
             .sink { [weak self] _, _ in
                 Task { @MainActor in
@@ -89,6 +106,8 @@ final class MIRSpatialMenuController: ObservableObject {
         state = .initial
         previousState = nil
     }
+
+    // MARK: - Gesture handling
 
     private func handleBegan(via: String) {
         guard let appState else { return }
@@ -143,7 +162,8 @@ final class MIRSpatialMenuController: ObservableObject {
             MIRIntentRouter.shared.publish(
                 MIRIntent(source: .spatial, phase: .execution, action: tool.command, confidence: 1.0)
             )
-
+            // Reflect the freshly applied tool / selection into the hand adapter
+            // so a pinch immediately sculpts instead of reopening the menu.
             let resolved = MIRSpatialMenuContext.resolve(appState: appState)
             context = resolved
             MIRSpatialMenuHandAdapter.shared.setInteractionTarget(resolved.interactionTarget)
@@ -161,6 +181,8 @@ final class MIRSpatialMenuController: ObservableObject {
         previousState = nil
     }
 
+    // MARK: - Intents during the gesture
+
     private func publishPreviewIntent(for newState: MIRSpatialMenuState) {
         if let tool = MIRSpatialMenuSelection.resolvedTool(newState, tree: tree) {
             MIRIntentRouter.shared.publish(
@@ -175,6 +197,8 @@ final class MIRSpatialMenuController: ObservableObject {
         }
     }
 
+    // MARK: - Haptics
+
     private func hapticIfNeeded(_ newState: MIRSpatialMenuState) {
         guard MIRSpatialMenuSettingsStore.shared.settings.hapticEnabled else { return }
         let signature = "\(newState.level.rawValue):\(newState.intentIndex ?? -1):\(newState.categoryIndex ?? -1):\(newState.toolIndex ?? -1)"
@@ -183,6 +207,10 @@ final class MIRSpatialMenuController: ObservableObject {
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
+    // MARK: - Command execution
+
+    /// Executes through the existing command layer only. Commands that are not
+    /// registered fall back to the documented Event Bus / CADAppState channels.
     private func execute(command: String) {
         guard let appState else { return }
         let context = appState.activeContext
@@ -224,6 +252,9 @@ final class MIRSpatialMenuController: ObservableObject {
     }
 }
 
+// MARK: - Overlay view
+
+/// Full-screen presentation of the spatial fan over the blurred scene.
 struct MIRSpatialMenuView: View {
     @ObservedObject var controller: MIRSpatialMenuController
     @ObservedObject var settingsStore: MIRSpatialMenuSettingsStore
@@ -253,6 +284,10 @@ struct MIRSpatialMenuView: View {
     }
 }
 
+// MARK: - Installer
+
+/// Attaches the spatial menu to a workspace. While active it replaces the
+/// legacy radial trigger path so the two menus never open at the same time.
 struct MIRSpatialMenuInstaller: ViewModifier {
     let appState: CADAppState
     let registry: CADCommandRegistry

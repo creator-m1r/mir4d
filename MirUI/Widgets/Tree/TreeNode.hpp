@@ -1,3 +1,6 @@
+// MirUI/Widgets/Tree/TreeNode.hpp
+// Data structure representing a single node in a tree widget.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -18,4 +21,4 @@ struct TreeNode {
     std::vector<TreeNode> children;
 };
 
-}
+} // namespace MirUI

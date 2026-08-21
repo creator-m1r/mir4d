@@ -4,6 +4,8 @@ import Foundation
 import MirServer
 #endif
 
+/// CAD model commands are the single entry point from UI actions into the
+/// parameter/document model. Views do not mutate MIR4DModelDocument directly.
 @MainActor
 final class MIR4DModelCommands {
     static let shared = MIR4DModelCommands()
@@ -47,7 +49,7 @@ final class MIR4DModelCommands {
         session.scheduleAutoSave()
 
         #if canImport(MirServer)
-
+        // Транслировать создание примитива команде при совместной работе.
         let params = (try? JSONEncoder().encode(["width": width, "depth": depth, "height": height])) ?? Data()
         MirCollaborationController.shared.applyLocal(kind: .create, entityID: bodyID.uuidString, parameters: params)
         #endif
@@ -67,6 +69,7 @@ final class MIR4DModelCommands {
         return bodyID
     }
 
+    /// ТЗ Этап 1: создать пользовательскую рабочую плоскость параллельно базовой.
     func createWorkPlane(
         basePlane: UInt32,
         offset: Double = 10.0,
@@ -83,6 +86,7 @@ final class MIR4DModelCommands {
         )
     }
 
+    /// ТЗ Этап 2: создать эскиз-прямоугольник через универсальный решатель ограничений.
     func createSketchRectangle(
         appState: CADAppState,
         width: Double = 40.0,
@@ -105,6 +109,8 @@ final class MIR4DModelCommands {
         appState.showNotification("Эскиз построен решателем ограничений: \(corners.count) углов", type: .success)
     }
 
+    /// ТЗ CAE: запустить встроенную комплексную мультифизическую кампанию
+    /// испытаний через Event Bus. Результат приходит в `.mir4DCAEResult`.
     func runBuiltInCAECampaign() {
         NotificationCenter.default.post(
             name: .mir4DRunCAECampaign,
@@ -112,6 +118,8 @@ final class MIR4DModelCommands {
             userInfo: ["definition": MIR4DModelCommands.builtInCAEDefinition]
         )
     }
+
+    // MARK: - CAE Event Bus handler
 
     private func handleCAE(definition: String) {
 
@@ -135,6 +143,7 @@ final class MIR4DModelCommands {
         )
     }
 
+    /// Встроенное определение кампании испытаний (текстовый грамматикой CAECampaign).
     nonisolated static let builtInCAEDefinition = """
     case hot
       material temperature 350

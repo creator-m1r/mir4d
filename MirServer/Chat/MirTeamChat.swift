@@ -1,5 +1,10 @@
 import Foundation
 
+/// Командный чат инженеров поверх MirServer.
+///
+/// Удобная надстройка над `MirServerManager`: хранит ленту сообщений,
+/// автоматически подписывается на входящие сообщения Event Bus и
+/// предоставляет потокобезопасный `@MainActor`-интерфейс для UI.
 @MainActor
 public final class MirTeamChat {
     public static let shared = MirTeamChat()
@@ -30,15 +35,18 @@ public final class MirTeamChat {
         }
     }
 
+    /// Отправить текстовое сообщение команде.
     @discardableResult
     public func send(_ text: String, projectID: String? = nil) async -> Bool {
         await manager.sendMessage(text, projectID: projectID)
     }
 
+    /// История сообщений, относящихся к конкретному проекту.
     public func messages(forProject projectID: String) -> [MirTeamMessage] {
         messages.filter { $0.projectID == projectID }
     }
 
+    /// Очистить локальную ленту (не влияет на сервер).
     public func clearLocalHistory() {
         messages.removeAll()
     }

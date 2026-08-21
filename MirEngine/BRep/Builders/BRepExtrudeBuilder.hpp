@@ -1,5 +1,17 @@
 #pragma once
 
+// MirEngine/BRep/BRepExtrudeBuilder.hpp
+//
+// Линейный extrude замкнутого wire-профиля в призматический solid.
+// Поддерживает:
+//   - outer wire из line edges
+//   - optional inner wires (holes), также из line edges
+//
+// Ограничения MVP:
+//   - только линейные рёбра
+//   - holes не проверяются на вложенность алгоритмом point-in-polygon
+//     (это ответственность вызывающего / Sketch profile validator)
+
 #include "BRepBuilderAPI.hpp"
 #include "../Validator/BRepValidator.hpp"
 
@@ -72,6 +84,7 @@ public:
         for (BRepWireHandle hole : holeWires)
             allProfiles.push_back(hole);
 
+        // Per-profile extruded side-wall faces + top/bottom vertex rings.
         struct ProfilePrism
         {
             std::vector<BRepVertexHandle> bottom;
@@ -217,6 +230,7 @@ public:
             prisms.push_back(std::move(prism));
         }
 
+        // Frame from outer profile.
         const ProfilePrism& outer = prisms.front();
         const Vector3 a = pointOf(model, outer.bottom[0]);
         const Vector3 b = pointOf(model, outer.bottom[1]);
@@ -286,6 +300,7 @@ public:
             return {h, BRepOrientation::Reversed};
         };
 
+        // Side faces for every profile (outer + holes).
         for (const ProfilePrism& prism : prisms)
         {
             const std::size_t n = prism.bottom.size();
@@ -391,4 +406,4 @@ private:
     }
 };
 
-}
+} // namespace mir

@@ -5,6 +5,7 @@
 
 namespace mir {
 
+/// Stable identifier for a component instance inside an assembly.
 struct ComponentID {
     std::uint64_t value{0};
 
@@ -16,7 +17,7 @@ struct ComponentID {
 
 inline constexpr ComponentID InvalidComponentID{};
 
-}
+} // namespace mir
 
 namespace std {
 template <>
@@ -25,4 +26,4 @@ struct hash<mir::ComponentID> {
         return std::hash<std::uint64_t>{}(id.value);
     }
 };
-}
+} // namespace std

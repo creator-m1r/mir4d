@@ -11,6 +11,7 @@
 namespace mir4d
 {
 
+/// Chronological, append-only history of engineering commands.
 class DocumentHistory
 {
 public:
@@ -81,4 +82,4 @@ private:
     std::uint64_t nextSequence_{1};
 };
 
-}
+} // namespace mir4d

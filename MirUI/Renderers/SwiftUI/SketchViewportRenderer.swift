@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Lightweight SwiftUI renderer for the sketch interaction layer.
+/// The renderer receives model-space geometry from MirEngine and never owns it.
 struct SketchViewportRenderer: View {
     struct Line: Identifiable, Equatable {
         let id: UInt32

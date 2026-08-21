@@ -1,3 +1,14 @@
+// MirEngine/Math/Numeric/Iterative.hpp
+// 🧮 Итерационные методы решения линейных систем A·x = b.
+//
+//   • conjugateGradient — для симметричных положительно определённых A;
+//   • gaussSeidel       — универсальный метод Зейделя;
+//   • jacobiSolve       — метод Якоби.
+//
+// Матрица — плотная MatrixN либо матрично-векторное произведение (обратный
+// вызов) для разреженных систем.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -10,6 +21,7 @@
 namespace mir::math
 {
 
+/// Скалярное произведение векторов.
 [[nodiscard]] inline Scalar innerProduct(const VectorN& a, const VectorN& b)
 {
     Scalar s = Scalar(0);
@@ -18,6 +30,7 @@ namespace mir::math
     return s;
 }
 
+/// Матрично-векторное произведение A·x (плотная матрица).
 [[nodiscard]] inline VectorN matVec(const MatrixN& A, const VectorN& x)
 {
     VectorN y(A.size(), Scalar(0));
@@ -31,6 +44,7 @@ namespace mir::math
     return y;
 }
 
+/// Сопряжённые градиенты для СПД-системы (плотная матрица).
 [[nodiscard]] inline VectorN conjugateGradient(
     const MatrixN& A,
     const VectorN& b,
@@ -39,7 +53,7 @@ namespace mir::math
 {
     const std::size_t n = b.size();
     VectorN x(n, Scalar(0));
-    VectorN r = b;
+    VectorN r = b; // A·0 = 0
     VectorN p = r;
     Scalar rsold = innerProduct(r, r);
 
@@ -66,6 +80,7 @@ namespace mir::math
     return x;
 }
 
+/// Сопряжённые градиенты через матрично-векторное произведение (разреженные СПД).
 [[nodiscard]] inline VectorN conjugateGradient(
     const std::function<VectorN(const VectorN&)>& matvec,
     const VectorN& b,
@@ -100,6 +115,7 @@ namespace mir::math
     return x;
 }
 
+/// Метод Зейделя для A·x = b (диагональные элементы ≠ 0).
 [[nodiscard]] inline mir4d::Result<VectorN> gaussSeidel(
     const MatrixN& A,
     const VectorN& b,
@@ -136,6 +152,7 @@ namespace mir::math
     return mir4d::success(std::move(x));
 }
 
+/// Метод Якоби для A·x = b.
 [[nodiscard]] inline mir4d::Result<VectorN> jacobiSolve(
     const MatrixN& A,
     const VectorN& b,
@@ -171,6 +188,7 @@ namespace mir::math
     return mir4d::success(std::move(x));
 }
 
+/// Умножение вектора на скаляр.
 [[nodiscard]] inline VectorN vscale(Scalar a, const VectorN& x)
 {
     VectorN y(x.size());
@@ -179,6 +197,7 @@ namespace mir::math
     return y;
 }
 
+/// Рестартовый GMRES для несимметричных систем A·x = b (через matvec).
 [[nodiscard]] inline VectorN gmres(
     const std::function<VectorN(const VectorN&)>& A,
     const VectorN& b,
@@ -188,7 +207,7 @@ namespace mir::math
 {
     const std::size_t n = b.size();
     VectorN x(n, Scalar(0));
-    VectorN r = b;
+    VectorN r = b; // A·0
     Scalar beta0 = std::sqrt(innerProduct(r, r));
     if (beta0 < tol)
         return x;
@@ -222,6 +241,7 @@ namespace mir::math
             if (hNext > Scalar(1e-14))
                 V[j + 1] = vscale(Scalar(1) / hNext, w);
 
+            // Повороты Гивенса для предыдущих строк.
             for (std::size_t i = 0; i < j; ++i)
             {
                 const Scalar tmp = cs[i] * H[i][j] - sn[i] * H[i + 1][j];
@@ -270,6 +290,7 @@ namespace mir::math
     return x;
 }
 
+/// Стабилизированный бикакобычный метод (BiCGSTAB) для несимметричных A·x = b.
 [[nodiscard]] inline VectorN bicgstab(
     const std::function<VectorN(const VectorN&)>& A,
     const VectorN& b,
@@ -326,4 +347,4 @@ namespace mir::math
     return x;
 }
 
-}
+} // namespace mir::math

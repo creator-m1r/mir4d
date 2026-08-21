@@ -27,6 +27,7 @@ final class MirEventBus {
 
     private init() {}
 
+    /// Observability events for the radial navigation layer.
     enum RadialMenuBusEvent: Equatable {
         case opened
         case closed

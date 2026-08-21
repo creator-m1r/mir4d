@@ -5,6 +5,9 @@ import Combine
 import os
 import simd
 
+/// End-to-end wiring test: a hand pinch over a `.sculpt` interaction target must
+/// produce a rich `MIR4DSculptIntent` (with real depth) on the App-layer stream,
+/// which `MIR4DSculptCommandBridge` forwards to MirEngine.
 @MainActor
 final class MIR4DSculptBridgeTests: XCTestCase {
 

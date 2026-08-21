@@ -32,6 +32,7 @@ int main()
     assert(model.containsRootSolid(solid));
     assert(model.rootSolids().size() == 1);
 
+    // Root registration is idempotent.
     model.addRootSolid(solid);
     model.addRootSolid(solid);
     assert(model.rootSolids().size() == 1);
@@ -51,6 +52,8 @@ int main()
     assert(validator.validate(model).ok());
     assert(model.isValid());
 
+    // Failed construction must not mutate the model. The two edges do not
+    // connect sequentially, so the wire request is rejected before insertion.
     const std::size_t wiresBeforeFailure = model.topology().wireCount();
     const auto invalidWire = builder.makeWireFromEdges({e0, e2}, true);
     assert(!invalidWire.valid());
@@ -58,6 +61,8 @@ int main()
     assert(model.topology().solidCount() == 1);
     assert(model.rootSolids().size() == 1);
 
+    // Checkpoint rollback is also available at the model boundary for future
+    // multi-stage feature builders and command transactions.
     const auto checkpoint = model.checkpoint();
     const auto transientVertex = builder.makeVertex({10.0, 10.0, 10.0});
     assert(transientVertex.valid());

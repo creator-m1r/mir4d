@@ -14,4 +14,4 @@ inline constexpr ObjectId InvalidObjectId = 0;
     return id != InvalidObjectId;
 }
 
-}
+} // namespace mir4d

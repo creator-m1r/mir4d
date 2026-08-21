@@ -1,8 +1,10 @@
 import Foundation
 import simd
 
+/// Recognised hand gestures. The set is open for extension; consumers should
+/// treat unknown values gracefully via the raw `rawValue`.
 public enum MIRHandGestureType: String, Sendable, CaseIterable {
-
+    // Single-hand
     case openPalm = "OPEN_PALM"
     case point = "POINT"
     case pinch = "PINCH"
@@ -14,6 +16,7 @@ public enum MIRHandGestureType: String, Sendable, CaseIterable {
     case thumbsUp = "THUMBS_UP"
     case rest = "REST"
 
+    // Two-hand
     case twoHandTranslate = "TWO_HAND_TRANSLATE"
     case twoHandScale = "TWO_HAND_SCALE"
     case twoHandRotate = "TWO_HAND_ROTATE"
@@ -25,6 +28,8 @@ public enum MIRHandGestureType: String, Sendable, CaseIterable {
     }
 }
 
+/// Gesture lifecycle phase. Required for continuous interactions such as grab,
+/// sculpt, drag and draw.
 public enum MIRHandGesturePhase: String, Sendable {
     case began
     case changed
@@ -32,6 +37,7 @@ public enum MIRHandGesturePhase: String, Sendable {
     case cancelled
 }
 
+/// A single sampled point of a continuous motion (e.g. a drawn trajectory).
 struct MIRHandMotionSample: Sendable {
     let position: SIMD3<Double>
     let direction: SIMD3<Double>
@@ -39,6 +45,7 @@ struct MIRHandMotionSample: Sendable {
     let timestamp: Date
 }
 
+/// A recognised gesture with its spatial context at the moment of recognition.
 public struct MIRHandGesture: Sendable {
     public let type: MIRHandGestureType
     public let confidence: Double
@@ -67,6 +74,7 @@ public struct MIRHandGesture: Sendable {
     }
 }
 
+/// Both hands observed simultaneously, with derived relational properties.
 struct MIRHandPair: Sendable {
     let left: MIRHandPose?
     let right: MIRHandPose?
@@ -113,6 +121,7 @@ struct MIRHandPair: Sendable {
 }
 
 private extension MIRHandPose {
-
+    /// Best-effort instantaneous velocity used for two-hand relational math.
+    /// The authoritative velocity lives in `MIRHandMotion`; this is only a hint.
     var velocityHint: SIMD3<Double>? { nil }
 }

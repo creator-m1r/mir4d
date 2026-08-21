@@ -50,4 +50,4 @@ private:
     std::vector<SimulationFieldBinding> bindings_;
 };
 
-}
+} // namespace mir

@@ -1,5 +1,11 @@
 #pragma once
 
+// MirEngine/BRep/Builders/BRepBuilderAPI.hpp
+// Transactional low-level B-Rep construction API.
+//
+// A failed build must not leave partially-created topology or geometry in the
+// model. Every multi-step operation therefore uses BRepModel::Checkpoint.
+
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Geometry/BRepGeometry.hpp"
 #include "MirEngine/BRep/Topology/BRepTopologyEditor.hpp"
@@ -351,4 +357,4 @@ private:
     BRepModel& model_;
 };
 
-}
+} // namespace mir

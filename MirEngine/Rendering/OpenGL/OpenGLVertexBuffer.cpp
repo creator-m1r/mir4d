@@ -1,3 +1,21 @@
+// MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
+// =================================================================================
+// Реализация вершинного буфера OpenGL.
+// Здесь выполняются реальные вызовы OpenGL: создание, загрузка данных, 
+// привязка и удаление буфера. Все методы транслируют абстрактный интерфейс 
+// VertexBuffer в команды GL.
+//
+// Зависимости:
+//   - glbinding (https://github.com/cginternals/glbinding) для загрузки GL-функций.
+//     Убедитесь, что библиотека добавлена в проект и инициализирована перед 
+//     созданием этого буфера (обычно в OpenGLContext::initialize).
+//   - spdlog для логирования ошибок (MIR_LOG_ERROR, MIR_LOG_WARN).
+// =================================================================================
+
+// MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.cpp
+// =================================================================================
+// Реализация OpenGLVertexBuffer.
+// =================================================================================
 
 #include "OpenGLVertexBuffer.h"
 #include "OpenGLVertexArray.h"
@@ -46,6 +64,9 @@ void OpenGLVertexBuffer::uploadVertices(const Vertex* data, size_t count,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData. Bind the
+    // scratch VAO here (not inside bind(), which is also invoked while a real
+    // VAO is already bound during setupAttributes).
     BindDefaultVertexArray();
     bind();
 
@@ -72,6 +93,7 @@ void OpenGLVertexBuffer::upload(const void* data, size_t size,
         return;
     }
 
+    // Core profile requires a VAO bound for glBindBuffer/glBufferData.
     BindDefaultVertexArray();
     bind();
 
@@ -104,5 +126,5 @@ size_t OpenGLVertexBuffer::getSize() const
     return m_vertexCount * sizeof(Vertex);
 }
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

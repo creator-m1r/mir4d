@@ -9,6 +9,11 @@
 namespace mir
 {
 
+/// Unified geometric model object.
+///
+/// Profile3 is the construction source, Solid3 is the exact CAD boundary
+/// representation when available, and TriangleMesh3 is the render/import
+/// representation. Mesh-only objects are valid for imported assets such as STL.
 class Model3
 {
 public:
@@ -63,6 +68,7 @@ private:
     TriangleMesh3 mesh_;
 };
 
+/// Canonical document-level name. Geometry remains spatial; time belongs to Document.
 using Model = Model3;
 
-}
+} // namespace mir

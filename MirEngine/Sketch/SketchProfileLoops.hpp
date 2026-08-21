@@ -43,4 +43,4 @@ struct SketchProfileLoops
     }
 };
 
-}
+} // namespace mir

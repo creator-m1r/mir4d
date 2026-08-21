@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Unified viewport composition for MIR 4D.
+/// Camera and selection remain owned by CADAppState / MirGLCustomView.
 struct MIR4DViewportWorkspace: View {
     @ObservedObject var appState: CADAppState
     let registry: CADCommandRegistry
@@ -34,6 +36,7 @@ struct MIR4DViewportWorkspace: View {
                 .padding(.top, 14)
                 .padding(.trailing, 14)
 
+            // Debug / assist: отдельный режим визуализации скелета кистей.
             MIRHandSkeletonModeControl()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.top, 14)

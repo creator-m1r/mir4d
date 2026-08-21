@@ -1,3 +1,7 @@
+// MirUI/Designer/Model/WidgetLibrary.hpp — обновлённый каталог с новыми виджетами.
+// Добавлены CheckBox, TextField, ComboBox.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -15,7 +19,7 @@ namespace MirUI {
 
 class WidgetLibrary {
 public:
-
+    // ── Регистрация виджета ──────────────────────────────────
     void registerWidget(const WidgetDescriptor& descriptor) {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
             [&](const WidgetDescriptor& d) { return d.type == descriptor.type; });
@@ -26,6 +30,7 @@ public:
         }
     }
 
+    // ── Создание экземпляра ──────────────────────────────────
     [[nodiscard]] std::unique_ptr<Widget> create(WidgetType type) const {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
             [type](const WidgetDescriptor& d) { return d.type == type; });
@@ -35,6 +40,7 @@ public:
         return WidgetFactory::create(type);
     }
 
+    // ── Поиск дескриптора ────────────────────────────────────
     [[nodiscard]] const WidgetDescriptor* findByType(WidgetType type) const {
         auto it = std::find_if(m_widgets.begin(), m_widgets.end(),
             [type](const WidgetDescriptor& d) { return d.type == type; });
@@ -63,8 +69,9 @@ public:
         m_widgets.clear();
     }
 
+    // ── Заполнение стандартным набором (с новыми виджетами) ──
     void populateDefaults() {
-
+        // Кнопка
         registerWidget(WidgetDescriptor(
             WidgetType::Button,
             "Кнопка",
@@ -87,6 +94,7 @@ public:
             }
         ));
 
+        // Надпись
         registerWidget(WidgetDescriptor(
             WidgetType::Label,
             "Надпись",
@@ -105,6 +113,7 @@ public:
             }
         ));
 
+        // Контейнер (Panel)
         registerWidget(WidgetDescriptor(
             WidgetType::Panel,
             "Контейнер",
@@ -119,10 +128,11 @@ public:
                 PropertyDescriptor("width", "Ширина", PropertyType::Float, StateValue(200.0)),
                 PropertyDescriptor("height", "Высота", PropertyType::Float, StateValue(200.0))
             },
-            true,
+            true, // контейнер
             {}
         ));
 
+        // Панель инструментов (Toolbar)
         registerWidget(WidgetDescriptor(
             WidgetType::Toolbar,
             "Панель инструментов",
@@ -140,6 +150,7 @@ public:
             {WidgetType::Button, WidgetType::Label, WidgetType::CheckBox, WidgetType::TextField, WidgetType::ComboBox}
         ));
 
+        // Дерево
         registerWidget(WidgetDescriptor(
             WidgetType::Tree,
             "Дерево",
@@ -154,6 +165,7 @@ public:
             }
         ));
 
+        // Инспектор свойств
         registerWidget(WidgetDescriptor(
             WidgetType::PropertyGrid,
             "Инспектор свойств",
@@ -168,6 +180,7 @@ public:
             }
         ));
 
+        // Вьюпорт
         registerWidget(WidgetDescriptor(
             WidgetType::Viewport,
             "Вьюпорт",
@@ -183,6 +196,7 @@ public:
             }
         ));
 
+        // Стыкуемая панель
         registerWidget(WidgetDescriptor(
             WidgetType::DockPanel,
             "Стыкуемая панель",
@@ -199,6 +213,9 @@ public:
             {}
         ));
 
+        // ── НОВЫЕ ВИДЖЕТЫ ─────────────────────────────────────
+
+        // Флажок (CheckBox)
         registerWidget(WidgetDescriptor(
             WidgetType::CheckBox,
             "Флажок",
@@ -217,6 +234,7 @@ public:
             }
         ));
 
+        // Текстовое поле (TextField)
         registerWidget(WidgetDescriptor(
             WidgetType::TextField,
             "Текстовое поле",
@@ -238,6 +256,7 @@ public:
             }
         ));
 
+        // Выпадающий список (ComboBox)
         registerWidget(WidgetDescriptor(
             WidgetType::ComboBox,
             "Выпадающий список",
@@ -261,4 +280,4 @@ private:
     std::vector<WidgetDescriptor> m_widgets;
 };
 
-}
+} // namespace MirUI

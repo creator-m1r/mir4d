@@ -107,6 +107,7 @@ struct Accumulator
     }
 };
 
+// Triangulates a planar polygon by fan triangulation from its first vertex.
 void emitPolygon(Accumulator& acc, const std::vector<Point3>& points)
 {
     if (points.size() < 3)
@@ -115,6 +116,7 @@ void emitPolygon(Accumulator& acc, const std::vector<Point3>& points)
         acc.addTriangle(points[0], points[i], points[i + 1]);
 }
 
+// Resolves a POLY_LOOP / VERTEX_LOOP into ordered points (poly loop only).
 void collectPolyLoopPoints(const StepFile& file,
                            int loopId,
                            const std::unordered_map<int, Point3>& points,
@@ -139,6 +141,7 @@ void collectPolyLoopPoints(const StepFile& file,
     }
 }
 
+// Walks a FACE / ADVANCED_FACE, emitting its loops as polygons.
 void collectFace(const StepFile& file,
                  int faceId,
                  const std::unordered_map<int, Point3>& points,
@@ -175,6 +178,7 @@ void collectFace(const StepFile& file,
     }
 }
 
+// Walks a CLOSED_SHELL / OPEN_SHELL and emits all faces.
 void collectShell(const StepFile& file,
                   int shellId,
                   const std::unordered_map<int, Point3>& points,
@@ -210,7 +214,7 @@ void collectTessellatedFace(const StepFile& file,
 
     if (face->type == "TRIANGULATED_FACE")
     {
-
+        // params: name, normals(list of list[3]), triangles(list of list[3] ints)
         std::vector<Param> triangles;
         for (const Param& p : face->params)
         {
@@ -232,7 +236,7 @@ void collectTessellatedFace(const StepFile& file,
                 double dv = 0.0;
                 if (tri.items[i].asReference(idx))
                 {
-
+                    // index from reference
                 }
                 else if (tri.items[i].asReal(dv))
                 {
@@ -291,7 +295,8 @@ void collectTessellatedFace(const StepFile& file,
 
 int resolveShellFromBrep(const Entity& brep)
 {
-
+    // FACETED_BREP / MANIFOLD_SOLID_BREP / SHELL_BASED_SURFACE_MODEL expose
+    // the shell as their second parameter (a reference).
     if (brep.params.size() < 2)
         return 0;
     int shellId = 0;
@@ -310,7 +315,7 @@ int resolveBrepFromTools(const Entity& tools)
     return 0;
 }
 
-}
+} // namespace
 
 ImportResult StepImporter::importFile(
     const std::string& path,
@@ -343,6 +348,7 @@ ImportResult StepImporter::importFile(
         return result;
     }
 
+    // Index all cartesian points for fast lookup.
     std::unordered_map<int, Point3> points;
     for (const auto& pair : stepFile->entities)
     {
@@ -386,7 +392,7 @@ ImportResult StepImporter::importFile(
         }
         else if (type == "TESSELLATED_SHELL")
         {
-
+            // params: name, coordinates(list of list[3]), faces(list of refs)
             std::vector<Point3> coordinates;
             const std::vector<Param>* coords = nullptr;
             const std::vector<Param>* faces = nullptr;
@@ -439,4 +445,4 @@ ImportResult StepImporter::importFile(
     return result;
 }
 
-}
+} // namespace mir::io::step

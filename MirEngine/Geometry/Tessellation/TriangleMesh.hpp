@@ -11,6 +11,8 @@
 namespace mir
 {
 
+/// Render-oriented triangle mesh. CAD topology remains the source of truth;
+/// this type stores tessellated geometry for rendering, selection and export.
 struct TriangleMesh3
 {
     struct Triangle
@@ -19,6 +21,8 @@ struct TriangleMesh3
         std::size_t b{0};
         std::size_t c{0};
 
+        // Stable source B-Rep face identifier (BRepFaceHandle::index).
+        // Zero means that provenance is not available.
         std::uint64_t sourceFaceId{0};
     };
 
@@ -70,4 +74,4 @@ struct TriangleMesh3
     }
 };
 
-}
+} // namespace mir

@@ -1,8 +1,18 @@
 import Foundation
 
+/// Подготовка проекта MIR 4D к экспорту на сервер.
+///
+/// Модуль не зависит от UI и CAD-ядра: он работает с каталогом проекта
+/// на диске и упаковывает его содержимое в переносимый архив (JSON с
+/// base64-кодированными файлами). Полученные `Data` передаются в
+/// `MirServerManager.exportProject(...)` для отправки на сайт.
 public struct MirProjectExporter: Sendable {
     public init() {}
 
+    /// Заархивировать каталог проекта в единый `Data`-пакет.
+    /// - Parameter projectURL: URL каталога проекта (содержит `project.mir4d.json`
+    ///   и прочие файлы модели).
+    /// - Returns: Сериализованный архив проекта.
     public func archiveProject(at projectURL: URL) throws -> Data {
         let manager = FileManager.default
         guard let enumerator = manager.enumerator(

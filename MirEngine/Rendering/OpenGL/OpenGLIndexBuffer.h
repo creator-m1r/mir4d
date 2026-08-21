@@ -1,3 +1,26 @@
+// MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.h
+// =================================================================================
+// Конкретная реализация индексного буфера для OpenGL.
+//
+// Инкапсулирует нативный объект буфера (GL_ELEMENT_ARRAY_BUFFER) и методы
+// загрузки целочисленных индексов (uint32_t). Используется совместно с
+// OpenGLVertexBuffer и OpenGLVertexArray для индексированного рендеринга.
+//
+// Принцип изоляции:
+//   Все вызовы gl* скрыты внутри этого класса и его .cpp.
+//   Внешний код работает через интерфейс IndexBuffer, не зная о GLuint.
+//
+// Использование:
+//   1. Создать экземпляр (обычно через фабрику в OpenGLDevice).
+//   2. Вызвать uploadIndices() с массивом индексов.
+//   3. Привязать к VertexArray через setIndexBuffer().
+//   4. Рендерер при вызове draw будет использовать индексы из этого буфера.
+// =================================================================================
+
+// MirEngine/Rendering/OpenGL/OpenGLIndexBuffer.h
+// =================================================================================
+// OpenGL-реализация IndexBuffer.
+// =================================================================================
 
 #pragma once
 
@@ -39,6 +62,7 @@ public:
         return m_handle != 0 && m_indexCount > 0;
     }
 
+    // Нативный handle (для внутреннего использования)
     [[nodiscard]] GLuint handle() const noexcept { return m_handle; }
 
 private:
@@ -48,5 +72,5 @@ private:
     static GLenum usageToGL(BufferUsage usage);
 };
 
-}
-}
+} // namespace Rendering
+} // namespace MirEngine

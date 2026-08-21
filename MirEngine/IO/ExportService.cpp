@@ -22,7 +22,7 @@ namespace
                    });
     return extension;
 }
-}
+} // namespace
 
 Format ExportService::detectFormat(const std::string& path) noexcept
 {
@@ -73,4 +73,4 @@ ExportResult ExportService::exportFile(
     return result;
 }
 
-}
+} // namespace mir::io

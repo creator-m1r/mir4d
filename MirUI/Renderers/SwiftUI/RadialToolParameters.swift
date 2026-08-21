@@ -1,6 +1,8 @@
 import SwiftUI
 import Foundation
 
+/// Parameter state for tools launched through the radial gesture.
+/// The state is presentation-only; command execution remains in CADCommandRegistry.
 struct RadialToolParameterState: Equatable {
     var command: String
     var value: Double = 10.0

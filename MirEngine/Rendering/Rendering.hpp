@@ -1,5 +1,6 @@
 #pragma once
 
+// Canonical renderer public boundary.
 #include "Renderer.h"
 #include "Core/RenderContext.h"
 #include "Core/RenderDevice.h"

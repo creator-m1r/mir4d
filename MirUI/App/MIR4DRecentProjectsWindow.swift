@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Content for the recent-projects floating window.
+/// Project activation is delegated to the existing command/session layer.
 struct MIR4DRecentProjectsWindow: View {
     let projects: [MIR4DRecentProject]
     let onOpen: (MIR4DRecentProject) -> Void

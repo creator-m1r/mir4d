@@ -1,3 +1,6 @@
+// MirUI/Core/Layout/LayoutConstraints.hpp
+// Size constraints for layout: minimum, maximum, preferred.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -16,6 +19,7 @@ struct LayoutConstraints {
     constexpr LayoutConstraints(const Size& min, const Size& max, const Size& pref) noexcept
         : minimum(min), maximum(max), preferred(pref) {}
 
+    // Convenience: create unconstrained (flexible) constraints.
     static constexpr LayoutConstraints flexible() noexcept {
         return LayoutConstraints(
             { 0.0, 0.0 },
@@ -24,6 +28,7 @@ struct LayoutConstraints {
         );
     }
 
+    // Clamp a given size to the constraints.
     [[nodiscard]] constexpr Size clamp(const Size& size) const noexcept {
         return Size(
             std::clamp(size.width,  minimum.width,  maximum.width),
@@ -39,4 +44,4 @@ struct LayoutConstraints {
     }
 };
 
-}
+} // namespace MirUI

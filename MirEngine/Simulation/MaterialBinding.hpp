@@ -44,4 +44,4 @@ private:
     std::unordered_map<std::uint64_t, MaterialBinding> bindings_;
 };
 
-}
+} // namespace mir

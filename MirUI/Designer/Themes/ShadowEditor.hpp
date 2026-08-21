@@ -1,9 +1,27 @@
+// MirUI/Designer/Themes/ShadowEditor.hpp
+// 🌑 Редактор теней — позволяет изменять параметры тени для любого теневого токена.
+//
+// Каждая тень в теме MirUI описывается пятью параметрами:
+//   • color      — цвет тени (обычно чёрный с разной прозрачностью).
+//   • offsetX    — смещение по горизонтали (положительное = вправо).
+//   • offsetY    — смещение по вертикали (положительное = вниз).
+//   • blurRadius — радиус размытия (0 = чёткая тень).
+//   • spread     — расширение/сжатие тени (положительное = больше, отрицательное = меньше).
+//
+// ShadowEditor позволяет редактировать эти параметры для любого токена
+// (например, "shadow.panel", "shadow.floating", "shadow.modal").
+// Все изменения автоматически применяются к теме и попадают в историю Undo/Redo.
+//
+// Редактор не содержит визуального интерфейса — только логику и данные.
+// Отображение (ползунки, поля ввода, палитра цвета) делает платформенный UI.
+//
+// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
 #include "../Document/UIDocument.hpp"
 #include "../../Core/Theme/Theme.hpp"
-#include "../../Core/Theme/WidgetStateStyle.hpp"
+#include "../../Core/Theme/WidgetStateStyle.hpp"  // ShadowData
 #include "../../Foundation/Color/Color.hpp"
 #include "../../Foundation/Shadow/ShadowToken.hpp"
 #include "../../Core/Commands/CommandHistory.hpp"
@@ -16,15 +34,21 @@ namespace MirUI {
 
 class ShadowEditor {
 public:
-
+    // ── Конструктор ──────────────────────────────────────────
+    // Принимает документ и имя теневого токена (например, "shadow.panel").
     ShadowEditor(UIDocument& doc, const std::string& tokenName)
         : m_doc(doc)
         , m_tokenName(tokenName)
     {
-
+        // Загружаем текущее значение тени из темы.
+        // Пока тени хранятся как часть WidgetStyle, а не как отдельная карта токенов.
+        // Для простоты будем хранить настройки локально, а применять их к теме
+        // через прямой доступ к WidgetStyle конкретного типа.
+        // В будущем появится Theme::shadows — карта токенов.
         loadCurrentShadow();
     }
 
+    // ── Текущие значения (для отображения в UI) ──────────────
     [[nodiscard]] Color  color()      const { return m_color; }
     [[nodiscard]] double offsetX()    const { return m_offsetX; }
     [[nodiscard]] double offsetY()    const { return m_offsetY; }
@@ -32,6 +56,7 @@ public:
     [[nodiscard]] double spread()     const { return m_spread; }
     [[nodiscard]] const std::string& tokenName() const { return m_tokenName; }
 
+    // ── Установка новых значений ────────────────────────────
     void setColor(const Color& color) {
         if (color == m_color) return;
         auto cmd = std::make_unique<ShadowEditCommand>(*this, m_color, m_offsetX, m_offsetY, m_blurRadius, m_spread,
@@ -82,6 +107,7 @@ public:
         applyToTheme();
     }
 
+    // ── Сброс к значениям по умолчанию ───────────────────────
     void resetToDefault() {
         ShadowData defaultShadow;
         setColor(defaultShadow.color);
@@ -101,15 +127,20 @@ private:
     double m_blurRadius = 4.0;
     double m_spread     = 0.0;
 
+    // Загружает текущие значения тени из темы (заглушка).
     void loadCurrentShadow() {
-
+        // В будущем здесь будет чтение из Theme::shadows[m_tokenName].
+        // Пока используем значения по умолчанию.
     }
 
+    // Применяет текущие настройки к теме.
     void applyToTheme() {
-
+        // Пока нет централизованного хранилища теней в теме,
+        // оставляем заглушку. В будущем будем обновлять Theme::shadows.
         m_doc.setModified(true);
     }
 
+    // ── Внутренняя команда для Undo/Redo ─────────────────────
     class ShadowEditCommand : public ICommand {
     public:
         ShadowEditCommand(ShadowEditor& editor,
@@ -157,4 +188,4 @@ private:
     };
 };
 
-}
+} // namespace MirUI

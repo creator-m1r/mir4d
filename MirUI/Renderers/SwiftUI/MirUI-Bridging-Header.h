@@ -1,3 +1,9 @@
+// MirUI/Renderers/SwiftUI/MirUI-Bridging-Header.h
+// Xcode-only C declarations that are intentionally outside CBridge.swift.
+//
+// The SwiftUI target keeps its @_silgen_name declarations in CBridge.swift.
+// Do not redeclare those symbols here: that would create invalid redeclarations
+// in Swift. This header is limited to C APIs that are not part of that bridge.
 
 #ifndef MIRUI_BRIDGING_HEADER_H
 #define MIRUI_BRIDGING_HEADER_H
@@ -29,4 +35,4 @@ void MirUI_TogglePreview(void);
 }
 #endif
 
-#endif
+#endif // MIRUI_BRIDGING_HEADER_H

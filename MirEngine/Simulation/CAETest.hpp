@@ -282,4 +282,4 @@ private:
     CAETestResult result_{};
 };
 
-}
+} // namespace mir

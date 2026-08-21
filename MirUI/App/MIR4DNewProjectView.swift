@@ -5,6 +5,8 @@ struct MIR4DNewProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: CADAppState
 
+    /// Optional workbench preset chosen on the start centre. When set, the
+    /// created project opens directly in the matching engineering environment.
     var presetWorkbench: CADWorkbench? = nil
     var defaultName: String? = nil
 

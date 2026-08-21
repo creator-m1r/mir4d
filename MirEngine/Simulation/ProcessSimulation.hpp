@@ -35,6 +35,8 @@ private:
             if (!source)
                 continue;
 
+            // The process state remains the authoritative low-cost runtime state.
+            // Renderers and higher-fidelity solvers can consume these values as fields.
             lastFlow_ = source->flow;
             lastPressure_ = source->pressure;
             lastTemperature_ = source->temperature;
@@ -48,4 +50,4 @@ private:
     Scalar lastTemperature_{293.15};
 };
 
-}
+} // namespace mir

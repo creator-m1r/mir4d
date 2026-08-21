@@ -1,6 +1,8 @@
 import Foundation
 import simd
 
+/// Tracks hand motion over time and derives a smoothed velocity, acceleration,
+/// direction and speed. A single frame is never used to determine movement.
 struct MIRHandMotion: Sendable {
     struct Configuration: Sendable {
         var historyLength: Int = 12
@@ -20,6 +22,7 @@ struct MIRHandMotion: Sendable {
         smoothedVelocity = .zero
     }
 
+    /// Feed a new raw position (already in scene space) and return the smoothed state.
     mutating func update(position: SIMD3<Double>, timestamp: Date) -> (
         velocity: SIMD3<Double>, acceleration: SIMD3<Double>, direction: SIMD3<Double>, speed: Double
     ) {

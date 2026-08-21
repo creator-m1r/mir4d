@@ -1,3 +1,8 @@
+// MirEngine/Tests/BRep/BRepStepExport.cpp
+//
+// Native (no OpenCASCADE) exact B-Rep STEP round-trip through merge + write:
+// two boxes are merged, written to STEP text, read back and tessellated.
+// Expects 24 triangles (12 per box).
 
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Builders/BRepPrimAPI_MakeBox.hpp"

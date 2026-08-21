@@ -1,3 +1,6 @@
+// MirUI/Foundation/Typography/Font.hpp
+// Font descriptor: family, size, weight, style.
+// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -40,4 +43,4 @@ struct Font {
     bool operator!=(const Font& other) const = default;
 };
 
-}
+} // namespace MirUI

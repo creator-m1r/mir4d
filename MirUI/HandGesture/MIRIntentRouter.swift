@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 
+/// Central transport for device-independent engineering intent.
+/// It deliberately does not execute CAD commands; consumers resolve intent against context.
 @MainActor
 public final class MIRIntentRouter: ObservableObject {
     public static let shared = MIRIntentRouter()

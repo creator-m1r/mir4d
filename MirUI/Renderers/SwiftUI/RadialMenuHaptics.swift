@@ -1,10 +1,23 @@
 import AppKit
 import Foundation
 
+/// Haptic feedback for the radial gesture.
+///
+/// The haptic layer is intentionally independent from:
+/// - radial menu rendering;
+/// - command registry;
+/// - engineering state.
+///
+/// RadialMenuBegan / RadialMenuMoved / RadialMenuEnded
+/// remain the single input path.
 @MainActor
 final class RadialMenuHaptics {
 
+    // MARK: - Shared instance
+
     static let shared = RadialMenuHaptics()
+
+    // MARK: - Haptic events
 
     enum RadialMenuHapticEvent {
         case open
@@ -37,18 +50,28 @@ final class RadialMenuHaptics {
         perform(pattern)
     }
 
+    // MARK: - Dependencies
+
     private let settings = RadialMenuSettingsStore.shared
+
+    // MARK: - Runtime state
 
     private var lastPanelIndex: Int?
     private var lastToolIndex: Int?
+
+    // MARK: - Notification observers
 
     private var beganObserver: NSObjectProtocol?
     private var movedObserver: NSObjectProtocol?
     private var endedObserver: NSObjectProtocol?
 
+    // MARK: - Lifecycle
+
     private init() {
         installObservers()
     }
+
+    // MARK: - Observer installation
 
     private func installObservers() {
 
@@ -72,6 +95,8 @@ final class RadialMenuHaptics {
             queue: .main
         ) { [weak self] notification in
 
+            // Extract Sendable values before crossing
+            // the concurrency boundary.
             guard
                 let dx = notification.userInfo?["dx"] as? Double,
                 let dy = notification.userInfo?["dy"] as? Double
@@ -99,6 +124,13 @@ final class RadialMenuHaptics {
         }
     }
 
+    // MARK: - Observer removal
+
+    /// Removes NotificationCenter observers.
+    ///
+    /// This is deliberately an explicit lifecycle operation instead
+    /// of using `deinit`, because NSObjectProtocol is non-Sendable
+    /// under Swift 6 strict concurrency.
     func stop() {
 
         let center = NotificationCenter.default
@@ -121,10 +153,14 @@ final class RadialMenuHaptics {
         reset()
     }
 
+    // MARK: - Gesture state
+
     private func reset() {
         lastPanelIndex = nil
         lastToolIndex = nil
     }
+
+    // MARK: - Gesture processing
 
     private func handleMove(
         dx: Double,
@@ -166,6 +202,7 @@ final class RadialMenuHaptics {
             )
         }()
 
+        // Entered another panel.
         if panelIndex != lastPanelIndex {
             lastPanelIndex = panelIndex
             lastToolIndex = toolIndex
@@ -174,12 +211,15 @@ final class RadialMenuHaptics {
             return
         }
 
+        // Entered another tool inside the same panel.
         if toolIndex != lastToolIndex {
             lastToolIndex = toolIndex
 
             fire(.switchTool)
         }
     }
+
+    // MARK: - Haptic output
 
     private func perform(
         _ pattern: NSHapticFeedbackManager.FeedbackPattern
@@ -192,6 +232,8 @@ final class RadialMenuHaptics {
             )
     }
 }
+
+// MARK: - Bootstrap
 
 @MainActor
 private let mir4DRadialMenuHapticsBootstrap =

@@ -10,6 +10,8 @@
 namespace mir
 {
 
+/// Converts the canonical solved rectangle into a manufacturing profile.
+/// The profile contains the four ordered boundary edge IDs.
 struct SketchRectangleProfileBuilder
 {
     static SketchProfile build(
@@ -54,10 +56,14 @@ struct SketchRectangleProfileBuilder
         const double edge34 = std::hypot(x4 - x3, y4 - y3);
         const double edge41 = std::hypot(x1 - x4, y1 - y4);
 
+        // Shoelace formula. A zero area means a degenerate profile.
         profile.signedArea = 0.5 *
             (x1 * y2 + x2 * y3 + x3 * y4 + x4 * y1 -
              y1 * x2 - y2 * x3 - y3 * x4 - y4 * x1);
 
+        // P4 -> P1 is a boundary edge, so it must be vertical; P4 does NOT
+        // have to coincide with P1. Closure means the final edge connects back
+        // to P1, not that its endpoints are identical.
         const bool nonDegenerate =
             edge12 > tolerance && edge23 > tolerance &&
             edge34 > tolerance && edge41 > tolerance;
@@ -72,4 +78,4 @@ struct SketchRectangleProfileBuilder
     }
 };
 
-}
+} // namespace mir

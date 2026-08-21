@@ -11,6 +11,7 @@
 namespace mir
 {
 
+/// Minimal faceted boundary representation used by the current kernel.
 class Solid3
 {
 public:
@@ -73,4 +74,4 @@ private:
     std::vector<Triangle> triangles_;
 };
 
-}
+} // namespace mir

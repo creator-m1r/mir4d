@@ -154,4 +154,4 @@ private:
     std::vector<std::unique_ptr<ISketchCommand>> redoStack_;
 };
 
-}
+} // namespace mir

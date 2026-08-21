@@ -79,4 +79,4 @@ private:
     std::unordered_map<std::uint64_t, ProcessFlowPortState> portStates_;
 };
 
-}
+} // namespace mir

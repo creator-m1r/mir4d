@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Primary CAD structure panel.
+/// Keeps the model tree focused on the engineering task: find, select, and inspect.
 struct MIR4DStructurePanelView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject private var modelRuntime = MIR4DModelRuntime.shared

@@ -14,6 +14,9 @@
 namespace mir
 {
 
+/// Canonical runtime owner for one interactive viewport.
+/// It owns only presentation/interaction state and references the engineering Scene.
+/// Renderer remains responsible for GPU/backend work.
 class ViewportRuntime
 {
 public:
@@ -53,6 +56,14 @@ public:
     void zoom(Scalar delta) noexcept { state_.controller.zoom(delta); }
     void panBy(Scalar dx, Scalar dy) noexcept { state_.controller.panBy(dx, dy); }
     void orbitBy(Scalar dx, Scalar dy) noexcept { state_.controller.orbitBy(dx, dy); }
+
+    // ── Manipulation: Hover → Selection → Drag ─────────────────────────
+    //
+    // Left-button down on an already selected object arms a move-drag
+    // candidate; the camera stays locked until the drag threshold is crossed
+    // (a plain click keeps selection untouched and lets the UI run its own
+    // pick). Left-button down on empty space or an unselected object falls
+    // back to orbit. Middle/right buttons keep their pan behavior.
 
     void handleMouseDown(int button, Scalar x, Scalar y) noexcept
     {
@@ -113,6 +124,8 @@ public:
         (void)x;
         (void)y;
 
+        // A finished drag commits exactly one Move operation; a drag over N
+        // frames never produces N history entries.
         if (dragging_ && scene_ &&
             mir4d::isValidObjectId(dragCandidateId_))
         {
@@ -133,6 +146,8 @@ public:
         state_.controller.end();
     }
 
+    /// Aborts an active drag and restores the transform captured at drag start
+    /// (Esc during manipulation). No history entry is created.
     void cancelDrag() noexcept
     {
         if (!scene_ || !mir4d::isValidObjectId(dragCandidateId_))
@@ -152,6 +167,9 @@ public:
 
     [[nodiscard]] bool isDragging() const noexcept { return dragging_; }
 
+    /// Removes the primary selection from the scene through the command
+    /// history (undoable). MirEngine Scene is the single source of truth;
+    /// the renderer just observes the changed scene.
     bool deleteSelectedObject() noexcept
     {
         if (!scene_)
@@ -175,10 +193,13 @@ public:
         return true;
     }
 
+    /// Clears the selection set without touching the scene.
     void clearSelection() noexcept
     {
         state_.selection.clear();
     }
+
+    // ── Undo / Redo ─────────────────────────────────────────────────────
 
     bool undo() noexcept
     {
@@ -201,6 +222,15 @@ public:
     [[nodiscard]] bool canUndo() const noexcept { return history_.canUndo(); }
     [[nodiscard]] bool canRedo() const noexcept { return history_.canRedo(); }
 
+    // ── Sculpt stroke (undoable) ─────────────────────────────────────────
+    //
+    // A hand sculpt stroke produces many deform frames; they must collapse into
+    // exactly one undo entry. `beginDeformSelected` snapshots the selected mesh,
+    // `MirEngineDeformSelected` mutates it live (no history), and `endDeformSelected`
+    // commits a single `DeformObjectCommand` capturing before/after vertices.
+
+    /// Snapshots the primary-selected mesh so a subsequent stroke is undoable.
+    /// Safe to call when nothing is selected (no-op until `endDeformSelected`).
     void beginDeformSelected() noexcept
     {
         deformSnapshotId_ = mir4d::InvalidObjectId;
@@ -214,9 +244,10 @@ public:
         if (!node || !node->model() || !node->model()->hasMesh())
             return;
         deformSnapshotId_ = id;
-        deformSnapshot_ = node->model()->mesh().vertices;
+        deformSnapshot_ = node->model()->mesh().vertices; // copy
     }
 
+    /// Commits one undoable deform command for the active stroke (if changed).
     void endDeformSelected() noexcept
     {
         if (!scene_ || !mir4d::isValidObjectId(deformSnapshotId_))
@@ -261,6 +292,7 @@ public:
         state_.camera.setProjection(projection);
     }
 
+    /// Zoom anchored at the cursor pixel (industrial CAD zoom-to-cursor).
     void zoomAt(Scalar delta, Scalar x, Scalar y) noexcept
     {
         const PickRay ray = RayPicker::buildRay(
@@ -280,6 +312,8 @@ public:
         return state_.pick(*scene_, x, y);
     }
 
+    /// Recomputes the hovered object from the cursor position.
+    /// Hover is purely presentational: it never mutates selection.
     void updateHover(Scalar x, Scalar y) noexcept
     {
         if (!scene_)
@@ -302,33 +336,52 @@ public:
         return state_.hoveredObjectId;
     }
 
+    /// Highlights an object under the hand without changing the selection set.
+    /// Consumed by the renderer's hover pass exactly like cursor hover.
     void setHandHover(mir4d::ObjectId objectId) noexcept
     {
         state_.hoveredObjectId = objectId;
     }
 
+    /// Pushes the transient hand-skeleton overlay data for the current frame
+    /// (debug / assist sensor view). The renderer draws it without ever
+    /// mutating the scene, Document or command history.
     void setHandSkeleton(const MirEngine::Rendering::HandSkeletonRenderData& data) noexcept
     {
         m_handSkeletonData = data;
     }
 
+    /// Clears the hand-skeleton overlay (no hands tracked / mode off).
     void clearHandSkeleton() noexcept
     {
         m_handSkeletonData.clear();
     }
 
+    /// Forwards the hand-skeleton overlay style to the renderer (colours /
+    /// sizes / depth behaviour). Single source of truth is the configuration.
     void setHandSkeletonStyle(const MirEngine::Rendering::HandSkeletonStyle& style) noexcept
     {
         if (renderer_)
             renderer_->setHandSkeletonStyle(style);
     }
 
+    /// Forwards the hand-skeleton bone topology to the renderer.
     void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept
     {
         if (renderer_)
             renderer_->setHandSkeletonTopology(bones);
     }
 
+    // ── Hand Grab (Vertical Slice v0.1) ───────────────────────────────────
+    //
+    // Mirrors the mouse-drag contract (see handleMouse*/updateDrag): a grab
+    // captures the object's transform once, `previewHandGrab` mutates it live
+    // with NO history, and exactly one `MoveObjectCommand` is committed on
+    // release. State is kept separate from the mouse drag so the two input
+    // methods never interfere. A lost-tracking grace period is handled by the
+    // Swift controller, which calls `cancelHandGrab` on timeout.
+
+    /// Arms a grab on `objectId`, snapshots its transform and selects it.
     void beginHandGrab(mir4d::ObjectId objectId) noexcept
     {
         if (!scene_ || !mir4d::isValidObjectId(objectId))
@@ -342,6 +395,7 @@ public:
         state_.selection.select(objectId, false);
     }
 
+    /// Live preview of the grabbed object's transform. Never touches history.
     void previewHandGrab(const Transform& transform) noexcept
     {
         if (!scene_ || !mir4d::isValidObjectId(handGrabId_))
@@ -350,6 +404,7 @@ public:
             node->setTransform(transform);
     }
 
+    /// Commits exactly one `MoveObjectCommand(initial, final)` for the grab.
     void commitHandGrab() noexcept
     {
         if (scene_ && mir4d::isValidObjectId(handGrabId_))
@@ -364,6 +419,7 @@ public:
         resetHandGrab();
     }
 
+    /// Cancels the active grab and restores the snapshot transform (no history).
     void cancelHandGrab() noexcept
     {
         if (scene_ && mir4d::isValidObjectId(handGrabId_))
@@ -379,6 +435,7 @@ public:
         return mir4d::isValidObjectId(handGrabId_);
     }
 
+    /// Current world transform of an object (seed for preview deltas).
     [[nodiscard]] Transform objectTransform(mir4d::ObjectId objectId) const noexcept
     {
         if (scene_)
@@ -387,6 +444,7 @@ public:
         return Transform::identity();
     }
 
+    /// Picks against an explicit world-space ray (hand tracking input).
     [[nodiscard]] PickResult pickWorldRay(
         const Point3& origin, const Vector3& direction) const noexcept
     {
@@ -395,6 +453,7 @@ public:
         return RayPicker::pick(*scene_, PickRay{origin, direction});
     }
 
+    /// Assigns a MaterialLibrary material id to an object.
     void setObjectMaterial(mir4d::ObjectId objectId,
                            MirEngine::Rendering::MaterialId materialId) noexcept
     {
@@ -423,9 +482,10 @@ public:
         return true;
     }
 
-    void update(double ) noexcept
+    void update(double /*deltaTime*/) noexcept
     {
-
+        // Camera controller is immediate-input driven.
+        // This hook remains the canonical frame update boundary for future inertia.
     }
 
     void render()
@@ -440,6 +500,9 @@ public:
             ? static_cast<float>(state_.width) / static_cast<float>(state_.height)
             : 1.0f;
 
+        // Dynamic clipping: near/far planes follow the scene bounds and the
+        // camera distance, so 1 mm parts and 10 km assemblies both render
+        // without fixed-range clipping (MIR4D_RENDERING_VISUALIZATION spec).
         double minX = 0.0, minY = 0.0, minZ = 0.0;
         double maxX = 0.0, maxY = 0.0, maxZ = 0.0;
         bool hasBounds = false;
@@ -502,6 +565,8 @@ public:
         const double dzc = sceneCenter.z - cameraPosition.z;
         const double distanceToScene = std::sqrt(dxc * dxc + dyc * dyc + dzc * dzc);
 
+        // Far: distance + radius + adaptive margin; near: small, but never a
+        // degenerate epsilon (avoids z-fighting, keeps 1 mm details visible).
         const double farPlane = distanceToScene + sceneRadius +
                                 std::max(sceneRadius * 0.5, distanceToScene * 0.1) + 1.0;
         const double nearPlane = std::clamp(distanceToScene * 0.0008, 0.0005, 5.0);
@@ -511,6 +576,9 @@ public:
             ? Scalar(context.aspectRatio)
             : Scalar(1.0);
 
+        // Keep the active projection mode: perspective updates the FOV-based
+        // matrix, orthographic only refreshes clip planes and aspect (extents
+        // are derived from the orbit distance inside the camera).
         state_.camera.setAspect(aspect);
         state_.camera.setNearFar(nearPlane, farPlane);
         if (state_.camera.projection() == CameraProjection::Perspective)
@@ -529,6 +597,9 @@ public:
                                   static_cast<float>(position.y),
                                   static_cast<float>(position.z));
 
+        // Selection highlight set for the geometry pass. When the primary
+        // selection carries a source face id, only that face is highlighted
+        // instead of the whole object.
         if (state_.selection.faceId() != 0)
         {
             context.setSelectionFace(static_cast<std::uint64_t>(state_.selection.primary()),
@@ -541,6 +612,8 @@ public:
 
         context.setHover(static_cast<std::uint64_t>(state_.hoveredObjectId));
 
+        // Hand-skeleton overlay is a transient sensor view; copy it into the
+        // per-frame context for the renderer's HandSkeletonPass.
         context.setHandSkeleton(m_handSkeletonData);
 
         renderer_->render(*scene_, context);
@@ -556,6 +629,8 @@ private:
         return result;
     }
 
+    /// Projects the cursor ray onto the horizontal work plane (Z = planeZ)
+    /// used by the active drag. The ground plane is XY for the Z-up camera.
     [[nodiscard]] static bool rayPlaneIntersection(const PickRay& ray,
                                                    Scalar planeZ,
                                                    Point3& hit) noexcept
@@ -572,6 +647,9 @@ private:
         return true;
     }
 
+    /// Moves the drag candidate on the work plane. The delta is computed
+    /// against the drag-start ray projection, so errors never accumulate
+    /// frame over frame: current transform = dragStartTransform + delta.
     void updateDrag(Scalar x, Scalar y) noexcept
     {
         if (!scene_)
@@ -617,12 +695,16 @@ private:
     MirEngine::Rendering::HandSkeletonRenderData m_handSkeletonData{};
     mir4d::SceneCommandHistory history_{};
 
+    // Move-manipulation state. dragStartTransform_ keeps the transform
+    // captured when the drag was armed, so Esc restores it exactly.
     mir4d::ObjectId dragCandidateId_{mir4d::InvalidObjectId};
     Scalar dragStartX_{0};
     Scalar dragStartY_{0};
     Transform dragStartTransform_{Transform::identity()};
     bool dragging_{false};
 
+    // Hand-grab state (Vertical Slice v0.1). Independent from the mouse drag
+    // so simultaneous inputs do not corrupt each other's snapshot.
     mir4d::ObjectId handGrabId_{mir4d::InvalidObjectId};
     Transform handGrabStartTransform_{Transform::identity()};
 
@@ -632,8 +714,9 @@ private:
         handGrabStartTransform_ = Transform::identity();
     }
 
+    // Sculpt-stroke snapshot (before-state for a single undoable DeformObjectCommand).
     mir4d::ObjectId deformSnapshotId_{mir4d::InvalidObjectId};
     std::vector<mir::Point3> deformSnapshot_{};
 };
 
-}
+} // namespace mir

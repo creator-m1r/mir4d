@@ -1,11 +1,20 @@
 import Foundation
 
+/// Контроллер эскиза: единственная точка вызова универсального решателя
+/// ограничений MirEngine из SwiftUI. Зеркален WorkPlaneController.
+///
+/// ТЗ Этап 2: профессиональный эскиз. Эскиз строится как набор примитивов
+/// плюс ограничения и решается ядром MirEngine (SketchDocumentSolver),
+/// без дублирования геометрии в Swift.
 @MainActor
 final class SketchController {
     static let shared = SketchController()
 
     private init() {}
 
+    /// Строит прямоугольник заданного размера через универсальный решатель
+    /// ограничений и возвращает 4 угла в локальных координатах плоскости
+    /// (порядок: левый-низ, правый-низ, правый-верх, левый-верх).
     func createSolvedRectangle(width: Float, height: Float) -> [CGPoint]? {
         guard let doc = MirEngineSketchCreateDocument() else { return nil }
         defer { MirEngineSketchDestroyDocument(doc) }
@@ -13,10 +22,10 @@ final class SketchController {
         let w = width
         let h = height
 
-        let l1 = MirEngineSketchAddLine(doc, 0, 0, w, 0)
-        let l2 = MirEngineSketchAddLine(doc, w, 0, w, h)
-        let l3 = MirEngineSketchAddLine(doc, w, h, 0, h)
-        let l4 = MirEngineSketchAddLine(doc, 0, h, 0, 0)
+        let l1 = MirEngineSketchAddLine(doc, 0, 0, w, 0) // низ
+        let l2 = MirEngineSketchAddLine(doc, w, 0, w, h) // право
+        let l3 = MirEngineSketchAddLine(doc, w, h, 0, h) // верх
+        let l4 = MirEngineSketchAddLine(doc, 0, h, 0, 0) // лево
 
         let c = MirEngineSketchConstraint.self
         _ = MirEngineSketchAddConstraint(doc, Int32(c.horizontal.rawValue), l1, 0, 0)
@@ -44,6 +53,7 @@ final class SketchController {
         guard let a = readLine(l1), let b = readLine(l2),
               let cc = readLine(l3), readLine(l4) != nil else { return nil }
 
+        // Углы: BL, BR, TR, TL
         return [a.0, a.1, b.1, cc.1]
     }
 }

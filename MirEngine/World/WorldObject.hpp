@@ -40,4 +40,4 @@ private:
     WorldMaterialDescriptor material_{};
 };
 
-}
+} // namespace mir

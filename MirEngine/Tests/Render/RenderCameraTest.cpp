@@ -16,7 +16,7 @@ bool finiteMatrix(const mir::Matrix4& matrix)
     return true;
 }
 
-}
+} // namespace
 
 int main()
 {
@@ -32,13 +32,16 @@ int main()
     assert(finiteMatrix(camera.viewMatrix()));
     assert(finiteMatrix(camera.projectionMatrix()));
 
+    // Distance is clamped to a positive value.
     camera.setOrbit(0.4, 0.3, -1.0);
     assert(camera.distance() > 0.0);
 
+    // Pitch is clamped away from the poles (max = pi - 1e-5).
     camera.setOrbit(0.4, 100.0, 8.0);
     assert(camera.phi() < 3.1416);
     assert(camera.phi() > 0.0);
 
+    // Orthographic projection produces a finite matrix too.
     camera.setProjection(mir::CameraProjection::Orthographic);
     assert(finiteMatrix(camera.projectionMatrix()));
 

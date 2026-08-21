@@ -1,3 +1,10 @@
+// MirEngine/Math/Numeric/Sparse.hpp
+// 🧮 Разреженные матрицы в формате CSR и операции с ними.
+//
+// Формат CSR (Compressed Sparse Row): rowPtr, colIdx, values. Построение из
+// списка триплетов (со сложением повторов), умножение матрица–вектор.
+//
+// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -9,6 +16,7 @@
 namespace mir::math
 {
 
+/// Элемент разреженной матрицы (строка, столбец, значение).
 struct Triplet
 {
     std::size_t row;
@@ -16,15 +24,17 @@ struct Triplet
     Scalar value;
 };
 
+/// Разреженная матрица в формате CSR.
 struct SparseMatrixCSR
 {
     std::size_t rows = 0;
     std::size_t cols = 0;
-    std::vector<std::size_t> rowPtr;
-    std::vector<std::size_t> colIdx;
-    std::vector<Scalar> values;
+    std::vector<std::size_t> rowPtr; // размер rows + 1
+    std::vector<std::size_t> colIdx; // размер nnz
+    std::vector<Scalar> values;      // размер nnz
 };
 
+/// Построение CSR из триплетов (повторяющиеся позиции складываются).
 [[nodiscard]] inline SparseMatrixCSR buildSparse(
     std::size_t rows,
     std::size_t cols,
@@ -67,6 +77,7 @@ struct SparseMatrixCSR
     return M;
 }
 
+/// Преобразование плотной матрицы в разреженную CSR (пропускаются нули).
 [[nodiscard]] inline SparseMatrixCSR toSparse(const MatrixN& A)
 {
     std::vector<Triplet> t;
@@ -77,6 +88,7 @@ struct SparseMatrixCSR
     return buildSparse(A.size(), A.empty() ? 0 : A.front().size(), std::move(t));
 }
 
+/// Умножение разреженной матрицы на вектор: y = A·x.
 [[nodiscard]] inline VectorN spmv(const SparseMatrixCSR& M, const VectorN& x)
 {
     VectorN y(M.rows, Scalar(0));
@@ -90,4 +102,4 @@ struct SparseMatrixCSR
     return y;
 }
 
-}
+} // namespace mir::math

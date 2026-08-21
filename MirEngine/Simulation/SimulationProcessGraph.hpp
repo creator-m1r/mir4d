@@ -143,4 +143,4 @@ private:
     std::unordered_map<ProcessConnectionId, ProcessConnection> connections_{};
 };
 
-}
+} // namespace mir

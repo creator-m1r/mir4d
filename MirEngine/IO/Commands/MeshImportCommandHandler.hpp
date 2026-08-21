@@ -24,4 +24,4 @@ private:
     ImportService service_;
 };
 
-}
+} // namespace mir::io

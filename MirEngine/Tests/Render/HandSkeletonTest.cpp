@@ -1,4 +1,11 @@
-
+// MirEngine/Tests/Render/HandSkeletonTest.cpp
+// Hand-skeleton visualization — data-path verification.
+//
+// The skeleton is a transient sensor view: it must reach the per-frame
+// RenderContext (so HandSkeletonPass can draw it) WITHOUT touching the CAD
+// scene or command history. This test drives the path
+// ViewportRuntime::setHandSkeleton -> render() -> RenderContext.handSkeleton
+// and back, plus the static bone topology from the specification.
 #include "MirEngine/Geometry/Model/Model.hpp"
 #include "MirEngine/Geometry/Scene/Scene.hpp"
 #include "MirEngine/Geometry/Tessellation/TriangleMesh.hpp"
@@ -25,6 +32,8 @@ mir::TriangleMesh3 makeBox()
     return mesh;
 }
 
+// Renderer that records the hand-skeleton data the runtime pushed into the
+// per-frame context (stands in for HandSkeletonPass without a GL context).
 struct CaptureRenderer final : public MirEngine::Rendering::Renderer
 {
     MirEngine::Rendering::HandSkeletonRenderData captured{};
@@ -35,7 +44,7 @@ struct CaptureRenderer final : public MirEngine::Rendering::Renderer
     }
     void resize(std::uint32_t, std::uint32_t) override {}
 };
-}
+} // namespace
 
 int main()
 {
@@ -49,9 +58,10 @@ int main()
     mir::ViewportRuntime viewport(&renderer);
     viewport.setScene(&scene);
 
+    // Build a single-hand skeleton in LandmarkID.allCases order (21 joints).
     constexpr int kJointCount = 21;
     MirEngine::Rendering::HandSkeletonRenderData data{};
-    data.mode = 2;
+    data.mode = 2; // bones
     data.handCount = 1;
     for (int j = 0; j < kJointCount; ++j)
     {
@@ -60,7 +70,7 @@ int main()
         data.positions[0][j * 3 + 2] = 0.0f;
         data.confidence[0][j] = 1.0f;
     }
-    data.handedness[0] = 1;
+    data.handedness[0] = 1; // right
     data.pinch[0] = 0.8f;
 
     viewport.setHandSkeleton(data);
@@ -72,6 +82,7 @@ int main()
     assert(renderer.captured.positions[0][0] == 0.0f);
     assert(renderer.captured.positions[0][20 * 3] == 20.0f);
 
+    // Clearing the overlay disables drawing for the frame (zero cost).
     viewport.clearHandSkeleton();
     viewport.render();
     assert(renderer.captured.handCount == 0);

@@ -1,3 +1,6 @@
+// MirEngine/Sketch/SketchDocumentSolver.hpp
+//
+// Universal sketch constraint solver for MIR 4D.
 
 #pragma once
 
@@ -205,6 +208,9 @@ private:
         std::vector<SketchEquation> out;
         std::uint32_t eid = con.id * 16;
 
+        // Defensive: never let a constraint referencing a geometry that is not
+        // part of the solver binding (e.g. a spline, or a stale/removed id)
+        // throw std::out_of_range across the C ABI. Skip such equations.
         if (binding.base.find(con.firstGeometry) == binding.base.end())
             return out;
         if (con.secondGeometry != 0 &&
@@ -462,4 +468,4 @@ private:
     }
 };
 
-}
+} // namespace mir

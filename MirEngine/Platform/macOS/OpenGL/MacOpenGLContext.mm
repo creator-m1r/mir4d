@@ -49,7 +49,8 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
     NSOpenGLPixelFormat* format =
         [[NSOpenGLPixelFormat alloc] initWithAttributes:attrs];
     if (!format) {
-
+        // Some GPUs / virtual machines do not offer MSAA 4x. Fall back to a
+        // plain core-profile format so the viewport still works.
         NSOpenGLPixelFormatAttribute basicAttrs[] = {
             NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core,
             NSOpenGLPFAColorSize,     24,
@@ -70,6 +71,9 @@ bool MacOpenGLContext::initialize(Rendering::NativeWindowHandle window,
 
     if (!m_impl->context) return false;
 
+    // OpenGL is deprecated on macOS 10.14+, but remains the active renderer
+    // backend of MirEngine (Metal is a future backend). Suppress the
+    // deprecation diagnostics for the intentional legacy API usage below.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     setView(window);
@@ -103,7 +107,8 @@ void MacOpenGLContext::setView(Rendering::NativeWindowHandle window) {
         [m_impl->context setView:m_impl->view];
         [m_impl->context update];
     } else {
-
+        // Отвязываем контекст от уничтоженного view (remount NSView),
+        // не уничтожая сам контекст — он переиспользуется при следующем mount.
         [m_impl->context clearDrawable];
     }
 #pragma clang diagnostic pop
@@ -127,6 +132,6 @@ Rendering::Size2D MacOpenGLContext::size() const {
     return m_impl->size;
 }
 
-}
-}
-}
+} // namespace macOS
+} // namespace Platform
+} // namespace MirEngine

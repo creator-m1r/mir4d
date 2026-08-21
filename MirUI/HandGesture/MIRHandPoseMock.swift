@@ -1,7 +1,13 @@
 import Foundation
 import simd
 
+/// Synthetic hand poses for tests and the camera-less Spatial Menu mode.
+///
+/// Poses are generated geometrically so the classifier produces deterministic,
+/// expected gestures. This lets the whole pipeline (recognition → intent →
+/// Spatial Menu) be exercised without any camera hardware.
 enum MIRHandPoseMock {
+    // MARK: - Geometry helpers
 
     private static func landmark(_ id: LandmarkID, _ p: SIMD3<Double>) -> MIRHandLandmark {
         MIRHandLandmark(id: id, normalizedPosition: p, confidence: 0.95)
@@ -12,6 +18,7 @@ enum MIRHandPoseMock {
         return SIMD3(v.x * c - v.y * s, v.x * s + v.y * c, 0)
     }
 
+    /// Build the four joints of a finger along a bent polyline.
     private static func fingerLandmarks(finger: MIRFinger, mcp: SIMD3<Double>, up: SIMD3<Double>, curl: Double) -> [MIRHandLandmark] {
         let s1 = 0.05, s2 = 0.05, s3 = 0.05
         let u = simd_normalize(up)
@@ -29,6 +36,7 @@ enum MIRHandPoseMock {
         ]
     }
 
+    /// Build a full pose from per-finger curl values and a pinch strength.
     static func pose(
         handedness: Handedness = .right,
         curls: [MIRFinger: Double],
@@ -76,6 +84,8 @@ enum MIRHandPoseMock {
         )
     }
 
+    // MARK: - Named gestures
+
     static func mockPoint(handedness: Handedness = .right) -> MIRHandPose {
         pose(handedness: handedness, curls: [.index: 0.1, .middle: 0.8, .ring: 0.8, .little: 0.8, .thumb: 0.1])
     }
@@ -112,6 +122,9 @@ enum MIRHandPoseMock {
         pose(handedness: handedness, curls: [.index: 0.5, .middle: 0.5, .ring: 0.5, .little: 0.5, .thumb: 0.5])
     }
 
+    // MARK: - Two-hand
+
+    /// Build an open-palm pose whose palm sits at the given normalised position.
     static func openPalmAt(center: SIMD3<Double>, handedness: Handedness) -> MIRHandPose {
         let base = mockOpenPalm(handedness: handedness)
         let delta = center - base.palmPosition
@@ -129,6 +142,7 @@ enum MIRHandPoseMock {
         )
     }
 
+    /// Frames simulating a two-hand scale gesture (hands moving apart then together).
     static func mockTwoHandScale() -> [[MIRHandPose]] {
         let distances = [0.10, 0.14, 0.18, 0.14, 0.10]
         return distances.map { d in

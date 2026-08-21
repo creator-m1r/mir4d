@@ -77,6 +77,13 @@ const char* errorMessage(NativeViewport* native) noexcept
 
 }
 
+
+// ============================================================
+// C ABI
+// ============================================================
+
+// Transform (C ABI ↔ mir4d::Transform) helpers. Defined as file-static C++
+// functions so they never inherit the C linkage of the export stubs below.
 static MirTransform toMirTransform(const mir4d::Transform& t) noexcept
 {
     MirTransform m{};
@@ -105,6 +112,10 @@ static mir4d::Transform fromMirTransform(const MirTransform& m) noexcept
 extern "C"
 {
 
+// ------------------------------------------------------------
+// OpenGL
+// ------------------------------------------------------------
+
 void* MirEngineCreateMacOpenGLContext(
     void* view,
     MirEngineSize2D size
@@ -129,6 +140,7 @@ void* MirEngineCreateMacOpenGLContext(
     return context;
 }
 
+
 void MirEngineDestroyOpenGLContext(void* context)
 {
     if (!context)
@@ -137,6 +149,7 @@ void MirEngineDestroyOpenGLContext(void* context)
     delete static_cast<OpenGLContext*>(context);
 }
 
+
 void MirEngineSetOpenGLContextView(void* context, void* view)
 {
     if (!context)
@@ -144,6 +157,11 @@ void MirEngineSetOpenGLContextView(void* context, void* view)
 
     static_cast<OpenGLContext*>(context)->setView(view);
 }
+
+
+// ------------------------------------------------------------
+// Renderer
+// ------------------------------------------------------------
 
 void* MirEngineCreateOpenGLRenderer(void* context)
 {
@@ -155,6 +173,7 @@ void* MirEngineCreateOpenGLRenderer(void* context)
     );
 }
 
+
 bool MirEngineInitializeRenderer(void* renderer)
 {
     if (!renderer)
@@ -165,6 +184,7 @@ bool MirEngineInitializeRenderer(void* renderer)
     )->initialize();
 }
 
+
 void MirEngineDestroyRenderer(void* renderer)
 {
     if (!renderer)
@@ -172,6 +192,11 @@ void MirEngineDestroyRenderer(void* renderer)
 
     delete static_cast<OpenGLRenderer*>(renderer);
 }
+
+
+// ------------------------------------------------------------
+// Work planes (ТЗ Этап 1)
+// ------------------------------------------------------------
 
 void MirEngineSetPlanes(void* renderer,
                         int count,
@@ -230,6 +255,11 @@ void MirEngineSetCursor(void* renderer, float ndcX, float ndcY, bool active)
     native->setCursor(ndcX, ndcY, active);
 }
 
+
+// ------------------------------------------------------------
+// Sketch overlay (ТЗ Этап 2)
+// ------------------------------------------------------------
+
 void MirEngineSetSketch(void* renderer,
                         int segmentCount,
                         const float* ax,
@@ -269,6 +299,11 @@ void MirEngineSetSketch(void* renderer,
     native->setSketch(data);
 }
 
+
+// ------------------------------------------------------------
+// Work plane store (ТЗ Этап 1)
+// ------------------------------------------------------------
+
 #include "../Planes/PlaneStore.hpp"
 #include "../Planes/PlaneFactory.hpp"
 
@@ -277,17 +312,18 @@ namespace
     void fillPlaneColors(const mir::Plane& plane,
                          float color[3])
     {
-
+        // Промышленная палитра: плоскость окрашена по оси своей нормали
+        // (X=красный, Y=зелёный, Z=синий), приглушённые тона.
         switch (plane.type())
         {
             case mir::PlaneType::BaseXY:
-                color[0] = 0.18f; color[1] = 0.40f; color[2] = 0.80f; break;
+                color[0] = 0.18f; color[1] = 0.40f; color[2] = 0.80f; break; // нормаль Z — синий
             case mir::PlaneType::BaseXZ:
-                color[0] = 0.22f; color[1] = 0.62f; color[2] = 0.38f; break;
+                color[0] = 0.22f; color[1] = 0.62f; color[2] = 0.38f; break; // нормаль Y — зелёный
             case mir::PlaneType::BaseYZ:
-                color[0] = 0.78f; color[1] = 0.30f; color[2] = 0.26f; break;
+                color[0] = 0.78f; color[1] = 0.30f; color[2] = 0.26f; break; // нормаль X — красный
             default:
-                color[0] = 0.55f; color[1] = 0.58f; color[2] = 0.66f; break;
+                color[0] = 0.55f; color[1] = 0.58f; color[2] = 0.66f; break; // пользовательские — серый
         }
     }
 }
@@ -375,6 +411,11 @@ int MirEnginePlaneStoreSnapshot(void* store,
     return count;
 }
 
+
+// ------------------------------------------------------------
+// Viewport
+// ------------------------------------------------------------
+
 void* MirEngineCreateViewport(
     void* renderer,
     uint32_t width,
@@ -444,10 +485,12 @@ auto native =
     return native.release();
 }
 
+
 void MirEngineDestroyViewport(void* viewport)
 {
     delete asViewport(viewport);
 }
+
 
 void MirEngineResize(
     void* viewport,
@@ -467,6 +510,7 @@ void MirEngineResize(
     );
 }
 
+
 void MirEngineRender(void* viewport)
 {
     auto* native =
@@ -478,6 +522,11 @@ void MirEngineRender(void* viewport)
     native->runtime->update(0.0);
     native->runtime->render();
 }
+
+
+// ------------------------------------------------------------
+// Camera
+// ------------------------------------------------------------
 
 void MirEngineGetCameraOrientation(
     void* viewport,
@@ -505,6 +554,7 @@ void MirEngineGetCameraOrientation(
         *distance = static_cast<float>(camera.distance());
 }
 
+
 void MirEngineSetCameraOrientation(
     void* viewport,
     float theta,
@@ -528,6 +578,7 @@ void MirEngineSetCameraOrientation(
     );
 }
 
+
 void MirEngineSetCameraProjection(
     void* viewport,
     int projection
@@ -546,6 +597,7 @@ void MirEngineSetCameraProjection(
     );
 }
 
+
 int MirEngineGetCameraProjection(void* viewport)
 {
     auto* native =
@@ -559,6 +611,7 @@ int MirEngineGetCameraProjection(void* viewport)
         ? 1
         : 0;
 }
+
 
 void MirEngineSetCameraFov(
     void* viewport,
@@ -576,11 +629,20 @@ void MirEngineSetCameraFov(
     );
 }
 
+
+// ------------------------------------------------------------
+// Camera presets (navigation sphere)
+// ------------------------------------------------------------
+
 namespace
 {
 constexpr double kPresetPhi = 1.1;
 constexpr double kPresetDistance = 12.0;
 
+// Resolves a camera preset into an orbit (theta, phi, distance).
+// Single source of truth for presets: used both by
+// MirEngineSetActiveCameraPreset and MirEngineGetCameraPresetOrientation
+// (the latter feeds the animated transitions of the navigation sphere).
 bool resolveCameraPreset(
     int preset,
     double& theta,
@@ -595,9 +657,12 @@ bool resolveCameraPreset(
     constexpr double kThetaRight = kPi * 0.5;
     constexpr double kThetaIsometric = kPi * 0.25;
 
-    constexpr double kPhiCornerUp = 0.95531661812450927816;
-    constexpr double kPhiCornerDown = 2.18627603546528397433;
-    constexpr double kPhiEdgeUp = kPi * 0.25;
+    // Diagonal directions of the navigation cube (edges and corners).
+    // Direction (x, y, z): x right, y up, z forward.
+    // theta = atan2(x, z); phi = acos(y / |v|).
+    constexpr double kPhiCornerUp = 0.95531661812450927816;    // acos(1/sqrt(3))
+    constexpr double kPhiCornerDown = 2.18627603546528397433;  // pi - acos(1/sqrt(3))
+    constexpr double kPhiEdgeUp = kPi * 0.25;                  // acos(1/sqrt(2))
     constexpr double kPhiEdgeDown = kPi * 0.75;
     constexpr double kTheta45 = kPi * 0.25;
     constexpr double kTheta135 = kPi * 0.75;
@@ -610,7 +675,7 @@ bool resolveCameraPreset(
 
     switch (preset)
     {
-
+    // Faces (standard views)
     case 0: theta = kThetaFront;      phi = kPresetPhi; break;
     case 1: theta = kThetaBack;       phi = kPresetPhi; break;
     case 2: theta = kThetaLeft;       phi = kPresetPhi; break;
@@ -619,35 +684,38 @@ bool resolveCameraPreset(
     case 5: theta = kThetaFront;      phi = kPi - 1e-4; break;
     case 6: theta = kThetaIsometric;  phi = 0.61547970867038739117; break;
 
-    case 7:  theta = kThetaM45; phi = kPhiCornerUp;   break;
-    case 8:  theta = kTheta45;  phi = kPhiCornerUp;   break;
-    case 9:  theta = kThetaM135; phi = kPhiCornerUp;  break;
-    case 10: theta = kTheta135; phi = kPhiCornerUp;   break;
-    case 11: theta = kThetaM45; phi = kPhiCornerDown; break;
-    case 12: theta = kTheta45;  phi = kPhiCornerDown; break;
-    case 13: theta = kThetaM135; phi = kPhiCornerDown; break;
-    case 14: theta = kTheta135; phi = kPhiCornerDown; break;
+    // Corners
+    case 7:  theta = kThetaM45; phi = kPhiCornerUp;   break; // top-front-left
+    case 8:  theta = kTheta45;  phi = kPhiCornerUp;   break; // top-front-right
+    case 9:  theta = kThetaM135; phi = kPhiCornerUp;  break; // top-back-left
+    case 10: theta = kTheta135; phi = kPhiCornerUp;   break; // top-back-right
+    case 11: theta = kThetaM45; phi = kPhiCornerDown; break; // bottom-front-left
+    case 12: theta = kTheta45;  phi = kPhiCornerDown; break; // bottom-front-right
+    case 13: theta = kThetaM135; phi = kPhiCornerDown; break; // bottom-back-left
+    case 14: theta = kTheta135; phi = kPhiCornerDown; break; // bottom-back-right
 
-    case 15: theta = kThetaM45; phi = kPresetPhi; break;
-    case 16: theta = kTheta45;  phi = kPresetPhi; break;
-    case 17: theta = kThetaM135; phi = kPresetPhi; break;
-    case 18: theta = kTheta135; phi = kPresetPhi; break;
+    // Horizontal edges (diagonal side views)
+    case 15: theta = kThetaM45; phi = kPresetPhi; break; // front-left
+    case 16: theta = kTheta45;  phi = kPresetPhi; break; // front-right
+    case 17: theta = kThetaM135; phi = kPresetPhi; break; // back-left
+    case 18: theta = kTheta135; phi = kPresetPhi; break; // back-right
 
-    case 19: theta = kThetaFront;  phi = kPhiEdgeUp;   break;
-    case 20: theta = kThetaBack;   phi = kPhiEdgeUp;   break;
-    case 21: theta = kThetaLeft;   phi = kPhiEdgeUp;   break;
-    case 22: theta = kThetaRight;  phi = kPhiEdgeUp;   break;
-    case 23: theta = kThetaFront;  phi = kPhiEdgeDown; break;
-    case 24: theta = kThetaBack;   phi = kPhiEdgeDown; break;
-    case 25: theta = kThetaLeft;   phi = kPhiEdgeDown; break;
-    case 26: theta = kThetaRight;  phi = kPhiEdgeDown; break;
+    // Vertical edges
+    case 19: theta = kThetaFront;  phi = kPhiEdgeUp;   break; // top-front
+    case 20: theta = kThetaBack;   phi = kPhiEdgeUp;   break; // top-back
+    case 21: theta = kThetaLeft;   phi = kPhiEdgeUp;   break; // top-left
+    case 22: theta = kThetaRight;  phi = kPhiEdgeUp;   break; // top-right
+    case 23: theta = kThetaFront;  phi = kPhiEdgeDown; break; // bottom-front
+    case 24: theta = kThetaBack;   phi = kPhiEdgeDown; break; // bottom-back
+    case 25: theta = kThetaLeft;   phi = kPhiEdgeDown; break; // bottom-left
+    case 26: theta = kThetaRight;  phi = kPhiEdgeDown; break; // bottom-right
 
     default: return false;
     }
 
     return true;
 }
-}
+} // namespace
 
 void MirEngineSetActiveCameraPreset(
     void* viewport,
@@ -677,6 +745,8 @@ void MirEngineSetActiveCameraPreset(
     );
 }
 
+// Returns the orbit angles of a preset without touching the viewport.
+// Used by the navigation sphere to animate camera transitions.
 void MirEngineGetCameraPresetOrientation(
     int preset,
     float* theta,
@@ -700,6 +770,11 @@ void MirEngineGetCameraPresetOrientation(
     if (distance)
         *distance = static_cast<float>(distanceOut);
 }
+
+
+// ------------------------------------------------------------
+// Fit All
+// ------------------------------------------------------------
 
 void MirEngineFitViewport(void* viewport)
 {
@@ -771,7 +846,8 @@ void MirEngineFitViewport(void* viewport)
     mir::Scalar distance;
     if (camera.projection() == mir::CameraProjection::Orthographic)
     {
-
+        // In orthographic mode the visible half-height equals the distance,
+        // so fit the whole extent with a 35% margin.
         distance = extent * mir::Scalar(0.5) * mir::Scalar(1.35);
     }
     else
@@ -790,6 +866,11 @@ void MirEngineFitViewport(void* viewport)
     );
 }
 
+
+// ------------------------------------------------------------
+// Navigation
+// ------------------------------------------------------------
+
 void MirEngineViewportMouseDown(
     void* viewport,
     int button,
@@ -805,6 +886,7 @@ void MirEngineViewportMouseDown(
 
     native->runtime->handleMouseDown(button, x, y);
 }
+
 
 void MirEngineViewportMouseUp(
     void* viewport,
@@ -822,6 +904,7 @@ void MirEngineViewportMouseUp(
     native->runtime->handleMouseUp(button, x, y);
 }
 
+
 void MirEngineViewportMouseMove(
     void* viewport,
     float x,
@@ -837,6 +920,7 @@ void MirEngineViewportMouseMove(
     native->runtime->handleMouseMove(x, y);
 }
 
+
 void MirEngineViewportScroll(
     void* viewport,
     float delta
@@ -850,6 +934,7 @@ void MirEngineViewportScroll(
 
     native->runtime->zoom(delta);
 }
+
 
 void MirEngineViewportZoomAt(
     void* viewport,
@@ -867,6 +952,7 @@ void MirEngineViewportZoomAt(
     native->runtime->zoomAt(delta, x, y);
 }
 
+
 void MirEngineViewportPan(
     void* viewport,
     float dx,
@@ -882,6 +968,7 @@ void MirEngineViewportPan(
     native->runtime->panBy(dx, dy);
 }
 
+
 void MirEngineViewportOrbit(
     void* viewport,
     float dx,
@@ -896,6 +983,7 @@ void MirEngineViewportOrbit(
 
     native->runtime->orbitBy(dx, dy);
 }
+
 
 void MirEngineViewportClick(
     void* viewport,
@@ -917,6 +1005,7 @@ void MirEngineViewportClick(
     );
 }
 
+
 void MirEngineViewportHover(
     void* viewport,
     float x,
@@ -932,6 +1021,7 @@ void MirEngineViewportHover(
     native->runtime->updateHover(x, y);
 }
 
+
 void MirEngineViewportHoverClear(
     void* viewport
 )
@@ -944,6 +1034,11 @@ void MirEngineViewportHoverClear(
 
     native->runtime->clearHover();
 }
+
+
+// ------------------------------------------------------------
+// Selection
+// ------------------------------------------------------------
 
 uint64_t MirEngineGetSelectedObjectId(
     void* viewport
@@ -959,6 +1054,7 @@ uint64_t MirEngineGetSelectedObjectId(
         native->runtime->state().selection.primary()
     );
 }
+
 
 bool MirEngineDeformSelected(
     void* viewport,
@@ -988,11 +1084,11 @@ bool MirEngineDeformSelected(
     const bool smooth = (mode == 2);
     int sign = 1;
     if (mode == 1 || mode == 5 || mode == 6)
-        sign = -1;
+        sign = -1; // pull, pinch, cut
 
     if (smooth)
     {
-
+        // One Laplacian relaxation pass over vertices inside the brush.
         std::vector<mir::Vector3> offsets(mesh.vertices.size(), mir::Vector3(0, 0, 0));
         std::vector<int> counts(mesh.vertices.size(), 0);
         for (const auto& t : mesh.triangles)
@@ -1041,6 +1137,7 @@ bool MirEngineDeformSelected(
         }
     }
 
+    // Recompute smooth vertex normals from the deformed triangles.
     if (mesh.normals.size() != mesh.vertices.size())
         mesh.normals.resize(mesh.vertices.size());
     std::vector<mir::Vector3> acc(mesh.vertices.size(), mir::Vector3(0, 0, 0));
@@ -1063,6 +1160,8 @@ bool MirEngineDeformSelected(
     return true;
 }
 
+/// Real CAD geometry bridge: extracts bounding box, volume, surface area and
+/// topology counts from the selected object's tessellated mesh.
 bool MirEngineGetSelectedObjectMetrics(
     void* viewport,
     char* outJson,
@@ -1122,6 +1221,9 @@ bool MirEngineGetSelectedObjectMetrics(
     return true;
 }
 
+// Deletes the primary selection through the canonical Scene API.
+// The renderer observes the scene change; nothing is removed from the
+// renderer directly.
 bool MirEngineDeleteSelectedObject(
     void* viewport
 )
@@ -1135,6 +1237,8 @@ bool MirEngineDeleteSelectedObject(
     return native->runtime->deleteSelectedObject();
 }
 
+
+// Clears the selection set without modifying the scene.
 void MirEngineClearSelection(
     void* viewport
 )
@@ -1179,6 +1283,7 @@ bool MirEnginePickWorldPoint(
     if (w <= 0 || h <= 0)
         return false;
 
+    // Normalized (-1..1, screen-centred, y up) → pixel coordinates.
     const double px = (nx * 0.5 + 0.5) * w;
     const double py = (0.5 - ny * 0.5) * h;
 
@@ -1202,6 +1307,8 @@ bool MirEnginePickWorldPoint(
     return true;
 }
 
+
+// Aborts an active drag and restores the drag-start transform (Esc).
 void MirEngineViewportDragCancel(
     void* viewport
 )
@@ -1214,6 +1321,7 @@ void MirEngineViewportDragCancel(
 
     native->runtime->cancelDrag();
 }
+
 
 bool MirEngineUndo(
     void* viewport
@@ -1228,6 +1336,7 @@ bool MirEngineUndo(
     return native->runtime->undo();
 }
 
+
 bool MirEngineRedo(
     void* viewport
 )
@@ -1240,6 +1349,7 @@ bool MirEngineRedo(
 
     return native->runtime->redo();
 }
+
 
 bool MirEngineCanUndo(
     void* viewport
@@ -1254,6 +1364,7 @@ bool MirEngineCanUndo(
     return native->runtime->canUndo();
 }
 
+
 bool MirEngineCanRedo(
     void* viewport
 )
@@ -1266,6 +1377,7 @@ bool MirEngineCanRedo(
 
     return native->runtime->canRedo();
 }
+
 
 bool MirEngineBeginDeformSelected(
     void* viewport
@@ -1281,6 +1393,7 @@ bool MirEngineBeginDeformSelected(
     return true;
 }
 
+
 bool MirEngineEndDeformSelected(
     void* viewport
 )
@@ -1294,6 +1407,11 @@ bool MirEngineEndDeformSelected(
     native->runtime->endDeformSelected();
     return true;
 }
+
+
+// ------------------------------------------------------------
+// Hand Grab — Vertical Slice v0.1
+// ------------------------------------------------------------
 
 bool MirEnginePickHandRay(
     void* viewport,
@@ -1347,7 +1465,7 @@ bool MirEnginePreviewGrab(
     if (!native || !native->runtime)
         return false;
 
-    (void)objectId;
+    (void)objectId; // runtime tracks the armed grab id; parameter kept for ABI symmetry
     native->runtime->previewHandGrab(fromMirTransform(transform));
     return true;
 }
@@ -1419,6 +1537,7 @@ void MirEngineSetHandSkeleton(
     if (!native || !native->runtime)
         return;
 
+    // Invalid arguments (or mode off) clear the overlay rather than draw stale data.
     if (mode <= 0 || handCount <= 0 || !positions || !confidence ||
         !handedness || !pinch)
     {
@@ -1513,6 +1632,11 @@ bool MirEngineGetCameraEye(
     return true;
 }
 
+
+// ------------------------------------------------------------
+// Geometry
+// ------------------------------------------------------------
+
 bool MirEngineCreateBox(
     void* viewport,
     double width,
@@ -1562,6 +1686,7 @@ bool MirEngineCreateBox(
     return true;
 }
 
+
 bool MirEngineImportMesh(
     void* viewport,
     const char* path
@@ -1609,6 +1734,7 @@ bool MirEngineImportMesh(
     return true;
 }
 
+
 bool MirEngineExportStl(
     void* viewport,
     const char* path,
@@ -1630,6 +1756,9 @@ bool MirEngineExportStl(
         return false;
     }
 
+    // The canonical STL writer consumes a mir4d::Document. Reuse it by
+    // staging the viewport meshes into a temporary export document instead
+    // of duplicating the STL serialization in this ABI layer.
     mir4d::Document document{"MIR4D Viewport Export"};
     mir::Scene& targetScene = document.scene();
 
@@ -1691,6 +1820,7 @@ bool MirEngineExportStl(
     return true;
 }
 
+
 bool MirEngineImportStep(
     void* viewport,
     const char* path
@@ -1737,6 +1867,7 @@ bool MirEngineImportStep(
     setLastError(native, nullptr);
     return true;
 }
+
 
 bool MirEngineImportStepBRep(
     void* viewport,
@@ -1802,6 +1933,7 @@ bool MirEngineImportStepBRep(
     setLastError(native, nullptr);
     return true;
 }
+
 
 bool MirEngineExportStep(
     void* viewport,
@@ -1885,6 +2017,7 @@ bool MirEngineExportStep(
     return true;
 }
 
+
 bool MirEngineExportStepBRep(
     void* viewport,
     const char* path,
@@ -1956,10 +2089,16 @@ bool MirEngineExportStepBRep(
     return true;
 }
 
+
+// ------------------------------------------------------------
+// Materials (procedural MaterialLibrary, no textures)
+// ------------------------------------------------------------
+
 int32_t MirEngineMaterialCount(void)
 {
     return MirEngine::Rendering::MaterialLibrary::count();
 }
+
 
 bool MirEngineMaterialName(
     int32_t materialId,
@@ -1984,6 +2123,7 @@ bool MirEngineMaterialName(
     buffer[index] = '\0';
     return true;
 }
+
 
 bool MirEngineSetObjectMaterial(
     void* viewport,
@@ -2011,6 +2151,7 @@ bool MirEngineSetObjectMaterial(
     return true;
 }
 
+
 bool MirEngineGetOpenGLDiagnostics(
     void* renderer,
     char* buffer,
@@ -2033,12 +2174,21 @@ bool MirEngineGetOpenGLDiagnostics(
     return true;
 }
 
+
+// ------------------------------------------------------------
+// Errors
+// ------------------------------------------------------------
+
 const char* MirEngineGetLastError(
     void* viewport
 )
 {
     return errorMessage(asViewport(viewport));
 }
+
+// ------------------------------------------------------------
+// Sketch solver (universal constraint solver)
+// ------------------------------------------------------------
 
 void* MirEngineSketchCreateDocument(void)
 {

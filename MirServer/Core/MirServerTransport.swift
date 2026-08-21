@@ -1,11 +1,20 @@
 import Foundation
 
+/// Низкоуровневый сетевой транспорт MirServer.
+///
+/// Реализован как `actor`, чтобы весь сетевой ввод-вывод был изолирован
+/// от главного потока UI и потокобезопасен в модели конкурентности Swift 6.
+///
+/// Обязанности:
+/// - REST-запросы (экспорт проекта, получение состава команды);
+/// - долговременное WebSocket-соединение для обмена сообщениями;
+/// - преобразование входящих событий в уведомления Event Bus (главный поток).
 actor MirServerTransport {
     private let configuration: MirServerConfiguration
     private let session: URLSession
     private var webSocketTask: URLSessionWebSocketTask?
     private var listenTask: Task<Void, Never>?
-
+    /// Буфер исходящих сообщений совместной работы при разрыве соединения.
     private var pendingEnvelopes: [MirCollaborationEnvelope] = []
 
     init(configuration: MirServerConfiguration) {
@@ -18,9 +27,12 @@ actor MirServerTransport {
     }
 
     func updateConfiguration(_ configuration: MirServerConfiguration) {
-
+        // Токен/состав команды обновляются «на лету»; активный сокет при
+        // смене учётных данных переподключается вызывающей стороной.
         _ = configuration
     }
+
+    // MARK: - Жизненный цикл соединения
 
     func connect() async throws {
         guard webSocketTask == nil else { return }
@@ -42,6 +54,7 @@ actor MirServerTransport {
         await flushPendingEnvelopes()
     }
 
+    /// Сбросить накопленные исходящие сообщения после установки соединения.
     private func flushPendingEnvelopes() async {
         guard !pendingEnvelopes.isEmpty else { return }
         let buffered = pendingEnvelopes
@@ -58,6 +71,8 @@ actor MirServerTransport {
         webSocketTask = nil
     }
 
+    // MARK: - Отправка сообщений
+
     func sendMessage(_ message: MirTeamMessage) async throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -68,6 +83,9 @@ actor MirServerTransport {
         try await task.send(.data(data))
     }
 
+    /// Отправить сообщение совместной работы (операция/presence/snapshot) в поток.
+    /// При отсутствии соединения сообщение буферизуется и сбрасывается после
+    /// повторного подключения.
     func sendCollaborationEnvelope(_ envelope: MirCollaborationEnvelope) async throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -81,6 +99,9 @@ actor MirServerTransport {
         try await task.send(.data(data))
     }
 
+    // MARK: - REST: экспорт проекта
+
+    /// Загрузить опубликованный архив проекта с сервера (для импорта).
     func fetchProjectArchive(projectID: String) async throws -> Data {
         let url = configuration.baseURL.appendingPathComponent("/projects/\(projectID)/archive")
         var req = urlRequest(for: url)
@@ -121,6 +142,8 @@ actor MirServerTransport {
         )
     }
 
+    // MARK: - REST: состав команды
+
     func fetchTeam() async throws -> [MirTeamMember] {
         let url = configuration.baseURL.appendingPathComponent("/teams/\(configuration.teamID)/members")
         var req = urlRequest(for: url)
@@ -132,6 +155,8 @@ actor MirServerTransport {
         let decoder = JSONDecoder()
         return try decoder.decode([MirTeamMember].self, from: data)
     }
+
+    // MARK: - Чтение WebSocket-потока
 
     private func listen() async {
         guard let task = webSocketTask else { return }
@@ -195,6 +220,8 @@ actor MirServerTransport {
         }
     }
 
+    // MARK: - Утилиты
+
     private func urlRequest(for url: URL) -> URLRequest {
         var req = URLRequest(url: url)
         req.timeoutInterval = configuration.connectTimeout
@@ -221,6 +248,7 @@ actor MirServerTransport {
     }
 }
 
+/// Конверт экспорта проекта для передачи по REST.
 private struct MirProjectExportEnvelope: Encodable, Sendable {
     var projectID: String
     var projectName: String
@@ -237,6 +265,7 @@ private struct MirProjectExportEnvelope: Encodable, Sendable {
     }
 }
 
+/// Ошибки подсистемы MirServer.
 public enum MirServerError: Error, Sendable, Equatable {
     case invalidURL
     case notConnected
