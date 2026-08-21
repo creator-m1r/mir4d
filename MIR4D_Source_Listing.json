@@ -1,7 +1,7 @@
 {
-  "project": "MIR 4D",
-  "root": "/Users/sergejstepovoj/Desktop/mir4d/GitHubMir4D",
-  "generated": "2026-08-21T00:25:25",
+  "program": "МИР 4D",
+  "project": "МИР 4D",
+  "generated": "2026-08-21 00:49:44",
   "encoding": "UTF-8",
   "files": [
     {
@@ -5398,14 +5398,5 @@
       "bytes": 9304,
       "sha256": "2460dfa5f86d03065f0a744d5024238035682d08e3e0dd26c030a8a4e967ba6a"
     }
-  ],
-  "languages": {
-    "YAML": 4,
-    "XML": 1,
-    "JSON": 27,
-    "C++": 562,
-    "C": 44,
-    "Objective-C++": 4,
-    "Swift": 257
-  }
+  ]
 }
