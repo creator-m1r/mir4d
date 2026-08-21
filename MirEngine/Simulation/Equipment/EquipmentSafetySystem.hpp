@@ -153,4 +153,4 @@ private:
     EquipmentCommandProcessor processor_{};
 };
 
-} // namespace mir
+}

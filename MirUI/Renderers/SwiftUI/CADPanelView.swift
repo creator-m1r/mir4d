@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Renders a single dockable panel body.
-/// UI-only presentation layer: MirEngine remains untouched.
 struct CADPanelView: View {
     let panel: CADPanel
     @ObservedObject var appState: CADAppState

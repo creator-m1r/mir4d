@@ -1,8 +1,3 @@
-// MirUI/Foundation/Typography/Typography.hpp
-// 🔤 Типографика темы — шрифты для разных элементов интерфейса.
-// Теперь с операторами сравнения, чтобы Theme могла корректно сравниваться.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -18,7 +13,6 @@ struct Typography {
     Font button;
     Font code;
 
-    // ── Операторы сравнения ──────────────────────────────────
     bool operator==(const Typography& other) const {
         return title == other.title &&
                subtitle == other.subtitle &&
@@ -31,7 +25,6 @@ struct Typography {
         return !(*this == other);
     }
 
-    // Стандартная типографика
     static Typography standard() {
         Typography t;
         t.title    = {"System", 24.0, FontWeight::Bold};
@@ -44,4 +37,4 @@ struct Typography {
     }
 };
 
-} // namespace MirUI
+}

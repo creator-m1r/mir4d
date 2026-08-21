@@ -1,12 +1,6 @@
 import Foundation
 import simd
 
-/// Converts sculpting intents into MirEngine deformation commands.
-///
-/// The bridge deliberately uses the existing `MIR4DModelRuntime` as the
-/// application runtime and resolves the hand position through the viewport
-/// picking API. This keeps the sculpt intent independent from the C ABI
-/// and avoids duplicating a second runtime/viewport ownership model.
 @MainActor
 final class MIR4DSculptCommandBridge {
     static let shared = MIR4DSculptCommandBridge()
@@ -24,8 +18,6 @@ final class MIR4DSculptCommandBridge {
         self.runtime = runtime
     }
 
-    /// Applies one sculpt intent to the selected surface.
-    /// `MIR4DSculptIntent.position` is expected to be normalized screen space.
     @discardableResult
     func apply(_ intent: MIR4DSculptIntent) -> Bool {
         guard runtime.viewport != nil else { return false }

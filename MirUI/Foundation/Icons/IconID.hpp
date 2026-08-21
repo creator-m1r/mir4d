@@ -1,6 +1,3 @@
-// MirUI/Foundation/Icons/IconID.hpp
-// Platform-agnostic icon identifier (string-based).
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -30,7 +27,7 @@ private:
     std::string m_value;
 };
 
-} // namespace MirUI
+}
 
 namespace std {
 template <>
@@ -39,4 +36,4 @@ struct hash<MirUI::IconID> {
         return hash<std::string>{}(id.value());
     }
 };
-} // namespace std
+}

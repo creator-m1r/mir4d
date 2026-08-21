@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Recursive model-tree row used by SidebarView.
-/// Selection is keyed by the persisted MIR4D model UUID, never by a display name.
 struct TreeItemView: View {
     let node: TreeNodeData
     @ObservedObject var appState: CADAppState
@@ -109,8 +107,7 @@ struct TreeItemView: View {
     }
 
     private func selectNode() {
-        // Keep the old display-name state for manifest/UI compatibility, but
-        // make the CAD selection itself UUID-based and stable across reopen.
+
         appState.selectedTreeItem = node.name
         appState.setSelection(
             ids: [node.id.uuidString],

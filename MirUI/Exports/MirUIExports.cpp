@@ -36,4 +36,4 @@ void MirUI_CAD_SelectObject(const char* id) {
     if (g_app && id) g_app->selectObject(id);
 }
 
-} // extern "C"
+}

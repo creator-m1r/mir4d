@@ -1,4 +1,4 @@
-// MirUI/Core/Runtime/UIRuntime.cpp
+
 #include "UIRuntime.hpp"
 #include "../Widget/Widget.hpp"
 #include <iostream>
@@ -16,7 +16,7 @@ void UIRuntime::shutdown() {
 }
 
 void UIRuntime::update(double) {
-    // анимации, hover, таймеры
+
 }
 
 void UIRuntime::render(WidgetTree& tree) {
@@ -29,12 +29,9 @@ void UIRuntime::render(WidgetTree& tree) {
 void UIRuntime::renderWidget(Widget* widget) {
     if (!widget || !widget->isVisible()) return;
 
-    // Здесь будет реальный бэкенд (OpenGL / платформенный рендерер)
-    // Пока — обход дерева. Viewport будет рисоваться отдельно через MirEngine OpenGL.
-
     for (Widget* child : widget->children()) {
         renderWidget(child);
     }
 }
 
-} // namespace MirUI
+}

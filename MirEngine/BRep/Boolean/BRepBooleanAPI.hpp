@@ -1,7 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Boolean/BRepBooleanAPI.hpp
-
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 #include "MirEngine/BRep/Builders/BRepBuilderAPI.hpp"
@@ -74,10 +72,6 @@ public:
         return {};
     }
 
-    /// Объединение двух непересекающихся тел: результат — новый solid,
-    /// содержащий оболочки аргумента и инструмента. Пересекающиеся тела
-    /// возвращают NotImplemented (требуется kernel разбиения граней).
-    /// Операция транзакционна: при сбое outModel откатывается к исходному состоянию.
     [[nodiscard]] static BRepBooleanResult fuse(
         BRepModel& outModel,
         const BRepModel& argumentModel,
@@ -99,10 +93,7 @@ public:
         }
         if (overlaps(argumentBounds, toolBounds))
         {
-            // Пересекающиеся axis-aligned box'ы: точное объединение через
-            // замощение граней по общей сетке координат (разбиение граней
-            // на клетки; клетки, полностью поглощённые другим телом, не
-            // строятся; рёбра и вершины дедуплицируются по сетке).
+
             if (isAxisAlignedBox(argumentModel, argumentSolid) &&
                 isAxisAlignedBox(toolModel, toolSolid) &&
                 hasNoInnerWires(argumentModel, argumentSolid) &&
@@ -110,8 +101,7 @@ public:
             {
                 return fuseOverlappingBoxes(outModel, argumentBounds, toolBounds);
             }
-            // Повёрнутые box'ы: точный kernel объединения ещё не реализован;
-            // результат — NotImplemented (см. BRepBox тест).
+
             result.status = BRepBooleanStatus::NotImplemented;
             result.message = "Fuse of overlapping non-box solids requires the boundary intersection kernel (next milestone)";
             return result;
@@ -154,17 +144,6 @@ public:
         return result;
     }
 
-    /// Разность A \ B.
-    ///
-    /// Реализованные случаи:
-    ///   • B не пересекает A          → копия A (результат математически равен A);
-    ///   • B целиком строго внутри A  → A с полостью: внешняя оболочка A +
-    ///     внутренняя оболочка B (грани с обратной ориентацией). Полость
-    ///     изолирована от внешнего пространства — это точный топологический
-    ///     результат для замкнутого тела;
-    ///   • B пересекает границу A     → NotImplemented (требуется kernel
-    ///     разбиения граней).
-    /// Операция транзакционна: при сбое outModel откатывается к исходному состоянию.
     [[nodiscard]] static BRepBooleanResult cut(
         BRepModel& outModel,
         const BRepModel& argumentModel,
@@ -185,7 +164,6 @@ public:
             return result;
         }
 
-        // A \ B = A, когда B не пересекает A.
         if (!overlaps(argumentBounds, toolBounds))
         {
             const CopiedSolid copy = copySolidAsNewRoot(outModel, argumentModel, argumentSolid);
@@ -201,11 +179,9 @@ public:
             return result;
         }
 
-        // Полное погружение инструмента: полость с внутренней оболочкой.
         if (fullyContained(toolBounds, argumentBounds))
             return buildCavity(outModel, argumentModel, argumentSolid, toolModel, toolSolid);
 
-        // Сквозной проход инструмента: туннель с отверстиями на торцах.
         const int passAxis = passThroughAxis(argumentBounds, toolBounds);
         if (passAxis >= 0)
         {
@@ -226,10 +202,6 @@ public:
                                     argumentBounds, toolBounds, passAxis);
         }
 
-        // Частичное перекрытие границ: вырез W = A ∩ B; клетки граней A
-        // вне W (нестрогое поглощение — дыры открываются и на гранях,
-        // совпадающих с W) + стенки сторон W, не совпадающих с границами A.
-        // Единая оболочка: кольца клеток сшиваются со стенками по рёбрам.
         if (isAxisAlignedBox(argumentModel, argumentSolid) &&
             isAxisAlignedBox(toolModel, toolSolid) &&
             hasNoInnerWires(argumentModel, argumentSolid) &&
@@ -238,20 +210,11 @@ public:
             return cutPartialBoxes(outModel, argumentBounds, toolBounds);
         }
 
-        // Прочие тела: требует обобщённого kernel разбиения граней.
         result.status = BRepBooleanStatus::NotImplemented;
         result.message = "Cut with boundary-crossing tool requires the face splitting kernel (next milestone)";
         return result;
     }
 
-    /// Пересечение A ∩ B.
-    ///
-    /// Реализованные случаи:
-    ///   • B не пересекает A      → EmptyResult;
-    ///   • оба тела — box'ы,
-    ///     выровненные по осям    → новый box по пересечению AABB (точный
-    ///     результат для прямоугольных параллелепипедов);
-    ///   • прочие тела            → NotImplemented.
     [[nodiscard]] static BRepBooleanResult common(
         BRepModel& outModel,
         const BRepModel& argumentModel,
@@ -303,7 +266,6 @@ public:
     }
 
 private:
-    // ── Проверка операндов ────────────────────────────────────
 
     [[nodiscard]] static BRepBooleanResult validateOperands(
         const BRepModel& argumentModel,
@@ -335,8 +297,6 @@ private:
         }
         return result;
     }
-
-    // ── Маппинг индексов при копировании ──────────────────────
 
     struct BRepIndexMap
     {
@@ -375,13 +335,6 @@ private:
 
     [[nodiscard]] static BRepSurfaceHandle remapSurface(const std::vector<BRepIndex>& map, BRepSurfaceHandle handle) noexcept
     { return BRepSurfaceHandle{remapIndex(map, handle.index)}; }
-
-    // ── Копирование модели в out (solid-записи и root-привязки не копируются) ──
-    // Порядок копирования фиксирован: геометрия, затем топология сверху вниз.
-    // Обратные ссылки владельцев (wire→face, face→shell) заполняются после
-    // копирования соответствующих слоёв. При copyShells == false записи
-    // оболочек не копируются, а владельцы граней остаются невалидными —
-    // грани затем собираются в новые оболочки.
 
     [[nodiscard]] static BRepIndexMap copyModel(
         BRepModel& out,
@@ -459,8 +412,6 @@ private:
         return map;
     }
 
-    // ── Копирование solid как нового root-объекта ─────────────
-
     struct CopiedSolid
     {
         BRepIndexMap map;
@@ -485,8 +436,6 @@ private:
         result.solid = builder.makeSolid(shells);
         return result;
     }
-
-    // ── Границы solid для проверки пересечений ────────────────
 
     struct Bounds3
     {
@@ -563,7 +512,6 @@ private:
         return bounds;
     }
 
-    // Пересечение со строго положительным объёмом (простое касание допускается).
     [[nodiscard]] static bool overlaps(const Bounds3& a, const Bounds3& b) noexcept
     {
         if (!a.valid || !b.valid)
@@ -573,7 +521,6 @@ private:
                a.minZ < b.maxZ && b.minZ < a.maxZ;
     }
 
-    // Строгое вложение: inner не касается границ outer ни по одной оси.
     [[nodiscard]] static bool fullyContained(const Bounds3& inner, const Bounds3& outer) noexcept
     {
         if (!inner.valid || !outer.valid)
@@ -595,15 +542,13 @@ private:
         return result;
     }
 
-    // ── Проверка «тело — параллелепипед, выровненный по осям» ──
-
     [[nodiscard]] static bool isAxisAlignedBox(const BRepModel& model, BRepSolidHandle solid) noexcept
     {
         const BRepSolid* record = model.topology().solid(solid);
         if (!record)
             return false;
 
-        bool seen[6]{false, false, false, false, false, false}; // +X, -X, +Y, -Y, +Z, -Z
+        bool seen[6]{false, false, false, false, false, false};
         std::size_t faceCount = 0;
         for (BRepShellHandle shellHandle : record->shells)
         {
@@ -656,8 +601,6 @@ private:
                seen[0] && seen[1] && seen[2] && seen[3] && seen[4] && seen[5];
     }
 
-    // ── Построение box'а по границам ───────────────────────────
-
     [[nodiscard]] static BRepSolidHandle makeBoxFromBounds(BRepModel& out, const Bounds3& bounds) noexcept
     {
         const double dx = bounds.maxX - bounds.minX;
@@ -671,8 +614,6 @@ private:
             out, dx, dy, dz, Vector3(bounds.minX, bounds.minY, bounds.minZ));
         return result.success ? result.solid : BRepSolidHandle{};
     }
-
-    // ── Полость (cut при полном погружении инструмента) ────────
 
     [[nodiscard]] static BRepBooleanResult buildCavity(
         BRepModel& outModel,
@@ -691,7 +632,6 @@ private:
 
         BRepBuilderAPI builder(outModel);
 
-        // Внешняя оболочка — грани аргумента.
         std::vector<BRepOrientedFace> outerFaces;
         for (BRepShellHandle shellHandle : argumentRecord->shells)
         {
@@ -723,7 +663,6 @@ private:
             return result;
         }
 
-        // Внутренняя оболочка — грани инструмента с обратной ориентацией.
         std::vector<BRepOrientedFace> innerFaces;
         for (BRepShellHandle shellHandle : toolRecord->shells)
         {
@@ -785,14 +724,6 @@ private:
         return report.ok() && model.isValid();
     }
 
-    // ── Объединение пересекающихся box'ов (замощение граней) ───
-    // Общая сетка координат строится из границ обоих тел; каждая из 12
-    // граней замащивается клетками-прямоугольниками. Клетка, полностью
-    // лежащая внутри другого тела (плоскость внутри его диапазона по оси
-    // и клетка внутри его прямоугольника), не строится. Вершины и рёбра
-    // дедуплицируются по сетке — соседние клетки и грани корректно
-    // разделяют общую топологию.
-
     [[nodiscard]] static std::vector<double> coordinateGrid(double a0, double a1,
                                                             double b0, double b1)
     {
@@ -819,8 +750,6 @@ private:
         return vertex;
     }
 
-    // Ребро сетки: дедупликация по паре вершин; ориентация выбирается по
-    // направлению ребра в хранилище (обход p → q).
     [[nodiscard]] static BRepOrientedEdge gridEdge(
         BRepModel& model,
         BRepBuilderAPI& builder,
@@ -847,9 +776,6 @@ private:
         return {edge, BRepOrientation::Forward};
     }
 
-    // Замощение граней одного box'а клетками на плоскости (axis, plane).
-    // strictly: плоскость сравнивается строго — совпадающие границы
-    // другого тела не считаются поглощением.
     [[nodiscard]] static bool addBoxFaceTiles(
         BRepModel& outModel,
         BRepBuilderAPI& builder,
@@ -886,9 +812,6 @@ private:
                 const bool insideP = strictly ? (otherMinP < plane && plane < otherMaxP)
                                               : (otherMinP <= plane && plane <= otherMaxP);
 
-                // Контур клетки ориентирован CCW при взгляде снаружи.
-                // «Положительный» порядок (p00→p10→p11→p01) соответствует
-                // нормали cross(unit(axisA), unit(axisB)); иначе — обратный.
                 const int crossAxis = (3 - axisA - axisB) % 3;
                 const bool positive = (axis == crossAxis && sign > 0.0);
 
@@ -907,7 +830,7 @@ private:
                             continue;
                         const bool insideB = b0 >= otherMinB && b1 <= otherMaxB;
                         if (insideP && insideA && insideB)
-                            continue; // клетка полностью внутри другого тела
+                            continue;
 
                         const Vector3 p00 = pointOnAxes(axis, plane, axisA, a0, axisB, b0);
                         const Vector3 p10 = pointOnAxes(axis, plane, axisA, a1, axisB, b0);
@@ -973,8 +896,6 @@ private:
         std::map<std::pair<BRepIndex, BRepIndex>, BRepEdgeHandle> edgeCache;
         std::vector<BRepFaceHandle> faces;
 
-        // Грани аргумента: строгое поглощение — совпадающие с границей
-        // инструмента плоскости не вырезаются.
         if (!addBoxFaceTiles(outModel, builder, grids, vertexCache, edgeCache, faces,
                              argumentBounds, toolBounds, true))
         {
@@ -983,8 +904,7 @@ private:
             result.message = "Fuse failed to tile the argument faces";
             return result;
         }
-        // Грани инструмента: нестрогое поглощение — совпадающие плоскости
-        // не дублируются (грань аргумента уже покрыта).
+
         if (!addBoxFaceTiles(outModel, builder, grids, vertexCache, edgeCache, faces,
                              toolBounds, argumentBounds, false))
         {
@@ -1038,15 +958,6 @@ private:
         return result;
     }
 
-    // ── Вырез с частичным перекрытием box'ов (замощение) ──────
-    // W = A ∩ B (ненулевой объём). Поверхность A \ B: клетки граней A,
-    // не поглощённые W (нестрого — дыры открываются и на гранях,
-    // совпадающих с W), плюс стенки тех сторон W, которые не совпадают
-    // с границами A. Кольца клеток и стенки сшиваются по рёбрам общей
-    // сетки — единая замкнутая оболочка без inner wires.
-
-    // Одна стенка выреза: плоскость (axis, plane), прямоугольник
-    // [wMinA, wMaxA]×[wMinB, wMaxB] из W; нормаль внутрь выреза.
     [[nodiscard]] static bool addCutWall(
         BRepModel& outModel,
         BRepBuilderAPI& builder,
@@ -1139,7 +1050,6 @@ private:
         std::map<std::pair<BRepIndex, BRepIndex>, BRepEdgeHandle> edgeCache;
         std::vector<BRepFaceHandle> faces;
 
-        // Клетки граней аргумента: нестрогое поглощение вырезом W.
         if (!addBoxFaceTiles(outModel, builder, grids, vertexCache, edgeCache, faces,
                              argumentBounds, cutBounds, false))
         {
@@ -1149,7 +1059,6 @@ private:
             return result;
         }
 
-        // Стенки выреза: стороны W, не совпадающие с границами аргумента.
         for (int axis = 0; axis < 3; ++axis)
         {
             const double wMin = coordinate(cutBounds, axis, true);
@@ -1223,12 +1132,6 @@ private:
         result.message = "Cut completed (partial overlap cut via face tiling)";
         return result;
     }
-
-    // ── Сквозной проход (cut-through) ─────────────────────────
-    // Инструмент протыкает аргумент насквозь по одной оси и строго
-    // лежит внутри по двум другим. Результат: внешняя оболочка аргумента
-    // с прямоугольными отверстиями на торцах + внутренняя оболочка —
-    // «короб» туннеля (4 грани, ориентированные внутрь выреза).
 
     [[nodiscard]] static int passThroughAxis(const Bounds3& arg, const Bounds3& tool) noexcept
     {
@@ -1317,8 +1220,6 @@ private:
             true);
     }
 
-    // Одна боковая грань короба: плоскость planeAxis == planeValue,
-    // диапазоны по оси прохода — из аргумента, по третьей оси — из инструмента.
     [[nodiscard]] static BRepFaceHandle makeTunnelFace(
         BRepBuilderAPI& builder,
         int passAxis,
@@ -1362,8 +1263,6 @@ private:
         if (!wire.valid())
             return {};
 
-        // Нормаль смотрит внутрь выреза: для min-плоскости — вдоль оси,
-        // для max-плоскости — против оси.
         const double planeMin = coordinate(toolBounds, planeAxis, true);
         const double sign = planeValue <= planeMin ? 1.0 : -1.0;
         const Vector3 normal = unitAxis(planeAxis, sign);
@@ -1410,7 +1309,6 @@ private:
                     return result;
                 }
 
-                // Торец (плоскость аргумента по оси прохода)?
                 const int faceAxis = planeAxisOf(argumentModel, *face);
                 if (faceAxis == axis && isEndCap(argumentBounds, axis, faceAxisCoordinate(argumentModel, *face)))
                 {
@@ -1439,7 +1337,6 @@ private:
             outerShells.push_back(copyShell);
         }
 
-        // Короб туннеля: 4 боковые грани вдоль оси прохода.
         std::vector<BRepOrientedFace> tunnelFaces;
         const int sideA = (axis + 1) % 3;
         const int sideB = (axis + 2) % 3;
@@ -1580,4 +1477,4 @@ private:
     }
 };
 
-} // namespace mir
+}

@@ -57,4 +57,4 @@ private:
     std::unordered_map<WorldObject::Id, PhysicsState> states_{};
 };
 
-} // namespace mir
+}

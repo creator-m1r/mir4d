@@ -78,4 +78,4 @@ private:
     std::vector<Id> order_{};
 };
 
-} // namespace mir
+}

@@ -1,7 +1,3 @@
-// MirUI/Designer/Commands/MoveWidgetCommand.hpp
-// 🖱️ Команда «Переместить виджет» — изменяет родителя и/или позицию виджета.
-// Используется при drag & drop в редакторе. Поддерживает Undo/Redo.
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -14,8 +10,7 @@ namespace MirUI {
 
 class MoveWidgetCommand : public ICommand {
 public:
-    // Переместить виджет widgetId в нового родителя newParentId.
-    // Если newParentId совпадает с текущим родителем, только меняем порядок (пока не реализовано).
+
     MoveWidgetCommand(UIDocument& doc, WidgetID widgetId, WidgetID newParentId)
         : m_doc(doc)
         , m_widgetId(widgetId)
@@ -29,12 +24,11 @@ public:
         if (!widget) return false;
 
         Widget* oldParent = widget->parent();
-        if (!oldParent) return false; // нельзя перемещать корень
+        if (!oldParent) return false;
 
         Widget* newParent = m_doc.widgetTree().find(m_newParentId);
         if (!newParent) return false;
 
-        // Запоминаем старого родителя и позицию.
         m_oldParentId = oldParent->id();
         const auto& siblings = oldParent->children();
         for (size_t i = 0; i < siblings.size(); ++i) {
@@ -44,10 +38,8 @@ public:
             }
         }
 
-        // Отсоединяем от старого родителя (не удаляя).
         oldParent->removeChild(m_widgetId);
 
-        // Присоединяем к новому родителю (в конец).
         newParent->addChild(widget);
 
         m_doc.setModified(true);
@@ -67,7 +59,6 @@ public:
         if (!oldParent) return false;
 
         oldParent->addChild(widget);
-        // TODO: восстановить позицию m_oldIndex, когда появится insertChild.
 
         m_doc.setModified(true);
         return true;
@@ -85,4 +76,4 @@ private:
     size_t      m_oldIndex;
 };
 
-} // namespace MirUI
+}

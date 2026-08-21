@@ -1,5 +1,3 @@
-// MirUI/Renderers/SwiftUI/ColorTokenPicker.swift
-// 🎨 Выбор цвета для любого токена — удобный компонент с палитрой.
 
 import SwiftUI
 #if os(macOS)

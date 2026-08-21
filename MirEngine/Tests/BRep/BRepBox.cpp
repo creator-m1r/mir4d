@@ -30,7 +30,7 @@ namespace
     return false;
 }
 
-} // namespace
+}
 
 int main()
 {
@@ -84,7 +84,6 @@ int main()
         assert(report.ok());
     }
 
-    // Повёрнутый box (buildOriented): базис повёрнут на 45° вокруг Z.
     {
         mir::BRepModel model;
         const mir::Scalar s = std::sqrt(2.0) * 0.5;
@@ -103,7 +102,6 @@ int main()
         assert(model.topology().solidCount() == 1);
         assert(model.rootSolids().size() == 1);
 
-        // Все 8 вершин в ожидаемых позициях повёрнутого базиса.
         assert(hasVertex(model, {1.0, 1.0, 0.0}));
         assert(hasVertex(model, {1.0 + 2.0 * s, 1.0 + 2.0 * s, 0.0}));
         assert(hasVertex(model, {1.0 - s, 1.0 + 5.0 * s, 0.0}));
@@ -117,7 +115,6 @@ int main()
         assert(validator.validate(model).ok());
     }
 
-    // Некорректный базис отклоняется честно.
     {
         mir::BRepModel model;
         const auto bad = mir::BRepPrimAPI_MakeBox::buildOriented(
@@ -129,8 +126,6 @@ int main()
         assert(model.topology().vertexCount() == 0);
     }
 
-    // Повёрнутый box честно возвращает NotImplemented в булевых операциях
-    // (обобщённый kernel пересечений ещё не реализован).
     {
         mir::BRepModel argument;
         const auto boxA = mir::BRepPrimAPI_MakeBox::build(

@@ -1,5 +1,3 @@
-// MirUI/Renderers/SwiftUI/InspectorView.swift
-// Канонический инспектор свойств виджета.
 
 import SwiftUI
 

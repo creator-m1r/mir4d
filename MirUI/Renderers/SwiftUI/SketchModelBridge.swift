@@ -2,8 +2,6 @@ import Foundation
 import CoreGraphics
 import Combine
 
-/// UI-side command bridge for the sketch engine.
-/// The actual C++ bridge can later replace the closures without changing the UI.
 @MainActor
 final class SketchModelBridge: ObservableObject {
     @Published private(set) var geometryRevision: UInt64 = 0

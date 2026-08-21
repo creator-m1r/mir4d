@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Geometric emblem shown on the launch experience: four diamonds that
-/// evoke the four dimensions of MIR 4D (geometry + time + parameters + events).
 struct MIR4DLaunchGeometricMark: View {
     var body: some View {
         HStack(spacing: 0) {

@@ -1,10 +1,3 @@
-// MirUI/Renderers/NullRenderer.hpp
-// Заглушка рендерера для тестирования и отладки ядра MirUI.
-// Ничего не рисует на экране, но проходит по всему дереву виджетов
-// и для каждого виджета выводит информацию в консоль (или просто считает их).
-// Это позволяет проверить, что все виджеты созданы, дерево построено правильно,
-// LayoutEngine отработал, а команды рендеринга сформированы.
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -18,16 +11,15 @@ namespace MirUI {
 
 class NullRenderer : public Renderer {
 public:
-    // ── Реализация абстрактного интерфейса Renderer ──────────
 
     void beginFrame() override {
-        // В начале каждого кадра сбрасываем счётчики.
+
         m_widgetCount = 0;
         std::cout << "=== NullRenderer: начало кадра ===" << std::endl;
     }
 
     void render(WidgetTree& tree) override {
-        // Запускаем обход дерева с корневого виджета.
+
         Widget* root = tree.root();
         if (root) {
             std::cout << "Начинаем обход дерева виджетов..." << std::endl;
@@ -42,23 +34,18 @@ public:
         std::cout << "Всего виджетов обработано: " << m_widgetCount << std::endl << std::endl;
     }
 
-    // ── Дополнительный метод для получения количества виджетов ──
     [[nodiscard]] int getWidgetCount() const { return m_widgetCount; }
 
 private:
-    int m_widgetCount = 0; // Счётчик обработанных виджетов за кадр.
+    int m_widgetCount = 0;
 
-    // Рекурсивная функция обхода: печатает отступы и информацию о виджете.
     void renderWidgetRecursive(Widget* widget, int depth) {
         if (!widget) return;
 
-        // Увеличиваем счётчик
         ++m_widgetCount;
 
-        // Создаём отступ для красивого вывода (как в дереве папок).
         std::string indent(depth * 2, ' ');
 
-        // Выводим базовую информацию о виджете.
         std::cout << indent
                   << "Виджет ID=" << widget->id().value()
                   << " | тип: " << widgetTypeToString(widget->type())
@@ -67,13 +54,11 @@ private:
                   << ", " << widget->bounds().width << "x" << widget->bounds().height << ")"
                   << std::endl;
 
-        // Рекурсивно обходим всех детей.
         for (Widget* child : widget->children()) {
             renderWidgetRecursive(child, depth + 1);
         }
     }
 
-    // Преобразование типа виджета в читаемую строку (для вывода).
     static std::string widgetTypeToString(WidgetType type) {
         switch (type) {
             case WidgetType::Unknown:      return "Unknown";
@@ -93,4 +78,4 @@ private:
     }
 };
 
-} // namespace MirUI
+}

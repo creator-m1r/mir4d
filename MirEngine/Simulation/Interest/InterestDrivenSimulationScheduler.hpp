@@ -71,9 +71,6 @@ public:
 
         WorldRenderBudget localBudget = worldBudget;
 
-        // Interest increases the local budget, but always remains bounded by
-        // the global frame budget. This keeps AI focus from causing an
-        // uncontrolled CPU/GPU spike.
         const float multiplier = 0.5F + interestScore.score * 1.5F;
         localBudget.physicsBudget = std::max<std::size_t>(
             1,
@@ -87,4 +84,4 @@ private:
     std::unordered_map<std::uint64_t, InterestSimulationRequest> requests_;
 };
 
-} // namespace mir
+}

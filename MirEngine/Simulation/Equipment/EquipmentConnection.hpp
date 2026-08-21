@@ -102,4 +102,4 @@ private:
     std::unordered_map<std::uint64_t, EquipmentConnection> connections_;
 };
 
-} // namespace mir
+}

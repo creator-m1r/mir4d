@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Compact permission status used by the project launcher.
 struct MIR4DProjectPermissionStatusView: View {
     @ObservedObject var permissions: MIR4DProjectPermissions
     @ObservedObject var runtime: MIR4DOptionalModuleRuntime

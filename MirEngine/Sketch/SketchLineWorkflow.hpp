@@ -10,9 +10,6 @@
 namespace mir
 {
 
-/// High-level, atomic line workflow.
-/// One user gesture becomes one history entry even when inference creates
-/// several constraints behind the scenes.
 class SketchLineWorkflow
 {
 public:
@@ -40,10 +37,9 @@ private:
     [[nodiscard]] static std::uint32_t previewLineId(
         const SketchDocument& document) noexcept
     {
-        // A temporary id that cannot collide with a valid store id.
-        // The inference engine only uses it to exclude the not-yet-created line.
+
         return 0xFFFFFFFFu;
     }
 };
 
-} // namespace mir
+}

@@ -70,4 +70,4 @@ private:
     std::unordered_map<std::uint64_t, MaterialInterface> interfaces_;
 };
 
-} // namespace mir
+}

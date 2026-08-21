@@ -7,15 +7,6 @@ extension Notification.Name {
     static let mir4DSpatialMenuEnded = Notification.Name("MIR4D.SpatialMenuEnded")
 }
 
-/// The spatial menu input path.
-///
-/// Three activation channels on macOS:
-/// - `]` held: menu opens, trackpad motion selects direction, release commits;
-/// - middle mouse button held: same motion model with the mouse;
-/// - (framework) two-finger hold on iPad with `activationDelay`.
-///
-/// The gesture layer produces plain vector events; selection logic lives in
-/// MIRSpatialMenuSelection, so every device behaves identically.
 @MainActor
 final class MIRSpatialMenuGesture: ObservableObject {
     static let shared = MIRSpatialMenuGesture()
@@ -31,7 +22,6 @@ final class MIRSpatialMenuGesture: ObservableObject {
     func start() {
         guard monitor == nil else { return }
 
-        // The spatial fan replaces the legacy radial trigger path while active.
         MIR4DRadialInteractionCoordinator.shared.stop()
         MIR4DRadialKeyboardTrigger.shared.stop()
 
@@ -104,8 +94,6 @@ final class MIRSpatialMenuGesture: ObservableObject {
         end(commit: false)
     }
 
-    /// Direct injection for external channels (hand adapter, touch adapter).
-    /// Keeps one single event path for the fan.
     func injectBegan() {
         begin(via: "external")
     }
@@ -121,8 +109,6 @@ final class MIRSpatialMenuGesture: ObservableObject {
         guard active else { return }
         end(commit: commit)
     }
-
-    // MARK: - Internal
 
     private func begin(via: String) {
         guard !active else { return }
@@ -164,8 +150,6 @@ final class MIRSpatialMenuGesture: ObservableObject {
         beganVia = ""
     }
 
-    /// Light magnetic stabilisation of the gesture ray: near the centre the hand
-    /// stays free; farther out the direction locks to the nearest segment.
     private func stabilized(_ raw: CGVector, settings: MIRSpatialMenuSettings) -> CGVector {
         let distance = hypot(raw.dx, raw.dy)
         guard distance >= settings.deadZone else { return raw }
@@ -182,21 +166,14 @@ final class MIRSpatialMenuGesture: ObservableObject {
     }
 }
 
-/// Resolved scene context shared by the gesture stabilisation layer.
-/// Kept minimal: only the tree's segment count matters for the magnet.
 @MainActor
 enum MIRSpatialMenuContextResolved {
     static var current: MIRSpatialMenuSceneContext = .idle
 }
 
-// MARK: - iPad two-finger hold (framework)
-
 #if os(iOS)
 import UIKit
 
-/// Two-finger hold activation for iPad. The menu appears only after
-/// `activationDelay` (recommended 0.35...0.60 s), so the touch feels instant
-/// but does not collide with normal two-finger gestures.
 @MainActor
 final class MIRSpatialMenuTouchActivation {
     private var workItem: DispatchWorkItem?

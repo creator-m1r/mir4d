@@ -1,14 +1,3 @@
-// MirEngine/Math/Numeric/Ode.hpp
-// 🧮 Численное интегрирование обыкновенных дифференциальных уравнений.
-//
-// Поддерживаются скалярные и векторные системы y' = f(t, y):
-//   • явный Эйлер;
-//   • метод средней точки;
-//   • классический Рунге–Кутта 4-го порядка (RK4);
-//   • адаптивный Рунге–Кутта–Фельберг 4(5) (RKF45).
-//
-// Состояние — VectorN; правая часть — std::function<VectorN(Scalar, const VectorN&)>.
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -23,7 +12,6 @@ namespace mir::math
 
 using OdeRhs = std::function<VectorN(Scalar, const VectorN&)>;
 
-/// y + a·x (поэлементно).
 [[nodiscard]] inline VectorN axpy(Scalar a, const VectorN& x, const VectorN& y)
 {
     VectorN r(x.size(), Scalar(0));
@@ -32,13 +20,11 @@ using OdeRhs = std::function<VectorN(Scalar, const VectorN&)>;
     return r;
 }
 
-/// Один шаг явного Эйлера.
 [[nodiscard]] inline VectorN odeEulerStep(const OdeRhs& f, Scalar t, const VectorN& y, Scalar h)
 {
     return axpy(h, f(t, y), y);
 }
 
-/// Один шаг метода средней точки.
 [[nodiscard]] inline VectorN odeMidpointStep(const OdeRhs& f, Scalar t, const VectorN& y, Scalar h)
 {
     const VectorN k1 = f(t, y);
@@ -46,7 +32,6 @@ using OdeRhs = std::function<VectorN(Scalar, const VectorN&)>;
     return axpy(h, f(t + h / Scalar(2), ym), y);
 }
 
-/// Один шаг классического RK4.
 [[nodiscard]] inline VectorN odeRK4Step(const OdeRhs& f, Scalar t, const VectorN& y, Scalar h)
 {
     const VectorN k1 = f(t, y);
@@ -60,7 +45,6 @@ using OdeRhs = std::function<VectorN(Scalar, const VectorN&)>;
     return out;
 }
 
-/// Фиксированный шаг RK4 на [t0, tEnd]; при необходимости сохраняет траекторию.
 inline VectorN integrateRK4(
     const OdeRhs& f,
     Scalar t0,
@@ -95,8 +79,6 @@ inline VectorN integrateRK4(
     return y;
 }
 
-/// Один шаг адаптивного RKF45. Возвращает новое состояние и оценку локальной
-/// погрешности (по норме).
 inline VectorN rkf45Step(
     const OdeRhs& f,
     Scalar t,
@@ -141,7 +123,6 @@ inline VectorN rkf45Step(
     return yNew;
 }
 
-/// Адаптивная интеграция RKF45 до достижения tEnd (или maxSteps шагов).
 inline VectorN integrateAdaptiveRKF45(
     const OdeRhs& f,
     Scalar t0,
@@ -200,4 +181,4 @@ inline VectorN integrateAdaptiveRKF45(
     return y;
 }
 
-} // namespace mir::math
+}

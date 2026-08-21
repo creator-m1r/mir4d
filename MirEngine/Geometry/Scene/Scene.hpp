@@ -13,11 +13,6 @@
 namespace mir
 {
 
-/// Transitional spatial scene implementation.
-///
-/// When constructed with the Document-owned ObjectRegistry, Scene no longer
-/// owns document identity. The default constructor remains only for isolated
-/// legacy consumers during migration to ObjectStore.
 class Scene
 {
 public:
@@ -171,4 +166,4 @@ private:
     std::uint64_t revision_{0};
 };
 
-} // namespace mir
+}

@@ -4,7 +4,6 @@
 
 namespace mir4d {
 
-/// Base type for all runtime events emitted by MirEngine.
 class Event {
 public:
     virtual ~Event() = default;
@@ -16,4 +15,4 @@ private:
     bool m_handled{false};
 };
 
-} // namespace mir4d
+}

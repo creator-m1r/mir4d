@@ -46,9 +46,6 @@ public:
             return result;
         }
 
-        // Initial degrees of freedom are estimated from the geometry type.
-        // A numerical nonlinear solver will replace this conservative estimate
-        // once geometric constraint equations are introduced.
         std::size_t dof = 0;
         for (const auto& item : geometry.all())
         {
@@ -80,4 +77,4 @@ public:
     }
 };
 
-} // namespace mir
+}

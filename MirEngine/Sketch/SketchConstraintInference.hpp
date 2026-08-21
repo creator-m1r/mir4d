@@ -9,8 +9,6 @@
 namespace mir
 {
 
-/// Converts high-confidence drag inferences into constraints that can be
-/// committed with the completed drag command.
 class SketchConstraintInference
 {
 public:
@@ -35,4 +33,4 @@ private:
     double minimumConfidence_;
 };
 
-} // namespace mir
+}

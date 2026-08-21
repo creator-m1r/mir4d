@@ -1,7 +1,3 @@
-// MirEngine/Rendering/Passes/SketchPass.cpp
-// =================================================================================
-// Оверлей 2D-эскиза на рабочей плоскости (ТЗ Этап 2).
-// =================================================================================
 
 #include "SketchPass.h"
 
@@ -70,7 +66,7 @@ Matrix4Raw matrixToRaw(const mir::Matrix4& m)
     return r;
 }
 
-} // namespace
+}
 
 SketchPass::SketchPass() = default;
 SketchPass::~SketchPass() = default;
@@ -144,7 +140,7 @@ bool SketchPass::initialize(RenderDevice& device)
 }
 
 void SketchPass::execute(RenderContext& context,
-                        mir::Scene& /*scene*/,
+                        mir::Scene& ,
                         RenderDevice& device)
 {
     if (!m_initialized || context.sketches.empty())
@@ -178,4 +174,4 @@ void SketchPass::execute(RenderContext& context,
     device.setCullFace(true);
 }
 
-} // namespace MirEngine::Rendering
+}

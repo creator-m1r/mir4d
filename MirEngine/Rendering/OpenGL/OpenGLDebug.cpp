@@ -1,9 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLDebug.cpp
-// =================================================================================
-// Реализация диагностического модуля OpenGL.
-// Использует glGetError, glGetString/glGetStringi и GL_KHR_debug
-// для мониторинга состояния GPU и контекста.
-// =================================================================================
 
 #include "OpenGLDebug.h"
 
@@ -11,7 +5,7 @@
 #include <cstring>
 #include <sstream>
 
-#include "../../Core/Logging/Logger.hpp" // для ::mir::globalLogger()
+#include "../../Core/Logging/Logger.hpp"
 
 namespace MirEngine {
 namespace Rendering {
@@ -31,7 +25,7 @@ int parseMajorVersion(const std::string& version)
     return version[0] - '0';
 }
 
-} // namespace
+}
 
 bool OpenGLDebug::checkError(const std::string& context)
 {
@@ -84,8 +78,7 @@ OpenGLDeviceInfo OpenGLDebug::getDeviceInfo()
         info.profile = "Compatibility Profile";
     else
     {
-        // macOS не добавляет суффикс в строку версии; определяем профиль
-        // через GL_CONTEXT_PROFILE_MASK (3.2+).
+
         GLint mask = 0;
         glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &mask);
         if (mask & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT)
@@ -98,7 +91,6 @@ OpenGLDeviceInfo OpenGLDebug::getDeviceInfo()
 
     info.major = parseMajorVersion(v);
 
-    // minor: первая цифра после "major."
     if (v.size() >= 3 && v[1] == '.' &&
         std::isdigit(static_cast<unsigned char>(v[2]))) {
         info.minor = v[2] - '0';
@@ -230,13 +222,13 @@ bool OpenGLDebug::enableDebugOutput()
 }
 
 #ifdef GL_DEBUG_OUTPUT
-void OpenGLDebug::debugCallback(GLenum /*source*/,
-                                GLenum /*type*/,
+void OpenGLDebug::debugCallback(GLenum ,
+                                GLenum ,
                                 GLuint id,
                                 GLenum severity,
-                                GLsizei /*length*/,
+                                GLsizei ,
                                 const GLchar* message,
-                                const void* /*userParam*/)
+                                const void* )
 {
     if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) {
         return;
@@ -256,5 +248,5 @@ void OpenGLDebug::debugCallback(GLenum /*source*/,
 }
 #endif
 
-} // namespace Rendering
-} // namespace MirEngine
+}
+}

@@ -9,7 +9,6 @@
 namespace mir
 {
 
-/// UI-independent selection operations for the active sketch session.
 class SketchSelectionCommands
 {
 public:
@@ -29,8 +28,6 @@ public:
     }
 };
 
-/// Reversible selection command for use by the command history when selection
-/// changes need to participate in a larger atomic UI operation.
 class SelectGeometryCommand final : public ISketchCommand
 {
 public:
@@ -91,4 +88,4 @@ private:
     std::vector<std::uint32_t> previous_;
 };
 
-} // namespace mir
+}

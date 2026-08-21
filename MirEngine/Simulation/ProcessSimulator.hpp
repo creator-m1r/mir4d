@@ -67,8 +67,6 @@ public:
             if (!source || !target || !source->enabled || !target->enabled)
                 continue;
 
-            // The first process layer deliberately performs only transport.
-            // Physics solvers consume the same material state in later layers.
             auto& materialState = materialIt->second;
             materialState.mass = std::max(0.0, materialState.mass);
         }
@@ -82,4 +80,4 @@ private:
     Scalar lastStep_{0.0};
 };
 
-} // namespace mir
+}

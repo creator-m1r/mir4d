@@ -13,7 +13,6 @@ public enum MirCameraPreset: String, CaseIterable, Sendable {
     case topFront, topBack, topLeft, topRight
     case bottomFront, bottomBack, bottomLeft, bottomRight
 
-    /// Stable C index used by MirEngineSetActiveCameraPreset.
     var presetIndex: Int {
         switch self {
         case .front: return 0
@@ -46,8 +45,6 @@ public enum MirCameraPreset: String, CaseIterable, Sendable {
         }
     }
 
-    /// World-space VIEW direction. MirEngine uses a Z-up coordinate system.
-    /// These vectors represent target - eye, matching Camera::forward().
     var direction: SIMD3<Double> {
         switch self {
         case .front: return SIMD3(0, -1, 0)

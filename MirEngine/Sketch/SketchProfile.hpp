@@ -6,8 +6,6 @@
 namespace mir
 {
 
-/// A validated planar loop represented by ordered sketch geometry IDs.
-/// Construction geometry is never included in a manufacturing profile.
 struct SketchProfile
 {
     std::uint32_t id{0};
@@ -23,4 +21,4 @@ struct SketchProfile
     }
 };
 
-} // namespace mir
+}

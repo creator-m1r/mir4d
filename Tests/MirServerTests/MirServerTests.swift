@@ -76,8 +76,8 @@ struct MirServerTests {
         let a = MirOperationClock(counter: 5, authorID: "u1")
         let b = MirOperationClock(counter: 5, authorID: "u2")
         let c = MirOperationClock(counter: 6, authorID: "u1")
-        #expect(a < b)            // по часам равны -> по authorID
-        #expect(b < c)            // больший счётчик больше
+        #expect(a < b)
+        #expect(b < c)
         #expect(a < c)
     }
 
@@ -100,8 +100,6 @@ struct MirServerTests {
         #expect(decoded.entityID == "body-1")
         #expect(decoded.authorID == "u9")
     }
-
-    // MARK: - CRDT: конфликты при одновременном редактировании
 
     private func op(_ counter: UInt64, _ author: String, _ entity: String) -> MirCollaborationOperation {
         MirCollaborationOperation(
@@ -145,8 +143,6 @@ struct MirServerTests {
         #expect(crdt1.state(for: "b1")?.clock == crdt2.state(for: "b1")?.clock)
         #expect(crdt1.state(for: "b2")?.clock == crdt2.state(for: "b2")?.clock)
     }
-
-    // MARK: - Undo/Redo через контроллер совместной работы
 
     @MainActor
     @Test("Контроллер: undo локальной операции применяет инверсию к документу")

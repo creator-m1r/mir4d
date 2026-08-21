@@ -8,9 +8,6 @@
 namespace MirEngine {
 namespace Rendering {
 
-/// Canonical lightweight render-space vector shared by the render layer.
-/// Deliberately independent of the geometry math namespace so the render
-/// layer stays self-contained (AGENTS.md: no C++ <-> Swift-only types).
 struct RenderVec3
 {
     double x{0.0};
@@ -18,9 +15,6 @@ struct RenderVec3
     double z{0.0};
 };
 
-/// Render-layer selection properties (face statistics).
-/// Produced by the selection inspector pipeline and formatted for the
-/// property grid by RenderSelectionPropertiesFormatter.
 struct RenderSelectionProperties
 {
     RenderSelection selection{};
@@ -35,5 +29,5 @@ struct RenderSelectionProperties
     }
 };
 
-} // namespace Rendering
-} // namespace MirEngine
+}
+}

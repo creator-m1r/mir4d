@@ -25,7 +25,6 @@ enum class CommandType : std::uint8_t
     ExportMeshes
 };
 
-/// Compact engineering action in the 4D command stream.
 struct Command
 {
     std::uint64_t sequence{0};
@@ -81,4 +80,4 @@ struct Command
     }
 }
 
-} // namespace mir4d
+}

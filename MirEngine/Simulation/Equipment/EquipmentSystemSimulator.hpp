@@ -141,4 +141,4 @@ private:
     std::unordered_set<std::uint64_t> processedConnections_;
 };
 
-} // namespace mir
+}

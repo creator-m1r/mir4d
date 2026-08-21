@@ -24,7 +24,7 @@ final class GestureClassifierTests: XCTestCase {
     func testAmbiguousPoseFallsBackToRest() {
         let pose = MIRHandPoseMock.mockRest()
         let result = classifier.classify(pose)
-        // Rest or a low-confidence gesture; never a high-confidence false positive.
+
         XCTAssertLessThan(result.confidence, 0.95)
     }
 
@@ -38,7 +38,7 @@ final class GestureClassifierTests: XCTestCase {
     }
 
     func testGestureCatalogIsExtensible() {
-        // Every documented single and two-hand gesture exists in the type.
+
         let expected: [MIRHandGestureType] = [
             .openPalm, .point, .pinch, .grab, .fist, .twoFinger, .threeFinger,
             .vSign, .thumbsUp, .rest,

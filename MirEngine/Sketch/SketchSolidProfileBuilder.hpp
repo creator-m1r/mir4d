@@ -16,9 +16,6 @@
 namespace mir
 {
 
-/// Converts validated planar loops into material regions suitable for an
-/// extrusion operation. This layer deliberately does not triangulate or
-/// create B-Rep topology.
 class SketchSolidProfileBuilder
 {
 public:
@@ -41,9 +38,6 @@ public:
             if (i == outer)
                 continue;
 
-            // The current loop detector provides orientation. Opposite
-            // orientation is treated as a hole; nested islands can be
-            // promoted to additional regions by a later containment pass.
             if (loops.loops[i].isHole())
                 region.holes.push_back(i);
             else
@@ -60,4 +54,4 @@ public:
     }
 };
 
-} // namespace mir
+}

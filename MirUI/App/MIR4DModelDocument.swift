@@ -1,8 +1,5 @@
 import Foundation
 
-/// Persistent CAD model layer shared by the SwiftUI document and the future MirEngine bridge.
-/// Geometry is represented by stable IDs and parametric descriptors; the C++ kernel remains
-/// the authority for evaluated topology and B-Rep data.
 struct MIR4DModelDocument: Codable, Equatable {
     var schemaVersion: Int = 1
     var root: MIR4DModelNode
@@ -21,29 +18,22 @@ struct MIR4DModelDocument: Codable, Equatable {
         )
     }
 
-    // MARK: - Stable identity lookup
-
-    /// Returns the persisted body for a stable model UUID.
     func body(id: UUID) -> MIR4DBody? {
         bodies.first { $0.id == id }
     }
 
-    /// Returns the persisted operation for a stable model UUID.
     func operation(id: UUID) -> MIR4DOperation? {
         operations.first { $0.id == id }
     }
 
-    /// Returns the persisted geometry descriptor for a stable model UUID.
     func geometry(id: UUID) -> MIR4DGeometry? {
         geometry.first { $0.id == id }
     }
 
-    /// Resolves the owning body of an operation without requiring the UI tree.
     func bodyID(forOperation id: UUID) -> UUID? {
         operation(id: id)?.bodyID
     }
 
-    /// Returns all feature/geometry IDs belonging to a body through operations.
     func geometryIDs(forBody bodyID: UUID) -> [UUID] {
         let operationIDs = operations
             .filter { $0.bodyID == bodyID }
@@ -56,8 +46,6 @@ struct MIR4DModelDocument: Codable, Equatable {
             .map(\.id)
     }
 
-    /// Resolves a persisted body UUID from the engine object identity stored on a geometry.
-    /// This is deliberately a model-layer lookup: UI selection must not invent a second ID.
     func bodyID(forEngineObjectID objectID: UInt64) -> UUID? {
         guard objectID > 0 else { return nil }
         for geometry in geometry {
@@ -80,7 +68,6 @@ struct MIR4DModelNode: Codable, Equatable, Identifiable {
     var kind: Kind
     var children: [MIR4DModelNode] = []
 
-    /// Removes a descendant node by id, keeping the tree structure intact.
     mutating func removeChild(id: UUID) {
         children.removeAll { $0.id == id }
         for index in children.indices {

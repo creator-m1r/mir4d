@@ -80,4 +80,4 @@ private:
     std::vector<Process> processes_;
 };
 
-} // namespace mir
+}

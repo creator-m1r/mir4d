@@ -1,13 +1,4 @@
-// MirUI/Core/Widget/WidgetID.hpp
-// 🏷️ Уникальный строковый идентификатор любого элемента интерфейса.
-//
-// Вместо чисел или случайных хешей MirUI использует осмысленные строки,
-// например "mainWindow", "createButton", "projectTree".
-// Это делает код читаемым и позволяет легко находить элементы в отладчике.
-//
-// Чистый C++23, без платформенных зависимостей.
 
-// MirUI/Core/Widget/WidgetID.hpp
 #pragma once
 
 #include <cstdint>
@@ -32,7 +23,7 @@ private:
     uint64_t m_value = 0;
 };
 
-} // namespace MirUI
+}
 
 namespace std {
 template <>

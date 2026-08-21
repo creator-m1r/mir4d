@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Compact bottom bar for the legacy CAD main layout: quick access to the
-/// command palette, radial settings and panel visibility.
 @MainActor
 struct MinimalWorkspaceBar: View {
     @ObservedObject var appState: CADAppState

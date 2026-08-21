@@ -1,44 +1,54 @@
 import AppKit
 import Foundation
 
-/// Haptic feedback for the radial gesture.
-///
-/// The haptic layer is intentionally independent from:
-/// - radial menu rendering;
-/// - command registry;
-/// - engineering state.
-///
-/// RadialMenuBegan / RadialMenuMoved / RadialMenuEnded
-/// remain the single input path.
 @MainActor
 final class RadialMenuHaptics {
 
-    // MARK: - Shared instance
-
     static let shared = RadialMenuHaptics()
 
-    // MARK: - Dependencies
+    enum RadialMenuHapticEvent {
+        case open
+        case enterDeadZone
+        case enterPanel
+        case switchPanel
+        case enterTool
+        case switchTool
+        case preview
+        case confirm
+        case cancel
+        case error
+    }
+
+    func fire(_ event: RadialMenuHapticEvent) {
+        guard settings.settings.hapticEnabled else { return }
+        let pattern: NSHapticFeedbackManager.FeedbackPattern
+        switch event {
+        case .open: pattern = .alignment
+        case .enterDeadZone: pattern = .alignment
+        case .enterPanel: pattern = .alignment
+        case .switchPanel: pattern = .alignment
+        case .enterTool: pattern = .alignment
+        case .switchTool: pattern = .alignment
+        case .preview: pattern = .generic
+        case .confirm: pattern = .generic
+        case .cancel: pattern = .alignment
+        case .error: pattern = .generic
+        }
+        perform(pattern)
+    }
 
     private let settings = RadialMenuSettingsStore.shared
 
-    // MARK: - Runtime state
-
     private var lastPanelIndex: Int?
     private var lastToolIndex: Int?
-
-    // MARK: - Notification observers
 
     private var beganObserver: NSObjectProtocol?
     private var movedObserver: NSObjectProtocol?
     private var endedObserver: NSObjectProtocol?
 
-    // MARK: - Lifecycle
-
     private init() {
         installObservers()
     }
-
-    // MARK: - Observer installation
 
     private func installObservers() {
 
@@ -51,6 +61,7 @@ final class RadialMenuHaptics {
         ) { [weak self] _ in
 
             Task { @MainActor [weak self] in
+                self?.fire(.open)
                 self?.reset()
             }
         }
@@ -61,8 +72,6 @@ final class RadialMenuHaptics {
             queue: .main
         ) { [weak self] notification in
 
-            // Extract Sendable values before crossing
-            // the concurrency boundary.
             guard
                 let dx = notification.userInfo?["dx"] as? Double,
                 let dy = notification.userInfo?["dy"] as? Double
@@ -90,13 +99,6 @@ final class RadialMenuHaptics {
         }
     }
 
-    // MARK: - Observer removal
-
-    /// Removes NotificationCenter observers.
-    ///
-    /// This is deliberately an explicit lifecycle operation instead
-    /// of using `deinit`, because NSObjectProtocol is non-Sendable
-    /// under Swift 6 strict concurrency.
     func stop() {
 
         let center = NotificationCenter.default
@@ -119,14 +121,10 @@ final class RadialMenuHaptics {
         reset()
     }
 
-    // MARK: - Gesture state
-
     private func reset() {
         lastPanelIndex = nil
         lastToolIndex = nil
     }
-
-    // MARK: - Gesture processing
 
     private func handleMove(
         dx: Double,
@@ -168,24 +166,20 @@ final class RadialMenuHaptics {
             )
         }()
 
-        // Entered another panel.
         if panelIndex != lastPanelIndex {
             lastPanelIndex = panelIndex
             lastToolIndex = toolIndex
 
-            perform(.generic)
+            fire(.switchPanel)
             return
         }
 
-        // Entered another tool inside the same panel.
         if toolIndex != lastToolIndex {
             lastToolIndex = toolIndex
 
-            perform(.alignment)
+            fire(.switchTool)
         }
     }
-
-    // MARK: - Haptic output
 
     private func perform(
         _ pattern: NSHapticFeedbackManager.FeedbackPattern
@@ -198,8 +192,6 @@ final class RadialMenuHaptics {
             )
     }
 }
-
-// MARK: - Bootstrap
 
 @MainActor
 private let mir4DRadialMenuHapticsBootstrap =

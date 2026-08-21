@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Adaptive workbench ribbon for the MIR 4D command surface.
-/// It exposes the current engineering context without duplicating engine state.
 struct WorkbenchRibbonView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

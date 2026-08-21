@@ -1,7 +1,5 @@
 import Foundation
 
-/// Bridges the existing project lifecycle notifications to the optional-module coordinator.
-/// This keeps MIR4DProjectSession focused on project data while module lifecycle stays isolated.
 @MainActor
 final class MIR4DProjectSessionOptionalModulesBridge {
     static let shared = MIR4DProjectSessionOptionalModulesBridge()
@@ -39,7 +37,6 @@ final class MIR4DProjectSessionOptionalModulesBridge {
         }
     }
 
-    /// Call once from the application/root UI before projects can be opened.
     func install() {
         _ = Self.shared
     }

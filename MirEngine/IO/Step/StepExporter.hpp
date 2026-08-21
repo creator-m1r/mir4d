@@ -14,4 +14,4 @@ public:
         const ExportOptions& options) override;
 };
 
-} // namespace mir::io::step
+}

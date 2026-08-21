@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Shared coordinate conversion for the sketch viewport.
-///
-/// The sketch engine works in model coordinates while SwiftUI works in
-/// screen coordinates. Keeping the conversion here prevents individual
-/// views and controllers from inventing their own transforms.
 struct SketchCoordinateSpace {
     var origin: CGPoint
     var pixelsPerUnit: CGFloat

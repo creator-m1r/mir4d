@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Compact floating action dock. It keeps utility actions available without
-/// permanently consuming the lower viewport area.
 struct MIR4DViewportActionDock: View {
     let onCommandPalette: () -> Void
     let onSettings: () -> Void

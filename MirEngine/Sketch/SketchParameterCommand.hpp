@@ -21,8 +21,6 @@ enum class SketchLineParameter : std::uint8_t
     AngleRadians
 };
 
-/// Changes one line parameter while keeping the operation reversible.
-/// Length and angle are applied around the line start point.
 class SetLineParameterCommand final : public ISketchCommand
 {
 public:
@@ -135,4 +133,4 @@ private:
     bool captured_{false};
 };
 
-} // namespace mir
+}

@@ -1,7 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLCapabilities.cpp
-// =================================================================================
-// Реализация сбора информации о GPU (без spdlog / glbinding).
-// =================================================================================
 
 #include "OpenGLCapabilities.h"
 
@@ -34,7 +30,6 @@ CapabilitiesInfo OpenGLCapabilities::query()
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &info.maxTextureSize);
     glGetIntegerv(GL_MAX_SAMPLES,      &info.maxSamples);
 
-    // Анизотропная фильтрация
     info.anisotropySupported =
         isExtensionSupported("GL_EXT_texture_filter_anisotropic") ||
         isExtensionSupported("GL_ARB_texture_filter_anisotropic");
@@ -45,7 +40,6 @@ CapabilitiesInfo OpenGLCapabilities::query()
 #endif
     }
 
-    // Список расширений
     GLint numExtensions = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
     for (GLint i = 0; i < numExtensions; ++i) {
@@ -55,7 +49,6 @@ CapabilitiesInfo OpenGLCapabilities::query()
         }
     }
 
-    // Простой вывод в консоль (вместо spdlog)
     std::cout << "[OpenGLCapabilities] Vendor   : " << info.vendor   << "\n"
               << "[OpenGLCapabilities] Renderer : " << info.renderer << "\n"
               << "[OpenGLCapabilities] Version  : " << info.version  << "\n"
@@ -83,5 +76,5 @@ bool OpenGLCapabilities::isExtensionSupported(const std::string& name)
     return false;
 }
 
-} // namespace Rendering
-} // namespace MirEngine
+}
+}

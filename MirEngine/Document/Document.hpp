@@ -14,11 +14,6 @@
 namespace mir4d
 {
 
-/// Root in-memory representation of a MIR 4D engineering project.
-///
-/// Document owns project identity, object storage, command history,
-/// deterministic time and revision state. ObjectStore is the canonical
-/// ownership boundary; its current Scene implementation is transitional.
 class Document
 {
 public:
@@ -43,7 +38,6 @@ public:
     [[nodiscard]] ObjectStore& objects() noexcept { return store_; }
     [[nodiscard]] const ObjectStore& objects() const noexcept { return store_; }
 
-    /// Transitional compatibility accessor. New code should use objects().
     [[nodiscard]] mir::Scene& scene() noexcept { return store_.scene(); }
     [[nodiscard]] const mir::Scene& scene() const noexcept { return store_.scene(); }
 
@@ -163,4 +157,4 @@ private:
     bool modified_{false};
 };
 
-} // namespace mir4d
+}

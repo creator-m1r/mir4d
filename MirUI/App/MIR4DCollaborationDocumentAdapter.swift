@@ -1,11 +1,6 @@
 import Foundation
 import MirServer
 
-/// Адаптер совместной работы: связывает `MIR4DModelRuntime` с подсистемой
-/// `MirServer.Collaboration`, реализуя протокол `MirCollaborativeDocument`.
-///
-/// Позволяет применять входящие операции коллег к реальной модели проекта без
-/// прямой зависимости подсистемы MirServer от CAD-ядра.
 extension MIR4DModelRuntime: MirCollaborativeDocument {
 
     func applyCollaborationOperation(_ operation: MirCollaborationOperation) throws {
@@ -37,7 +32,6 @@ extension MIR4DModelRuntime: MirCollaborativeDocument {
         }
     }
 
-    /// Удаление тела по идентификатору через существующий механизм viewport.
     private func deleteBodyCollaboratively(_ bodyID: UUID) {
         guard let operation = document.operations.first(where: { $0.bodyID == bodyID }),
               let geometry = document.geometry.first(where: { $0.id == operation.featureIDs.first }),

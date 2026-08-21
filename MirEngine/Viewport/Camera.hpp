@@ -18,14 +18,6 @@ enum class CameraProjection
     Orthographic
 };
 
-/// Canonical camera value used by Viewport and future renderer backends.
-/// No raw float vector or matrix types are exposed here.
-///
-/// Orbit model: the camera orbits a target point at (theta, phi, distance).
-/// The view direction is always target - position, so orbit never rolls.
-/// Orthographic extents are derived from the orbit distance (half-height =
-/// distance, half-width = distance * aspect), so zooming keeps working in
-/// orthographic mode and switching projections preserves the visible scale.
 class Camera
 {
 public:
@@ -73,8 +65,6 @@ public:
         projectionDirty_ = true;
     }
 
-    /// Updates near/far planes without touching the projection mode.
-    /// Used by the runtime to keep dynamic clipping in orthographic mode.
     void setNearFar(Scalar nearPlane, Scalar farPlane) noexcept
     {
         nearPlane_ = std::max(nearPlane, Scalar(1e-12));
@@ -124,7 +114,6 @@ public:
             target_.z + distance_ * cosPhi};
     }
 
-    /// World-space view direction: from the eye towards the target.
     [[nodiscard]] Vector3 forward() const noexcept
     {
         const Point3 eye = position();
@@ -134,27 +123,23 @@ public:
             target_.z - eye.z}.normalized();
     }
 
-    /// World-space right vector of the view plane (screen X).
     [[nodiscard]] Vector3 rightVector() const noexcept
     {
         const Vector3 f = forward();
-        // Z-up world: the default up is +Z; fall back to +Y when looking
-        // straight down the Z axis (degenerate up).
+
         Vector3 worldUp{0.0, 0.0, 1.0};
         if (std::abs(Vector3::dot(f, worldUp)) > Scalar(0.9999))
             worldUp = {0.0, 1.0, 0.0};
         return Vector3::cross(f, worldUp).normalized();
     }
 
-    /// World-space up vector of the view plane (screen Y).
     [[nodiscard]] Vector3 upVector() const noexcept
     {
         return Vector3::cross(rightVector(), forward()).normalized();
     }
 
-    /// Orthographic half-height of the visible volume (derived from distance).
     [[nodiscard]] Scalar orthoHalfHeight() const noexcept { return distance_; }
-    /// Orthographic half-width of the visible volume (aspect-scaled distance).
+
     [[nodiscard]] Scalar orthoHalfWidth() const noexcept { return distance_ * aspect_; }
 
     [[nodiscard]] Matrix4 viewMatrix() const noexcept
@@ -188,10 +173,6 @@ public:
                 0.0, 0.0, -1.0, 0.0};
         }
 
-        // Orthographic extents follow the orbit distance so zoom keeps the
-        // visible scale intuitive: half-height = distance, half-width =
-        // distance * aspect. Explicit setOrthographic values remain stored but
-        // the runtime keeps them derived while zooming.
         const Scalar halfHeight = distance_;
         const Scalar halfWidth = distance_ * aspect_;
         const Scalar left = orthoLeft_ == Scalar(0.0) ? -halfWidth : orthoLeft_;
@@ -227,4 +208,4 @@ private:
     bool projectionDirty_{true};
 };
 
-} // namespace mir
+}

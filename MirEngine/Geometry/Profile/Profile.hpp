@@ -11,7 +11,6 @@
 namespace mir
 {
 
-/// A planar CAD profile consisting of one closed outer loop and zero or more closed inner loops.
 class Profile3
 {
 public:
@@ -125,4 +124,4 @@ private:
     Scalar tolerance_{1e-9};
 };
 
-} // namespace mir
+}

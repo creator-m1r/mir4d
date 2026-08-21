@@ -1,21 +1,3 @@
-// MirUI/Foundation/Color/ColorPalette.hpp
-// 🎨 Расширенная палитра цветов — теперь включает токены для CAD/Viewport.
-//
-// ColorPalette хранит значения цветов для ВСЕХ семантических токенов,
-// определённых в ColorToken. Каждое поле — это конкретный цвет (Color),
-// соответствующий определённому смысловому ключу.
-//
-// Теперь палитра разделена на логические группы:
-//   • Interface   — фон, поверхности, текст, акцент, границы.
-//   • Status      — ошибка, предупреждение, успех и их текстовые цвета.
-//   • States      — hover, press, focus, disabled, selected.
-//   • Input       — поля ввода, рамки, подсказки.
-//   • Viewport    — всё, что связано с 3D/4D вьюпортом (сетка, оси, гизмо).
-//
-// Готовые статические методы (light, dark) создают полные палитры
-// с разумными значениями по умолчанию.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -24,68 +6,63 @@
 namespace MirUI {
 
 struct ColorPalette {
-    // ── Интерфейс ────────────────────────────────────────────
-    Color background;         // interface.background
-    Color surface;            // interface.surface
-    Color surfaceHover;       // interface.surfaceHover
-    Color surfaceActive;      // interface.surfaceActive
 
-    Color textPrimary;        // interface.textPrimary
-    Color textSecondary;      // interface.textSecondary
-    Color textMuted;          // interface.textMuted
+    Color background;
+    Color surface;
+    Color surfaceHover;
+    Color surfaceActive;
 
-    Color accent;             // interface.accent
-    Color accentHover;        // interface.accentHover
-    Color accentActive;       // interface.accentActive
+    Color textPrimary;
+    Color textSecondary;
+    Color textMuted;
 
-    Color border;             // interface.border
-    Color separator;          // interface.separator
+    Color accent;
+    Color accentHover;
+    Color accentActive;
 
-    // ── Статус ──────────────────────────────────────────────
-    Color error;              // status.error
-    Color errorText;          // status.errorText
-    Color warning;            // status.warning
-    Color warningText;        // status.warningText
-    Color success;            // status.success
-    Color successText;        // status.successText
+    Color border;
+    Color separator;
 
-    // ── Состояния ───────────────────────────────────────────
-    Color hover;              // state.hover
-    Color press;              // state.press
-    Color focus;              // state.focus
-    Color focusRing;          // state.focusRing
-    Color disabled;           // state.disabled
-    Color disabledText;       // state.disabledText
-    Color selected;           // state.selected
-    Color selectedText;       // state.selectedText
+    Color error;
+    Color errorText;
+    Color warning;
+    Color warningText;
+    Color success;
+    Color successText;
 
-    // ── Ввод ─────────────────────────────────────────────────
-    Color inputBackground;    // input.background
-    Color inputBorder;        // input.border
-    Color inputPlaceholder;   // input.placeholder
+    Color hover;
+    Color press;
+    Color focus;
+    Color focusRing;
+    Color disabled;
+    Color disabledText;
+    Color selected;
+    Color selectedText;
 
-    // ── Вьюпорт (3D / CAD) ──────────────────────────────────
-    Color viewportBackground;   // viewport.background
-    Color viewportGrid;         // viewport.grid
-    Color viewportGridMajor;    // viewport.gridMajor
-    Color viewportGridMinor;    // viewport.gridMinor
-    Color viewportAxisX;        // viewport.axisX  (обычно красный)
-    Color viewportAxisY;        // viewport.axisY  (обычно зелёный)
-    Color viewportAxisZ;        // viewport.axisZ  (обычно синий)
-    Color viewportSelected;     // viewport.selected
-    Color viewportPreselected;  // viewport.preselected
-    Color viewportConstruction; // viewport.construction (вспомогательная геометрия)
-    Color viewportHidden;       // viewport.hidden (скрытые линии/грани)
-    Color viewportDimension;    // viewport.dimension (размеры)
-    Color viewportSection;      // viewport.section (сечения)
-    Color viewportSnap;         // viewport.snap (привязка)
-    Color viewportOrigin;       // viewport.origin (начало координат)
-    Color viewportGizmo;        // viewport.gizmo (манипулятор)
-    Color viewportGizmoX;       // viewport.gizmoX
-    Color viewportGizmoY;       // viewport.gizmoY
-    Color viewportGizmoZ;       // viewport.gizmoZ
+    Color inputBackground;
+    Color inputBorder;
+    Color inputPlaceholder;
 
-    // ── Операторы сравнения ──────────────────────────────────
+    Color viewportBackground;
+    Color viewportGrid;
+    Color viewportGridMajor;
+    Color viewportGridMinor;
+    Color viewportAxisX;
+    Color viewportAxisY;
+    Color viewportAxisZ;
+    Color viewportSelected;
+    Color viewportPreselected;
+    Color viewportConstruction;
+    Color viewportHidden;
+    Color viewportDimension;
+    Color viewportSection;
+    Color viewportSnap;
+    Color viewportOrigin;
+    Color viewportGizmo;
+    Color viewportGizmoX;
+    Color viewportGizmoY;
+    Color viewportGizmoZ;
+
     bool operator==(const ColorPalette& other) const {
         return background == other.background &&
                surface == other.surface &&
@@ -140,13 +117,9 @@ struct ColorPalette {
         return !(*this == other);
     }
 
-    // ── Статические фабрики палитр ──────────────────────────
-
-    // Стандартная светлая палитра (для интерфейса и CAD).
     static ColorPalette light() {
         ColorPalette p;
 
-        // Интерфейс
         p.background    = Color::rgb(0.96f, 0.96f, 0.96f);
         p.surface       = Color::white();
         p.surfaceHover  = Color::rgb(0.95f, 0.95f, 0.95f);
@@ -160,7 +133,6 @@ struct ColorPalette {
         p.border        = Color::rgb(0.85f, 0.85f, 0.85f);
         p.separator     = Color::rgb(0.90f, 0.90f, 0.90f);
 
-        // Статус
         p.error         = Color::rgb(0.90f, 0.20f, 0.20f);
         p.errorText     = Color::white();
         p.warning       = Color::rgb(1.00f, 0.70f, 0.00f);
@@ -168,7 +140,6 @@ struct ColorPalette {
         p.success       = Color::rgb(0.20f, 0.80f, 0.20f);
         p.successText   = Color::white();
 
-        // Состояния
         p.hover         = Color::rgb(0.95f, 0.95f, 0.95f);
         p.press         = Color::rgb(0.90f, 0.90f, 0.90f);
         p.focus         = Color::rgba(0.00f, 0.48f, 1.00f, 0.3f);
@@ -178,12 +149,10 @@ struct ColorPalette {
         p.selected      = Color::rgb(0.00f, 0.48f, 1.00f);
         p.selectedText  = Color::white();
 
-        // Ввод
         p.inputBackground   = Color::white();
         p.inputBorder       = Color::rgb(0.80f, 0.80f, 0.80f);
         p.inputPlaceholder  = Color::rgb(0.70f, 0.70f, 0.70f);
 
-        // Вьюпорт (CAD)
         p.viewportBackground   = Color::rgb(0.20f, 0.20f, 0.22f);
         p.viewportGrid         = Color::rgb(0.30f, 0.30f, 0.32f);
         p.viewportGridMajor    = Color::rgb(0.35f, 0.35f, 0.37f);
@@ -207,11 +176,9 @@ struct ColorPalette {
         return p;
     }
 
-    // Стандартная тёмная палитра.
     static ColorPalette dark() {
         ColorPalette p;
 
-        // Интерфейс
         p.background    = Color::rgb(0.12f, 0.12f, 0.12f);
         p.surface       = Color::rgb(0.18f, 0.18f, 0.18f);
         p.surfaceHover  = Color::rgb(0.24f, 0.24f, 0.24f);
@@ -225,7 +192,6 @@ struct ColorPalette {
         p.border        = Color::rgb(0.30f, 0.30f, 0.30f);
         p.separator     = Color::rgb(0.25f, 0.25f, 0.25f);
 
-        // Статус
         p.error         = Color::rgb(0.95f, 0.25f, 0.25f);
         p.errorText     = Color::white();
         p.warning       = Color::rgb(1.00f, 0.65f, 0.00f);
@@ -233,7 +199,6 @@ struct ColorPalette {
         p.success       = Color::rgb(0.25f, 0.85f, 0.25f);
         p.successText   = Color::white();
 
-        // Состояния
         p.hover         = Color::rgb(0.24f, 0.24f, 0.24f);
         p.press         = Color::rgb(0.30f, 0.30f, 0.30f);
         p.focus         = Color::rgba(0.29f, 0.56f, 1.00f, 0.3f);
@@ -243,12 +208,10 @@ struct ColorPalette {
         p.selected      = Color::rgb(0.29f, 0.56f, 1.00f);
         p.selectedText  = Color::white();
 
-        // Ввод
         p.inputBackground   = Color::rgb(0.15f, 0.15f, 0.15f);
         p.inputBorder       = Color::rgb(0.35f, 0.35f, 0.35f);
         p.inputPlaceholder  = Color::rgb(0.50f, 0.50f, 0.50f);
 
-        // Вьюпорт (CAD)
         p.viewportBackground   = Color::rgb(0.08f, 0.08f, 0.10f);
         p.viewportGrid         = Color::rgb(0.15f, 0.15f, 0.17f);
         p.viewportGridMajor    = Color::rgb(0.20f, 0.20f, 0.22f);
@@ -273,4 +236,4 @@ struct ColorPalette {
     }
 };
 
-} // namespace MirUI
+}

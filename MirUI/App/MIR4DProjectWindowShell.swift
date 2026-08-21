@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Presentation shell for project dialogs. Keeps the start experience visually
-/// consistent while the existing project workflow remains responsible for data.
 struct MIR4DProjectWindowShell<Content: View>: View {
     let title: String
     let subtitle: String?

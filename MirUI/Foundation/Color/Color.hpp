@@ -1,6 +1,3 @@
-// MirUI/Foundation/Color/Color.hpp
-// RGBA color structure with utility functions.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -18,7 +15,6 @@ struct Color {
     constexpr Color(float r, float g, float b, float a = 1.0f) noexcept
         : r(r), g(g), b(b), a(a) {}
 
-    // Named constructors
     static constexpr Color rgb(float r, float g, float b) noexcept {
         return { r, g, b, 1.0f };
     }
@@ -29,12 +25,10 @@ struct Color {
     static constexpr Color white()   noexcept { return { 1,1,1,1 }; }
     static constexpr Color black()   noexcept { return { 0,0,0,1 }; }
 
-    // Returns a copy with modified alpha.
     [[nodiscard]] constexpr Color withAlpha(float newAlpha) const noexcept {
         return { r, g, b, newAlpha };
     }
 
-    // Linear interpolation between two colors.
     [[nodiscard]] static Color lerp(const Color& a, const Color& b, float t) noexcept {
         t = std::clamp(t, 0.0f, 1.0f);
         return {
@@ -49,4 +43,4 @@ struct Color {
     bool operator!=(const Color& other) const = default;
 };
 
-} // namespace MirUI
+}

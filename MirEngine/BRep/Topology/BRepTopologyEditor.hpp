@@ -1,9 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Topology/BRepTopologyEditor.hpp
-// Единственная точка изменения межсущностных топологических связей.
-// Геометрические данные редактор не создаёт и не дублирует.
-
 #include "MirEngine/BRep/Topology/BRepTopologyStore.hpp"
 
 #include <algorithm>
@@ -26,7 +22,6 @@ public:
         if (std::find(wire->edges.begin(), wire->edges.end(), orientedEdge) != wire->edges.end())
             return true;
 
-        // A closed wire is immutable until explicitly rebuilt.
         if (wire->closed)
             return false;
 
@@ -223,4 +218,4 @@ private:
     }
 };
 
-} // namespace mir
+}

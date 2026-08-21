@@ -36,8 +36,6 @@ struct SketchExtrudeSections
     SketchExtrudeSection top;
 };
 
-/// Lifts exact analytic sketch curves into two parallel sections.
-/// No tessellation or B-Rep construction occurs here.
 class SketchExtrudeSectionBuilder
 {
 public:
@@ -131,4 +129,4 @@ private:
     }
 };
 
-} // namespace mir
+}

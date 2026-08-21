@@ -86,4 +86,4 @@ private:
     std::unordered_map<std::string, MaterialProperties> materials_;
 };
 
-} // namespace mir
+}

@@ -1,10 +1,3 @@
-// MirEngine/Math/Numeric/Polynomials.hpp
-// 🧮 Многочлены: вычисление, производная, интеграл, МНК-аппроксимация и корни.
-//
-// Коэффициенты хранятся от свободного члена: P(x) = Σ aᵢ·xⁱ (a[0] — константа).
-// Корни вычисляются методом Вейерштрасса (Дуран–Кернер) в комплексной плоскости.
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -21,7 +14,6 @@ namespace mir::math
 
 using Complex = std::complex<Scalar>;
 
-/// Значение многочлена в комплексной точке (схема Горнера).
 [[nodiscard]] inline Complex evaluatePolynomialComplex(const std::vector<Scalar>& a, const Complex& x)
 {
     Complex r = Complex(0);
@@ -30,7 +22,6 @@ using Complex = std::complex<Scalar>;
     return r;
 }
 
-/// Производная P'(x): коэффициенты от свободного члена.
 [[nodiscard]] inline std::vector<Scalar> polynomialDerivative(const std::vector<Scalar>& a)
 {
     if (a.size() < 2)
@@ -41,7 +32,6 @@ using Complex = std::complex<Scalar>;
     return d;
 }
 
-/// Первообразная ∫P с нулевой константой: коэффициенты от свободного члена.
 [[nodiscard]] inline std::vector<Scalar> polynomialIntegral(const std::vector<Scalar>& a)
 {
     std::vector<Scalar> I(a.size() + 1, Scalar(0));
@@ -50,7 +40,6 @@ using Complex = std::complex<Scalar>;
     return I;
 }
 
-/// МНК-аппроксимация точек (xs, ys) многочленом степени degree.
 [[nodiscard]] inline mir4d::Result<std::vector<Scalar>> polynomialFit(
     const std::vector<Scalar>& xs,
     const std::vector<Scalar>& ys,
@@ -79,16 +68,14 @@ using Complex = std::complex<Scalar>;
     return sol;
 }
 
-/// Корни многочлена (метод Вейерштрасса / Дуран–Кернер). Возвращает n комплексных
-/// корней для нормированного многочлена степени n.
 [[nodiscard]] inline std::vector<Complex> polynomialRoots(const std::vector<Scalar>& coeffs)
 {
-    // Нормируем и определяем фактическую степень.
+
     std::size_t deg = coeffs.size();
     while (deg > 0 && std::abs(coeffs[deg - 1]) < 1e-14)
         --deg;
     if (deg <= 1)
-        return {}; // константа — корней нет
+        return {};
 
     std::vector<Scalar> a(coeffs);
     const Scalar lead = a[deg - 1];
@@ -126,4 +113,4 @@ using Complex = std::complex<Scalar>;
     return z;
 }
 
-} // namespace mir::math
+}

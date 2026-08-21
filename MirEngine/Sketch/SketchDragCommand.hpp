@@ -14,9 +14,6 @@ enum class SketchDragHandle : std::uint8_t
     EndPoint
 };
 
-/// Reversible mouse-drag operation for a sketch line endpoint.
-/// The drag itself may update the geometry many times; the command stores
-/// only the original and final positions so one completed drag is one undo step.
 class SketchDragLineCommand final : public ISketchCommand
 {
 public:
@@ -67,4 +64,4 @@ private:
     SketchPoint2D final_{};
 };
 
-} // namespace mir
+}

@@ -119,4 +119,4 @@ private:
     std::vector<std::uint32_t> createdConstraintIds_;
 };
 
-} // namespace mir
+}

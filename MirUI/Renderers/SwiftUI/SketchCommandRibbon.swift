@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Compact command ribbon for Sketch mode.
-/// UI actions remain intentionally decoupled from engine geometry.
 struct SketchCommandRibbon: View {
     @ObservedObject var appState: CADAppState
 

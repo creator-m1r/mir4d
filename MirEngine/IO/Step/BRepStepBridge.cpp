@@ -171,7 +171,7 @@ bool isForwardEnum(const Param& p)
     return p.kind == Param::Kind::Enum && p.text == ".T.";
 }
 
-} // namespace
+}
 
 namespace mir::io::step
 {
@@ -204,8 +204,6 @@ std::shared_ptr<BRepModel> BRepStepBridge::readFromText(
     std::unordered_map<int, BRepShellHandle> shells;
     std::unordered_map<int, std::pair<int, bool>> orientedEdges;
 
-    // Pass 1a: leaf geometry primitives (points, directions). These do not
-    // reference each other, so a single pass is sufficient.
     for (const auto& kv : file->entities)
     {
         const Entity& e = kv.second;
@@ -226,8 +224,6 @@ std::shared_ptr<BRepModel> BRepStepBridge::readFromText(
         }
     }
 
-    // Pass 1b: derived primitives (vectors, placements) that reference the
-    // leaf primitives resolved above.
     for (const auto& kv : file->entities)
     {
         const Entity& e = kv.second;
@@ -257,7 +253,6 @@ std::shared_ptr<BRepModel> BRepStepBridge::readFromText(
         }
     }
 
-    // Pass 2: surfaces and curves.
     for (const auto& kv : file->entities)
     {
         const Entity& e = kv.second;
@@ -346,8 +341,6 @@ std::shared_ptr<BRepModel> BRepStepBridge::readFromText(
         }
     }
 
-    // Pass 3: topology, in dependency order so referenced entities exist
-    // before their references are resolved.
     auto eachOf = [&](const char* type, auto&& fn)
     {
         for (const auto& kv : file->entities)
@@ -892,4 +885,4 @@ bool BRepStepBridge::write(
     return true;
 }
 
-} // namespace mir::io::step
+}

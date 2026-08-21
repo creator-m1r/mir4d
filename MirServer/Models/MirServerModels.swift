@@ -1,13 +1,6 @@
 import Foundation
 
-/// Модели данных подсистемы MirServer.
-///
-/// Все типы являются `Sendable`, чтобы безопасно передаваться между
-/// изолированным сетевым `actor`-транспортом и главным потоком UI
-/// через Event Bus (NotificationCenter).
 public enum MirServerModels {}
-
-// MARK: - Участники команды
 
 public struct MirTeamMember: Codable, Identifiable, Sendable, Equatable, Hashable {
     public var id: String
@@ -22,8 +15,6 @@ public struct MirTeamMember: Codable, Identifiable, Sendable, Equatable, Hashabl
         self.online = online
     }
 }
-
-// MARK: - Сообщения команды
 
 public struct MirTeamMessage: Codable, Identifiable, Sendable, Equatable, Hashable {
     public var id: String
@@ -49,8 +40,6 @@ public struct MirTeamMessage: Codable, Identifiable, Sendable, Equatable, Hashab
         self.projectID = projectID
     }
 }
-
-// MARK: - Экспорт проекта
 
 public struct MirProjectExportRequest: Codable, Sendable, Equatable {
     public var projectID: String
@@ -88,15 +77,12 @@ public struct MirProjectExportResult: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Статус соединения
-
 public enum MirServerConnectionStatus: Sendable, Equatable {
     case disconnected
     case connecting
     case connected
     case failed(String)
 
-    /// Локализованная метка статуса для UI.
     public var label: String {
         switch self {
         case .disconnected: return "Не подключено"

@@ -1,17 +1,8 @@
 import CoreGraphics
 import MirUIHandGesture
 
-/// Rich, typed payload for a sculpting stroke.
-///
-/// Decouples hand / air-sculpt recognition from the CAD deformation command:
-/// producers fill the geometry, consumers (MirEngine deformation) interpret `mode`.
-///
-/// The canonical intent bus for the whole application is `MIRIntentRouter`
-/// (module `MirUIHandGesture`); a sculpt stroke is published on it as
-/// `MIRIntent(source: .spatial, action: "sculpt", ...)` and the rich payload
-/// below is built from the raw `MIRHandIntent` at the App layer.
 struct MIR4DSculptIntent: Equatable {
-    /// Deformation mode requested by the user.
+
     enum Mode: String, Equatable, Sendable, CaseIterable {
         case push
         case pull
@@ -24,19 +15,17 @@ struct MIR4DSculptIntent: Equatable {
     }
 
     var position: CGPoint
-    /// Scene-space depth of the stroke, in the hand interaction volume.
-    /// Carries the real relative depth from the camera (Vision `z`, projected
-    /// by `MIRHandSpatialMapper`) — not an estimate. 0 at the depth centre.
+
     var depth: CGFloat
-    /// Surface-normal direction in screen space (unit-ish).
+
     var direction: CGPoint
-    /// Applied force, normalised to 0...1.
+
     var pressure: CGFloat
-    /// Brush radius in scene units.
+
     var radius: CGFloat
-    /// Deformation magnitude.
+
     var strength: CGFloat
-    /// Stroke speed.
+
     var velocity: CGFloat
     var mode: Mode
 
@@ -60,8 +49,6 @@ struct MIR4DSculptIntent: Equatable {
         self.mode = mode
     }
 
-    /// Build from the canonical raw hand intent. `grab` maps to grab mode,
-    /// everything else to a push stroke; geometry fields default sensibly.
     init(from intent: MIRHandIntent) {
         let mode: Mode = intent.gesture.type == .grab ? .grab : .push
         let pressure = min(max(intent.strength, 0), 1)
@@ -77,10 +64,7 @@ struct MIR4DSculptIntent: Equatable {
 }
 
 extension MIR4DSculptIntent.Mode {
-    /// Maps a raw hand pose to a sculpt deformation mode so every pose is a
-    /// distinct tool: pinch→push, fist→pull, point→smooth, openPalm→inflate,
-    /// grab→grab, thumbsUp→pinch, vSign→cut, twoFinger→paint. Poses without a
-    /// sculpt meaning (rest, threeFinger) return nil.
+
     init?(handPose: MIRHandGestureType) {
         switch handPose {
         case .pinch: self = .push
@@ -95,7 +79,6 @@ extension MIR4DSculptIntent.Mode {
         }
     }
 
-    /// Short russian label for the on-screen brush indicator.
     var shortTitle: String {
         switch self {
         case .push: return "Вдавить"
@@ -109,4 +92,3 @@ extension MIR4DSculptIntent.Mode {
         }
     }
 }
-

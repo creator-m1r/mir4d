@@ -1,7 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLState.cpp
-// =================================================================================
-// OpenGL state management implementation.
-// =================================================================================
 
 #include "OpenGLState.h"
 
@@ -18,23 +14,18 @@ void OpenGLState::initialize()
     if (m_initialized)
         return;
 
-    // Depth testing: CAD scenes rely on correct occlusion.
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glClearDepth(1.0);
     m_depthTest = true;
 
-    // Back-face culling with CCW front faces (right-handed winding).
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    // Blending is off by default; passes enable it explicitly.
     glDisable(GL_BLEND);
     m_blend = false;
 
-    // No multisample toggle here: the default frame buffer owns the
-    // multisample configuration (see MacOpenGLContext).
     m_initialized = true;
 }
 
@@ -80,8 +71,7 @@ void OpenGLState::clear(const ColorRGBA& color,
 
 void OpenGLState::beginFrame()
 {
-    // Reset transient state to the defaults before each frame so a pass that
-    // forgets to restore its overrides cannot leak into the next pass.
+
     setWireframe(false);
     setBlend(false);
     setDepthTest(true);
@@ -159,4 +149,4 @@ void OpenGLState::setDepthFunc(RenderDevice::DepthFunc func)
     glDepthFunc(func == RenderDevice::DepthFunc::LessEqual ? GL_LEQUAL : GL_LESS);
 }
 
-} // namespace MirEngine::Rendering
+}

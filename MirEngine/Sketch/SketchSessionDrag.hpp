@@ -12,9 +12,6 @@
 namespace mir
 {
 
-/// Application-facing entry point for committing one completed sketch drag.
-/// The preview remains outside the document; this method creates exactly one
-/// history command containing the final point and accepted inferences.
 class SketchSessionDrag
 {
 public:
@@ -57,4 +54,4 @@ private:
     SketchConstraintInference inferenceGate_;
 };
 
-} // namespace mir
+}

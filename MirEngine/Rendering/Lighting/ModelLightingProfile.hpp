@@ -46,4 +46,4 @@ inline constexpr ModelLightingProfile modelLightingProfile(ModelLightingMode mod
     }
 }
 
-} // namespace mir4d::rendering
+}

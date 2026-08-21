@@ -35,4 +35,4 @@ private:
     std::vector<TransformPropertyRow> properties_{};
 };
 
-} // namespace MirUI
+}

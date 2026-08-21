@@ -1,9 +1,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - MIR 4D UI C ABI
-// These declarations are required by both the Xcode/macOS target and the
-// SwiftPM target. They must not disappear when MIR4D_SWIFTPM is defined.
 @_silgen_name("MirUI_RenderFrame") public func MirUI_RenderFrame()
 @_silgen_name("MirUI_NewProject") public func MirUI_NewProject()
 @_silgen_name("MirUI_ResizeWidget") public func MirUI_ResizeWidget(_ widgetId: Int64, _ newWidth: Double, _ newHeight: Double, _ newX: Double, _ newY: Double)
@@ -33,11 +30,6 @@ import SwiftUI
 @_silgen_name("MirUI_SetWidgetStyleField") public func MirUI_SetWidgetStyleField(_ widgetType: UnsafePointer<CChar>?, _ widgetState: UnsafePointer<CChar>?, _ fieldName: UnsafePointer<CChar>?, _ value: UnsafePointer<CChar>?)
 @_silgen_name("MirUI_ExecuteCommand") public func MirUI_ExecuteCommand(_ commandId: UnsafePointer<CChar>, _ widgetId: Int64)
 
-// MARK: - MirEngine OpenGL ABI
-
-/// Canonical object transform across the C ABI. Layout MUST match `MirTransform`
-/// in `MirEngineExports.h` (position, rotation quaternion, scale) so the struct
-/// can be passed by value through `@_silgen_name`.
 public struct MirTransform {
     public var px: Double
     public var py: Double
@@ -118,7 +110,6 @@ public func MirEngineRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false 
 public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool { false }
 
-// Hand Grab — Vertical Slice v0.1 (SwiftPM stubs).
 public func MirEnginePickHandRay(_ viewport: UnsafeMutableRawPointer?, _ ox: Double, _ oy: Double, _ oz: Double, _ dx: Double, _ dy: Double, _ dz: Double, _ outObjectId: UnsafeMutablePointer<UInt64>?, _ outDistance: UnsafeMutablePointer<Double>?) -> Bool { false }
 public func MirEngineBeginGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
 public func MirEnginePreviewGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: MirTransform) -> Bool { false }
@@ -126,14 +117,13 @@ public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId
 public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool { false }
 public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
-// Hand skeleton visualization (debug / assist). SwiftPM stubs.
+
 public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?, _ gesture: UnsafePointer<Int32>?) {}
 public func MirEngineSetHandSkeletonStyle(_ viewport: UnsafeMutableRawPointer?, _ leftR: Float, _ leftG: Float, _ leftB: Float, _ rightR: Float, _ rightG: Float, _ rightB: Float, _ jointSize: Float, _ tipSize: Float, _ wristSize: Float, _ alpha: Float, _ depthTest: Int32) {}
 public func MirEngineSetHandSkeletonTopology(_ viewport: UnsafeMutableRawPointer?, _ boneCount: Int32, _ bones: UnsafePointer<Int32>?) {}
 public func MirEngineClearHandSkeleton(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetCameraEye(_ viewport: UnsafeMutableRawPointer?, _ outX: UnsafeMutablePointer<Double>?, _ outY: UnsafeMutablePointer<Double>?, _ outZ: UnsafeMutablePointer<Double>?) -> Bool { false }
 
-// Work planes (ТЗ Этап 1) — SwiftPM stub.
 public struct MirEnginePlane {
     public var id: UInt32
     public var origin: (Float, Float, Float)
@@ -200,7 +190,6 @@ public func MirEngineSketchRemoveConstraint(_ doc: UnsafeMutableRawPointer?, _ i
 public func MirEngineSketchConstraintCount(_ doc: UnsafeMutableRawPointer?) -> UInt32 { 0 }
 public func MirEngineSketchConstraintAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool { false }
 
-// CAE multiphysics campaign runner — SwiftPM stub (real symbol provided by MirEngineExports).
 public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool { false }
 
 #else
@@ -259,7 +248,6 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineCanUndo") public func MirEngineCanUndo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MirEngineCanRedo") public func MirEngineCanRedo(_ viewport: UnsafeMutableRawPointer?) -> Bool
 
-// Hand Grab — Vertical Slice v0.1.
 @_silgen_name("MirEnginePickHandRay") public func MirEnginePickHandRay(_ viewport: UnsafeMutableRawPointer?, _ ox: Double, _ oy: Double, _ oz: Double, _ dx: Double, _ dy: Double, _ dz: Double, _ outObjectId: UnsafeMutablePointer<UInt64>?, _ outDistance: UnsafeMutablePointer<Double>?) -> Bool
 @_silgen_name("MirEngineBeginGrab") public func MirEngineBeginGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
 @_silgen_name("MirEnginePreviewGrab") public func MirEnginePreviewGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: MirTransform) -> Bool
@@ -286,7 +274,6 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
     _ colors: UnsafePointer<Float>?, _ origin: UnsafePointer<Float>?,
     _ xAxis: UnsafePointer<Float>?, _ yAxis: UnsafePointer<Float>?)
 
-// Work planes (ТЗ Этап 1) — helper that flattens Swift planes to flat arrays.
 public struct MirEnginePlane {
     public var id: UInt32
     public var origin: (Float, Float, Float)
@@ -358,8 +345,6 @@ public func MirEnginePushWorkPlanes(_ renderer: UnsafeMutableRawPointer?, _ plan
     }
 }
 
-
-// 2D sketch overlay (ТЗ Этап 2) — flattened push helper.
 public struct MirEngineSketchSegment: Sendable {
     public var ax: Float
     public var ay: Float
@@ -392,7 +377,7 @@ public func MirEnginePushSketch(
         ax.append(seg.ax); ay.append(seg.ay); bx.append(seg.bx); by.append(seg.by)
         colors.append(contentsOf: [seg.color.0, seg.color.1, seg.color.2])
     }
-    // Plane basis for the active work plane (XY base plane by default).
+
     ax.withUnsafeBufferPointer { axP in
         ay.withUnsafeBufferPointer { ayP in
             bx.withUnsafeBufferPointer { bxP in
@@ -445,7 +430,6 @@ public func MirEnginePushSketch(
 
 #endif
 
-// Sketch constraint kinds (match MirEngineSketchConstraint in C ABI).
 public enum MirEngineSketchConstraint: Int32 {
     case coincident = 0
     case horizontal
@@ -462,8 +446,6 @@ public enum MirEngineSketchConstraint: Int32 {
     case diameter
 }
 
-
-// MARK: - Live document bridge
 #if !MIR4D_SWIFTPM
 @_silgen_name("MIR4DDocumentCreate") public func MIR4DDocumentCreate() -> UnsafeMutableRawPointer?
 @_silgen_name("MIR4DDocumentDestroy") public func MIR4DDocumentDestroy(_ handle: UnsafeMutableRawPointer?)
@@ -477,24 +459,15 @@ public enum MirEngineSketchConstraint: Int32 {
 @_silgen_name("MIR4DDocumentIsModified") public func MIR4DDocumentIsModified(_ handle: UnsafeMutableRawPointer?) -> Bool
 @_silgen_name("MIR4DDocumentIsValid") public func MIR4DDocumentIsValid(_ handle: UnsafeMutableRawPointer?) -> Bool
 
-// CAE multiphysics campaign runner (MIR 4D CAE module).
 @_silgen_name("MirEngineRunCAECampaign") public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool
 #endif
 
-/// Unified diagnostics logger (ТЗ §40).
-///
-/// Categories: ENGINE, GL, DISPLAYLINK, CAMERA, HAND, ACTOR, LIFECYCLE.
 public func MIR4DLog(_ category: String, _ message: String) {
     #if DEBUG
     print("[MIR4D-\(category)] \(message)")
     #endif
 }
 
-/// Безопасное декодирование NUL-терминированной C-строки (ТЗ §29).
-///
-/// `String(decodingCString:as:)` требует `UnsafePointer<UTF8.CodeUnit>` (UInt8),
-/// тогда как C API возвращает `UnsafePointer<CChar>` (Int8). Приводим через
-/// `assumingMemoryBound` —布局 CChar/UTF8.CodeUnit идентичен (1 байт).
 public func mirCString(_ pointer: UnsafePointer<CChar>?) -> String? {
     guard let pointer else { return nil }
     let utf8 = UnsafeRawPointer(pointer).assumingMemoryBound(to: UTF8.CodeUnit.self)
@@ -507,8 +480,6 @@ public func cStrToString(_ pointer: UnsafePointer<CChar>?) -> String? {
 }
 public func cStrToStringDefault(_ pointer: UnsafePointer<CChar>?, _ defaultValue: String = "") -> String { cStrToString(pointer) ?? defaultValue }
 
-/// Runs a CAE multiphysics campaign from a text definition and returns the JSON
-/// report, or nil if the engine is unavailable / the definition is invalid.
 public func MIR4DRunCAECampaign(definition: String) -> String? {
     let capacity = 1 << 16
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: capacity)

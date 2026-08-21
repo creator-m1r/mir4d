@@ -1,7 +1,3 @@
-// MirEngine/Rendering/Passes/PlanePass.cpp
-// =================================================================================
-// Оверлей рабочих плоскостей (ТЗ Этап 1, раздел 5).
-// =================================================================================
 
 #include "PlanePass.h"
 
@@ -85,23 +81,19 @@ float niceStepLocal(double target)
     return static_cast<float>(nice * base);
 }
 
-// Половинный размер плоскости адаптируется под зум камеры, чтобы плоскости
-// визуально совмещались с адаптивной сеткой GridPass (ТЗ Этап 1, отображение).
 float adaptivePlaneHalfExtent(const RenderContext& context)
 {
     const float* cp = context.cameraPosition;
     const double camDist = std::sqrt(double(cp[0]) * cp[0] + double(cp[1]) * cp[1] + double(cp[2]) * cp[2]);
     const float stepVal = niceStepLocal(camDist * 0.1);
-    // Ограничиваем половинный размер: плоскость должна быть заметной, но не
-    // закрывать весь вид при удалённой камере (иначе после клиппинга —
-    // "лепестки").
+
     float s = stepVal;
     s = std::min(s, 60.0f);
     s = std::max(s, 8.0f);
     return s;
 }
 
-} // namespace
+}
 
 PlanePass::PlanePass() = default;
 PlanePass::~PlanePass() = default;
@@ -136,12 +128,6 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
         verts.push_back(v);
     };
 
-    // Индексы группируются ПО ТИПАМ примитивов: сначала все треугольники
-    // поверхностей, затем все линии (оси + рамки). Иначе glDrawElements для
-    // треугольников и линий читают пересекающиеся диапазоны индексов, и вершины
-    // осей/рамок попадают в треугольники -> "иглы"/"клинья".
-
-    // Pass 1: поверхности (2 треугольника на плоскость).
     {
         uint32_t base = 0;
         for (const auto& p : planes)
@@ -167,7 +153,6 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
         }
     }
 
-    // Pass 2: оси (X красная, Y зелёная, нормаль синяя) — 3 отрезка = 6 вершин.
     {
         uint32_t base = static_cast<uint32_t>(verts.size());
         for (const auto& p : planes)
@@ -195,7 +180,6 @@ void PlanePass::buildDynamicGeometry(RenderDevice& device,
         }
     }
 
-    // Pass 3: рамки плоскостей (всегда, активная/выбранная — ярче).
     {
         uint32_t base = static_cast<uint32_t>(verts.size());
         for (const auto& p : planes)
@@ -253,16 +237,12 @@ bool PlanePass::initialize(RenderDevice& device)
 }
 
 void PlanePass::execute(RenderContext& context,
-                        mir::Scene& /*scene*/,
+                        mir::Scene& ,
                         RenderDevice& device)
 {
     if (!m_initialized || context.planes.empty())
         return;
 
-    // Hover picking: подсветить плоскость под курсором. Луч восстанавливается
-    // из NDC через обратную view-projection, выбирается плоскость, чей след
-    // луча попадает в её половинный размер и которая больше всего повёрнута
-    // к камере (верхняя из совпадающих у начала координат).
     if (context.cursorActive)
     {
         const mir::Matrix4 invVP = rawToMatrix(context.viewProjectionMatrix).inverse();
@@ -345,4 +325,4 @@ void PlanePass::execute(RenderContext& context,
     device.setCullFace(true);
 }
 
-} // namespace MirEngine::Rendering
+}

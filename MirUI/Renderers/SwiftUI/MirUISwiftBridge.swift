@@ -1,5 +1,3 @@
-// MirUI/Renderers/SwiftUI/MirUISwiftBridge.swift
-// Swift-мост C++ → SwiftUI для плоского списка UI-узлов.
 
 import SwiftUI
 import Foundation

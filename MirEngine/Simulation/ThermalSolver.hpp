@@ -83,4 +83,4 @@ private:
     ThermalQuality quality_{ThermalQuality::Fast};
 };
 
-} // namespace mir
+}

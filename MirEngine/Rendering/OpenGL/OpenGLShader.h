@@ -1,8 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLShader.h
-// =================================================================================
-// OpenGL implementation of the Shader interface.
-// Uses the system OpenGL headers only (no external dependencies).
-// =================================================================================
 
 #pragma once
 
@@ -29,7 +24,6 @@ public:
     OpenGLShader(const OpenGLShader&) = delete;
     OpenGLShader& operator=(const OpenGLShader&) = delete;
 
-    // Native program handle (for debugging).
     [[nodiscard]] GLuint handle() const noexcept { return m_program; }
 
     bool compile(const std::string& vertexSource,
@@ -58,4 +52,4 @@ private:
     [[nodiscard]] bool checkLinkStatus();
 };
 
-} // namespace MirEngine::Rendering
+}

@@ -1,15 +1,3 @@
-// MirEngine/Math/Numeric/Statistics.hpp
-// 🧮 Статистика и специальные функции — математическое ядро MIR 4D.
-//
-// Статистика:         mean, variance, stdDev, median, minimum, maximum, sum,
-//                     dot, covariance, pearson (корреляция Пирсона),
-//                     linearRegression (МНК через solveLeastSquares).
-// Спецфункции:        factorial, binomialCoefficient, logGamma, gammaFunction,
-//                     erf, erfc.
-//
-// Функции с некорректными входными данными возвращают mir4d::Result.
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -34,11 +22,6 @@ namespace mir::math
 }
 #endif
 
-// ═══════════════════════════════════════════════════════════════
-//  Описательная статистика
-// ═══════════════════════════════════════════════════════════════
-
-/// Сумма элементов выборки.
 [[nodiscard]] inline Scalar sum(const std::vector<Scalar>& values)
 {
     Scalar total = Scalar(0);
@@ -47,7 +30,6 @@ namespace mir::math
     return total;
 }
 
-/// Среднее арифметическое. Пустая выборка → ошибку.
 [[nodiscard]] inline mir4d::Result<Scalar> mean(const std::vector<Scalar>& values)
 {
     if (values.empty())
@@ -55,7 +37,6 @@ namespace mir::math
     return mir4d::success(sum(values) / static_cast<Scalar>(values.size()));
 }
 
-/// Дисперсия. sample=true — выборочная (n−1), иначе генеральная (n).
 [[nodiscard]] inline mir4d::Result<Scalar> variance(
     const std::vector<Scalar>& values,
     bool sample = true)
@@ -75,7 +56,6 @@ namespace mir::math
     return mir4d::success(acc / denom);
 }
 
-/// Среднеквадратичное отклонение.
 [[nodiscard]] inline mir4d::Result<Scalar> stdDev(
     const std::vector<Scalar>& values,
     bool sample = true)
@@ -86,7 +66,6 @@ namespace mir::math
     return mir4d::success(std::sqrt(v.value()));
 }
 
-/// Медиана выборки (не разрушает аргумент).
 [[nodiscard]] inline mir4d::Result<Scalar> median(std::vector<Scalar> values)
 {
     if (values.empty())
@@ -99,7 +78,6 @@ namespace mir::math
     return mir4d::success((values[n / 2 - 1] + values[n / 2]) * Scalar(0.5));
 }
 
-/// Минимум выборки.
 [[nodiscard]] inline mir4d::Result<Scalar> minimum(const std::vector<Scalar>& values)
 {
     if (values.empty())
@@ -111,7 +89,6 @@ namespace mir::math
     return mir4d::success(m);
 }
 
-/// Максимум выборки.
 [[nodiscard]] inline mir4d::Result<Scalar> maximum(const std::vector<Scalar>& values)
 {
     if (values.empty())
@@ -123,7 +100,6 @@ namespace mir::math
     return mir4d::success(m);
 }
 
-/// Скалярное произведение двух выборок одинаковой длины.
 [[nodiscard]] inline mir4d::Result<Scalar> dot(
     const std::vector<Scalar>& a,
     const std::vector<Scalar>& b)
@@ -136,7 +112,6 @@ namespace mir::math
     return mir4d::success(acc);
 }
 
-/// Ковариация двух выборок (sample, деление на n−1).
 [[nodiscard]] inline mir4d::Result<Scalar> covariance(
     const std::vector<Scalar>& a,
     const std::vector<Scalar>& b)
@@ -156,7 +131,6 @@ namespace mir::math
     return mir4d::success(acc / static_cast<Scalar>(a.size() - 1));
 }
 
-/// Коэффициент корреляции Пирсона ∈ [−1, 1].
 [[nodiscard]] inline mir4d::Result<Scalar> pearson(
     const std::vector<Scalar>& a,
     const std::vector<Scalar>& b)
@@ -174,8 +148,6 @@ namespace mir::math
     return mir4d::success(cov.value() / denom);
 }
 
-/// Линейная регрессия y = slope·x + intercept методом наименьших квадратов.
-/// Возвращает пару (slope, intercept).
 [[nodiscard]] inline mir4d::Result<std::pair<Scalar, Scalar>> linearRegression(
     const std::vector<std::pair<Scalar, Scalar>>& points)
 {
@@ -187,7 +159,7 @@ namespace mir::math
 
     for (std::size_t i = 0; i < points.size(); ++i)
     {
-        A[i][0] = Scalar(1);   // свободный член (intercept)
+        A[i][0] = Scalar(1);
         A[i][1] = points[i].first;
         b[i] = points[i].second;
     }
@@ -199,14 +171,9 @@ namespace mir::math
     return mir4d::success(std::make_pair(sol.value()[1], sol.value()[0]));
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Специальные функции
-// ═══════════════════════════════════════════════════════════════
-
-/// Натуральный логарифм гамма-функции (аппроксимация Ланцоша, g=7).
 [[nodiscard]] inline Scalar logGamma(Scalar x)
 {
-    // Коэффициенты Ланцоша для g = 7, n = 9.
+
     static constexpr double c[9] = {
         0.99999999999980993,
         676.5203681218851,
@@ -220,7 +187,7 @@ namespace mir::math
 
     if (x < Scalar(0.5))
     {
-        // Формула дополнения Эйлера.
+
         const Scalar pi = Scalar(3.14159265358979323846);
         return std::log(pi / std::sin(pi * x)) - logGamma(Scalar(1) - x);
     }
@@ -231,19 +198,17 @@ namespace mir::math
         ag += c[k] / static_cast<double>(x + k);
 
     const double t = static_cast<double>(x) + Scalar(7) + Scalar(0.5);
-    const double log2pi = Scalar(0.91893853320467274178); // 0.5*ln(2π)
+    const double log2pi = Scalar(0.91893853320467274178);
 
     return static_cast<Scalar>(
         log2pi + (static_cast<double>(x) + Scalar(0.5)) * std::log(t) - t + std::log(ag));
 }
 
-/// Гамма-функция Γ(x) (для x > 0).
 [[nodiscard]] inline Scalar gammaFunction(Scalar x)
 {
     return std::exp(logGamma(x));
 }
 
-/// Факториал n! (возвращает Scalar; при переполнении → ∞).
 [[nodiscard]] inline Scalar factorial(int n)
 {
     if (n < 0)
@@ -259,7 +224,6 @@ namespace mir::math
     return result;
 }
 
-/// Биномиальный коэффициент C(n, k) = n! / (k!(n−k)!).
 [[nodiscard]] inline Scalar binomialCoefficient(int n, int k)
 {
     if (n < 0 || k < 0 || k > n)
@@ -273,7 +237,6 @@ namespace mir::math
         logGamma(static_cast<Scalar>(n - k + 1)));
 }
 
-/// Функция ошибок erf(x) (аппроксимация Абрамовица–Стигена, точность ~1.5e-7).
 [[nodiscard]] inline Scalar erf(Scalar x)
 {
     if (x < Scalar(0))
@@ -294,18 +257,11 @@ namespace mir::math
     return Scalar(1) - poly * std::exp(-x * x);
 }
 
-/// Дополнение функции ошибок erfc(x) = 1 − erf(x).
 [[nodiscard]] inline Scalar erfc(Scalar x)
 {
     return Scalar(1) - erf(x);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Неполные специальные функции (для распределений вероятностей)
-// ═══════════════════════════════════════════════════════════════
-
-/// Регуляризованная нижняя неполная гамма P(a, x) = γ(a,x)/Γ(a).
-/// Ряд для x < a+1, непрерывная дробь (Ленца) для x ≥ a+1.
 [[nodiscard]] inline Scalar lowerRegularizedGamma(Scalar a, Scalar x)
 {
     if (x <= Scalar(0))
@@ -331,7 +287,6 @@ namespace mir::math
         return sum * std::exp(-x + a * std::log(x) - gln);
     }
 
-    // Непрерывная дробь для Q(a,x) = 1 - P(a,x).
     const Scalar tiny = Scalar(1e-300);
     Scalar b = x + Scalar(1) - a;
     Scalar c = Scalar(1) / tiny;
@@ -352,8 +307,6 @@ namespace mir::math
     return Scalar(1) - q;
 }
 
-/// Регуляризованная неполная бета I_x(a, b) = B(x;a,b)/B(a,b).
-/// Через непрерывную дробь (Ленца) с ветвлением по x.
 [[nodiscard]] inline Scalar regularizedIncompleteBeta(Scalar x, Scalar a, Scalar b)
 {
     if (x <= Scalar(0))
@@ -409,7 +362,6 @@ namespace mir::math
         return bt * h;
     }
 
-    // Ветвь x >= порога: 1 - I_{1-x}(b, a).
     Scalar bt = std::exp(b * std::log(x) + a * std::log(Scalar(1) - x) + lbeta) / b;
 
     const Scalar tiny = Scalar(1e-300);
@@ -452,4 +404,4 @@ namespace mir::math
     return Scalar(1) - bt * h;
 }
 
-} // namespace mir::math
+}

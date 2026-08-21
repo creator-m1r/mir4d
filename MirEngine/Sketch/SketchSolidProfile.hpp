@@ -15,9 +15,6 @@ struct SketchSolidRegion
     std::vector<std::size_t> holes;
 };
 
-/// Immutable-ready description of planar material regions for a 3D feature.
-/// It contains topology only; triangulation and B-Rep construction belong to
-/// the downstream solid kernel.
 struct SketchSolidProfile
 {
     std::uint32_t id{0};
@@ -30,4 +27,4 @@ struct SketchSolidProfile
     }
 };
 
-} // namespace mir
+}

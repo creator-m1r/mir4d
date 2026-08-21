@@ -1,7 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLDevice.cpp
-// =================================================================================
-// OpenGLDevice implementation.
-// =================================================================================
 
 #include "OpenGLDevice.h"
 #include "OpenGLContext.h"
@@ -25,9 +21,7 @@ OpenGLDevice::OpenGLDevice(OpenGLContext* context)
 
 OpenGLDevice::~OpenGLDevice()
 {
-    // The device owns the GL resource lifecycle bound to its context. Release
-    // the shared scratch VAO handle so the next context regenerates it instead
-    // of binding a VAO that died with this context.
+
     ResetDefaultVertexArray();
 }
 
@@ -39,8 +33,7 @@ bool OpenGLDevice::initialize()
     }
 
     m_context->makeCurrent();
-    // OpenGL 4.1 Core requires a VAO to be bound for any buffer binding; keep a
-    // persistent scratch VAO bound so uploads never run with an unbound VAO.
+
     BindDefaultVertexArray();
     m_state.initialize();
 
@@ -89,14 +82,10 @@ void OpenGLDevice::draw(const RenderCommand& command)
 
     shader->bind();
     shader->setMatrix("u_model", command.modelMatrix);
-    // Contract: m_viewMatrix is the rotation-only camera view (see
-    // OpenGLRenderer::render). GeometryPass shifts model translations by
-    // -cameraPosition in double precision, so the camera translation must
-    // never be re-applied here.
+
     shader->setMatrix("u_view", m_viewMatrix);
     shader->setMatrix("u_projection", m_projectionMatrix);
 
-    // Pipeline state from the command flags.
     m_state.setDepthTest(command.state.depthTest);
     m_state.setBlend(command.state.blend);
     m_state.setWireframe(command.state.wireframe);
@@ -226,4 +215,4 @@ std::unique_ptr<RenderDevice> CreateRenderDevice(OpenGLContext* context)
     return device;
 }
 
-} // namespace MirEngine::Rendering
+}

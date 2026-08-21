@@ -1,7 +1,5 @@
 import Foundation
 
-/// Converts the native SelectionChanged event payload into a stable Swift
-/// representation for CADAppState and Inspector consumers.
 struct MirSelectionResult: Equatable, Sendable {
     enum Kind: UInt64, Sendable {
         case none = 0
@@ -39,8 +37,6 @@ final class ViewportSelectionEventAdapter {
         }
     }
 
-    /// Entry point for the native bridge. The native ABI stays untouched;
-    /// consumers receive the existing CADSelectionState through MirEventBus.
     func publish(kindRawValue: UInt64, id: UInt64) {
         let result = result(kindRawValue: kindRawValue, id: id)
         MirEventBus.shared.publish(.selectionChanged(

@@ -56,4 +56,4 @@ struct SimulationEquipment
     }
 };
 
-} // namespace mir
+}

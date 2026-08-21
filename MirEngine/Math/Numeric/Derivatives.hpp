@@ -1,15 +1,3 @@
-// MirEngine/Math/Numeric/Derivatives.hpp
-// 🧮 Численные производные многих переменных — надстройка над оптимизацией.
-//
-// Позволяет использовать solveNonlinearSystem / minimizeGradientDescent /
-// minimizeNewton с конечно-разностными производными, когда аналитический
-// градиент/якобиан/гессиан не задан.
-//
-//   • numericalGradient  — ∇f(x) (центральная разность).
-//   • numericalJacobian  — J[i][j] = ∂Fᵢ/∂xⱼ (центральная разность).
-//   • numericalHessian   — ∇²f(x) (симметричная, центральные разности).
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -26,7 +14,6 @@ namespace mir::math
 using ScalarFunction = std::function<Scalar(const std::vector<Scalar>&)>;
 using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scalar>&)>;
 
-/// Градиент ∇f(x) центральной разностью. h по умолчанию 1e-5.
 [[nodiscard]] inline std::vector<Scalar> numericalGradient(
     ScalarFunction f,
     const std::vector<Scalar>& x,
@@ -49,7 +36,6 @@ using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scala
     return grad;
 }
 
-/// Якобиан J[i][j] = ∂Fᵢ/∂xⱼ центральной разностью.
 [[nodiscard]] inline std::vector<std::vector<Scalar>> numericalJacobian(
     VectorFunction f,
     const std::vector<Scalar>& x,
@@ -80,7 +66,6 @@ using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scala
     return J;
 }
 
-/// Гессиан ∇²f(x) (симметричный) центральными разностями.
 [[nodiscard]] inline std::vector<std::vector<Scalar>> numericalHessian(
     ScalarFunction f,
     const std::vector<Scalar>& x,
@@ -89,7 +74,6 @@ using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scala
     const std::size_t n = x.size();
     std::vector<std::vector<Scalar>> H(n, std::vector<Scalar>(n, Scalar(0)));
 
-    // Диагональные элементы.
     for (std::size_t i = 0; i < n; ++i)
     {
         std::vector<Scalar> xp = x;
@@ -99,7 +83,6 @@ using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scala
         H[i][i] = (f(xp) - Scalar(2) * f(x) + f(xm)) / (h * h);
     }
 
-    // Внедиагональные элементы (симметричная схема).
     for (std::size_t i = 0; i < n; ++i)
     {
         for (std::size_t j = i + 1; j < n; ++j)
@@ -124,4 +107,4 @@ using VectorFunction = std::function<std::vector<Scalar>(const std::vector<Scala
     return H;
 }
 
-} // namespace mir::math
+}

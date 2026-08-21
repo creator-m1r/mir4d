@@ -1,40 +1,27 @@
-// MirEngine/Rendering/OpenGL/OpenGLState.h
-// =================================================================================
-// OpenGL global state management.
-//
-// Encapsulates glEnable / glDisable / glViewport / glClear and the pipeline
-// state overrides used by the renderer (depth test, blending, wireframe,
-// line width). OpenGLDevice routes its backend-neutral state calls here so
-// GL calls never leak into the passes.
-// =================================================================================
 
 #pragma once
 
 #include <cstdint>
 
-#include "../Core/RenderDevice.h"   // ColorRGBA, ClearFlags
+#include "../Core/RenderDevice.h"
 
 namespace MirEngine::Rendering {
 
 class OpenGLState {
 public:
-    // Initializes the default state (depth test, culling, ...).
+
     void initialize();
 
-    // Sets the viewport.
     void setViewport(std::uint32_t width, std::uint32_t height);
 
-    // Clears buffers with the given color, depth and flags.
     void clear(const ColorRGBA& color,
                float depth,
                int stencil,
                RenderDevice::ClearFlags flags);
 
-    // Frame boundaries (state validation hooks).
     void beginFrame();
     void endFrame();
 
-    // Pipeline state overrides.
     void setWireframe(bool enabled);
     void setDepthTest(bool enabled);
     void setBlend(bool enabled);
@@ -42,7 +29,6 @@ public:
     void setCullFace(bool enabled);
     void setDepthFunc(RenderDevice::DepthFunc func);
 
-    // Current viewport dimensions.
     [[nodiscard]] std::uint32_t width() const noexcept { return m_width; }
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
 
@@ -57,4 +43,4 @@ private:
     bool m_initialized{false};
 };
 
-} // namespace MirEngine::Rendering
+}

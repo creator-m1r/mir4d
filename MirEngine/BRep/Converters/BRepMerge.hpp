@@ -1,7 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Converters/BRepMerge.hpp
-
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 
 #include <map>
@@ -11,10 +9,6 @@
 namespace mir
 {
 
-/// Deep-copies the root solids of every source model into a single merged
-/// B-Rep model. Handle references are remapped so the result is self-contained.
-/// Geometry is copied by value; shared sub-shapes stay shared within each
-/// source model after the copy.
 [[nodiscard]] inline std::shared_ptr<BRepModel> mergeBRepModels(
     const std::vector<std::shared_ptr<BRepModel>>& sources)
 {
@@ -25,8 +19,6 @@ namespace mir
     auto& geo = merged->geometry();
     auto& top = merged->topology();
 
-    // Pointer to the model currently being copied from. Set inside the loop
-    // below; the copy lambdas read source handles through it.
     const BRepModel* src = nullptr;
 
     std::map<BRepPointHandle, BRepPointHandle> pointMap;
@@ -212,4 +204,4 @@ namespace mir
     return merged;
 }
 
-} // namespace mir
+}

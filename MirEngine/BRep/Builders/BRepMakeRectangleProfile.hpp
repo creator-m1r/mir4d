@@ -1,13 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/BRepMakeRectangleProfile.hpp
-//
-// Строит замкнутый прямоугольный wire в плоскости XY (или заданной плоскости)
-// как BRep-профиль для последующего Extrude.
-//
-// Это мост к эталонному сценарию:
-//   width/height → profile wire → extrude → solid
-
 #include "BRepBuilderAPI.hpp"
 #include "../Validator/BRepValidator.hpp"
 
@@ -29,8 +21,7 @@ struct BRepRectangleProfileResult
 class BRepMakeRectangleProfile
 {
 public:
-    // Прямоугольник в плоскости, заданной origin + normal + xDir.
-    // width вдоль xDir, height вдоль yDir = normal × xDir.
+
     [[nodiscard]] static BRepRectangleProfileResult build(
         BRepModel& model,
         Scalar width,
@@ -66,7 +57,6 @@ public:
             return result;
         }
 
-        // Ортогонализуем xDir относительно normal.
         xDir = (xDir - n * Vector3::dot(xDir, n));
         if (xDir.isZero())
         {
@@ -141,8 +131,6 @@ public:
             return result;
         }
 
-        // Лёгкая проверка связности через validator на временной модели не нужна:
-        // wire ещё не в solid. Проверяем локально.
         const BRepWire* wire = model.topology().wire(result.wire);
         if (!wire || !wire->closed || wire->edges.size() != 4)
         {
@@ -158,7 +146,6 @@ public:
         return result;
     }
 
-    // Удобный helper: XY-плоскость, origin в углу.
     [[nodiscard]] static BRepRectangleProfileResult buildXY(
         BRepModel& model,
         Scalar width,
@@ -177,4 +164,4 @@ public:
     }
 };
 
-} // namespace mir
+}

@@ -1,23 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// Presents the parameter HUD next to the pointer after a parameterized
-/// radial tool is chosen.
-///
-/// The coordinator deliberately stays outside CADCommandRegistry.
-/// Command execution remains on the existing command path.
-///
-/// Swift 6 concurrency rule:
-/// Notification objects and NSEvent objects never cross an actor boundary.
-/// Only small Sendable value snapshots are passed into MainActor tasks.
 @MainActor
 final class RadialToolParameterCoordinator {
 
-    // MARK: - Shared
-
     static let shared = RadialToolParameterCoordinator()
-
-    // MARK: - Sendable event snapshot
 
     private struct LocalEventInput: Sendable {
 
@@ -33,25 +20,17 @@ final class RadialToolParameterCoordinator {
         let keyCode: UInt16
     }
 
-    // MARK: - Dependencies
-
     private let parameterStore = RadialToolParameterStore.shared
     private let settingsStore = RadialToolParameterSettingsStore.shared
-
-    // MARK: - Notification observers
 
     private var radialEndedObserver: NSObjectProtocol?
     private var cancelObserver: NSObjectProtocol?
     private var activatedObserver: NSObjectProtocol?
     private var applicationInactiveObserver: NSObjectProtocol?
 
-    // MARK: - UI
-
     private var panel: NSPanel?
     private var localEventMonitor: Any?
     private var lastPointerLocation: NSPoint?
-
-    // MARK: - Parameterized commands
 
     private let parameterizedCommands: Set<String> = [
         "feature.extrude",
@@ -63,27 +42,20 @@ final class RadialToolParameterCoordinator {
         "manufacturing.submit"
     ]
 
-    // MARK: - Lifecycle
-
     private init() {
         installObservers()
     }
-
-    // MARK: - Notification observers
 
     private func installObservers() {
 
         let center = NotificationCenter.default
 
-        // Radial menu committed.
         radialEndedObserver = center.addObserver(
             forName: .mir4DRadialMenuEnded,
             object: nil,
             queue: .main
         ) { [weak self] notification in
 
-            // IMPORTANT:
-            // Extract values from Notification BEFORE entering Task.
             let userInfo = notification.userInfo
 
             let commit = (userInfo?["commit"] as? Bool) ?? false
@@ -113,7 +85,6 @@ final class RadialToolParameterCoordinator {
             }
         }
 
-        // Radial parameter tool cancelled.
         cancelObserver = center.addObserver(
             forName: .mir4DRadialToolCancelled,
             object: nil,
@@ -125,7 +96,6 @@ final class RadialToolParameterCoordinator {
             }
         }
 
-        // Radial parameter tool activated.
         activatedObserver = center.addObserver(
             forName: .mir4DRadialToolActivated,
             object: nil,
@@ -137,7 +107,6 @@ final class RadialToolParameterCoordinator {
             }
         }
 
-        // Application resigned active state.
         applicationInactiveObserver = center.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil,
@@ -150,12 +119,6 @@ final class RadialToolParameterCoordinator {
         }
     }
 
-    // MARK: - Notification observer cleanup
-
-    /// Explicit lifecycle cleanup.
-    ///
-    /// We intentionally do not use `deinit` here because
-    /// NSObjectProtocol is non-Sendable under Swift 6.
     func stop() {
 
         let center = NotificationCenter.default
@@ -182,8 +145,6 @@ final class RadialToolParameterCoordinator {
 
         closePanel()
     }
-
-    // MARK: - Radial tool selection
 
     private func startSelectedTool(
         dx: Double,
@@ -233,8 +194,6 @@ final class RadialToolParameterCoordinator {
 
         showPanelNearPointer()
     }
-
-    // MARK: - Parameter panel
 
     private func showPanelNearPointer() {
 
@@ -300,8 +259,6 @@ final class RadialToolParameterCoordinator {
         installInputMonitorIfNeeded()
     }
 
-    // MARK: - Local event monitor
-
     private func installInputMonitorIfNeeded() {
 
         guard localEventMonitor == nil else {
@@ -317,8 +274,6 @@ final class RadialToolParameterCoordinator {
                 ]
             ) { [weak self] event in
 
-                // NSEvent is non-Sendable.
-                // Convert it immediately into a Sendable snapshot.
                 let input =
                     Self.makeLocalEventInput(
                         from: event
@@ -359,8 +314,6 @@ final class RadialToolParameterCoordinator {
             keyCode: event.keyCode
         )
     }
-
-    // MARK: - Local event processing
 
     private func handleLocalEvent(
         _ input: LocalEventInput
@@ -447,8 +400,6 @@ final class RadialToolParameterCoordinator {
         }
     }
 
-    // MARK: - Panel creation
-
     private func makePanel(
         size: NSSize
     ) -> NSPanel {
@@ -491,8 +442,6 @@ final class RadialToolParameterCoordinator {
         return panel
     }
 
-    // MARK: - Panel closing
-
     private func closePanel() {
 
         if let localEventMonitor {
@@ -509,8 +458,6 @@ final class RadialToolParameterCoordinator {
         panel = nil
     }
 }
-
-// MARK: - Bootstrap
 
 @MainActor
 private let mir4DRadialToolParameterCoordinatorBootstrap =

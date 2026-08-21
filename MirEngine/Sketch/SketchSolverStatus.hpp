@@ -28,4 +28,4 @@ struct SketchSolveDiagnostics
     double maximumResidual{0.0};
 };
 
-} // namespace mir
+}

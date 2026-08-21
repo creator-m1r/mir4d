@@ -13,4 +13,4 @@ struct ImportOptions
     double unitScale{1.0};
 };
 
-} // namespace mir::io
+}

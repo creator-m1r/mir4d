@@ -1,5 +1,3 @@
-// MirEngine/Tests/BRep/BRepBoolean.cpp
-// Проверка BRepBooleanAPI: Fuse/Cut/Common с честными отказами.
 
 #include "MirEngine/BRep/BRep.hpp"
 #include "MirEngine/BRep/Boolean/BRepBooleanAPI.hpp"
@@ -17,11 +15,11 @@ namespace
     return result.solid;
 }
 
-} // namespace
+}
 
 int main()
 {
-    // ══ Fuse: непересекающиеся тела ══════════════════════════
+
     {
         mir::BRepModel argument;
         const auto box1 = box(argument, 2.0, 2.0, 2.0, mir::Vector3::zero());
@@ -50,7 +48,6 @@ int main()
         assert(validator.validate(fused).ok());
     }
 
-    // ══ Fuse: пересекающиеся box'ы — выступ по одной оси ═════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -77,7 +74,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Объединение [0,4]³ ∪ [1,5]×[1,3]×[1,3]: диапазон [0,5]×[0,4]×[0,4].
         double minX = 1.0e9, minY = 1.0e9, minZ = 1.0e9;
         double maxX = -1.0e9, maxY = -1.0e9, maxZ = -1.0e9;
         for (const mir::BRepVertex& vertex : out.topology().vertices())
@@ -95,7 +91,6 @@ int main()
         assert(maxX == 5.0 && maxY == 4.0 && maxZ == 4.0);
     }
 
-    // ══ Fuse: инструмент поглощён аргументом → аргумент ════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -117,7 +112,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Fuse = A: диапазон [0,4]³.
         double minX = 1.0e9, maxX = -1.0e9;
         double minY = 1.0e9, maxY = -1.0e9;
         double minZ = 1.0e9, maxZ = -1.0e9;
@@ -136,7 +130,6 @@ int main()
         assert(maxX == 4.0 && maxY == 4.0 && maxZ == 4.0);
     }
 
-    // ══ Fuse: выступ по двум осям («уголок») ═══════════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -158,7 +151,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Диапазон [0,5]×[0,5]×[0,4].
         double maxX = -1.0e9, maxY = -1.0e9, maxZ = -1.0e9;
         for (const mir::BRepVertex& vertex : out.topology().vertices())
         {
@@ -171,7 +163,6 @@ int main()
         assert(maxX == 5.0 && maxY == 5.0 && maxZ == 4.0);
     }
 
-    // ══ Fuse: невалидные аргументы ═══════════════════════════
     {
         mir::BRepModel argument;
         (void)box(argument, 2.0, 2.0, 2.0, mir::Vector3::zero());
@@ -186,7 +177,6 @@ int main()
         assert(out.empty());
     }
 
-    // ══ Cut: инструмент не пересекает аргумент → копия A ═════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -208,7 +198,6 @@ int main()
         assert(validator.validate(out).ok());
     }
 
-    // ══ Cut: инструмент полностью внутри → полость ═══════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -236,7 +225,6 @@ int main()
         assert(validator.validate(out).ok());
     }
 
-    // ══ Cut: частичное перекрытие — колодец (выступ по одной оси) ═
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -263,7 +251,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Результат ограничен аргументом [0,4]³.
         double minX = 1.0e9, maxX = -1.0e9;
         double minY = 1.0e9, maxY = -1.0e9;
         double minZ = 1.0e9, maxZ = -1.0e9;
@@ -282,7 +269,6 @@ int main()
         assert(maxX == 4.0 && maxY == 4.0 && maxZ == 4.0);
     }
 
-    // ══ Cut: угловой вырез (выступ по двум осям) ═══════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -305,7 +291,6 @@ int main()
         assert(validator.validate(out).ok());
     }
 
-    // ══ Cut: инструмент касается грани аргумента изнутри ═══════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -327,7 +312,6 @@ int main()
         assert(validator.validate(out).ok());
     }
 
-    // ══ Cut: сквозной проход инструмента → туннель ════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -354,8 +338,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Геометрия: тело ограничено x ∈ [0,4]; короб и отверстия
-        // лежат на x ∈ {0,4}, y,z ∈ {1,3}.
         double minX = 1.0e9, maxX = -1.0e9;
         int tunnelPoints = 0;
         for (const mir::BRepVertex& vertex : out.topology().vertices())
@@ -375,7 +357,6 @@ int main()
         assert(tunnelPoints == 24);
     }
 
-    // ══ Cut: сквозной проход по другой оси (Y) ════════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -397,7 +378,6 @@ int main()
         assert(validator.validate(out).ok());
     }
 
-    // ══ Common: пересекающиеся box'ы → box пересечения ═══════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());
@@ -418,7 +398,6 @@ int main()
         mir::BRepValidator validator;
         assert(validator.validate(out).ok());
 
-        // Пересечение [1,3]^3: все точки в этом диапазоне.
         double minX = 1.0e9, minY = 1.0e9, minZ = 1.0e9;
         double maxX = -1.0e9, maxY = -1.0e9, maxZ = -1.0e9;
         for (const mir::BRepVertex& vertex : out.topology().vertices())
@@ -436,7 +415,6 @@ int main()
         assert(maxX == 3.0 && maxY == 3.0 && maxZ == 3.0);
     }
 
-    // ══ Common: непересекающиеся — EmptyResult ════════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 2.0, 2.0, 2.0, mir::Vector3::zero());
@@ -451,7 +429,6 @@ int main()
         assert(out.empty());
     }
 
-    // ══ execute() маршрутизирует все три операции ═════════════
     {
         mir::BRepModel argument;
         const auto boxA = box(argument, 4.0, 4.0, 4.0, mir::Vector3::zero());

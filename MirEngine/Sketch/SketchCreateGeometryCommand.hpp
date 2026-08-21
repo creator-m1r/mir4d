@@ -8,7 +8,6 @@
 namespace mir
 {
 
-/// Adds one complete sketch entity as a single undoable operation.
 class SketchCreateGeometryCommand final : public ISketchCommand
 {
 public:
@@ -47,4 +46,4 @@ private:
     bool inserted_{false};
 };
 
-} // namespace mir
+}

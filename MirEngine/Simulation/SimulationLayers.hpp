@@ -27,4 +27,4 @@ private:
     std::array<bool, 6> visible_{true, true, true, true, true, true};
 };
 
-} // namespace mir
+}

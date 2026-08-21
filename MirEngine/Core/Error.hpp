@@ -46,4 +46,4 @@ private:
     std::string message_{};
 };
 
-} // namespace mir4d
+}

@@ -27,4 +27,4 @@ std::vector<Property> RenderSelectionPropertyAdapter::makeProperties(
     return properties;
 }
 
-} // namespace MirUI
+}

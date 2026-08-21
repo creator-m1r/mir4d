@@ -1,11 +1,6 @@
 import SwiftUI
 import Combine
 
-/// User-facing appearance state for MirUI.
-///
-/// This layer deliberately sits above the existing MirTheme tokens: it adds
-/// persistent language/theme selection without changing the Engine or the
-/// existing command/event architecture.
 @MainActor
 final class MirUIAppearanceStore: ObservableObject {
     enum Language: String, CaseIterable, Identifiable {
@@ -284,7 +279,7 @@ struct MirUIAppearanceToolbar: View {
 }
 
 extension View {
-    /// Applies the persistent MirUI language and appearance to a view hierarchy.
+
     func mirUIAppearance(_ appearance: MirUIAppearanceStore) -> some View {
         self
             .environment(\.locale, appearance.language.locale)

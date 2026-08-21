@@ -1,11 +1,3 @@
-// MirUI/Renderers/SwiftUI/MirUICppBridge.mm
-// 🧠 Полный мост Objective-C++ для SwiftUI (версия на UIContext).
-//
-// Все операции (создание, свойства, темы, буфер обмена, выравнивание,
-// проект/файлы, предпросмотр, анимации, редактор стилей) теперь
-// выполняются через UIContext и SwiftUIRenderer.
-//
-// Чистый C++23 внутри, Objective-C++ снаружи.
 
 #import <Foundation/Foundation.h>
 #include "SwiftUIRenderer.hpp"
@@ -24,11 +16,9 @@
 #include <cstdlib>
 #include <sstream>
 
-// ── Глобальные объекты: контекст и рендерер ─────────────────
 static std::unique_ptr<MirUI::UIContext>        g_context;
 static std::unique_ptr<MirUI::SwiftUIRenderer>  g_renderer;
 
-// ── Вспомогательные функции преобразования строк ────────────
 static MirUI::WidgetType stringToWidgetType(const std::string& str) {
     if (str == "Button")        return MirUI::WidgetType::Button;
     if (str == "Label")         return MirUI::WidgetType::Label;
@@ -59,13 +49,11 @@ static MirUI::WidgetState stringToWidgetState(const std::string& str) {
     return MirUI::WidgetState::Normal;
 }
 
-// ── Инициализация и завершение ─────────────────────────────
 extern "C" void MirUI_Init() {
     g_context = std::make_unique<MirUI::UIContext>();
     g_renderer = std::make_unique<MirUI::SwiftUIRenderer>();
     g_renderer->setUIContext(g_context.get());
 
-    // Регистрируем встроенные темы
     g_context->themeManager().registerTheme(MirUI::Theme::createLight());
     g_context->themeManager().registerTheme(MirUI::Theme::createDark());
 
@@ -77,7 +65,6 @@ extern "C" void MirUI_Shutdown() {
     g_context.reset();
 }
 
-// ── Добавление виджета (с установкой свойств по умолчанию) ──
 extern "C" int64_t MirUI_AddWidget(const char* widgetType, double x, double y, double w, double h) {
     if (!g_context) return 0;
     
@@ -97,12 +84,11 @@ extern "C" int64_t MirUI_AddWidget(const char* widgetType, double x, double y, d
 
     MirUI::Widget* widget = g_context->widgetTree().find(widgetId);
     if (widget) {
-        // Устанавливаем геометрию
+
         MirUI::Rect bounds = widget->bounds();
         bounds.x = x; bounds.y = y; bounds.width = w; bounds.height = h;
         widget->setBounds(bounds);
 
-        // Значения по умолчанию для известных типов
         switch (type) {
             case MirUI::WidgetType::Button:
                 widget->setProperty("text", MirUI::StateValue(std::string("Кнопка")));
@@ -144,7 +130,6 @@ extern "C" int64_t MirUI_AddWidget(const char* widgetType, double x, double y, d
     return static_cast<int64_t>(widgetId.value());
 }
 
-// Удобная обёртка для кнопок
 extern "C" void MirUI_AddButton(const char* text, double x, double y, double w, double h) {
     int64_t id = MirUI_AddWidget("Button", x, y, w, h);
     if (id != 0 && g_context) {
@@ -156,7 +141,6 @@ extern "C" void MirUI_AddButton(const char* text, double x, double y, double w, 
     }
 }
 
-// ── Перемещение, ресайз, удаление ──────────────────────────
 extern "C" void MirUI_MoveWidget(int64_t widgetId, double dx, double dy) {
     if (!g_context) return;
     MirUI::Widget* widget = g_context->widgetTree().find(MirUI::WidgetID(static_cast<uint64_t>(widgetId)));
@@ -188,7 +172,6 @@ extern "C" void MirUI_DeleteWidget(int64_t widgetId) {
     MirUI_RenderFrame();
 }
 
-// ── Свойства виджета ────────────────────────────────────────
 extern "C" void MirUI_SetPropertyString(int64_t widgetId, const char* propertyName, const char* value) {
     if (!g_context) return;
     MirUI::Widget* widget = g_context->widgetTree().find(MirUI::WidgetID(static_cast<uint64_t>(widgetId)));
@@ -226,7 +209,6 @@ extern "C" const char* MirUI_GetPropertyString(int64_t widgetId, const char* pro
     return strdup("");
 }
 
-// ── Темы (базовое переключение, регистрация, цветовые токены) ──
 extern "C" void MirUI_SwitchTheme(const char* themeId) {
     if (!g_context) return;
     g_context->switchTheme(MirUI::ThemeID(std::string(themeId)));
@@ -249,7 +231,6 @@ extern "C" void MirUI_RegisterTheme(const char* themeId) {
     NSLog(@"[MirUICppBridge] Тема '%s' зарегистрирована.", themeId);
 }
 
-// Цвета темы
 extern "C" const char* MirUI_GetThemeColor(const char* colorToken) {
     if (!g_context) return strdup("#000000FF");
     MirUI::Theme theme = g_context->themeManager().current();
@@ -286,7 +267,6 @@ extern "C" void MirUI_SetThemeColor(const char* colorToken, const char* hexColor
     MirUI_RenderFrame();
 }
 
-// Метрики темы
 extern "C" double MirUI_GetThemeMetric(const char* metricToken) {
     if (!g_context) return 0.0;
     MirUI::Theme theme = g_context->themeManager().current();
@@ -294,7 +274,7 @@ extern "C" double MirUI_GetThemeMetric(const char* metricToken) {
     if (token == "spacing.m") return theme.metrics.spacingM;
     if (token == "toolbar.height") return theme.metrics.toolbarHeight;
     if (token == "radius.m") return theme.metrics.radiusM;
-    // При необходимости добавьте другие метрики
+
     return 0.0;
 }
 
@@ -309,7 +289,6 @@ extern "C" void MirUI_SetThemeMetric(const char* metricToken, double value) {
     MirUI_RenderFrame();
 }
 
-// Шрифты темы
 extern "C" const char* MirUI_GetThemeFont(const char* fontToken) {
     if (!g_context) return strdup("System;14;400;0");
     MirUI::Theme theme = g_context->themeManager().current();
@@ -349,21 +328,18 @@ extern "C" void MirUI_SetThemeFont(const char* fontToken, const char* fontString
     MirUI_RenderFrame();
 }
 
-// Тени темы (заглушка с реальным разбором)
 extern "C" const char* MirUI_GetThemeShadow(const char* shadowToken) {
     if (!g_context) return strdup("0,0,0,0.15,0,2,4");
-    // В реальной реализации извлеките данные из темы
+
     return strdup("0,0,0,0.15,0,2,4");
 }
 
 extern "C" void MirUI_SetThemeShadow(const char* shadowToken, const char* shadowString) {
     if (!g_context) return;
-    // Парсинг строки вида "r,g,b,a,offsetX,offsetY,blur"
-    // и применение к текущей теме – оставлено для доработки
+
     MirUI_RenderFrame();
 }
 
-// Длительность анимаций по умолчанию
 extern "C" double MirUI_GetThemeAnimationDuration() {
     if (!g_context) return 0.25;
     return g_context->themeManager().current().animations.defaultDuration;
@@ -377,27 +353,18 @@ extern "C" void MirUI_SetThemeAnimationDuration(double duration) {
     MirUI_RenderFrame();
 }
 
-// ── Буфер обмена ────────────────────────────────────────────
 extern "C" void MirUI_CopyWidget(int64_t widgetId) {
     if (!g_context) return;
-    // Предполагаем, что UIContext поддерживает буфер обмена,
-    // иначе можно реализовать через статический объект.
-    // В данной версии используется прямое копирование данных виджета.
+
     MirUI::Widget* source = g_context->widgetTree().find(MirUI::WidgetID(static_cast<uint64_t>(widgetId)));
     if (!source) return;
-    // Здесь должна быть реализация сохранения копии в буфер (например, сериализация).
-    // Для полноты используем метод copyWidget у UIContext, если он есть.
-    // Если нет – закомментировано.
-    // g_context->copyWidget(widgetId);
+
 }
 
 extern "C" void MirUI_PasteWidget(int64_t parentId) {
     if (!g_context) return;
     MirUI::WidgetID pid = (parentId == 0) ? MirUI::WidgetID{} : MirUI::WidgetID(static_cast<uint64_t>(parentId));
-    // Если в UIContext есть pasteWidget, вызываем его.
-    // Иначе – вставка из ранее сохранённой копии (реализовать отдельно).
-    // g_context->pasteWidget(pid);
-    // MirUI_RenderFrame();
+
 }
 
 extern "C" void MirUI_CutWidget(int64_t widgetId) {
@@ -407,7 +374,6 @@ extern "C" void MirUI_CutWidget(int64_t widgetId) {
     MirUI_RenderFrame();
 }
 
-// ── Выравнивание выделенных виджетов ────────────────────────
 extern "C" void MirUI_AlignWidgets(const int64_t* widgetIds, int count, const char* strategy) {
     if (!g_context || count <= 1) return;
     std::string strat(strategy);
@@ -433,20 +399,17 @@ extern "C" void MirUI_AlignWidgets(const int64_t* widgetIds, int count, const ch
     MirUI_RenderFrame();
 }
 
-// ── Проект и файлы ──────────────────────────────────────────
 extern "C" void MirUI_NewProject() {
     if (!g_context) return;
-    // Очищаем дерево виджетов и историю
-    g_context->widgetTree().clear();          // требуется реализация clear()
-    g_context->clearHistory();                // сброс undo/redo
+
+    g_context->widgetTree().clear();
+    g_context->clearHistory();
     MirUI_RenderFrame();
 }
 
 extern "C" bool MirUI_SaveProject(const char* path) {
     if (!g_context) return false;
-    // Используем сериализацию проекта, если доступна.
-    // В противном случае реализуем собственную запись в файл.
-    // Здесь предполагается наличие метода saveProject в UIContext.
+
     return g_context->saveProject(std::string(path));
 }
 
@@ -457,7 +420,6 @@ extern "C" bool MirUI_LoadProject(const char* path) {
     return result;
 }
 
-// ── Предпросмотр ────────────────────────────────────────────
 extern "C" void MirUI_EnterPreview() {
     if (!g_context) return;
     g_context->enterPreview();
@@ -475,7 +437,6 @@ extern "C" void MirUI_TogglePreview() {
     MirUI_RenderFrame();
 }
 
-// ── Undo / Redo ─────────────────────────────────────────────
 extern "C" void MirUI_Undo() {
     if (!g_context) return;
     g_context->undo();
@@ -488,7 +449,6 @@ extern "C" void MirUI_Redo() {
     MirUI_RenderFrame();
 }
 
-// ── Анимация свойства виджета ───────────────────────────────
 extern "C" void MirUI_AnimateProperty(int64_t widgetId,
                                       const char* propertyName,
                                       const char* targetValue,
@@ -534,7 +494,6 @@ extern "C" void MirUI_AnimateProperty(int64_t widgetId,
     g_context->animationManager().animate(*widget, std::string(propertyName), value, spec);
 }
 
-// ── Работа со стилями виджетов ─────────────────────────────
 extern "C" const char* MirUI_GetWidgetStyleField(const char* widgetTypeStr,
                                                   const char* widgetStateStr,
                                                   const char* fieldName) {
@@ -642,15 +601,13 @@ extern "C" void MirUI_SetWidgetStyleField(const char* widgetTypeStr,
         style.visible = (val == "true" || val == "1");
     }
 
-    // Сохраняем изменённый стиль обратно в тему
     g_context->themeManager().setWidgetStyle(type, state, style);
     MirUI_RenderFrame();
 }
 
-// ── Отрисовка кадра ─────────────────────────────────────────
 extern "C" void MirUI_RenderFrame() {
     if (!g_context || !g_renderer) return;
-    g_context->update(0.016);                    // обновляем анимации и компоновку
+    g_context->update(0.016);
     g_renderer->beginFrame();
     g_renderer->render(g_context->widgetTree());
     g_renderer->endFrame();

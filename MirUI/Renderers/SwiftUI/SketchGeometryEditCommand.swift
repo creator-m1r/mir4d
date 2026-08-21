@@ -1,7 +1,5 @@
 import Foundation
 
-/// UI-side description of a geometry parameter edit.
-/// Execution must be delegated to MirEngine's command/solver layer.
 struct SketchGeometryEditCommand: Identifiable, Equatable {
     let id = UUID()
     let geometryID: UUID

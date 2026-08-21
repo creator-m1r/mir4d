@@ -1,9 +1,5 @@
 import SwiftUI
 
-/// Transient action bar for the current CAD selection/context.
-///
-/// The viewport itself stays visually quiet. Commands are resolved through the
-/// existing CADCommandRegistry/EventBus instead of creating a second command system.
 struct CADViewportContextActionBar: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject var registry: CADCommandRegistry

@@ -1,17 +1,3 @@
-// MirEngine/Math/Plane.hpp
-//
-// Lightweight mathematical plane equation used by numerical algorithms.
-//
-// This type intentionally remains independent from Geometry so low-level
-// Math code does not depend on the higher geometry layer. The removed legacy
-// MirEngine/Geometry/Plane was a duplicate geometric concept; BRep geometry
-// owns the surface-level plane representation.
-//
-// Representation:
-//     dot(normal, point) + d = 0
-//
-// The normal is kept normalized by the constructors and normalize().
-// C++23, no external dependencies.
 
 #pragma once
 
@@ -114,4 +100,4 @@ public:
     }
 };
 
-} // namespace mir
+}

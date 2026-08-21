@@ -1,7 +1,5 @@
 import Foundation
 
-/// A device-independent expression of an engineer's intention.
-/// Input devices produce intents; the CAD layer decides whether and how they become actions.
 public struct MIRIntent: Equatable, Identifiable {
     public enum Source: String, Equatable, Sendable {
         case voice

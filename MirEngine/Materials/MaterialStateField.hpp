@@ -74,4 +74,4 @@ private:
     OpticalMaterialField opticalField_{};
 };
 
-} // namespace mir
+}

@@ -1,8 +1,6 @@
 import Foundation
 import CoreGraphics
 
-/// Command-facing bridge between SwiftUI interaction and the MirEngine sketch model.
-/// The concrete C++ bridge is injected by the application composition root.
 @MainActor
 final class SketchCommandBridge: ObservableObject {
     typealias CreateLineHandler = (_ start: CGPoint, _ end: CGPoint) -> SketchLineCommandResult

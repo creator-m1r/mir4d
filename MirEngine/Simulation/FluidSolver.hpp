@@ -80,4 +80,4 @@ private:
     SimulationQuality quality_{SimulationQuality::Fast};
 };
 
-} // namespace mir
+}

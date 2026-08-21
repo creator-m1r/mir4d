@@ -18,6 +18,7 @@ final class MirEventBus {
         case redoRequested
         case documentChanged
         case modelChanged
+        case radialMenu(RadialMenuBusEvent)
     }
 
     typealias Handler = (Event) -> Void
@@ -25,6 +26,18 @@ final class MirEventBus {
     private var handlers: [UUID: Handler] = [:]
 
     private init() {}
+
+    enum RadialMenuBusEvent: Equatable {
+        case opened
+        case closed
+        case panelChanged(String?)
+        case toolChanged(String?)
+        case previewStarted(String?)
+        case previewChanged(String?)
+        case commandRequested(String)
+        case commandConfirmed(String)
+        case commandCancelled(String)
+    }
 
     @discardableResult
     func subscribe(_ handler: @escaping Handler) -> UUID {

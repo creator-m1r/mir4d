@@ -46,4 +46,4 @@ private:
     PropertyGrid grid_{};
 };
 
-} // namespace MirUI
+}

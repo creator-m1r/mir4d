@@ -16,10 +16,9 @@ enum MIR4DSaveScope {
 }
 
 struct MIR4DRecentProject: Codable, Identifiable, Equatable {
-    /// Stable identity of the recent entry. For modern projects this is the project UUID.
+
     var id: UUID
 
-    /// Project identity stored in project.mir4d.json. Legacy entries may be nil.
     var uuid: UUID?
 
     var name: String
@@ -57,8 +56,6 @@ final class MIR4DProjectSession {
         get { UserDefaults.standard.object(forKey: autoOpenLastKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: autoOpenLastKey) }
     }
-
-    // MARK: - Recent projects
 
     var recentProjects: [MIR4DRecentProject] {
         loadRecentProjects()
@@ -114,8 +111,6 @@ final class MIR4DProjectSession {
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
     }
 
-    // MARK: - Create / Open
-
     func createProject(appState: CADAppState, name: String, parentURL: URL, workbench: CADWorkbench? = nil) {
         do {
             let url = try MIR4DProjectStore.shared.createProject(name: name, in: parentURL)
@@ -159,7 +154,6 @@ final class MIR4DProjectSession {
             lastSavedModelRevision = modelRuntime.revision
             appState.showNotification("Модель загружена: \(model.geometry.count) объектов", type: .success)
 
-            // Record only after manifest and model have both loaded successfully.
             recordOpen(url: normalizedURL, name: manifest.name, uuid: projectUUID)
             startAutoSave(for: appState)
             notifyActivation(url: normalizedURL, appState: appState, message: "Проект открыт: \(manifest.name)")
@@ -167,8 +161,6 @@ final class MIR4DProjectSession {
             appState.showNotification("Не удалось открыть проект: \(error.localizedDescription)", type: .error)
         }
     }
-
-    // MARK: - Save
 
     func save(appState: CADAppState) throws {
         try saveSync(appState: appState, scope: .full)
@@ -260,8 +252,6 @@ final class MIR4DProjectSession {
         }
     }
 
-    // MARK: - Close / Restore
-
     func close(appState: CADAppState) {
         autoSave?.flush()
         autoSave?.stop()
@@ -276,20 +266,15 @@ final class MIR4DProjectSession {
         NotificationCenter.default.post(name: .mir4DProjectClosed, object: nil)
     }
 
-    /// User-initiated Hub action. It always attempts to continue the last project,
-    /// regardless of the cold-start auto-open preference.
     func continueLastProject(appState: CADAppState) -> Bool {
         openLastProjectIfAvailable(appState: appState)
     }
 
-    /// Cold-start restore. This is the only path that consults the auto-open setting.
     func restoreLastProjectOnLaunch(appState: CADAppState) -> Bool {
         guard isAutoOpenLastProjectEnabled else { return false }
         return openLastProjectIfAvailable(appState: appState)
     }
 
-    /// Backward-compatible entry point for existing callers. New launch code should
-    /// use restoreLastProjectOnLaunch; Hub should use continueLastProject.
     func restoreLastProject(appState: CADAppState) -> Bool {
         restoreLastProjectOnLaunch(appState: appState)
     }
@@ -352,8 +337,6 @@ final class MIR4DProjectSession {
         }
     }
 
-    // MARK: - Private
-
     private func activate(url: URL, name: String, appState: CADAppState, workbench: CADWorkbench? = nil) {
         projectURL = url.standardizedFileURL
         projectName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -372,9 +355,7 @@ final class MIR4DProjectSession {
     private func notifyActivation(url: URL, appState: CADAppState, message: String) {
         appState.showNotification(message, type: .success)
         NotificationCenter.default.post(name: .mir4DProjectActivated, object: url)
-        // Drive the transition to the workspace independently of the launch
-        // view's own activation handling, so creating/opening a project always
-        // lands in the workspace even if the sheet/hub path is interrupted.
+
         NotificationCenter.default.post(
             name: .mir4DStartWorkspace,
             object: nil,

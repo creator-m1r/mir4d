@@ -1,7 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Commands/BRepCommandHandler.hpp
-
 #include "MirEngine/Document/CommandHandler.hpp"
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Commands/BRepSceneBridge.hpp"
@@ -114,4 +112,4 @@ private:
     mir::BRepModel& brep_;
 };
 
-} // namespace mir4d
+}

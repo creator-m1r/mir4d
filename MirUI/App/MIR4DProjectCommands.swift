@@ -25,8 +25,6 @@ final class MIR4DProjectCommands {
         appState.saveMIR4DProjectAs(parentURL: url.deletingLastPathComponent(), name: name)
     }
 
-    /// Opens a project selected by the user from an Open panel.
-    /// The Hub uses this same command path instead of touching the Store directly.
     func open(appState: CADAppState) {
         let panel = NSOpenPanel()
         panel.title = "Открыть проект MIR 4D"
@@ -40,8 +38,6 @@ final class MIR4DProjectCommands {
         open(appState: appState, url: url)
     }
 
-    /// Opens a known project URL through the same Session path.
-    /// LaunchCoordinator remains responsible for external macOS launch URLs.
     func open(appState: CADAppState, url: URL) {
         appState.openMIR4DProject(url: url)
     }
@@ -50,8 +46,6 @@ final class MIR4DProjectCommands {
         appState.closeMIR4DProject()
     }
 
-    /// Saves the current viewport scene to a STEP file. The renderer writes a
-    /// native faceted_brep representation through the C ABI.
     func exportStep(appState: CADAppState) {
         let panel = NSSavePanel()
         panel.title = "Сохранить модель как STEP"
@@ -71,8 +65,6 @@ final class MIR4DProjectCommands {
         )
     }
 
-    /// Saves the exact B-Rep sources of the current scene to a STEP file using
-    /// the native BRepStepBridge writer (round-trip of imported exact B-Rep).
     func exportStepBRep(appState: CADAppState) {
         let panel = NSSavePanel()
         panel.title = "Сохранить точный B-Rep как STEP"
@@ -92,13 +84,10 @@ final class MIR4DProjectCommands {
         )
     }
 
-    /// User-initiated Hub action. This is independent from the launch preference.
     func restoreLastProject(appState: CADAppState) -> Bool {
         MIR4DProjectSession.shared.continueLastProject(appState: appState)
     }
 
-    /// Cold-start action. This is the only restore path that respects the
-    /// user's "Открывать последний проект при запуске" preference.
     func restoreLastProjectOnLaunch(appState: CADAppState) -> Bool {
         MIR4DProjectSession.shared.restoreLastProjectOnLaunch(appState: appState)
     }

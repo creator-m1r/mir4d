@@ -1,11 +1,3 @@
-// MirEngine/Planes/PlaneStore.hpp
-// =================================================================================
-// Реестр рабочих плоскостей проекта (ТЗ раздел 2 / 28).
-//
-// Владеет плоскостями, автоматически создаёт базовые XY/XZ/YZ (удалить нельзя)
-// и выдаёт уникальные идентификаторы пользовательским плоскостям.
-// Header-only, чтобы не менять CMake-цели STATIC-библиотек.
-// =================================================================================
 
 #pragma once
 
@@ -24,7 +16,6 @@ class PlaneStore
 public:
     PlaneStore() = default;
 
-    /// Гарантирует наличие трёх системных плоскостей с фиксированными id.
     void ensureBasePlanes()
     {
         if (!find(kBasePlaneXY))
@@ -35,8 +26,6 @@ public:
             add(PlaneFactory::createBaseYZ());
     }
 
-    /// Добавляет плоскость, назначая ей идентификатор, если он ещё не задан.
-    /// Возвращает false, если id уже занят.
     bool add(std::shared_ptr<Plane> plane)
     {
         if (!plane)
@@ -53,7 +42,6 @@ public:
         return true;
     }
 
-    /// Удаляет пользовательскую плоскость. Системные плоскости не удаляются.
     bool remove(std::uint32_t id)
     {
         const auto it = planes_.find(id);
@@ -76,7 +64,6 @@ public:
         return planes_.contains(id);
     }
 
-    /// Все плоскости в порядке создания (системные — первыми после ensure).
     [[nodiscard]] std::vector<std::shared_ptr<Plane>> list() const
     {
         std::vector<std::shared_ptr<Plane>> result;
@@ -105,4 +92,4 @@ private:
     std::uint32_t nextUserId_{100};
 };
 
-} // namespace mir
+}

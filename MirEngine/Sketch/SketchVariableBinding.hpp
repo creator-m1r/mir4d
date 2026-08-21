@@ -38,4 +38,4 @@ private:
     std::unordered_map<std::uint32_t, SketchVariableRange> ranges_;
 };
 
-} // namespace mir
+}

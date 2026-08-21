@@ -31,7 +31,6 @@ struct SketchCreationPreview
     std::optional<SketchPoint2D> snappedPoint;
 };
 
-/// Builds transient geometry previews. It never mutates SketchDocument.
 class SketchCreationPreviewBuilder
 {
 public:
@@ -66,4 +65,4 @@ public:
     }
 };
 
-} // namespace mir
+}

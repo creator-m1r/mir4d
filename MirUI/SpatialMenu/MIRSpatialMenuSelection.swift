@@ -1,17 +1,8 @@
 import Foundation
 import CoreGraphics
 
-/// Three-level directional selection for the spatial fan.
-///
-/// The gesture is one continuous motion:
-/// ```text
-/// press → activate → move → highlight → enter submenu → move → highlight → release → execute
-/// ```
-/// There is no clicking on small buttons: selection follows the movement direction.
 enum MIRSpatialMenuSelection {
 
-    /// Computes the full selection state for a gesture vector.
-    /// `previous` enables hysteresis so the highlight never flickers at ring boundaries.
     static func state(
         vector: CGVector,
         tree: [MIRSpatialMenuItem],
@@ -29,7 +20,6 @@ enum MIRSpatialMenuSelection {
         let rawAngle = atan2(dy, dx)
         let visible = Array(tree.prefix(min(tree.count, settings.maxLevel1Segments)))
 
-        // Level 1: intention ring, magnetically stabilised.
         let intentAngle = MIRSpatialMenuLayout.magneticAngle(
             raw: rawAngle,
             count: visible.count,
@@ -53,7 +43,6 @@ enum MIRSpatialMenuSelection {
         let intent = visible[intentIndex]
         guard !intent.children.isEmpty else { return state }
 
-        // Level 2: category ring, revealed along the movement direction.
         state.level = .category
         let categoryReveal = MIRSpatialMenuLayout.revealProgress(
             distance: distance,
@@ -79,7 +68,6 @@ enum MIRSpatialMenuSelection {
         let category = intent.children[categoryIndex]
         guard !category.children.isEmpty else { return state }
 
-        // Level 3: tool ring, revealed along the category direction.
         state.level = .tool
         let toolReveal = MIRSpatialMenuLayout.revealProgress(
             distance: distance,
@@ -109,7 +97,6 @@ enum MIRSpatialMenuSelection {
         return state
     }
 
-    /// Resolved tool command of a state, if the gesture reached a tool.
     static func resolvedTool(
         _ state: MIRSpatialMenuState,
         tree: [MIRSpatialMenuItem]
@@ -126,10 +113,6 @@ enum MIRSpatialMenuSelection {
         return category.children[toolIndex]
     }
 
-    // MARK: - Segment helpers
-
-    /// Hysteretic segment index for a full ring: a segment can only change after
-    /// the angle crosses its centre plus an angular buffer.
     private static func hystereticSegment(
         angle: Double,
         count: Int,
@@ -147,8 +130,6 @@ enum MIRSpatialMenuSelection {
         return distanceFromCentre > threshold ? candidate : previous
     }
 
-    /// Segment index inside a fan submenu expressed by its relative angle.
-    /// The fan is centred on `centerAngle` and spreads `spread` radians wide.
     private static func fanSegment(
         relativeAngle: Double,
         centerAngle: Double,

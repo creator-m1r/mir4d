@@ -37,8 +37,6 @@ struct SketchExtrudeSurfaceSet
     }
 };
 
-/// Builds analytical side-surface descriptors for an extrusion.
-/// It does not create mesh triangles and does not mutate the document.
 class SketchExtrudeSurfaceBuilder
 {
 public:
@@ -80,4 +78,4 @@ public:
     }
 };
 
-} // namespace mir
+}

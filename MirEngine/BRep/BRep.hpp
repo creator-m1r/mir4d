@@ -1,9 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/BRep.hpp
-// Canonical public umbrella for the MIR B-Rep module.
-// Internal implementation files should prefer narrow includes.
-
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 #include "MirEngine/BRep/Topology/BRepTypes.hpp"

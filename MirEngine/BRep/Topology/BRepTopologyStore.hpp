@@ -1,8 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Topology/BRepTopologyStore.hpp
-// Append-only owning storage for B-Rep topology entities.
-
 #include "MirEngine/BRep/Topology/BRepTopology.hpp"
 
 #include <cstddef>
@@ -33,9 +30,6 @@ public:
         };
     }
 
-    // Roll back only records appended after the checkpoint. This is used by
-    // builders to guarantee that a failed construction does not leave orphan
-    // topology records in the model.
     void rollback(Checkpoint checkpoint) noexcept
     {
         if (checkpoint.vertexCount <= vertices_.size()) vertices_.resize(checkpoint.vertexCount);
@@ -154,4 +148,4 @@ private:
     std::vector<BRepSolid> solids_;
 };
 
-} // namespace mir
+}

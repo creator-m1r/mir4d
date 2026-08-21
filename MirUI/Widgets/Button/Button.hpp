@@ -1,95 +1,58 @@
-// ─────────────────────────────────────────────────────────────
-// 📁 MirUI/Widgets/Button/Button.hpp
-// ─────────────────────────────────────────────────────────────
-// 🟦 ВИДЖЕТ «КНОПКА» — нажимаемый элемент с текстом и командой.
-//
-// В нашей системе Мир 4D кнопка — это самостоятельный объект,
-// который хранит:
-//   • текст (например, "Сохранить")
-//   • иконку (небольшую картинку)
-//   • команду (что делать при нажатии)
-//
-// Кнопка наследуется от базового класса Widget.
-// Widget — это общий предок для всех элементов интерфейса
-// (окон, надписей, полей ввода и т.д.).
-//
-// Чистый C++23, без зависимостей от конкретной платформы.
-// ─────────────────────────────────────────────────────────────
 
-#pragma once                     // защита от повторного включения файла
+#pragma once
 
-#include "../../Core/Widget/Widget.hpp"       // базовый класс всех виджетов
-#include "../../Foundation/Icons/IconID.hpp"  // строковый идентификатор иконки
-#include "../../Core/Commands/CommandID.hpp"  // строковый идентификатор команды
-#include <string>                             // для хранения текста
-#include <functional>                         // для хранения функции обратного вызова
+#include "../../Core/Widget/Widget.hpp"
+#include "../../Foundation/Icons/IconID.hpp"
+#include "../../Core/Commands/CommandID.hpp"
+#include <string>
+#include <functional>
 
-namespace MirUI {                   // всё наше творчество живёт в пространстве имён MirUI
+namespace MirUI {
 
-// ╔══════════════════════════════════════════════════════════╗
-// ║  Класс Button — наша кнопка                              ║
-// ╚══════════════════════════════════════════════════════════╝
-class Button : public Widget {      // Button «расширяет» возможности Widget
+class Button : public Widget {
 public:
-    // ── КОНСТРУКТОР (способ создать кнопку) ────────────────
-    // Когда мы пишем Button btn("Привет"); – вызывается этот метод.
-    // Он устанавливает тип виджета = Button и запоминает текст.
+
     explicit Button(const std::string& text = "")
-        : Widget(WidgetType::Button)  // говорим базовому классу: «я кнопка»
-        , m_text(text)                // запоминаем текст
+        : Widget(WidgetType::Button)
+        , m_text(text)
     {}
 
-    // ── ТЕКСТ КНОПКИ ───────────────────────────────────────
-    // Установить новый текст (например, "Нажми меня")
     void setText(const std::string& text) { m_text = text; }
 
-    // Прочитать текущий текст
     [[nodiscard]] const std::string& text() const { return m_text; }
 
-    // ── ИКОНКА ─────────────────────────────────────────────
-    // Установить иконку (по идентификатору, например IconID("save"))
     void setIcon(const IconID& icon) { m_icon = icon; }
 
-    // Прочитать идентификатор иконки
     [[nodiscard]] const IconID& icon() const { return m_icon; }
 
-    // ── КОМАНДА ────────────────────────────────────────────
-    // Каждая кнопка может быть связана с командой (например, "file.save")
     void setCommand(const CommandID& command) { m_command = command; }
 
     [[nodiscard]] const CommandID& command() const { return m_command; }
 
-    // ── КНОПКА‑ПЕРЕКЛЮЧАТЕЛЬ (Toggle) ──────────────────────
-    // Иногда кнопка должна оставаться «нажатой» (например, жирный шрифт)
     void setToggle(bool isToggle) { m_isToggle = isToggle; }
     [[nodiscard]] bool isToggle() const { return m_isToggle; }
 
     void setChecked(bool checked) { m_checked = checked; }
     [[nodiscard]] bool isChecked() const { return m_checked; }
 
-    // ── НАЖАТИЕ (выполнение действия) ──────────────────────
-    // Когда кнопку нажали (программно или мышкой),
-    // вызывается этот метод. Он запускает сохранённую функцию,
-    // если она была задана.
     void click() {
-        if (m_onClick) {           // если у кнопки есть свой обработчик
-            m_onClick(*this);      // вызываем его, передавая ссылку на себя
+        if (m_onClick) {
+            m_onClick(*this);
         }
     }
 
-    // Позволяет назначить свой обработчик нажатия
     void setOnClick(std::function<void(Button&)> callback) {
         m_onClick = std::move(callback);
     }
 
 private:
-    // ── ВНУТРЕННИЕ ДАННЫЕ КНОПКИ ──────────────────────────
-    std::string m_text;                     // текст на кнопке
-    IconID      m_icon;                     // иконка (строка‑идентификатор)
-    CommandID   m_command;                  // команда (строка‑идентификатор)
-    bool        m_isToggle = false;         // это кнопка‑переключатель?
-    bool        m_checked = false;          // включена ли она сейчас?
-    std::function<void(Button&)> m_onClick; // пользовательская функция при клике
+
+    std::string m_text;
+    IconID      m_icon;
+    CommandID   m_command;
+    bool        m_isToggle = false;
+    bool        m_checked = false;
+    std::function<void(Button&)> m_onClick;
 };
 
-} // namespace MirUI
+}

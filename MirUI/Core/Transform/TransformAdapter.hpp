@@ -22,4 +22,4 @@ public:
         const TransformProperties& properties);
 };
 
-} // namespace MirUI
+}

@@ -22,4 +22,4 @@ std::vector<TransformPropertyRow> TransformAdapter::makeProperties(
     };
 }
 
-} // namespace MirUI
+}

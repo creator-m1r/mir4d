@@ -47,4 +47,4 @@ struct ProcessConnection
     Scalar capacity{1.0};
 };
 
-} // namespace mir
+}

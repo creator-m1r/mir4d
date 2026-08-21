@@ -1,8 +1,6 @@
 import Foundation
 import CoreGraphics
 
-/// Fast UI-side snapping/inference helper.
-/// MirEngine remains the authoritative geometry solver.
 struct SketchSnapEngine {
 
     enum Kind: Equatable {
@@ -36,9 +34,6 @@ struct SketchSnapEngine {
             )
         }
 
-        // IMPORTANT:
-        // Keep `best` as SketchSnapEngine.Result.
-        // `grid(point)` itself returns CGPoint.
         let gridPoint = grid(point)
 
         var best = Result(
@@ -84,8 +79,6 @@ struct SketchSnapEngine {
     }
 }
 
-/// Legacy UI presentation model for snap feedback used by the standalone
-/// overlay views. MirEngine remains the authoritative geometry solver.
 struct SketchSnapUI {
     let point: CGPoint
     let title: String

@@ -24,4 +24,4 @@ struct ObjectProperties
     }
 };
 
-} // namespace MirUI
+}

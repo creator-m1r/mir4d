@@ -3,12 +3,6 @@ import XCTest
 @testable import MirUIHandGesture
 import simd
 
-/// Integration tests for the hand-gesture → Spatial Menu bridge.
-///
-/// They verify the contract from §33 of the spec: the hand module never
-/// triggers operations directly, it emits `MIRHandIntent`, and the adapter
-/// translates those intents into the *same* Spatial Menu event path the
-/// trackpad and voice channels use.
 final class HandAdapterBridgeTests: XCTestCase {
     private var beganObserver: NSObjectProtocol?
     private var movedObserver: NSObjectProtocol?
@@ -46,8 +40,6 @@ final class HandAdapterBridgeTests: XCTestCase {
             confidence: 0.9
         )
     }
-
-    // MARK: - Direct translation (no camera)
 
     @MainActor
     func testPinchBeganOpensSpatialMenu() async {
@@ -89,8 +81,6 @@ final class HandAdapterBridgeTests: XCTestCase {
         XCTAssertTrue(ended, "A pinch 'ended' intent must close the Spatial Menu")
         XCTAssertTrue(commit, "Releasing the pinch must commit the selection")
     }
-
-    // MARK: - End-to-end through the module (camera-less mock source)
 
     @MainActor
     func testModuleMockPinchOpensSpatialMenu() async {

@@ -51,4 +51,4 @@ private:
     SketchVariableBinding binding_;
 };
 
-} // namespace mir
+}

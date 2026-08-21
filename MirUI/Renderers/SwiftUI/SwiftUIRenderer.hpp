@@ -1,11 +1,3 @@
-// MirUI/Renderers/SwiftUI/SwiftUIRenderer.hpp
-// 🍏 Рендерер для SwiftUI — теперь работает через UIBridge и WidgetSnapshot.
-//
-// Рендерер получает готовый WidgetTreeSnapshot от ядра через UIBridge
-// и строит на его основе плоский список SwiftUIViewNode для Swift-бриджа.
-// Опционально может использовать ThemeManager для применения стилей из темы.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -13,7 +5,7 @@
 #include "../../Core/Widget/WidgetSnapshot.hpp"
 #include "../../Core/Theme/ThemeResolver.hpp"
 #include "../../Core/Theme/WidgetStyle.hpp"
-#include "../../Core/Theme/ThemeManager.hpp"   // <-- добавлено для типа ThemeManager
+#include "../../Core/Theme/ThemeManager.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -21,7 +13,6 @@
 
 namespace MirUI {
 
-// ── Узел для передачи в Swift ──────────────────────────────
 struct SwiftUIViewNode {
     std::string type;
     int64_t widgetId;
@@ -52,7 +43,6 @@ struct SwiftUIViewNode {
     double opacity = 1.0;
     bool showScrollBars = true;
 
-    // Стилевые поля, заполняемые из темы (если доступен ThemeResolver)
     std::string backgroundHex;
     std::string foregroundHex;
     std::string borderHex;
@@ -72,27 +62,21 @@ public:
     SwiftUIRenderer();
     ~SwiftUIRenderer();
 
-    // Подключение к UIBridge (основной источник снимков)
     void setBridge(UIBridge* bridge) { m_bridge = bridge; }
 
-    // Подключение ThemeManager (опционально, для применения темы)
     void setThemeManager(ThemeManager* manager) { m_themeManager = manager; }
 
-    // Главный метод рендеринга
     void render(const WidgetTreeSnapshot& snapshot);
 
-    // Запрос на обновление конкретного виджета
     void requestUpdate(int64_t widgetId);
 
-    // Доступ к результату
     [[nodiscard]] const std::vector<SwiftUIViewNode>& viewNodes() const { return m_viewNodes; }
 
-    // Очистка перед новым кадром
     void clear();
 
 private:
     UIBridge* m_bridge = nullptr;
-    ThemeManager* m_themeManager = nullptr;   // опциональный менеджер тем
+    ThemeManager* m_themeManager = nullptr;
 
     std::vector<SwiftUIViewNode> m_viewNodes;
     int m_currentParentIndex = -1;
@@ -106,4 +90,4 @@ private:
     static WidgetType stringToWidgetType(const std::string& str);
 };
 
-} // namespace MirUI
+}

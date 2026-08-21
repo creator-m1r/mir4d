@@ -1,11 +1,3 @@
-// MirEngine/Math/Point.hpp
-// 📍 Каноническая математическая точка 3D.
-//
-// Point3 + Vector3 = Point3
-// Point3 - Vector3 = Point3
-// Point3 - Point3  = Vector3
-//
-// C++23
 
 #pragma once
 
@@ -63,11 +55,11 @@ public:
     friend constexpr auto operator<=>(const Point3& a, const Point3& b) noexcept = default;
 };
 
-} // namespace mir::math
+}
 
 namespace mir
 {
-/// Canonical geometry-facing name; the implementation lives in mir::math::Point3.
+
 using Point3 = math::Point3;
 }
 
@@ -85,7 +77,7 @@ struct hash<mir::math::Point3>
                (h3 + static_cast<std::size_t>(0x9e3779b9) + (h2 << 6) + (h2 >> 2));
     }
 };
-} // namespace std
+}
 
 inline std::ostream& operator<<(std::ostream& stream, const mir::math::Point3& point)
 {

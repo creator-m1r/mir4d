@@ -5,7 +5,6 @@
 
 namespace mir4d {
 
-/// RAII owner of one EventBus subscription.
 class Subscription {
 public:
     Subscription() noexcept = default;
@@ -55,4 +54,4 @@ private:
     SubscriptionHandle m_handle{0};
 };
 
-} // namespace mir4d
+}

@@ -1,6 +1,3 @@
-// MirUI/Core/State/StateValue.hpp
-// Universal state value type – currently supports bool, int64_t, double, std::string.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -17,4 +14,4 @@ using StateValue = std::variant<
     std::string
 >;
 
-} // namespace MirUI
+}

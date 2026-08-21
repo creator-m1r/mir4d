@@ -236,4 +236,4 @@ private:
     CAECampaignResult result_{};
 };
 
-} // namespace mir
+}

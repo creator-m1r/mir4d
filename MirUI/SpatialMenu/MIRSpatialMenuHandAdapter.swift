@@ -3,15 +3,6 @@ import Foundation
 import CoreGraphics
 import Combine
 
-/// Bridges hand intents into the Spatial Menu fan.
-///
-/// Per the agent contract, the hand module and the Spatial Menu communicate
-/// **only** through `MIRHandIntent` (carried on `MIRIntentRouter`). This adapter
-/// subscribes to the hand module's intent stream and drives the same single
-/// event path the trackpad uses:
-/// ```text
-/// ✋ → menu centre → move right → EDIT → move up → MOVE → move right → AXIS
-/// ```
 @MainActor
 final class MIRSpatialMenuHandAdapter: ObservableObject {
     static let shared = MIRSpatialMenuHandAdapter()
@@ -22,8 +13,7 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
     }
 
     private(set) var configuration = Configuration()
-    /// Current scene context the hand interaction is performed over. Supplied by
-    /// the Spatial Menu controller from the live selection; defaults to `.empty`.
+
     private(set) var interactionTarget: MIR4DInteractionTarget = .empty
     private var active = false
     private var lastPosition: SIMD3<Double>?
@@ -31,24 +21,21 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
     private var accumulativeDY: Double = 0
     private var cancellable: AnyCancellable?
 
-    /// In-progress hand-drawn sketch stroke (normalized -1…1 vertices).
     private var sketchTrail: [CGPoint] = []
 
     func update(configuration: Configuration) {
         self.configuration = configuration
     }
 
-    /// Feed the live scene context so gestures resolve to semantic actions.
     func setInteractionTarget(_ target: MIR4DInteractionTarget) {
         interactionTarget = target
     }
 
-    /// Begin consuming hand intents. Safe to call multiple times.
     func start() {
         guard cancellable == nil else { return }
-        // Ensure the sculpt bridge is subscribed for the lifetime of the session.
+
         _ = MIR4DSculptCommandBridge.shared
-        // Ensure the sketch bridge is subscribed for the lifetime of the session.
+
         _ = MIR4DSketchCommandBridge.shared
         cancellable = MIRHandGestureModule.shared.session.intentPublisher
             .receive(on: DispatchQueue.main)
@@ -63,9 +50,6 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
         reset()
     }
 
-    /// Draws a freeform stroke while the Sketch workbench is active. A pointing
-    /// hand accumulates vertices; releasing commits the stroke. Each frame is
-    /// published (live preview) so the bridge can show the stroke in real time.
     private func handleSketch(_ intent: MIRHandIntent) {
         guard intent.gesture.type == .point else { return }
         let vertex = CGPoint(x: intent.position.x, y: intent.position.y)
@@ -96,10 +80,6 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
         let action = MIR4DInteractionContext(target: interactionTarget)
             .resolve(gesture: .pinch, phase: intent.phase)
 
-        // Sculpt surface: every supported hand pose deforms the selected body in
-        // a distinct mode and publishes on the App stream; the radial menu is not
-        // navigated while sculpting. `active` is intentionally left untouched so
-        // menu navigation still works after leaving sculpt mode.
         if interactionTarget == .sculpt {
             switch intent.phase {
             case .began, .changed:
@@ -117,8 +97,6 @@ final class MIRSpatialMenuHandAdapter: ObservableObject {
             return
         }
 
-        // Sketch workbench: a pointing hand draws a freeform stroke on the active
-        // plane. The radial menu is still opened with a pinch.
         if interactionTarget == .sketch {
             handleSketch(intent)
             return

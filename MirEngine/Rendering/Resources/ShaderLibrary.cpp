@@ -1,11 +1,3 @@
-// MirEngine/Rendering/Resources/ShaderLibrary.cpp
-// =================================================================================
-// ShaderLibrary implementation.
-//
-// Stores compiled shaders keyed by a string handle (name). Shader instances
-// are created through the factory function passed to the constructor, so the
-// library stays backend-neutral (OpenGL / Metal / ...).
-// =================================================================================
 
 #include "ShaderLibrary.h"
 #include "Shader.h"
@@ -101,4 +93,4 @@ void ShaderLibrary::clear()
     m_shaders.clear();
 }
 
-} // namespace MirEngine::Rendering
+}

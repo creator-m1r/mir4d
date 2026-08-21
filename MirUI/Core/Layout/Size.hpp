@@ -1,6 +1,3 @@
-// MirUI/Core/Layout/Size.hpp
-// 2D size structure.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -23,4 +20,4 @@ struct Size {
     }
 };
 
-} // namespace MirUI
+}

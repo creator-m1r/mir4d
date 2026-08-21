@@ -1,8 +1,6 @@
 import Foundation
 import Combine
 
-/// Runtime gatekeeper for optional MIR 4D subsystems.
-/// A subsystem must be explicitly enabled by project consent before starting.
 @MainActor
 final class MIR4DOptionalModuleRuntime: ObservableObject {
     static let shared = MIR4DOptionalModuleRuntime()
@@ -35,7 +33,6 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
         }
     }
 
-    /// Applies the enabled-module set posted by the permissions UI.
     func apply(_ modules: Set<MIR4DOptionalModule>) {
         enabledModules = modules
         for module in MIR4DOptionalModule.allCases where !modules.contains(module) {
@@ -43,7 +40,6 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
         }
     }
 
-    /// Applies a configuration-change notification payload (cameraEnabled / microphoneEnabled / aiEnabled).
     func apply(camera: Bool, microphone: Bool, ai: Bool) {
         let requested: [MIR4DOptionalModule?] = [
             camera ? .camera : nil,
@@ -57,7 +53,6 @@ final class MIR4DOptionalModuleRuntime: ObservableObject {
         enabledModules.contains(module)
     }
 
-    /// Starts the module if enabled. Returns whether it is now running.
     func start(_ module: MIR4DOptionalModule) -> Bool {
         guard isEnabled(module) else { return false }
         runningModules.insert(module)

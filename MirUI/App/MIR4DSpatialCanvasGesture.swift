@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Two-finger manipulation layer for iPad and trackpad-ready spatial interaction.
-/// It deliberately exposes semantic values so future hand tracking can reuse them.
 struct MIR4DSpatialCanvasGestureModifier: ViewModifier {
     @ObservedObject var router: MIR4DProjectWindowInputRouter
     let windowID: UUID

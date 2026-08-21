@@ -1,4 +1,4 @@
-// MirUI/Core/Widget/WidgetFactory.hpp
+
 #pragma once
 
 #include "Widget.hpp"
@@ -21,7 +21,7 @@ namespace MirUI {
 
 class WidgetFactory {
 public:
-    // Создаёт виджет нужного типа и регистрирует его в дереве
+
     static Widget* create(WidgetTree& tree, WidgetType type, const std::string& name = "") {
         std::unique_ptr<Widget> widget;
 
@@ -47,16 +47,13 @@ public:
         }
 
         Widget* raw = widget.get();
-        // Временно храним владение в фабрике/дереве через register
-        // Реальное владение — у родителя или у дерева через setRoot
+
         tree.registerWidget(raw);
-        // Чтобы не потерять объект, вызывающий код должен сразу сделать addChild
-        // или setRoot. Для удобства возвращаем raw и передаём владение через unique_ptr отдельно.
+
         m_owned.push_back(std::move(widget));
         return raw;
     }
 
-    // Очистка временного владения (вызывать при shutdown)
     static void clearOwned() {
         m_owned.clear();
     }
@@ -65,4 +62,4 @@ private:
     static inline std::vector<std::unique_ptr<Widget>> m_owned;
 };
 
-} // namespace MirUI
+}

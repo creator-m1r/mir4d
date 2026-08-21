@@ -12,9 +12,6 @@
 namespace mir
 {
 
-/// Adds containment/topology information to already validated profile loops.
-/// The detector uses representative points and even/odd ray casting. It is
-/// deliberately transient: no SketchDocument mutation occurs here.
 class SketchProfileContainment
 {
 public:
@@ -99,7 +96,7 @@ public:
                 return std::nullopt;
 
             result.topology[i].depth = depth;
-            // Even depth = material region, odd depth = void region.
+
             result.topology[i].materialBoundary = (depth % 2) == 0;
         }
 
@@ -229,4 +226,4 @@ private:
     }
 };
 
-} // namespace mir
+}

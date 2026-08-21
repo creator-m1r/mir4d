@@ -9,8 +9,6 @@
 
 namespace mir4d {
 
-/// Explicit owner of long-lived MirEngine services.
-/// Services are registered by concrete type; no global singleton is required.
 class ServiceContainer {
 public:
     ServiceContainer() = default;
@@ -83,4 +81,4 @@ private:
     std::unordered_map<std::type_index, std::shared_ptr<void>> m_services;
 };
 
-} // namespace mir4d
+}

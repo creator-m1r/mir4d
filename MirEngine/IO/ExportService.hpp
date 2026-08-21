@@ -24,4 +24,4 @@ public:
     [[nodiscard]] static Format detectFormat(const std::string& path) noexcept;
 };
 
-} // namespace mir::io
+}

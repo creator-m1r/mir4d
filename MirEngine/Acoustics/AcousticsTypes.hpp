@@ -24,4 +24,4 @@ struct AcousticSettings
     Scalar maxDistance{1000.0};
 };
 
-} // namespace mir
+}

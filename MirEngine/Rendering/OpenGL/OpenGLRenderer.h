@@ -20,15 +20,6 @@
 namespace MirEngine::Rendering
 {
 
-/// OpenGL implementation of the Renderer contract.
-///
-/// Owns the device, the shader library and the pass pipeline:
-///
-///   background (GridPass) -> grid/axes (GridPass) -> scene geometry
-///   (GeometryPass, camera-relative with selection highlight)
-///
-/// The class does not own the OpenGLContext; the C ABI layer (MirEngineExports)
-/// owns the context and the renderer lifetime.
 class OpenGLRenderer final : public Renderer
 {
 public:
@@ -46,22 +37,16 @@ public:
 
     void setGridPlane(GridPlane plane) noexcept { if (m_gridPass) m_gridPass->setPlane(plane); }
 
-    /// Sets the work planes overlaid in the viewport (ТЗ Этап 1). The renderer
-    /// copies them into the per-frame context so PlanePass can draw them.
     void setPlanes(const std::vector<PlaneRenderData>& planes) noexcept
     {
         m_planes = planes;
     }
 
-    /// Sets the 2D sketch overlay drawn on a work plane (ТЗ Этап 2). The
-    /// renderer copies it into the per-frame context so SketchPass can draw it.
     void setSketch(const std::vector<SketchRenderData>& sketches) noexcept
     {
         m_sketches = sketches;
     }
 
-    /// Sets the cursor position in normalized device coordinates for plane
-    /// hover picking. active=false clears the hover when the pointer leaves.
     void setCursor(float ndcX, float ndcY, bool active) noexcept
     {
         m_cursorNDC[0] = ndcX;
@@ -69,12 +54,8 @@ public:
         m_cursorActive = active;
     }
 
-    /// Text report about the OpenGL context (requires the current context;
-    /// performs makeCurrent itself).
     std::string diagnosticsReport();
 
-    /// TEMP DIAGNOSTIC: renders one frame into an offscreen FBO and writes a
-    /// PPM so the output can be inspected headlessly (MIR4D_SCREENSHOT=1).
     void captureDiagnosticFrame(RenderContext& context,
                                 mir::Scene& scene,
                                 RenderDevice& device);
@@ -83,16 +64,12 @@ public:
     [[nodiscard]] const OpenGLDevice* device() const noexcept { return m_device.get(); }
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
-    /// Forwards the hand-skeleton overlay style (colours / sizes / depth) to the
-    /// dedicated pass. Called once (or when the configuration changes).
     void setHandSkeletonStyle(const HandSkeletonStyle& style) noexcept override
     {
         if (m_handSkeletonPass)
             m_handSkeletonPass->setStyle(style);
     }
 
-    /// Forwards the hand-skeleton bone topology (single source of truth comes
-    /// from Swift MIRHandSkeletonTopology).
     void setHandSkeletonTopology(const std::vector<std::pair<int, int>>& bones) noexcept override
     {
         if (m_handSkeletonPass)
@@ -115,4 +92,4 @@ private:
     bool m_initialized{false};
 };
 
-} // namespace MirEngine::Rendering
+}

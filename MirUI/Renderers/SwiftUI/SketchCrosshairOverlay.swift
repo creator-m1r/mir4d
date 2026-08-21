@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Lightweight visual cursor for Sketch mode.
-/// It is deliberately UI-only; model coordinates remain owned by MirEngine.
 struct SketchCrosshairOverlay: View {
     let point: CGPoint
     let visible: Bool

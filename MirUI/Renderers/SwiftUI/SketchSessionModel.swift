@@ -2,9 +2,6 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 
-/// UI projection of the active MirEngine sketch session.
-/// The C++ session remains the source of truth; this type only exposes state
-/// that SwiftUI needs to render.
 @MainActor
 final class SketchSessionModel: ObservableObject {
     @Published private(set) var solverStatus: String = "Не выполнен"
@@ -63,8 +60,7 @@ final class SketchSessionModel: ObservableObject {
     }
 
     func refreshHistoryState() {
-        // The concrete C++ bridge should replace these values with the
-        // authoritative SketchSession::state() values.
+
         canUndo = undoHandler != nil
         canRedo = redoHandler != nil
     }

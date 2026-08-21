@@ -70,4 +70,4 @@ private:
     std::vector<ProcessConnection> connections_{};
 };
 
-} // namespace mir
+}

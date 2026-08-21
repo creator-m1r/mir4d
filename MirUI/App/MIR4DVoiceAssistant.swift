@@ -2,20 +2,11 @@ import Foundation
 import AVFoundation
 import Speech
 
-/// Потокобезопасный (по контракту использования) держатель распознавателя.
-/// `SFSpeechAudioBufferRecognitionRequest` не является Sendable, поэтому
-/// помечаем холдер как `@unchecked Sendable` и обращаемся к request только
-/// из одного потока записи (real-time audio tap) и из главного потока
-/// (создание/отмена). Это устраняет MainActor-executor assertion в tap-callback
-/// (ТЗ §5: real-time audio callback нельзя делать actor-isolated).
 private final class VoiceRecognitionHolder {
     var request: SFSpeechAudioBufferRecognitionRequest?
 }
 extension VoiceRecognitionHolder: @unchecked Sendable {}
 
-/// Local voice interface for the engineer.
-/// No chat window and no microphone control are exposed in the creative workspace.
-/// Recognition is explicitly requested on-device and commands are executed through CADAppState/EventBus.
 @MainActor
 final class MIR4DVoiceAssistant: NSObject, ObservableObject {
     enum State: Equatable {
@@ -32,7 +23,7 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
     private var recognitionTask: SFSpeechRecognitionTask?
-    /// nonisolated: к request обращается real-time audio tap (см. beginRecognition).
+
     nonisolated private let holder = VoiceRecognitionHolder()
     private weak var appState: CADAppState?
     private var restarting = false
@@ -72,13 +63,6 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         beginRecognition()
     }
 
-    // nonisolated: completion-блоки SFSpeechRecognizer.requestAuthorization /
-    // AVCaptureDevice.requestAccess(for:) в этом SDK не @Sendable и наследуют
-    // @MainActor-изоляцию. Если TCC-ответ приходит в фоновом потоке, рантайм
-    // Swift вставляет swift_task_isCurrentExecutorWithFlagsImpl ->
-    // dispatch_assert_queue_fail (EXC_BREAKPOINT, ТЗ §5). Делаем метод
-    // nonisolated, тогда completion тоже nonisolated, а сам запрос TCC
-    // выполняется на главном потоке вызова (ViewBridge-безопасно).
     private nonisolated func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
         await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -109,9 +93,6 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         inputNode.removeTap(onBus: 0)
         let format = inputNode.outputFormat(forBus: 0)
 
-        // Захватываем ТОЛЬКО holder (nonisolated + @unchecked Sendable).
-        // Внутри tap-callback НЕТ self → Swift не вставляет проверку executor
-        // (ТЗ §5: real-time audio callback запрещено делать actor-isolated).
         let holder = self.holder
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable buffer, _ in
             guard let copied = Self.copyBuffer(buffer) else { return }
@@ -237,9 +218,6 @@ final class MIR4DVoiceAssistant: NSObject, ObservableObject {
         speak("Я услышал: \(raw). Команда пока не распознана.")
     }
 
-    /// Надёжное копирование AVAudioPCMBuffer (buffer.copy() не всегда
-    /// корректен для PCM). Вызывается из real-time audio callback, поэтому
-    /// static + nonisolated — не захватывает self и не требует actor-executor.
     private nonisolated static func copyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         let format = buffer.format
         guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameCapacity) else {

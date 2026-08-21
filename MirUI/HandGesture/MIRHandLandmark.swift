@@ -1,8 +1,6 @@
 import Foundation
 import simd
 
-/// Identifier of a single tracked hand joint.
-/// Mirrors the canonical 21-point hand skeleton used by platform hand APIs.
 public enum LandmarkID: String, Sendable, CaseIterable, Hashable {
     case wrist
 
@@ -32,16 +30,12 @@ public enum LandmarkID: String, Sendable, CaseIterable, Hashable {
     case littleTip
 }
 
-/// A single recognised joint of a hand.
-/// `normalizedPosition` lives in normalised camera space:
-/// x ∈ [0,1] left→right, y ∈ [0,1] top→bottom, z is relative depth (roughly [−1,1]).
 struct MIRHandLandmark: Sendable {
     let id: LandmarkID
     let normalizedPosition: SIMD3<Double>
     let confidence: Double
 }
 
-/// A logical finger of the hand.
 enum MIRFinger: Sendable, CaseIterable {
     case thumb
     case index
@@ -59,9 +53,7 @@ enum MIRFinger: Sendable, CaseIterable {
         }
     }
 
-    /// Tip joint for the finger.
     var tip: LandmarkID { joints.last! }
 
-    /// Metacarpophalangeal joint (knuckle) for the finger.
     var mcp: LandmarkID { joints[1] }
 }

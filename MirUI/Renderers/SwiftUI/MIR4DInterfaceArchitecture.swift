@@ -1,10 +1,5 @@
 import Foundation
 
-// MARK: - Workbenches
-
-/// Official MIR 4D workbench hierarchy.
-/// Analysis is intentionally represented by Simulation.PhysicsType,
-/// not as a separate workbench.
 enum CADWorkbench: String, CaseIterable, Identifiable, Hashable {
     case model
     case sketch
@@ -86,8 +81,6 @@ enum CADWorkbench: String, CaseIterable, Identifiable, Hashable {
         subMode.workbench == self
     }
 }
-
-// MARK: - SubModes
 
 enum CADSubMode: String, CaseIterable, Identifiable, Hashable {
     case modelFeature
@@ -214,8 +207,6 @@ enum CADSubMode: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Panels
-
 enum CADPanel: String, CaseIterable, Identifiable, Hashable {
     case project
     case properties
@@ -266,9 +257,6 @@ enum CADPanel: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Panel placement
-
-/// Dock zone of a user-movable panel.
 enum PanelPlacement: String, CaseIterable, Identifiable, Hashable {
     case left
     case right
@@ -343,8 +331,6 @@ struct CADPanelState: Equatable {
     }
 }
 
-// MARK: - Selection
-
 enum CADSelectionKind: String, Hashable {
     case none
     case vertex
@@ -368,8 +354,6 @@ struct CADSelectionState: Equatable {
     var isMultiSelection: Bool { ids.count > 1 }
 }
 
-// MARK: - Time / 4D
-
 struct CADTimeState: Equatable {
     var current: Double = 0
     var start: Double = 0
@@ -383,8 +367,6 @@ struct CADTimeState: Equatable {
         return min(max((current - start) / (end - start), 0), 1)
     }
 }
-
-// MARK: - Simulation
 
 struct CADSimulationState: Equatable {
     enum PhysicsType: String, CaseIterable, Identifiable, Hashable {
@@ -512,8 +494,6 @@ enum CAESweepParameter: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Interaction
-
 struct CADInteractionState: Equatable {
     var isDragging = false
     var isSelecting = false
@@ -549,8 +529,6 @@ struct CADInteractionState: Equatable {
     }
 }
 
-// MARK: - UI state
-
 enum CADLanguage: String, CaseIterable, Identifiable, Hashable {
     case russian = "RU"
     case english = "EN"
@@ -570,8 +548,6 @@ struct CADUIState: Equatable {
     var experience: CADExperience = .expert
     var commandPalettePresented = false
 }
-
-// MARK: - Active context
 
 struct CADActiveContext: Equatable {
     let workbench: CADWorkbench

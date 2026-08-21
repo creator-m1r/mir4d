@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Инженерный инспектор выделенного объекта.
-/// C++ остаётся владельцем инженерных данных; Swift отвечает только за представление.
 public struct SelectionPropertiesPanel: View {
     @ObservedObject private var inspector: SelectionInspector
 

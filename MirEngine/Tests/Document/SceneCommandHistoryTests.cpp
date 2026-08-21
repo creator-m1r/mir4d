@@ -24,7 +24,7 @@ std::shared_ptr<mir::Model> makeModel()
     return model;
 }
 
-} // namespace
+}
 
 int main()
 {
@@ -37,7 +37,6 @@ int main()
     assert(mir4d::isValidObjectId(nodeA->id()));
     assert(mir4d::isValidObjectId(nodeB->id()));
 
-    // ── Move ───────────────────────────────────────────────────────────
     const mir4d::Transform from = nodeA->transform();
     mir4d::Transform to = from;
     to.position = {5, 2, 1};
@@ -56,7 +55,6 @@ int main()
     assert(nodeA->transform() == to);
     assert(history.canUndo() && !history.canRedo());
 
-    // ── Delete ─────────────────────────────────────────────────────────
     const mir4d::ObjectId idB = nodeB->id();
     history.execute(
         std::make_unique<mir4d::DeleteObjectCommand>(nodeB),
@@ -74,7 +72,6 @@ int main()
     assert(scene.size() == 1);
     assert(!scene.contains(idB));
 
-    // ── Redo branch is invalidated by a new command ────────────────────
     history.execute(
         std::make_unique<mir4d::DeleteObjectCommand>(scene.find(nodeA->id())),
         scene);
@@ -85,12 +82,11 @@ int main()
     assert(!history.canUndo());
     assert(!history.canRedo());
 
-    // ── Deform (undoable sculpt stroke) ───────────────────────────────
     const auto node = scene.createNode(makeModel());
     const auto original = node->model()->mesh().vertices;
     auto modified = original;
     for (auto& v : modified)
-        v = v + mir::Vector3(0, 0, 2); // push along +Z
+        v = v + mir::Vector3(0, 0, 2);
 
     auto equalVec = [](const std::vector<mir::Point3>& a,
                        const std::vector<mir::Point3>& b) -> bool {

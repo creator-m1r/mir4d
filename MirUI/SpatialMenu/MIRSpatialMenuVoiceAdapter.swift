@@ -1,21 +1,10 @@
 import MirUIHandGesture
 import Foundation
 
-/// Maps spoken commands into spatial intents.
-///
-/// Speech recognition stays in MIR4DVoiceAssistant; this adapter is only the
-/// voice → Intent channel. It deliberately contains no speech engine, no chat
-/// window and no CAD algorithms — it produces the same MIRIntent the fan does:
-///
-/// ```text
-/// «Создай эскиз» → CREATE → SKETCH
-/// «Вытяни на сорок» → target: selectedSurface, action: extrude, distance: 40
-/// ```
 @MainActor
 final class MIRSpatialMenuVoiceAdapter: ObservableObject {
     static let shared = MIRSpatialMenuVoiceAdapter()
 
-    /// Last recognized intention, shown as a quiet hint above the centre.
     @Published private(set) var lastVoiceHint: String?
     @Published private(set) var lastParsedIntent: MIRIntent?
 
@@ -111,9 +100,6 @@ final class MIRSpatialMenuVoiceAdapter: ObservableObject {
         }
     }
 
-    // MARK: - Parsing
-
-    /// «на сорок» / «40 мм» → 40.0
     private func extractDistance(from text: String) -> Double? {
         let pattern = #"на\s+([0-9]+(?:\.[0-9]+)?)"#
         guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }

@@ -67,8 +67,7 @@ public:
         }
 
         bool delivered = false;
-        // A callback is allowed to unsubscribe itself. Copy the subscriber
-        // list first so publication remains stable during callback execution.
+
         const auto subscribers = it->second;
         for (const auto& subscriber : subscribers) {
             subscriber.callback(event);
@@ -94,4 +93,4 @@ private:
     std::atomic<SubscriptionHandle> m_nextHandle{1};
 };
 
-} // namespace mir4d
+}

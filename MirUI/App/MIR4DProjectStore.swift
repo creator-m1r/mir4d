@@ -23,8 +23,6 @@ struct MIR4DProjectManifest: Codable {
     var currentTime: Double
     var modelPath: String = MIR4DPaths.modelRelativePath
 
-    // Reserved for the next manifest migration. Keeping the properties optional
-    // lets version-1 packages remain readable while the richer identity contract is introduced.
     var appVersion: String? = nil
     var uuid: UUID? = nil
     var thumbnailPath: String? = "Thumbnails/preview.png"
@@ -109,9 +107,6 @@ final class MIR4DProjectStore {
         return projectURL
     }
 
-    /// Generates a self-describing placeholder preview for a freshly created
-    /// package. A real viewport snapshot is captured later from the running
-    /// renderer and overwrites this file.
     private func writeDefaultThumbnail(to projectURL: URL, title: String) {
         let size = NSSize(width: 512, height: 320)
         let image = NSImage(size: size)
@@ -135,7 +130,6 @@ final class MIR4DProjectStore {
             )
         }
 
-        // Branded geometric mark.
         context.setStrokeColor(NSColor(red: 0.20, green: 0.55, blue: 1.0, alpha: 0.9).cgColor)
         context.setLineWidth(6)
         let markRect = CGRect(x: size.width / 2 - 46, y: size.height / 2 - 10, width: 92, height: 92)
@@ -236,14 +230,12 @@ final class MIR4DProjectStore {
         }
     }
 
-    /// Synchronous save used by explicit user commands such as Cmd-S.
     func saveModel(_ model: MIR4DModelDocument, to projectURL: URL) throws {
         try ensurePackageDirectory(projectURL)
         let data = try makeEncoder().encode(model)
         try Self.writeModelData(data, to: projectURL)
     }
 
-    /// Encodes a value snapshot and writes it away from the main actor.
     func saveModelAsync(_ model: MIR4DModelDocument, to projectURL: URL) async throws {
         let snapshot = MIR4DModelSnapshot(model: model)
         let data = try await Task.detached(priority: .utility) {
@@ -346,7 +338,6 @@ final class MIR4DProjectStore {
     }
 }
 
-/// Explicit value snapshot used to move model encoding to a utility task.
 private struct MIR4DModelSnapshot: @unchecked Sendable {
     let model: MIR4DModelDocument
 }

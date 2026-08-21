@@ -60,7 +60,7 @@ void rebuildCache(MirUISelectionInspectorHandle* handle)
     }
 }
 
-} // namespace
+}
 
 extern "C" MirUISelectionInspectorHandle*
 mirui_selection_inspector_create(void)

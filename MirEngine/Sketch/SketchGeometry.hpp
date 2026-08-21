@@ -40,10 +40,6 @@ struct SketchCircle2D
     bool construction{false};
 };
 
-/// True spline primitive. Control points define a natural cubic spline built
-/// through them (see mir::math::buildCubicSpline). The curve is a decorative /
-/// driven geometry: the constraint solver preserves it as-is and does not move
-/// its control points, so it never introduces under-constrained variables.
 struct SketchSpline2D
 {
     std::uint32_t id{0};
@@ -114,8 +110,6 @@ public:
         return geometries_;
     }
 
-    /// Inserts an already built geometry variant. A zero id is replaced by a
-    /// fresh store id so command payloads can carry unassigned entities.
     std::uint32_t add(SketchGeometry geometry)
     {
         const auto existingId = std::visit(
@@ -202,4 +196,4 @@ private:
     std::vector<SketchGeometry> geometries_;
 };
 
-} // namespace mir
+}

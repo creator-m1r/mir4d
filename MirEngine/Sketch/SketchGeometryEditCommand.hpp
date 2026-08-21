@@ -19,9 +19,6 @@ enum class SketchGeometryHandle : std::uint8_t
     ArcEnd
 };
 
-/// Generic reversible edit for the currently supported sketch geometry.
-/// A future implementation can use the same command shape for splines,
-/// ellipses and other non-primitive sketch entities.
 class SketchGeometryEditCommand final : public ISketchCommand
 {
 public:
@@ -67,4 +64,4 @@ private:
     SketchGeometry after_;
 };
 
-} // namespace mir
+}

@@ -33,7 +33,6 @@ public:
 
         state_ = EquipmentSystemControlState::Starting;
 
-        // Start equipment in the declared system order.
         for (const auto equipmentId : system.equipmentIds)
         {
             const EquipmentCommandRequest request{
@@ -107,4 +106,4 @@ private:
     EquipmentSystemControlState state_{EquipmentSystemControlState::Stopped};
 };
 
-} // namespace mir
+}

@@ -1,59 +1,47 @@
 import Foundation
 import simd
 
-// MARK: - Режим визуализации скелета
-
-/// Отдельный режим визуализации скелета кистей в 3D (debug / assist).
-/// Не смешивается с CAD-геометрией и не попадает в Document / History.
 public enum MIRHandSkeletonVisMode: Int, Sendable, CaseIterable {
     case off = 0
-    case jointsOnly = 1   // только суставы (points)
-    case bones = 2        // суставы + кости (lines)
-    case bonesAndRays = 3 // + указывающий луч
+    case jointsOnly = 1
+    case bones = 2
+    case bonesAndRays = 3
 }
 
-// MARK: - Топология костей
-
-/// Статическая топология скелета (21 landmark, Vision / MediaPipe порядок).
-/// Индексы костей в C++ (`HandSkeletonPass::kBoneIndices`) заданы в том же
-/// порядке `LandmarkID.allCases`, что и здесь, — builder эмитит суставы именно
-/// в этом порядке, поэтому растеризатор рисует правильные кости.
 public enum MIRHandSkeletonTopology {
-    /// Пары (parent, child) для линий «костей».
+
     public static let bones: [(LandmarkID, LandmarkID)] = [
-        // запястье → основания пальцев
+
         (.wrist, .thumbCMC),
         (.wrist, .indexMCP),
         (.wrist, .middleMCP),
         (.wrist, .ringMCP),
         (.wrist, .littleMCP),
-        // большой
+
         (.thumbCMC, .thumbMCP), (.thumbMCP, .thumbIP), (.thumbIP, .thumbTip),
-        // указательный
+
         (.indexMCP, .indexPIP), (.indexPIP, .indexDIP), (.indexDIP, .indexTip),
-        // средний
+
         (.middleMCP, .middlePIP), (.middlePIP, .middleDIP), (.middleDIP, .middleTip),
-        // безымянный
+
         (.ringMCP, .ringPIP), (.ringPIP, .ringDIP), (.ringDIP, .ringTip),
-        // мизинец
+
         (.littleMCP, .littlePIP), (.littlePIP, .littleDIP), (.littleDIP, .littleTip),
-        // «ладонь» (опционально)
+
         (.indexMCP, .middleMCP), (.middleMCP, .ringMCP), (.ringMCP, .littleMCP)
     ]
 }
 
-// MARK: - Кадр скелета в 3D (scene space)
-
 public struct MIRHandSkeletonFrame: Sendable {
     public struct Joint: Sendable {
         public let id: LandmarkID
-        public let position: SIMD3<Double>  // scene space
+        public let position: SIMD3<Double>
         public let confidence: Double
     }
 
     public let handID: UUID
     public let handedness: Handedness
-    public let joints: [Joint]             // в порядке LandmarkID.allCases (21)
+    public let joints: [Joint]
     public let gesture: MIRHandGestureType
     public let pinch: Double
 
@@ -67,12 +55,8 @@ public struct MIRHandSkeletonFrame: Sendable {
     }
 }
 
-// MARK: - Построение кадра
-
 public enum MIRHandSkeletonBuilder {
-    /// Строит кадр скелета из pose, маппя нормализованные landmark в scene space.
-    /// Суставы эмитятся строго в порядке `LandmarkID.allCases`, чтобы индексы
-    /// костей на стороне растера (C++) совпадали с позициями.
+
     static func build(
         pose: MIRHandPose,
         mapper: MIRHandSpatialMapper,
@@ -87,7 +71,7 @@ public enum MIRHandSkeletonBuilder {
                     position: mapper.map(normalized: lm.normalizedPosition),
                     confidence: lm.confidence)
             }
-            // Отсутствующий landmark сохраняет выравнивание (позиция 0, conf 0).
+
             return MIRHandSkeletonFrame.Joint(id: id, position: .zero, confidence: 0)
         }
         return MIRHandSkeletonFrame(
@@ -98,9 +82,6 @@ public enum MIRHandSkeletonBuilder {
             pinch: pinch)
     }
 
-    /// Flat (parent, child) bone-index array in `LandmarkID.allCases` order.
-    /// Single source of truth: the C++ pass receives exactly this via
-    /// `MirEngineSetHandSkeletonTopology`, so Swift and C++ can never drift.
     public static func topologyIndices() -> [Int32] {
         MIRHandSkeletonTopology.bones.flatMap { (a, b) in
             [Int32(LandmarkID.allCases.firstIndex(of: a)!),
@@ -108,8 +89,6 @@ public enum MIRHandSkeletonBuilder {
         }
     }
 
-    /// Stable integer code for a gesture (index into `MIRHandGestureType.allCases`),
-    /// consumed by the C++ pass for the accent colour.
     public static func gestureCode(_ gesture: MIRHandGestureType) -> Int32 {
         Int32(MIRHandGestureType.allCases.firstIndex(of: gesture) ?? 0)
     }

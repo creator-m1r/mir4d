@@ -16,4 +16,4 @@ public:
         const ImportOptions& options = {}) const;
 };
 
-} // namespace mir::io
+}

@@ -22,7 +22,7 @@ namespace
            "  Z: " + number(value.z);
 }
 
-} // namespace
+}
 
 std::vector<RenderPropertyRow> RenderSelectionPropertiesFormatter::format(
     const RenderSelectionProperties& properties)
@@ -42,5 +42,5 @@ std::vector<RenderPropertyRow> RenderSelectionPropertiesFormatter::format(
     return rows;
 }
 
-} // namespace Rendering
-} // namespace MirEngine
+}
+}

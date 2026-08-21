@@ -1,9 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Engineering navigator for MIR 4D.
-/// The primary task of the left panel is understanding the project structure.
-/// Filters and layers are deliberately secondary and live behind a compact menu.
 struct SidebarView: View {
     @ObservedObject var appState: CADAppState
     @ObservedObject private var modelRuntime = MIR4DModelRuntime.shared

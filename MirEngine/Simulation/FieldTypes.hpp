@@ -33,4 +33,4 @@ struct SimulationField
     bool visible{true};
 };
 
-} // namespace mir
+}

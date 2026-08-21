@@ -1,19 +1,3 @@
-// MirUI/Designer/Themes/AnimationEditor.hpp
-// 🎬 Редактор анимаций — позволяет настраивать параметры анимаций темы.
-//
-// Каждая тема MirUI содержит AnimationSettings — глобальные настройки
-// анимаций по умолчанию: длительность, кривую, параметры пружины.
-// AnimationEditor позволяет редактировать эти параметры и видеть
-// результат в реальном времени.
-//
-// Редактируемые параметры:
-//   • defaultDuration  — длительность анимации по умолчанию (0.1 – 5.0 сек).
-//   • defaultCurve     — тип кривой (Linear, EaseIn, EaseOut, EaseInOut, Spring).
-//   • springDamping    — затухание пружины (0.0 – 1.0).
-//   • springResponse   — реакция пружины (0.1 – 1.0).
-//   • enableAnimations — глобальное включение/выключение анимаций.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -29,21 +13,19 @@ namespace MirUI {
 
 class AnimationEditor {
 public:
-    // ── Конструктор ──────────────────────────────────────────
+
     AnimationEditor(UIDocument& doc)
         : m_doc(doc)
     {
         loadFromTheme();
     }
 
-    // ── Текущие значения (для отображения в UI) ──────────────
     [[nodiscard]] double defaultDuration()  const { return m_duration; }
     [[nodiscard]] AnimationCurve defaultCurve() const { return m_curve; }
     [[nodiscard]] double springDamping()    const { return m_springDamping; }
     [[nodiscard]] double springResponse()   const { return m_springResponse; }
     [[nodiscard]] bool   enableAnimations() const { return m_enabled; }
 
-    // ── Установка новых значений ────────────────────────────
     void setDuration(double duration) {
         if (duration == m_duration) return;
         auto cmd = std::make_unique<AnimationEditCommand>(*this, m_duration, m_curve, m_springDamping,
@@ -104,7 +86,6 @@ public:
         applyToTheme();
     }
 
-    // ── Сброс к значениям по умолчанию ───────────────────────
     void resetToDefault() {
         setDuration(0.25);
         setCurve(AnimationCurve::EaseInOut);
@@ -113,7 +94,6 @@ public:
         setEnableAnimations(true);
     }
 
-    // ── Список доступных кривых для EnumEditor ───────────────
     [[nodiscard]] static std::vector<std::string> curveNames() {
         return {"Linear", "EaseIn", "EaseOut", "EaseInOut", "Spring"};
     }
@@ -147,31 +127,27 @@ private:
     double m_springResponse  = 0.5;
     bool   m_enabled         = true;
 
-    // Загружает текущие значения из темы.
     void loadFromTheme() {
-        // Получаем тему из документа.
+
         const Theme& theme = m_doc.themeManager().current();
         m_duration       = theme.animations.defaultDuration;
         m_enabled        = theme.animations.enableAnimations;
-        // Кривая и параметры пружины пока не хранятся в AnimationSettings,
-        // поэтому используем значения по умолчанию. В будущем будет расширено.
+
         m_curve          = AnimationCurve::EaseInOut;
         m_springDamping  = 0.7;
         m_springResponse = 0.5;
     }
 
-    // Применяет текущие настройки к теме.
     void applyToTheme() {
-        // Обновляем тему через ThemeManager.
+
         Theme current = m_doc.themeManager().current();
         current.animations.defaultDuration  = m_duration;
         current.animations.enableAnimations = m_enabled;
-        // В будущем здесь будут curve, springDamping, springResponse.
+
         m_doc.themeManager().setTheme(current);
         m_doc.setModified(true);
     }
 
-    // ── Внутренняя команда для Undo/Redo ─────────────────────
     class AnimationEditCommand : public ICommand {
     public:
         AnimationEditCommand(AnimationEditor& editor,
@@ -223,4 +199,4 @@ private:
     };
 };
 
-} // namespace MirUI
+}

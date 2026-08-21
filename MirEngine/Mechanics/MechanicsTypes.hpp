@@ -126,4 +126,4 @@ struct ShaftData
     }
 };
 
-} // namespace mir
+}

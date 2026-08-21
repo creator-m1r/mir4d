@@ -1,10 +1,3 @@
-// MirUI/Designer/Commands/AddWidgetCommand.hpp
-// 🧩 Команда «Добавить виджет» — финальная версия.
-// Использует новый WidgetTree с автоматической регистрацией,
-// а также создаёт конкретные подклассы виджетов (Button, Label, …),
-// которые умеют работать со свойствами через setProperty/getProperty.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -13,7 +6,7 @@
 #include "../../Core/Widget/WidgetType.hpp"
 #include "../../Core/Widget/WidgetTree.hpp"
 #include "../Document/UIDocument.hpp"
-#include "../../Widgets/Button/Button.hpp"    // конкретные виджеты
+#include "../../Widgets/Button/Button.hpp"
 #include "../../Widgets/Label/Label.hpp"
 #include "../../Widgets/Toolbar/Toolbar.hpp"
 #include "../../Widgets/Tree/Tree.hpp"
@@ -37,26 +30,22 @@ public:
     {}
 
     bool execute() override {
-        // 1. Найти родителя.
+
         Widget* parent = m_doc.widgetTree().find(m_parentId);
         if (!parent) {
             return false;
         }
 
-        // 2. Создать конкретный виджет нужного типа через фабрику.
         Widget* newWidget = createWidgetByType(m_type);
         if (!newWidget) {
             return false;
         }
         m_createdId = newWidget->id();
 
-        // 3. Добавить к родителю (это также регистрирует в индексе через WidgetTree).
         parent->addChild(newWidget);
-        // Явно регистрируем на случай, если addChild не делает этого автоматически.
+
         m_doc.widgetTree().registerWidget(newWidget);
 
-        // 4. Если виджет был корнем ранее (что маловероятно), ничего особого.
-        // 5. Помечаем документ изменённым.
         m_doc.setModified(true);
         return true;
     }
@@ -102,7 +91,7 @@ private:
     WidgetID    m_createdId;
 
     static Widget* createWidgetByType(WidgetType type) {
-        // Создаём реальные виджеты с их конструкторами.
+
         switch (type) {
             case WidgetType::Button:       return new Button();
             case WidgetType::Label:        return new Label();
@@ -120,4 +109,4 @@ private:
     }
 };
 
-} // namespace MirUI
+}

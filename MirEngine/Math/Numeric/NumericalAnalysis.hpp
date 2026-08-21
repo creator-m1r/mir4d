@@ -1,20 +1,3 @@
-// MirEngine/Math/Numeric/NumericalAnalysis.hpp
-// 🧮 Численный анализ — основа инженерных расчётов MIR 4D.
-//
-// Содержит классические численные методы, не привязанные к конкретной
-// геометрии:
-//   • Поиск корней:   биссекция, Ньютон, метод секущих.
-//   • Интегрирование:  метод трапеций, метод Симпсона.
-//   • Дифференцирование: центральная/правосторонняя/левосторонняя разности.
-//   • Одномерная минимизация: поиск золотым сечением.
-//
-// Все методы принимают целевую функцию как std::function<Scalar(Scalar)>,
-// что позволяет передавать лямбды, свободные функции и функторы.
-//
-// Итерационные методы возвращают mir4d::Result: при отсутствии сходимости
-// или некорректных входных данных возвращается описание ошибки.
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -30,24 +13,13 @@ namespace mir::math
 
 #ifndef MIR_MATH_NUMERIC_FAIL_DEFINED
 #define MIR_MATH_NUMERIC_FAIL_DEFINED
-/// Возвращает «неудачу» в виде std::unexpected<Error> для функций Result.
+
 [[nodiscard]] inline auto fail(mir4d::ErrorCode code, std::string_view message)
 {
     return std::unexpected(mir4d::Error(code, message));
 }
 #endif
 
-// ═══════════════════════════════════════════════════════════════
-//  Поиск корней уравнения f(x) = 0
-// ═══════════════════════════════════════════════════════════════
-
-/// Находит корень f(x) = 0 на отрезке [a, b] методом бисекции.
-/// Требует, чтобы f(a) и f(b) имели разные знаки (корень «зажат»).
-///
-/// \param f        непрерывная целевая функция.
-/// \param a, b     границы интервала поиска.
-/// \param tol      допуск по значению/ширине интервала.
-/// \param maxIter  максимальное число итераций.
 [[nodiscard]] inline mir4d::Result<Scalar> findRootBisection(
     std::function<Scalar(Scalar)> f,
     Scalar a,
@@ -96,11 +68,6 @@ namespace mir::math
     return fail(mir4d::ErrorCode::Internal, "Бисекция не сошлась за maxIter");
 }
 
-/// Находит корень f(x) = 0 методом Ньютона (касательных).
-/// Требует аналитическую производную df.
-///
-/// \param f, df    функция и её производная.
-/// \param x0       начальное приближение.
 [[nodiscard]] inline mir4d::Result<Scalar> findRootNewton(
     std::function<Scalar(Scalar)> f,
     std::function<Scalar(Scalar)> df,
@@ -134,9 +101,6 @@ namespace mir::math
     return fail(mir4d::ErrorCode::Internal, "Метод Ньютона не сошёлся за maxIter");
 }
 
-/// Находит корень f(x) = 0 методом секущих (без производной).
-///
-/// \param x0, x1   две начальные точки.
 [[nodiscard]] inline mir4d::Result<Scalar> findRootSecant(
     std::function<Scalar(Scalar)> f,
     Scalar x0,
@@ -179,11 +143,6 @@ namespace mir::math
     return fail(mir4d::ErrorCode::Internal, "Метод секущих не сошёлся за maxIter");
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Численное интегрирование
-// ═══════════════════════════════════════════════════════════════
-
-/// Определяет ∫ₐᵇ f(x) dx методом трапеций на n отрезках.
 [[nodiscard]] inline Scalar integrateTrapezoidal(
     std::function<Scalar(Scalar)> f,
     Scalar a,
@@ -202,8 +161,6 @@ namespace mir::math
     return sum * h;
 }
 
-/// Определяет ∫ₐᵇ f(x) dx методом Симпсона (требует чётное n,
-/// при нечётном n автоматически увеличивается).
 [[nodiscard]] inline Scalar integrateSimpson(
     std::function<Scalar(Scalar)> f,
     Scalar a,
@@ -228,11 +185,6 @@ namespace mir::math
     return sum * h / Scalar(3);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Численное дифференцирование
-// ═══════════════════════════════════════════════════════════════
-
-/// Производная f'(x) центральной разностью: (f(x+h) − f(x−h)) / 2h.
 [[nodiscard]] inline Scalar derivativeCentral(
     std::function<Scalar(Scalar)> f,
     Scalar x,
@@ -241,7 +193,6 @@ namespace mir::math
     return (f(x + h) - f(x - h)) / (Scalar(2) * h);
 }
 
-/// Производная f'(x) правосторонней (прогрессивной) разностью.
 [[nodiscard]] inline Scalar derivativeForward(
     std::function<Scalar(Scalar)> f,
     Scalar x,
@@ -250,7 +201,6 @@ namespace mir::math
     return (f(x + h) - f(x)) / h;
 }
 
-/// Производная f'(x) левосторонней (регрессивной) разностью.
 [[nodiscard]] inline Scalar derivativeBackward(
     std::function<Scalar(Scalar)> f,
     Scalar x,
@@ -259,14 +209,6 @@ namespace mir::math
     return (f(x) - f(x - h)) / h;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Одномерная минимизация
-// ═══════════════════════════════════════════════════════════════
-
-/// Находит точку минимума унимодальной функции f на [a, b]
-/// поиском золотым сечением.
-///
-/// \return приближённая координата минимума или ошибку при несходимости.
 [[nodiscard]] inline mir4d::Result<Scalar> minimizeGoldenSection(
     std::function<Scalar(Scalar)> f,
     Scalar a,
@@ -280,7 +222,6 @@ namespace mir::math
     if (b < a)
         std::swap(a, b);
 
-    // resphi = 2 - phi ≈ 0.381966, где phi = (1+√5)/2.
     const Scalar resphi = Scalar(2) - (Scalar(1) + std::sqrt(Scalar(5))) / Scalar(2);
 
     Scalar x1 = a + resphi * (b - a);
@@ -315,4 +256,4 @@ namespace mir::math
         "Поиск золотым сечением не сошёлся за maxIter");
 }
 
-} // namespace mir::math
+}

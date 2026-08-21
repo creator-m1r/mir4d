@@ -41,4 +41,4 @@ enum class ObjectType
     return "Неизвестно";
 }
 
-} // namespace MirUI
+}

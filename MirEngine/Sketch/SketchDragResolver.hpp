@@ -19,10 +19,6 @@ struct SketchDragResolution
     std::vector<SketchInference> inferences;
 };
 
-/// Resolves a moving sketch endpoint into the point that should be committed.
-/// Snap has priority over inference; inference only describes constraints that
-/// should be proposed for the resolved point. The resolver never mutates the
-/// document, so previewing a drag remains side-effect free.
 class SketchDragResolver
 {
 public:
@@ -47,8 +43,7 @@ public:
 
         if (const auto candidate = snap_.nearest(geometry, cursor))
         {
-            // Never snap a line endpoint to the same line that is currently
-            // being dragged. That would make self-snapping unstable.
+
             if (candidate->geometryId != lineId)
             {
                 result.point = candidate->point;
@@ -75,8 +70,6 @@ public:
             start,
             end);
 
-        // Coincident is represented by the snap itself. Avoid proposing a
-        // duplicate coincident inference for an endpoint snap.
         if (result.snap && result.snap->type == SketchSnapType::Endpoint)
         {
             result.inferences.erase(
@@ -100,4 +93,4 @@ private:
     SketchInferenceEngine inference_;
 };
 
-} // namespace mir
+}

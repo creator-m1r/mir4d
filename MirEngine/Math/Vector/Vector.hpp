@@ -1,23 +1,3 @@
-// MirEngine/Math/Vector/Vector3.hpp
-//
-// 🧭 Трёхмерный вектор МИР 4D.
-//
-// Базовый математический тип геометрического ядра MirEngine.
-//
-// Vector3 используется для:
-//   • координат точек;
-//   • направлений;
-//   • нормалей;
-//   • скоростей;
-//   • сил;
-//   • лучей;
-//   • положений объектов;
-//   • камер;
-//   • геометрических вычислений.
-//
-// C++23
-// Без внешних зависимостей.
-//
 
 #pragma once
 
@@ -37,17 +17,10 @@ namespace mir
 
 struct Vector3
 {
-    // ---------------------------------------------------------
-    // Components
-    // ---------------------------------------------------------
 
     Scalar x{0.0};
     Scalar y{0.0};
     Scalar z{0.0};
-
-    // ---------------------------------------------------------
-    // Constructors
-    // ---------------------------------------------------------
 
     constexpr Vector3() noexcept = default;
 
@@ -60,10 +33,6 @@ struct Vector3
         , z(z_)
     {
     }
-
-    // ---------------------------------------------------------
-    // Constants
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector3 zero() noexcept
@@ -95,10 +64,6 @@ struct Vector3
         return {0.0, 0.0, 1.0};
     }
 
-    // ---------------------------------------------------------
-    // Length
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     constexpr Scalar lengthSquared() const noexcept
     {
@@ -113,10 +78,6 @@ struct Vector3
     {
         return std::sqrt(lengthSquared());
     }
-
-    // ---------------------------------------------------------
-    // Normalization
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     Vector3 normalized(
@@ -147,10 +108,6 @@ struct Vector3
         return true;
     }
 
-    // ---------------------------------------------------------
-    // Dot product
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     static constexpr Scalar dot(
         const Vector3& a,
@@ -168,10 +125,6 @@ struct Vector3
     {
         return dot(*this, other);
     }
-
-    // ---------------------------------------------------------
-    // Cross product
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector3 cross(
@@ -193,10 +146,6 @@ struct Vector3
         return cross(*this, other);
     }
 
-    // ---------------------------------------------------------
-    // Distance
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     static constexpr Scalar distanceSquared(
         const Vector3& a,
@@ -214,10 +163,6 @@ struct Vector3
             distanceSquared(a, b)
         );
     }
-
-    // ---------------------------------------------------------
-    // Angle
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     Scalar angleTo(
@@ -245,10 +190,6 @@ struct Vector3
         return std::acos(cosine);
     }
 
-    // ---------------------------------------------------------
-    // Projection
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     Vector3 projectedOnto(
         const Vector3& other,
@@ -267,10 +208,6 @@ struct Vector3
             (dot(other) / lengthSq);
     }
 
-    // ---------------------------------------------------------
-    // Reflection
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     Vector3 reflected(
         const Vector3& normal) const noexcept
@@ -280,10 +217,6 @@ struct Vector3
             normal *
             (Scalar(2.0) * dot(normal));
     }
-
-    // ---------------------------------------------------------
-    // Linear interpolation
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector3 lerp(
@@ -298,10 +231,6 @@ struct Vector3
             a.z + (b.z - a.z) * t
         };
     }
-
-    // ---------------------------------------------------------
-    // Component operations
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector3 componentMin(
@@ -366,10 +295,6 @@ struct Vector3
             a.z / b.z
         };
     }
-
-    // ---------------------------------------------------------
-    // Arithmetic
-    // ---------------------------------------------------------
 
     friend constexpr Vector3 operator+(
         const Vector3& a,
@@ -477,10 +402,6 @@ struct Vector3
         return *this;
     }
 
-    // ---------------------------------------------------------
-    // Index access
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     constexpr Scalar& operator[](
         std::size_t index) noexcept
@@ -501,10 +422,6 @@ struct Vector3
             z;
     }
 
-    // ---------------------------------------------------------
-    // State
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     bool isZero(
         Scalar epsilon = Scalar(1e-12)) const noexcept
@@ -524,10 +441,6 @@ struct Vector3
             std::isfinite(z);
     }
 
-    // ---------------------------------------------------------
-    // Comparison
-    // ---------------------------------------------------------
-
     friend constexpr bool operator==(
         const Vector3& a,
         const Vector3& b) noexcept
@@ -545,22 +458,10 @@ struct Vector3
         return !(a == b);
     }
 
-    // ---------------------------------------------------------
-    // Three-way comparison
-    //
-    // Важно:
-    // Scalar = double, поэтому сравнение является
-    // частичным порядком из-за NaN.
-    // ---------------------------------------------------------
-
     friend constexpr auto operator<=>(
         const Vector3& a,
         const Vector3& b) noexcept = default;
 };
-
-// =============================================================
-// Structured bindings
-// =============================================================
 
 template <std::size_t I>
 [[nodiscard]]
@@ -658,12 +559,7 @@ constexpr const Scalar&& get(
     }
 }
 
-} // namespace mir
-
-
-// =============================================================
-// std::tuple_size / std::tuple_element
-// =============================================================
+}
 
 namespace std
 {
@@ -724,12 +620,7 @@ struct hash<mir::Vector3>
     }
 };
 
-} // namespace std
-
-
-// =============================================================
-// Stream output
-// =============================================================
+}
 
 inline std::ostream& operator<<(
     std::ostream& stream,

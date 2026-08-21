@@ -3,9 +3,6 @@ import simd
 import Combine
 @testable import MirUIHandGesture
 
-/// Exercises the real `MIRHandTrackingSession` pipeline (source → mapper →
-/// recognizers → intents) synchronously, without spawning the tracking-source
-/// `Task` (XCTest aborts on long-lived unstructured tasks).
 @MainActor
 final class MIRHandTrackingSessionTests: XCTestCase {
     private func configuredSession() -> MIRHandTrackingSession {
@@ -21,7 +18,6 @@ final class MIRHandTrackingSessionTests: XCTestCase {
         var received: [MIRHandIntent] = []
         let cancellable = session.intentPublisher.sink { received.append($0) }
 
-        // Five identical fist frames so the recognizer passes its hold debounce.
         let frames = (0..<5).map { _ in [MIRHandPoseMock.mockFist()] }
         session.processFramesForTesting(frames)
 
@@ -37,7 +33,7 @@ final class MIRHandTrackingSessionTests: XCTestCase {
         let session = configuredSession()
         var config = MIRHandGestureConfiguration()
         config.minimumIntentConfidence = 0.1
-        // Lower the pinch threshold so the synthetic mockPinch (pinch ~0.9) is classified.
+
         config.recognizer.classifying.pinchScale = 0.5
         session.configuration = config
 

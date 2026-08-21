@@ -1,34 +1,3 @@
-// MirEngine/Tests/Render/DebugViewport.mm
-// =================================================================================
-// Автономный отладочный стенд viewport'а MIR 4D (вне MirUI / SwiftUI).
-//
-// Открывает собственное NSWindow с NSView, создаёт OpenGL контекст, renderer и
-// viewport ровно тем же путём C ABI (MirEngineExports.h), которым пользуется
-// MirUI, и позволяет:
-//   * управлять камерой мышью и клавиатурой;
-//   * изучать состояние камеры (theta/phi/distance, eye, near/far, FPS);
-//   * печатать диагностику OpenGL и ошибки движка;
-//   * создавать примитивы и проверять выбор (pick).
-//
-// Управление:
-//   ЛКМ drag         — орбита (как в MirUI)
-//   ПКМ / средняя    — панорама
-//   scroll           — зум
-//   Стрелки          — орбита фиксированным шагом
-//   + / -            — зум фиксированным шагом
-//   1..6             — пресеты камеры (front/back/left/right/top/bottom/isometric)
-//   F                — Fit viewport
-//   I                — состояние камеры (theta/phi/distance, eye, near/far)
-//   D                — диагностика OpenGL
-//   E                — последняя ошибка движка
-//   B                — создать куб 2x2x2
-//   C                — клик (выбор) в текущей точке мыши
-//   Q                — выход
-//
-// Режим --smoke: без показа окна рендерит N кадров (по умолчанию 120) и
-// печатает состояние камеры на дистанциях 12/50/200/1000 — для проверки
-// обрезки геометрии в консоли.
-// =================================================================================
 
 #import <Cocoa/Cocoa.h>
 #import <OpenGL/OpenGL.h>
@@ -56,7 +25,6 @@ bool gAutoShot = false;
 
 NSPoint gLastMouse = NSZeroPoint;
 
-// Совпадает с Camera::position() в MirEngine/Viewport/Camera.hpp.
 void computeEye(double theta, double phi, double distance,
                 double& outX, double& outY, double& outZ)
 {
@@ -70,8 +38,6 @@ void computeEye(double theta, double phi, double distance,
     outZ = distance * sinPhi * cosTheta;
 }
 
-// Повторяет алгоритм near/far из ViewportRuntime::render() для куба 2x2x2
-// (sceneRadius = диагональ/2 ≈ 1.732), нацеленного в центр сцены.
 void computeClipping(double distance, double& nearPlane, double& farPlane)
 {
     const double sceneRadius = std::sqrt(3.0);
@@ -142,12 +108,6 @@ void renderFrame()
         MirEngineRender(gViewport);
 }
 
-// Захват текущего кадра через glReadPixels и сохранение в PPM.
-// Требует текущего GL context (вызывается на главном потоке).
-// Контекст MirEngine — MSAA 4x + double-buffer: после flushBuffer resolved
-// изображение лежит в GL_FRONT, а GL_BACK — не-resolved MSAA буфер, поэтому
-// читаем GL_FRONT. Каналы читаем как BGRA (внутренний формат NSOpenGLContext)
-// и переставляем в RGB при записи.
 void saveFrameAsPPM(const char* path)
 {
     NSRect backing = [gView convertRectToBacking:gView.bounds];
@@ -171,8 +131,7 @@ void saveFrameAsPPM(const char* path)
     for (size_t i = 0; i < rgb.size(); i += 3)
     {
         const size_t j = (i / 3) * 4;
-        // Raw channel order from glReadPixels on this context; the PPM is
-        // written as-is so the actual GPU colors can be inspected.
+
         rgb[i + 0] = pixels[j + 0];
         rgb[i + 1] = pixels[j + 1];
         rgb[i + 2] = pixels[j + 2];
@@ -194,12 +153,7 @@ bool createBox()
     return ok;
 }
 
-} // namespace
-
-// =================================================================================
-// Отладочный NSView — обработка мыши и клавиатуры, путь координат как в MirUI:
-// convert(event.locationInWindow, from: nil) * backingScaleFactor
-// =================================================================================
+}
 
 @interface MIR4DDebugView : NSView
 @end
@@ -256,10 +210,6 @@ bool createBox()
     const CGFloat scale = [self.window backingScaleFactor];
     return NSMakePoint(local.x * scale, local.y * scale);
 }
-
-// ------------------------------------------------------------
-// Mouse
-// ------------------------------------------------------------
 
 - (void)forwardMouseButton:(NSEvent*)event down:(BOOL)down
 {
@@ -344,10 +294,6 @@ bool createBox()
     MirEngineViewportScroll(gViewport, (float)event.scrollingDeltaY);
 }
 
-// ------------------------------------------------------------
-// Keyboard
-// ------------------------------------------------------------
-
 - (void)keyDown:(NSEvent*)event
 {
     const NSString* chars = event.charactersIgnoringModifiers;
@@ -430,10 +376,6 @@ bool createBox()
 
 @end
 
-// =================================================================================
-// main — окно + run loop + smoke
-// =================================================================================
-
 int main(int argc, const char* argv[])
 {
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -455,8 +397,7 @@ int main(int argc, const char* argv[])
         }
         else if (std::strcmp(argv[i], "--autoshot") == 0)
         {
-            // GUI-режим с показанным окном: рендер кадров на дистанциях 12 и
-            // 200 с сохранением PPM — валидные кадры реального backbuffer.
+
             gAutoShot = true;
         }
         else if (std::strcmp(argv[i], "--help") == 0)
@@ -471,9 +412,6 @@ int main(int argc, const char* argv[])
         NSApplication* app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-        // ------------------------------------------------------------
-        // Окно и view
-        // ------------------------------------------------------------
         const NSRect contentRect = NSMakeRect(0, 0, 1024, 768);
         NSWindow* window = [[NSWindow alloc]
             initWithContentRect:contentRect
@@ -497,9 +435,6 @@ int main(int argc, const char* argv[])
             static_cast<uint32_t>(std::max(backing.size.width, 1.0)),
             static_cast<uint32_t>(std::max(backing.size.height, 1.0))};
 
-        // ------------------------------------------------------------
-        // Engine через C ABI (тот же путь, что и MirUI)
-        // ------------------------------------------------------------
         void* context = MirEngineCreateMacOpenGLContext((__bridge void*)view, size);
         if (!context)
         {
@@ -534,9 +469,6 @@ int main(int argc, const char* argv[])
             [window makeFirstResponder:view];
         }
 
-        // ------------------------------------------------------------
-        // Run loop / smoke
-        // ------------------------------------------------------------
         int frame = 0;
         double lastPrint = 0.0;
         double fpsAccum = 0.0;
@@ -557,7 +489,7 @@ int main(int argc, const char* argv[])
 
             if (gSmoke)
             {
-                // Обход дистанций: печатаем состояние и рендерим кадры.
+
                 const int perDistance = gSmokeFrames / 5;
                 const int probeIndex = std::min(frame / perDistance, 4);
                 if (frame % 30 == 0 || frame == gSmokeFrames - 1)
@@ -575,7 +507,6 @@ int main(int argc, const char* argv[])
                            eyeX, eyeY, eyeZ, nearPlane, farPlane);
                 }
 
-                // Захват кадров на каждой дистанции.
                 if (frame % perDistance == perDistance / 2)
                 {
                     char path[128];
@@ -602,12 +533,12 @@ int main(int argc, const char* argv[])
             {
                 if (gAutoShot)
                 {
-                    // Дистанция 12: кадр на 90-м кадре.
+
                     if (frame == 90)
                         saveFrameAsPPM("/tmp/dv_gui_d12.ppm");
                     if (frame == 120)
                         MirEngineSetCameraOrientation(gViewport, 0.8f, 1.2f, 200.0f);
-                    // Дистанция 200: кадр на 210-м кадре, затем выход.
+
                     if (frame == 210)
                     {
                         saveFrameAsPPM("/tmp/dv_gui_d200.ppm");

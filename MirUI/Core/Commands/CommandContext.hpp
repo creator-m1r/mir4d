@@ -1,6 +1,3 @@
-// MirUI/Core/Commands/CommandContext.hpp
-// Execution context passed to command handlers.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -9,11 +6,10 @@
 namespace MirUI {
 
 struct CommandContext {
-    WidgetID sourceWidget;   // Widget that initiated the command (e.g., button)
-    WidgetID focusedWidget;  // Currently focused widget
-    WidgetID selectedWidget; // Currently selected widget (if applicable)
+    WidgetID sourceWidget;
+    WidgetID focusedWidget;
+    WidgetID selectedWidget;
 
-    // Future extensions: Project, Scene, Selection, Workspace, etc.
 };
 
-} // namespace MirUI
+}

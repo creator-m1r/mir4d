@@ -121,4 +121,4 @@ private:
     std::vector<OpticalMaterialSample> samples_;
 };
 
-} // namespace mir
+}

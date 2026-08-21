@@ -1,33 +1,3 @@
-// MirUI/Schema/WidgetSchema.hpp
-// 🧩 Схема виджетов MirUI — центральный реестр всех стандартных типов виджетов.
-//
-// Когда ты открываешь панель инструментов (Toolbox) или инспектор (Inspector),
-// система должна знать, какие вообще бывают виджеты: как они называются,
-// какие у них свойства по умолчанию, какие дети им разрешены, можно ли
-// в них вкладывать другие виджеты. WidgetSchema хранит все эти знания
-// в одном месте — это как энциклопедия видовжетов.
-//
-// Каждая запись (WidgetDescriptor) описывает один тип виджета:
-//   • type          — значение из перечисления WidgetType (Button, Label, …)
-//   • id            — строковый идентификатор (например, "button", "tree")
-//   • name          — отображаемое имя на русском («Кнопка», «Дерево»)
-//   • description   — подробное описание (тултип)
-//   • icon          — идентификатор иконки для тулбокса (платформонезависимый)
-//   • defaultProperties — список пар (имя свойства, значение по умолчанию),
-//                          которые устанавливаются при создании виджета
-//   • allowedChildren   — список WidgetType, которые разрешено добавлять
-//                          внутрь этого виджета (если он контейнер)
-//   • isContainer   — может ли виджет содержать дочерние элементы
-//
-// Благодаря этой схеме:
-//   • Toolbox автоматически наполняется списком доступных виджетов.
-//   • AddWidgetCommand знает, можно ли добавить кнопку внутрь тулбара.
-//   • InspectorModel показывает осмысленные названия и категории.
-//   • Renderer может проверить, допустима ли такая вложенность.
-//   • При создании нового виджета все его свойства заполняются дефолтными
-//     значениями из схемы.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -42,30 +12,25 @@
 
 namespace MirUI {
 
-// ── Дескриптор одного типа виджета ─────────────────────────
 struct WidgetDescriptor {
-    WidgetType type;                              // тип из перечисления WidgetType
-    std::string id;                               // строковый идентификатор (напр. "button")
-    std::string name;                             // имя на русском ("Кнопка")
-    std::string description;                      // описание для тултипа
-    std::string icon;                             // идентификатор иконки
-    bool isContainer = false;                     // может ли содержать детей
-    std::vector<WidgetType> allowedChildren;      // разрешённые типы детей (если контейнер)
+    WidgetType type;
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string icon;
+    bool isContainer = false;
+    std::vector<WidgetType> allowedChildren;
 
-    // Свойства, которые автоматически устанавливаются при создании виджета.
-    // Ключ — имя свойства (напр. "text", "width"), значение — значение по умолчанию.
     std::unordered_map<std::string, StateValue> defaultProperties;
 };
 
-// ── Схема (реестр) виджетов ────────────────────────────────
 class WidgetSchema {
 public:
-    // Получить список всех зарегистрированных типов виджетов.
+
     [[nodiscard]] static const std::vector<WidgetDescriptor>& allWidgets() {
         return widgets();
     }
 
-    // Найти дескриптор виджета по его строковому идентификатору.
     [[nodiscard]] static const WidgetDescriptor* findById(const std::string& id) {
         auto& wgts = widgets();
         auto it = std::find_if(wgts.begin(), wgts.end(),
@@ -73,7 +38,6 @@ public:
         return (it != wgts.end()) ? &(*it) : nullptr;
     }
 
-    // Найти дескриптор виджета по WidgetType.
     [[nodiscard]] static const WidgetDescriptor* findByType(WidgetType type) {
         auto& wgts = widgets();
         auto it = std::find_if(wgts.begin(), wgts.end(),
@@ -81,17 +45,15 @@ public:
         return (it != wgts.end()) ? &(*it) : nullptr;
     }
 
-    // Проверить, можно ли добавить виджет типа childType внутрь контейнера типа parentType.
     [[nodiscard]] static bool canContain(WidgetType parentType, WidgetType childType) {
         auto parentDesc = findByType(parentType);
         if (!parentDesc || !parentDesc->isContainer) return false;
         const auto& allowed = parentDesc->allowedChildren;
-        // Если список разрешённых пуст, значит можно добавлять любые виджеты.
+
         if (allowed.empty()) return true;
         return std::find(allowed.begin(), allowed.end(), childType) != allowed.end();
     }
 
-    // Получить свойства по умолчанию для указанного типа виджета.
     [[nodiscard]] static std::unordered_map<std::string, StateValue> defaultProperties(WidgetType type) {
         auto desc = findByType(type);
         if (desc) return desc->defaultProperties;
@@ -99,18 +61,18 @@ public:
     }
 
 private:
-    // Статический реестр всех встроенных типов виджетов.
+
     static std::vector<WidgetDescriptor>& widgets() {
         static std::vector<WidgetDescriptor> s_widgets = {
-            // ── Окно (Window) ─────────────────────────────────
+
             {
                 WidgetType::Window,
                 "window",
                 "Окно",
                 "Корневое окно приложения. Содержит все остальные виджеты.",
                 "window",
-                true, // контейнер
-                {    // разрешённые дети: панели, тулбар, вьюпорт, другие окна (MDI)
+                true,
+                {
                     WidgetType::Panel,
                     WidgetType::DockPanel,
                     WidgetType::Toolbar,
@@ -125,7 +87,6 @@ private:
                 }
             },
 
-            // ── Контейнер (Panel) ────────────────────────────
             {
                 WidgetType::Panel,
                 "panel",
@@ -133,7 +94,7 @@ private:
                 "Универсальный контейнер для группировки виджетов.",
                 "panel",
                 true,
-                {}, // разрешены любые дети
+                {},
                 {
                     {"visible", StateValue(true)},
                     {"width", StateValue(200.0)},
@@ -141,7 +102,6 @@ private:
                 }
             },
 
-            // ── Стыкуемая панель (DockPanel) ─────────────────
             {
                 WidgetType::DockPanel,
                 "dockpanel",
@@ -165,14 +125,13 @@ private:
                 }
             },
 
-            // ── Кнопка (Button) ──────────────────────────────
             {
                 WidgetType::Button,
                 "button",
                 "Кнопка",
                 "Нажимаемый элемент с текстом, иконкой и командой.",
                 "button",
-                false, // не контейнер
+                false,
                 {},
                 {
                     {"text", StateValue(std::string("Кнопка"))},
@@ -183,7 +142,6 @@ private:
                 }
             },
 
-            // ── Надпись (Label) ──────────────────────────────
             {
                 WidgetType::Label,
                 "label",
@@ -199,14 +157,13 @@ private:
                 }
             },
 
-            // ── Дерево (Tree) ────────────────────────────────
             {
                 WidgetType::Tree,
                 "tree",
                 "Дерево",
                 "Иерархический список элементов (навигатор, структура проекта).",
                 "tree",
-                false, // у дерева свои дочерние элементы (TreeNode), не виджеты
+                false,
                 {},
                 {
                     {"visible", StateValue(true)},
@@ -216,7 +173,6 @@ private:
                 }
             },
 
-            // ── Инспектор свойств (PropertyGrid) ─────────────
             {
                 WidgetType::PropertyGrid,
                 "propertygrid",
@@ -232,7 +188,6 @@ private:
                 }
             },
 
-            // ── Панель инструментов (Toolbar) ────────────────
             {
                 WidgetType::Toolbar,
                 "toolbar",
@@ -243,17 +198,16 @@ private:
                 {
                     WidgetType::Button,
                     WidgetType::Label,
-                    WidgetType::Toolbar // вложенные тулбары (редко, но возможно)
+                    WidgetType::Toolbar
                 },
                 {
                     {"visible", StateValue(true)},
-                    {"width", StateValue(0.0)},   // обычно растягивается
+                    {"width", StateValue(0.0)},
                     {"height", StateValue(44.0)},
                     {"orientation", StateValue(std::string("horizontal"))}
                 }
             },
 
-            // ── Лента (Ribbon) ───────────────────────────────
             {
                 WidgetType::Ribbon,
                 "ribbon",
@@ -268,7 +222,6 @@ private:
                 }
             },
 
-            // ── Вьюпорт (Viewport) ───────────────────────────
             {
                 WidgetType::Viewport,
                 "viewport",
@@ -285,7 +238,6 @@ private:
                 }
             },
 
-            // ── Таймлайн (Timeline) ───────────────────────────
             {
                 WidgetType::Timeline,
                 "timeline",
@@ -304,4 +256,4 @@ private:
     }
 };
 
-} // namespace MirUI
+}

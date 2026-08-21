@@ -1,5 +1,3 @@
-// MirUI/Renderers/SwiftUI/DesignerCanvasView.swift
-// Холст конструктора: выделение, направляющие, ресайз, copy/paste и undo/redo.
 
 import SwiftUI
 #if os(macOS)

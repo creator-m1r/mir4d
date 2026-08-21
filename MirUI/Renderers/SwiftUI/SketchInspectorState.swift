@@ -1,7 +1,6 @@
 import Foundation
 import CoreGraphics
 
-/// Unified inspector state for the active sketch entity.
 @MainActor
 final class SketchInspectorState: ObservableObject {
     struct GeometryInfo: Equatable {

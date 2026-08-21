@@ -1,20 +1,3 @@
-// MirEngine/Geometry/Query/Query.hpp
-//
-// Геометрические запросы: примитивы (прямая / луч / отрезок),
-// пересечения, расстояния и проекции.
-//
-// Канонический аналитический слой CAD-запросов. Не зависит от рендера,
-// B-Rep и UI. Служит фундаментом для булева ядра (разбиение рёбер и
-// граней), инженерных измерений, привязок и предварительных выборов.
-//
-// Все функции noexcept и не требуют нормированного направления:
-// алгоритмы корректны для любого ненулевого направления. Дегенеративные
-// входы дают std::nullopt (пересечения) либо допустимый результат
-// с плавающей точностью (расстояния/проекции).
-//
-// Проекция точки на плоскость — MathPlane::project, здесь не дублируется.
-//
-// C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -30,12 +13,6 @@
 namespace mir
 {
 
-// ══════════════════════════════════════════════════════════════════
-// Примитивы
-// ══════════════════════════════════════════════════════════════════
-
-/// Бесконечная прямая: P(t) = origin + direction * t, t ∈ ℝ.
-/// Направление не обязано быть единичным.
 class Line3
 {
 public:
@@ -61,7 +38,6 @@ public:
     }
 };
 
-/// Луч: P(t) = origin + direction * t, t ≥ 0.
 class Ray3
 {
 public:
@@ -87,7 +63,6 @@ public:
     }
 };
 
-/// Отрезок: P(t) = a + (b - a) * t, t ∈ [0, 1].
 class Segment3
 {
 public:
@@ -128,35 +103,19 @@ public:
     }
 };
 
-// ══════════════════════════════════════════════════════════════════
-// GeometryQuery — пересечения, расстояния, проекции
-// ══════════════════════════════════════════════════════════════════
-
-/// Аналитические запросы к геометрическим примитивам.
-///
-/// Возвращаемые значения:
-///   • пересечения — std::optional<Point3>: nullopt означает отсутствие
-///     пересечения (параллельность, выход за пределы параметра, вырождение);
-///   • расстояния — неотрицательная величина;
-///   • проекции — точка на целевом примитиве.
 class GeometryQuery
 {
 public:
-    // ── Projection ──────────────────────────────────────────────
 
     [[nodiscard]] static Point3 projectPointOnLine(const Point3& point, const Line3& line) noexcept;
     [[nodiscard]] static Point3 projectPointOnRay(const Point3& point, const Ray3& ray) noexcept;
     [[nodiscard]] static Point3 projectPointOnSegment(const Point3& point, const Segment3& segment) noexcept;
-
-    // ── Distance ────────────────────────────────────────────────
 
     [[nodiscard]] static Scalar distancePointToLine(const Point3& point, const Line3& line) noexcept;
     [[nodiscard]] static Scalar distancePointToRay(const Point3& point, const Ray3& ray) noexcept;
     [[nodiscard]] static Scalar distancePointToSegment(const Point3& point, const Segment3& segment) noexcept;
     [[nodiscard]] static Scalar distanceLineToLine(const Line3& first, const Line3& second) noexcept;
     [[nodiscard]] static Scalar distanceSegmentToSegment(const Segment3& first, const Segment3& second) noexcept;
-
-    // ── Intersections ───────────────────────────────────────────
 
     [[nodiscard]] static std::optional<Point3> intersectLinePlane(const Line3& line, const MathPlane& plane) noexcept;
     [[nodiscard]] static std::optional<Point3> intersectRayPlane(const Ray3& ray, const MathPlane& plane) noexcept;
@@ -165,10 +124,6 @@ public:
     [[nodiscard]] static std::optional<Point3> intersectSegmentSegment(const Segment3& first, const Segment3& second) noexcept;
     [[nodiscard]] static std::optional<Point3> intersectRayTriangle(const Ray3& ray, const Point3& v0, const Point3& v1, const Point3& v2) noexcept;
 };
-
-// ══════════════════════════════════════════════════════════════════
-// Projection
-// ══════════════════════════════════════════════════════════════════
 
 inline Point3 GeometryQuery::projectPointOnLine(const Point3& point, const Line3& line) noexcept
 {
@@ -188,10 +143,6 @@ inline Point3 GeometryQuery::projectPointOnSegment(const Point3& point, const Se
     const Scalar t = std::clamp(Vector3::dot(point - segment.a, d) / d.lengthSquared(), Scalar(0.0), Scalar(1.0));
     return segment.pointAt(t);
 }
-
-// ══════════════════════════════════════════════════════════════════
-// Distance
-// ══════════════════════════════════════════════════════════════════
 
 inline Scalar GeometryQuery::distancePointToLine(const Point3& point, const Line3& line) noexcept
 {
@@ -222,7 +173,7 @@ inline Scalar GeometryQuery::distanceLineToLine(const Line3& first, const Line3&
 
     if (nLengthSquared <= Scalar(1e-24))
     {
-        // Параллельные прямые: расстояние от точки второй до первой.
+
         return distancePointToLine(second.origin, first);
     }
 
@@ -231,8 +182,7 @@ inline Scalar GeometryQuery::distanceLineToLine(const Line3& first, const Line3&
 
 inline Scalar GeometryQuery::distanceSegmentToSegment(const Segment3& first, const Segment3& second) noexcept
 {
-    // Классический алгоритм кратчайшего отрезка между двумя отрезками
-    // (Ericson, Real-Time Collision Detection, 5.1.9).
+
     const Vector3 d1 = first.direction();
     const Vector3 d2 = second.direction();
     const Vector3 r = first.a - second.a;
@@ -300,17 +250,13 @@ inline Scalar GeometryQuery::distanceSegmentToSegment(const Segment3& first, con
     return (closestOnFirst - closestOnSecond).length();
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Intersections
-// ══════════════════════════════════════════════════════════════════
-
 inline std::optional<Point3> GeometryQuery::intersectLinePlane(const Line3& line, const MathPlane& plane) noexcept
 {
     const Scalar denom = Vector3::dot(plane.normal, line.direction);
 
     if (std::abs(denom) <= Scalar(1e-12))
     {
-        // Прямая параллельна плоскости (или лежит в ней).
+
         return std::nullopt;
     }
 
@@ -373,7 +319,7 @@ inline std::optional<Point3> GeometryQuery::intersectLineLine(const Line3& first
 
     if (denom <= Scalar(1e-24))
     {
-        // Параллельны или совпадают — бесконечное множество точек.
+
         return std::nullopt;
     }
 
@@ -392,7 +338,7 @@ inline std::optional<Point3> GeometryQuery::intersectLineLine(const Line3& first
 
     if ((p1 - p2).lengthSquared() > eps * eps)
     {
-        // Скрещивающиеся прямые: ближайшие точки не совпадают.
+
         return std::nullopt;
     }
 
@@ -423,8 +369,7 @@ inline std::optional<Point3> GeometryQuery::intersectSegmentSegment(const Segmen
 
     if (denom <= degenerate)
     {
-        // Параллельные отрезки: пересечение возможно только при
-        // коллинеарности и перекрытии параметрических интервалов.
+
         const Vector3 crossCheck = Vector3::cross(d1, r);
 
         if (crossCheck.lengthSquared() > eps * eps * a)
@@ -452,8 +397,6 @@ inline std::optional<Point3> GeometryQuery::intersectSegmentSegment(const Segmen
         return first.pointAt(lo);
     }
 
-    // Общий случай: кратчайший отрезок между бесконечными прямыми
-    // с последующим ограничением параметров обоих отрезков.
     const Scalar c = Vector3::dot(d1, r);
 
     Scalar s = std::clamp((b * f - c * e) / denom, Scalar(0.0), Scalar(1.0));
@@ -483,7 +426,7 @@ inline std::optional<Point3> GeometryQuery::intersectSegmentSegment(const Segmen
 
 inline std::optional<Point3> GeometryQuery::intersectRayTriangle(const Ray3& ray, const Point3& v0, const Point3& v1, const Point3& v2) noexcept
 {
-    // Алгоритм Мёллера–Трумбора.
+
     constexpr Scalar eps = Scalar(1e-12);
 
     const Vector3 edge1 = v1 - v0;
@@ -494,7 +437,7 @@ inline std::optional<Point3> GeometryQuery::intersectRayTriangle(const Ray3& ray
 
     if (std::abs(det) <= eps)
     {
-        // Луч параллелен плоскости треугольника.
+
         return std::nullopt;
     }
 
@@ -526,4 +469,4 @@ inline std::optional<Point3> GeometryQuery::intersectRayTriangle(const Ray3& ray
     return ray.pointAt(t);
 }
 
-} // namespace mir
+}

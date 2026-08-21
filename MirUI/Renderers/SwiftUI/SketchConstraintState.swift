@@ -1,7 +1,5 @@
 import Foundation
 
-/// UI state for automatic sketch constraints.
-/// Constraint solving itself remains in MirEngine/Sketch.
 @MainActor
 final class SketchConstraintState: ObservableObject {
     @Published var autoConstraintsEnabled = true

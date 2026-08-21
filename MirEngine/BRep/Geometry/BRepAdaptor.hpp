@@ -1,7 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Geometry/BRepAdaptor.hpp
-
 #include "MirEngine/BRep/Core/BRepModel.hpp"
 
 #include <algorithm>
@@ -107,4 +105,4 @@ private:
     const BRepSurfaceGeometry* surface_{nullptr};
 };
 
-} // namespace mir
+}

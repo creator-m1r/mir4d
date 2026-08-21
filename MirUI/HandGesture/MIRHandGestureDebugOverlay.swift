@@ -1,8 +1,6 @@
 import Foundation
 import simd
 
-/// Structured debug snapshot for development overlays.
-/// Never surfaced in the production interface.
 struct MIRHandGestureDebugInfo: Sendable {
     struct HandEntry: Sendable {
         let handedness: Handedness
@@ -12,7 +10,7 @@ struct MIRHandGestureDebugInfo: Sendable {
         let speed: Double
         let direction: SIMD3<Double>
         let position: SIMD3<Double>
-        /// Normalised (0...1) landmark positions for skeleton rendering.
+
         let landmarkPositions: [SIMD3<Double>]
     }
 
@@ -36,8 +34,6 @@ struct MIRHandGestureDebugInfo: Sendable {
 #if DEBUG
 import SwiftUI
 
-/// Development-only overlay. It renders the hand skeleton and live recognition
-/// telemetry. It must never appear in the production interface.
 @MainActor
 struct MIRHandGestureDebugOverlay: View {
     let info: MIRHandGestureDebugInfo
@@ -64,4 +60,3 @@ struct MIRHandGestureDebugOverlay: View {
     }
 }
 #endif
-

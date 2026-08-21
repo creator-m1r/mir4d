@@ -1,9 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Global application-local trigger for the immersive radial menu.
-/// The radial menu is intentionally centred on the usable display rather than
-/// following the pointer. `]` is a hold gesture: key-down opens, key-up commits.
 @MainActor
 final class MIR4DRadialKeyboardTrigger: ObservableObject {
     static let shared = MIR4DRadialKeyboardTrigger()

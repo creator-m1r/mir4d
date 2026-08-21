@@ -34,7 +34,7 @@ namespace
     }
     return options;
 }
-} // namespace
+}
 
 mir4d::CommandResult MeshImportCommandHandler::execute(
     const mir4d::Command& command,
@@ -69,4 +69,4 @@ mir4d::CommandResult MeshImportCommandHandler::execute(
         node->id());
 }
 
-} // namespace mir::io
+}

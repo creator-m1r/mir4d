@@ -22,4 +22,4 @@ struct SketchExtrudeVector3D
     }
 };
 
-} // namespace mir
+}

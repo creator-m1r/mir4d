@@ -1,11 +1,3 @@
-// MirEngine/Math/Matrix4.hpp
-// 🧮 Матрица 4×4 — основа 3D-преобразований MirEngine.
-//
-// Хранение: по строкам.
-// Вектор трактуется как столбец:
-//   result = matrix * vector
-//
-// C++23
 
 #pragma once
 
@@ -275,4 +267,4 @@ private:
     std::array<Scalar, 16> m_data{};
 };
 
-} // namespace mir
+}

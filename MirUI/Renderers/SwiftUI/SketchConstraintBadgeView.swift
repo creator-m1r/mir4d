@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Compact visual badges for automatically detected sketch constraints.
 struct SketchConstraintBadgeView: View {
     let constraint: SketchConstraintState.DetectedConstraint
 

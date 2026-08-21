@@ -1,5 +1,3 @@
-// MirUI/Renderers/SwiftUI/AlignmentToolbar.swift
-// 📐 Панель инструментов выравнивания для холста редактора.
 
 import SwiftUI
 

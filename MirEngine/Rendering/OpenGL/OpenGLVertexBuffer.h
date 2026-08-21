@@ -1,27 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.h
-// =================================================================================
-// Конкретная реализация вершинного буфера для OpenGL.
-//
-// Инкапсулирует нативный объект буфера (GL_ARRAY_BUFFER) и предоставляет методы
-// для загрузки вершин, соответствующих структуре MirEngine::Rendering::Vertex.
-//
-// Принцип изоляции:
-//   Это единственное место (вместе с .cpp), где появляются вызовы gl*.
-//   Внешний код работает через интерфейс VertexBuffer и не видит GLuint.
-//   Метод getHandle() предоставляется для внутреннего использования движком
-//   (OpenGLVertexArray, отладочные инструменты) и не является частью интерфейса.
-//
-// Использование (через интерфейс VertexBuffer):
-//   1. Создать через OpenGLDevice или фабрику.
-//   2. Вызвать uploadVertices() с массивом Vertex.
-//   3. Привязать к VertexArray через setVertexBuffer().
-//   4. Рендерер использует VertexArray, внутри которого буфер автоматически
-//      подключается к GL.
-// =================================================================================
-// MirEngine/Rendering/OpenGL/OpenGLVertexBuffer.h
-// =================================================================================
-// OpenGL-реализация VertexBuffer.
-// =================================================================================
 
 #pragma once
 
@@ -64,7 +40,6 @@ public:
         return m_handle != 0 && m_vertexCount > 0;
     }
 
-    // Нативный handle (только для внутреннего использования)
     [[nodiscard]] GLuint handle() const noexcept { return m_handle; }
 
 private:
@@ -74,5 +49,5 @@ private:
     static GLenum usageToGL(BufferUsage usage);
 };
 
-} // namespace Rendering
-} // namespace MirEngine
+}
+}

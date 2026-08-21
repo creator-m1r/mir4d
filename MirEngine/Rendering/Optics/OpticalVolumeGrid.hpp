@@ -144,4 +144,4 @@ private:
     std::vector<OpticalMaterialField> fields_;
 };
 
-} // namespace mir
+}

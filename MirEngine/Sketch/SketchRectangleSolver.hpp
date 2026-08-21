@@ -15,9 +15,6 @@ struct SketchRectangleSolveOutput
     std::array<double, SketchRectangleScenario::VariableCount> variables{};
 };
 
-/// Solves the canonical rectangle scenario from an initial guess.
-/// This is intentionally small and deterministic so it can become the
-/// reference path for future SketchSession and UI integrations.
 class SketchRectangleSolver
 {
 public:
@@ -38,4 +35,4 @@ public:
     }
 };
 
-} // namespace mir
+}

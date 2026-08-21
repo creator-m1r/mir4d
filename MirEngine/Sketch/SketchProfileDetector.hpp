@@ -99,9 +99,7 @@ private:
                 }
                 else if constexpr (std::is_same_v<T, SketchCircle2D>)
                 {
-                    // A full circle is a closed profile by itself, but is not
-                    // representable as an ordered segment pair. Handle it in
-                    // the dedicated profile path later.
+
                     return std::nullopt;
                 }
                 else if constexpr (std::is_same_v<T, SketchArc2D>)
@@ -189,4 +187,4 @@ private:
     double tolerance_;
 };
 
-} // namespace mir
+}

@@ -1,8 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Core/BRepModel.hpp
-// Canonical owning model for B-Rep data and root solids.
-
 #include "MirEngine/BRep/Core/BRepHandles.hpp"
 #include "MirEngine/BRep/Geometry/BRepGeometryStore.hpp"
 #include "MirEngine/BRep/Topology/BRepTopologyStore.hpp"
@@ -29,8 +26,6 @@ public:
         return {geometry_.checkpoint(), topology_.checkpoint(), roots_.size()};
     }
 
-    // Transactional rollback for builder operations. Only data appended after
-    // the checkpoint is removed; pre-existing model handles remain intact.
     void rollback(Checkpoint checkpoint) noexcept
     {
         geometry_.rollback(checkpoint.geometry);
@@ -45,8 +40,6 @@ public:
     [[nodiscard]] BRepTopologyStore& topology() noexcept { return topology_; }
     [[nodiscard]] const BRepTopologyStore& topology() const noexcept { return topology_; }
 
-    /// Adds a solid to the model's root set exactly once.
-    /// Root membership is non-owning; the topology store owns the solid record.
     void addRootSolid(BRepSolidHandle solid)
     {
         if (!solid.valid() || !topology_.solid(solid))
@@ -74,8 +67,6 @@ public:
         roots_.clear();
     }
 
-    /// True only when the complete B-Rep model contains no geometry,
-    /// topology, or root references.
     [[nodiscard]] bool empty() const noexcept
     {
         return roots_.empty() &&
@@ -110,4 +101,4 @@ private:
     std::vector<BRepSolidHandle> roots_;
 };
 
-} // namespace mir
+}

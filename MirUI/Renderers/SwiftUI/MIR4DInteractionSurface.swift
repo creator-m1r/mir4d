@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// Platform-neutral interaction surface for MIR 4D.
-/// It translates touch/pointer gestures into high-level interaction state;
-/// CAD commands remain outside this layer.
 struct MIR4DInteractionSurface<Content: View>: View {
     @StateObject private var coordinator: MIR4DTouchInteractionCoordinator
     @State private var gestureOrigin: CGPoint = .zero
@@ -69,8 +66,6 @@ struct MIR4DInteractionSurface<Content: View>: View {
                         longPressActive: false
                     )
 
-                    // Touch movement is expressed as camera-orbit intent. The
-                    // viewport remains the owner of actual camera state.
                     let sensitivity = 0.008
                     onCameraOrbitDelta(
                         -Double(deltaX) * sensitivity,
@@ -128,8 +123,6 @@ struct MIR4DInteractionSurface<Content: View>: View {
             }
     }
 
-    /// Requests the radial interface. The gesture origin is the touch start,
-    /// while the rendered menu itself remains centred by the host viewport.
     func activateRadial(at location: CGPoint) {
         gestureOrigin = location
         radialVisible = true

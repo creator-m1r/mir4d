@@ -95,8 +95,6 @@ final class MIR4DUIConfigStore: ObservableObject {
         return value
     }
 
-    /// SwiftPM exposes resources via Bundle.module; the Xcode target embeds
-    /// the same UIConfig folder as an app resource.
     private static var configBundle: Bundle {
 #if SWIFT_PACKAGE
         .module

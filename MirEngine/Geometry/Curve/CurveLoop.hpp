@@ -108,4 +108,4 @@ private:
     Scalar tolerance_{1e-9};
 };
 
-} // namespace mir
+}

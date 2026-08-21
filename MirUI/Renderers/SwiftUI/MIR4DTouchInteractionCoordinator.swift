@@ -1,9 +1,6 @@
 import SwiftUI
 import Foundation
 
-/// Touch-first interaction state shared by the scene renderer and radial UI.
-/// It deliberately contains gestures, not CAD commands. Command interpretation
-/// remains in the existing radial/context layers.
 @MainActor
 final class MIR4DTouchInteractionCoordinator: ObservableObject {
     enum GestureMode: Equatable {
@@ -73,8 +70,6 @@ final class MIR4DTouchInteractionCoordinator: ObservableObject {
     var isSubmenu: Bool { mode == .radialSubmenu }
 }
 
-/// Pure geometry helpers for touch targets. No hit-testing against tiny visual
-/// controls is required: the whole angular sector is the target.
 enum MIR4DTouchGeometry {
     static func radialVector(from start: CGPoint, to current: CGPoint) -> CGVector {
         CGVector(dx: current.x - start.x, dy: current.y - start.y)

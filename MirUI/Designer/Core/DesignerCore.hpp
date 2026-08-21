@@ -1,29 +1,3 @@
-// MirUI/Designer/Core/DesignerCore.hpp
-// 🧠 Ядро визуального редактора MirUI Designer — теперь с поддержкой Undo/Redo, анимаций и тем.
-//
-// DesignerCore — главный управляющий класс редактора.
-// Владеет:
-//   • UIProject        — проектом интерфейса (дерево виджетов, тема, состояние).
-//   • WidgetLibrary    — каталогом доступных типов виджетов.
-//   • PreviewRuntime   — рантаймом для предпросмотра интерфейса.
-//   • SelectionManager — выделением виджетов на холсте.
-//   • CommandHistory   — историей действий (Undo/Redo).
-//   • AnimationManager — системой анимаций свойств.
-//   • ThemeManager     — управлением темами (светлая/тёмная/кастомные).
-//
-// Все изменения интерфейса проходят через этот класс:
-//   1. Пользователь двигает кнопку → DesignerCore создаёт команду → выполняет её.
-//   2. Команда изменяет WidgetTree в UIProject.
-//   3. DesignerCore вызывает PreviewRuntime::update() для перерисовки.
-//   4. Холст и инспектор обновляются через Renderer.
-//
-// Добавлены методы undo()/redo(), animateProperty(), а также управление темами:
-//   • switchTheme(ThemeID)    — переключить активную тему.
-//   • currentThemeName()      — имя текущей темы.
-//   • availableThemes()       — список зарегистрированных тем.
-//   • registerTheme(...)      — добавить тему в менеджер.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -59,7 +33,6 @@ public:
         m_animationManager->setWidgetTree(&m_project->widgetTree());
     }
 
-    // ── Доступ к компонентам ─────────────────────────────────
     [[nodiscard]] UIProject& project() { return *m_project; }
     [[nodiscard]] const UIProject& project() const { return *m_project; }
     [[nodiscard]] WidgetLibrary& library() { return *m_library; }
@@ -72,47 +45,37 @@ public:
     void setRenderer(Renderer* renderer) { m_preview->setRenderer(renderer); }
     [[nodiscard]] Renderer* renderer() const { return m_preview->renderer(); }
 
-    // ── Undo / Redo ───────────────────────────────────────────
     void undo() { m_project->history().undo(); m_preview->update(); }
     void redo() { m_project->history().redo(); m_preview->update(); }
     [[nodiscard]] bool canUndo() const { return m_project->history().canUndo(); }
     [[nodiscard]] bool canRedo() const { return m_project->history().canRedo(); }
 
-    // ── Проект ────────────────────────────────────────────────
     bool saveProject(const std::string& path) { return m_serializer->save(path, *m_project); }
     bool loadProject(const std::string& path) { return m_serializer->load(path, *m_project); }
     void newProject() { m_project->clear(); }
 
-    // ── Управление темами ────────────────────────────────────
-
-    // Переключить активную тему по идентификатору.
     void switchTheme(const ThemeID& id) {
         m_project->themeManager().setTheme(id);
-        // После смены темы перерисовываем интерфейс.
+
         m_preview->update();
     }
 
-    // Получить имя текущей активной темы (для отображения в UI).
     [[nodiscard]] std::string currentThemeName() const {
         return m_project->themeManager().current().name;
     }
 
-    // Получить список всех зарегистрированных тем (для меню выбора).
-    // Возвращает вектор пар (ThemeID, name).
     [[nodiscard]] std::vector<std::pair<ThemeID, std::string>> availableThemes() const {
         std::vector<std::pair<ThemeID, std::string>> result;
-        // Пока возвращаем стандартный набор; в будущем будем получать из ThemeManager.
+
         result.emplace_back(ThemeID("mir.light"), "Светлая тема");
         result.emplace_back(ThemeID("mir.dark"),  "Тёмная тема");
         return result;
     }
 
-    // Зарегистрировать тему в менеджере (например, встроенную тёмную).
     void registerTheme(const Theme& theme) {
         m_project->themeManager().registerTheme(theme);
     }
 
-    // ── Добавление виджета ───────────────────────────────────
     WidgetID addWidget(WidgetType type, WidgetID parentId) {
         auto widget = m_library->create(type);
         if (!widget) return WidgetID{};
@@ -129,7 +92,6 @@ public:
         return newId;
     }
 
-    // ── Перемещение и ресайз ─────────────────────────────────
     void moveWidget(WidgetID widgetId, double dx, double dy) {
         Widget* widget = m_project->widgetTree().find(widgetId);
         if (!widget) return;
@@ -147,7 +109,6 @@ public:
         m_preview->update();
     }
 
-    // ── Удаление ──────────────────────────────────────────────
     void deleteWidget(WidgetID widgetId) {
         Widget* widget = m_project->widgetTree().find(widgetId);
         if (!widget) return;
@@ -162,7 +123,6 @@ public:
         m_preview->update();
     }
 
-    // ── Свойства (обычное и анимированное) ───────────────────
     void setProperty(WidgetID widgetId, const std::string& name, const StateValue& value) {
         Widget* widget = m_project->widgetTree().find(widgetId);
         if (!widget) return;
@@ -170,7 +130,6 @@ public:
         m_preview->update();
     }
 
-    // Анимированное изменение свойства.
     void animateProperty(WidgetID widgetId, const std::string& name,
                          const StateValue& targetValue,
                          const AnimationSpec& spec = AnimationSpec::smooth()) {
@@ -185,13 +144,11 @@ public:
         return widget->getProperty(name);
     }
 
-    // ── Выделение ────────────────────────────────────────────
     void selectWidget(WidgetID widgetId) { m_project->selection().select(widgetId); }
     void addToSelection(WidgetID widgetId) { m_project->selection().addToSelection(widgetId); }
     void clearSelection() { m_project->selection().clear(); }
     [[nodiscard]] const std::vector<WidgetID>& selectedWidgets() const { return m_project->selection().selected(); }
 
-    // ── Выравнивание ─────────────────────────────────────────
     void alignSelected(AlignStrategy strategy) {
         const auto& selected = m_project->selection().selected();
         if (selected.size() < 2) return;
@@ -209,7 +166,6 @@ public:
         m_preview->update();
     }
 
-    // ── Копирование / Вставка / Вырезание ────────────────────
     void copyWidget(WidgetID widgetId) {
         Widget* widget = m_project->widgetTree().find(widgetId);
         if (!widget) return;
@@ -254,17 +210,15 @@ public:
         deleteWidget(widgetId);
     }
 
-    // ── Предпросмотр ─────────────────────────────────────────
     void enterPreview() { m_preview->enterPreview(); }
     void exitPreview() { m_preview->exitPreview(); }
     void togglePreview() { m_preview->togglePreview(); }
     [[nodiscard]] bool isPreviewMode() const { return m_preview->isPreviewMode(); }
 
-    // ── Отрисовка кадра (с обновлением анимаций) ─────────────
     void renderFrame(double deltaTime = 0.016) {
-        // Обновляем все активные анимации.
+
         m_animationManager->update(deltaTime);
-        // Выполняем компоновку и рендеринг.
+
         m_preview->render();
     }
 
@@ -276,4 +230,4 @@ private:
     std::unique_ptr<AnimationManager>    m_animationManager;
 };
 
-} // namespace MirUI
+}

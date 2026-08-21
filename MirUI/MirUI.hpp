@@ -1,17 +1,6 @@
-// MirUI.hpp — единая точка входа (обновлённая).
-// Теперь включает ВСЁ, включая Designer/Canvas/Handles,
-// Designer/Inspector (BooleanEditor, NumberEditor, StringEditor),
-// Designer/Canvas/CanvasModel, SnapManager, HitTest,
-// Renderers/PlatformAdapter, Renderers/SwiftUI (заглушки),
-// Widgets/Container.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
-// ================================================================
-// Foundation
-// ================================================================
 #include "Foundation/Color/Color.hpp"
 #include "Foundation/Color/ColorPalette.hpp"
 #include "Foundation/Metrics/Metrics.hpp"
@@ -21,9 +10,6 @@
 #include "Foundation/Typography/Typography.hpp"
 #include "Foundation/Icons/IconID.hpp"
 
-// ================================================================
-// Core
-// ================================================================
 #include "Core/Widget/WidgetID.hpp"
 #include "Core/Widget/WidgetType.hpp"
 #include "Core/Widget/Widget.hpp"
@@ -70,9 +56,6 @@
 
 #include "Core/Selection/SelectionManager.hpp"
 
-// ================================================================
-// Widgets
-// ================================================================
 #include "Widgets/Button/Button.hpp"
 #include "Widgets/Label/Label.hpp"
 #include "Widgets/Toolbar/Toolbar.hpp"
@@ -83,9 +66,6 @@
 #include "Widgets/Viewport/Viewport.hpp"
 #include "Widgets/Container/Container.hpp"
 
-// ================================================================
-// Workspace
-// ================================================================
 #include "Workspace/PanelManager/PanelDescriptor.hpp"
 #include "Workspace/PanelManager/PanelManager.hpp"
 #include "Workspace/WorkspaceManager/Workspace.hpp"
@@ -94,16 +74,11 @@
 #include "Workspace/WindowManager/WindowDescriptor.hpp"
 #include "Workspace/WindowManager/WindowManager.hpp"
 
-// ================================================================
-// Designer
-// ================================================================
-// Document
 #include "Designer/Document/UIDocument.hpp"
 #include "Designer/Document/UIFormatVersion.hpp"
 #include "Designer/Document/UIReader.hpp"
 #include "Designer/Document/UIWriter.hpp"
 
-// Commands
 #include "Designer/Commands/AddWidgetCommand.hpp"
 #include "Designer/Commands/DeleteWidgetCommand.hpp"
 #include "Designer/Commands/MoveWidgetCommand.hpp"
@@ -111,7 +86,6 @@
 #include "Designer/Commands/ChangePropertyCommand.hpp"
 #include "Designer/Commands/RenameWidgetCommand.hpp"
 
-// Canvas & Handles
 #include "Designer/Canvas/DesignerCanvas.hpp"
 #include "Designer/Canvas/DragController.hpp"
 #include "Designer/Canvas/GridManager.hpp"
@@ -124,10 +98,8 @@
 #include "Designer/Canvas/Handles/ResizeHandle.hpp"
 #include "Designer/Canvas/Handles/RotationHandle.hpp"
 
-// History
 #include "Designer/History/DesignerHistory.hpp"
 
-// Inspector
 #include "Designer/Inspector/InspectorModel.hpp"
 #include "Designer/Inspector/PropertyEditor.hpp"
 #include "Designer/Inspector/PropertyEditorFactory.hpp"
@@ -139,28 +111,21 @@
 #include "Designer/Inspector/NumberEditor.hpp"
 #include "Designer/Inspector/StringEditor.hpp"
 
-// Preview
 #include "Designer/Preview/PreviewManager.hpp"
 #include "Designer/Preview/PreviewMode.hpp"
 
-// Themes
 #include "Designer/Themes/ColorTokenEditor.hpp"
 #include "Designer/Themes/MetricsEditor.hpp"
 #include "Designer/Themes/TypographyEditor.hpp"
 #include "Designer/Themes/ThemeEditor.hpp"
 
-// Toolbox
 #include "Designer/Toolbox/ToolboxItem.hpp"
 #include "Designer/Toolbox/ToolboxModel.hpp"
 #include "Designer/Toolbox/Toolbox.hpp"
 
-// Application
 #include "Designer/Application/DesignerState.hpp"
 #include "Designer/Application/DesignerApplication.hpp"
 
-// ================================================================
-// Schema
-// ================================================================
 #include "Schema/CommandSchema.hpp"
 #include "Schema/EventSchema.hpp"
 #include "Schema/LayoutSchema.hpp"
@@ -168,10 +133,5 @@
 #include "Schema/ThemeSchema.hpp"
 #include "Schema/WidgetSchema.hpp"
 
-// ================================================================
-// Renderers (базовые адаптеры, платформенные — только заглушки)
-// ================================================================
 #include "Renderers/NullRenderer.hpp"
 #include "Renderers/PlatformAdapter.hpp"
-// SwiftUI-адаптер (заглушка, будет дописан после настройки моста)
-// #include "Renderers/SwiftUI/SwiftUIRenderer.hpp"

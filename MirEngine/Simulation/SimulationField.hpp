@@ -60,4 +60,4 @@ private:
     std::unordered_map<std::uint64_t, SimulationFieldSample> samples_;
 };
 
-} // namespace mir
+}

@@ -9,11 +9,6 @@
 namespace mir
 {
 
-/// Transitional interaction state. Identity is canonical mir4d::ObjectId.
-///
-/// Besides the object id set, the state optionally carries the source B-Rep
-/// face id of the primary selection (set via selectFace). The renderer uses
-/// it to highlight exactly the picked face instead of the whole object.
 class SelectionState
 {
 public:
@@ -27,7 +22,6 @@ public:
         return ids_.empty() ? mir4d::InvalidObjectId : ids_.front();
     }
 
-    /// Source B-Rep face id of the primary selection (0 = whole object).
     [[nodiscard]] std::uint64_t faceId() const noexcept { return faceId_; }
 
     [[nodiscard]] bool contains(mir4d::ObjectId id) const noexcept
@@ -54,7 +48,6 @@ public:
             ids_.push_back(id);
     }
 
-    /// Selects one object together with the source face of the hit point.
     void selectFace(mir4d::ObjectId id, std::uint64_t faceId)
     {
         if (!mir4d::isValidObjectId(id))
@@ -104,4 +97,4 @@ private:
     std::uint64_t faceId_{0};
 };
 
-} // namespace mir
+}

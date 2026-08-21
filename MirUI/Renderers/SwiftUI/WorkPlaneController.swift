@@ -1,10 +1,5 @@
 import Foundation
 
-// MARK: - Work plane controller (ТЗ Этап 1)
-
-/// Владеет реестром рабочих плоскостей документа и публикует их в renderer
-/// для отрисовки оверлея. Ядро (PlaneStore / PlaneFactory) живёт в MirEngine;
-/// этот контроллер — только Swift-обёртка над C ABI.
 @MainActor
 final class WorkPlaneController {
 
@@ -17,7 +12,6 @@ final class WorkPlaneController {
         MirEnginePlaneStoreAddBasePlanes(store)
     }
 
-    /// Возвращает текущий снимок плоскостей (базовые + пользовательские).
     func snapshot() -> [MirEnginePlane] {
         guard let store else { return [] }
         let count = Int(MirEnginePlaneStoreSnapshot(store, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil))
@@ -57,15 +51,12 @@ final class WorkPlaneController {
         return result
     }
 
-    /// Создаёт пользовательскую плоскость параллельно базовой (со смещением/углом).
-    /// Возвращает id новой плоскости (0 при ошибке).
     @discardableResult
     func createOffsetPlane(basePlane: UInt32, offset: Double, angleDeg: Double) -> UInt32 {
         guard let store else { return 0 }
         return MirEnginePlaneStoreCreateOffsetPlane(store, basePlane, offset, angleDeg)
     }
 
-    /// Публикует текущий снимок плоскостей в renderer.
     func push(to renderer: UnsafeMutableRawPointer?) {
         MirEnginePushWorkPlanes(renderer, snapshot())
     }

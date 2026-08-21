@@ -1,10 +1,3 @@
-// MirEngine/Tests/Math/NumericTest.cpp
-// 🧪 Постоянный набор проверок математического ядра MIR 4D (模块 Numeric).
-//
-// Запускается через ctest как MIR4D_MathNumeric. Возвращает 0 при успехе,
-// abort() при расхождении с эталоном. Охватывает все подмодули Numeric:
-// линейные системы, численный анализ, интерполяцию, статистику,
-// ГПСЧ, собственные значения, оптимизацию, разложения и производные.
 
 #include "MirEngine/Math/Numeric/Numeric.hpp"
 
@@ -27,7 +20,7 @@ using namespace mir::math;
 
 int main()
 {
-    // ── LinearSystem ─────────────────────────────────────────────
+
     {
         std::vector<std::vector<Scalar>> A{{2, 1}, {1, 3}};
         std::vector<Scalar> b{5, 10};
@@ -37,11 +30,11 @@ int main()
         CHECK_NEAR(r.value()[1], 3.0, 1e-9);
 
         std::vector<std::vector<Scalar>> A2{{1, 0}, {1, 1}, {1, 2}, {1, 3}};
-        std::vector<Scalar> b2{1, 3, 5, 7}; // y = 2x + 1
+        std::vector<Scalar> b2{1, 3, 5, 7};
         auto ls = solveLeastSquares(A2, b2);
         assert(ls.has_value());
-        CHECK_NEAR(ls.value()[1], 2.0, 1e-6);  // slope
-        CHECK_NEAR(ls.value()[0], 1.0, 1e-6);  // intercept
+        CHECK_NEAR(ls.value()[1], 2.0, 1e-6);
+        CHECK_NEAR(ls.value()[0], 1.0, 1e-6);
 
         std::vector<std::vector<Scalar>> As{{1, 1}, {2, 2}};
         std::vector<Scalar> bs{1, 2};
@@ -49,7 +42,6 @@ int main()
         assert(!sing.has_value());
     }
 
-    // ── NumericalAnalysis ───────────────────────────────────────
     {
         auto rb = findRootBisection([](Scalar x) { return std::cos(x); }, Scalar(0), Scalar(2));
         assert(rb.has_value());
@@ -71,14 +63,13 @@ int main()
         CHECK_NEAR(rm.value(), 1.5, 1e-5);
     }
 
-    // ── Interpolation ───────────────────────────────────────────
     {
-        std::vector<Scalar> P{1, 3, 2}; // 2x^2 + 3x + 1
+        std::vector<Scalar> P{1, 3, 2};
         CHECK_NEAR(evaluatePolynomial(P, 2), 15.0, 1e-9);
         auto dP = derivativePolynomial(P);
-        CHECK_NEAR(evaluatePolynomial(dP, 2), 11.0, 1e-9); // 4x + 3
+        CHECK_NEAR(evaluatePolynomial(dP, 2), 11.0, 1e-9);
 
-        std::vector<std::pair<Scalar, Scalar>> pts{{0, 1}, {1, 3}, {2, 7}}; // x^2 + x + 1
+        std::vector<std::pair<Scalar, Scalar>> pts{{0, 1}, {1, 3}, {2, 7}};
         auto lg = lagrangeInterpolate(pts, 1.5);
         assert(lg.has_value());
         CHECK_NEAR(lg.value(), 4.75, 1e-9);
@@ -89,7 +80,6 @@ int main()
         CHECK_NEAR(bez.z, 0.0, 1e-9);
     }
 
-    // ── Statistics & special functions ─────────────────────────
     {
         std::vector<Scalar> v{1, 2, 3, 4, 5};
         CHECK_NEAR(mean(v).value(), 3.0, 1e-9);
@@ -99,8 +89,8 @@ int main()
         std::vector<std::pair<Scalar, Scalar>> rp{{0, 1}, {1, 3}, {2, 5}, {3, 7}};
         auto reg = linearRegression(rp);
         assert(reg.has_value());
-        CHECK_NEAR(reg.value().first, 2.0, 1e-6);   // slope
-        CHECK_NEAR(reg.value().second, 1.0, 1e-6);  // intercept
+        CHECK_NEAR(reg.value().first, 2.0, 1e-6);
+        CHECK_NEAR(reg.value().second, 1.0, 1e-6);
 
         CHECK_NEAR(pearson({1, 2, 3}, {2, 4, 6}).value(), 1.0, 1e-9);
         CHECK_NEAR(gammaFunction(5), 24.0, 1e-9);
@@ -110,7 +100,6 @@ int main()
         CHECK_NEAR(erf(1), 0.8427007929497149, 1e-6);
     }
 
-    // ── Random ─────────────────────────────────────────────────
     {
         Random r1(12345), r2(12345);
         assert(r1.nextU64() == r2.nextU64());
@@ -121,7 +110,6 @@ int main()
         CHECK_NEAR(acc / 200000.0, 0.0, 0.05);
     }
 
-    // ── Eigen ──────────────────────────────────────────────────
     {
         std::vector<std::vector<Scalar>> A{{2, 1}, {1, 2}};
         auto e = symmetricEigen(A);
@@ -129,13 +117,12 @@ int main()
         CHECK_NEAR(e.value().first[0], 3.0, 1e-7);
         CHECK_NEAR(e.value().first[1], 1.0, 1e-7);
         const auto& v0 = e.value().second[0];
-        // A v0 = lambda0 v0
+
         Scalar l0 = e.value().first[0];
         CHECK_NEAR(A[0][0] * v0[0] + A[0][1] * v0[1], l0 * v0[0], 1e-7);
         CHECK_NEAR(A[1][0] * v0[0] + A[1][1] * v0[1], l0 * v0[1], 1e-7);
     }
 
-    // ── Optimization ───────────────────────────────────────────
     {
         FunctionN F = [](const VectorN& x) {
             return VectorN{x[0] * x[0] + x[1] - 1, x[0] + x[1] * x[1] - 1};
@@ -154,7 +141,6 @@ int main()
         CHECK_NEAR(m.value()[0], 0.0, 1e-7);
         CHECK_NEAR(m.value()[1], 0.0, 1e-7);
 
-        // BFGS (квазиньютоновский, только градиент) — квадратик и Розенброк.
         ObjectiveN quad = [](const VectorN& v) {
             Scalar a = v[0] - 3, b = v[1] + 2;
             return a * a + b * b;
@@ -178,7 +164,6 @@ int main()
         CHECK_NEAR(br.value()[0], 1.0, 1e-5);
         CHECK_NEAR(br.value()[1], 1.0, 1e-5);
 
-        // Нелинейный МНК (Левенберг–Марквардт): линейная и экспоненциальная аппроксимация.
         std::vector<Scalar> ts{0, 1, 2, 3, 4};
         std::vector<Scalar> ys{1, 3, 5, 7, 9};
         ResidualN rlin = [&](const VectorN& p) {
@@ -227,7 +212,6 @@ int main()
         CHECK_NEAR(ef.value()[1], -1.0, 1e-3);
     }
 
-    // ── Decomposition ──────────────────────────────────────────
     {
         MatrixN A{{2, 1}, {1, 3}};
         auto lu = luDecompose(A);
@@ -247,7 +231,7 @@ int main()
         MatrixN M{{12, -51, 4}, {6, 167, -68}, {-4, 24, -41}};
         auto qr = qrDecompose(M);
         assert(qr.has_value());
-        // Q^T Q = I
+
         for (std::size_t i = 0; i < 3; ++i)
             for (std::size_t j = 0; j < 3; ++j)
             {
@@ -258,7 +242,6 @@ int main()
             }
     }
 
-    // ── Derivatives ────────────────────────────────────────────
     {
         ScalarFunction f = [](const VectorN& x) {
             return x[0] * x[0] + 3 * x[0] * x[1] + 2 * x[1] * x[1];
@@ -273,7 +256,6 @@ int main()
         CHECK_NEAR(H[1][1], 4.0, 1e-3);
     }
 
-    // ── SVD ──────────────────────────────────────────────────────
     {
         auto recons = [](const SVD& s) {
             std::size_t m = s.U.size(), n = s.V.size(), k = s.sigma.size();
@@ -322,14 +304,13 @@ int main()
         CHECK_NEAR(orth(s3.value().U, 2), 0.0, 1e-10);
         CHECK_NEAR(orth(s3.value().V, 2), 0.0, 1e-10);
 
-        MatrixN A4{{1, 2, 3}, {4, 5, 6}}; // m < n
+        MatrixN A4{{1, 2, 3}, {4, 5, 6}};
         auto s4 = svdDecompose(A4);
         assert(s4.has_value());
         CHECK_NEAR(recons(s4.value())[1][2], A4[1][2], 1e-9);
         CHECK_NEAR(orth(s4.value().U, 2), 0.0, 1e-10);
         CHECK_NEAR(orth(s4.value().V, 2), 0.0, 1e-10);
 
-        // Линейные МНК через SVD: переопределённая и вырожденная системы.
         MatrixN Aover{{1, 1}, {1, 2}, {1, 3}};
         auto xo = solveLeastSquaresSVD(Aover, {2, 3, 5});
         assert(xo.has_value());
@@ -339,11 +320,10 @@ int main()
         MatrixN Arank{{1, 1}, {2, 2}, {3, 3}};
         auto xr = solveLeastSquaresSVD(Arank, {1, 2, 3});
         assert(xr.has_value());
-        CHECK_NEAR(xr.value()[0], 0.5, 1e-6);  // минимально-нормальное: x0 = x1
+        CHECK_NEAR(xr.value()[0], 0.5, 1e-6);
         CHECK_NEAR(xr.value()[1], 0.5, 1e-6);
     }
 
-    // ── Distributions ────────────────────────────────────────────
     {
         CHECK_NEAR(normalCdf(0.0), 0.5, 1e-12);
         CHECK_NEAR(normalCdf(1.959963985, 0.0, 1.0), 0.975, 1e-4);
@@ -357,7 +337,6 @@ int main()
         CHECK_NEAR(regularizedIncompleteBeta(0.5, 1.0, 1.0), 0.5, 1e-12);
     }
 
-    // ── ODE ──────────────────────────────────────────────────────
     {
         OdeRhs expRhs = [](Scalar, const VectorN& y) { return VectorN{y[0]}; };
         auto ya = integrateRK4(expRhs, 0.0, VectorN{1.0}, 1.0, 40);
@@ -371,9 +350,8 @@ int main()
         CHECK_NEAR(yc[1], 0.0, 1e-4);
     }
 
-    // ── Polynomials ──────────────────────────────────────────────
     {
-        std::vector<Scalar> c{-6, 11, -6, 1}; // (x-1)(x-2)(x-3)
+        std::vector<Scalar> c{-6, 11, -6, 1};
         auto r = polynomialRoots(c);
         int found = 0;
         for (const auto& z : r)
@@ -395,7 +373,6 @@ int main()
         CHECK_NEAR(fit.value()[1], 2.0, 1e-6);
     }
 
-    // ── FFT ──────────────────────────────────────────────────────
     {
         std::vector<FftComplex> a{Cx(1), Cx(1), Cx(1), Cx(1)};
         auto F = fft(a);
@@ -409,7 +386,6 @@ int main()
             CHECK_NEAR(S[i].real(), sig[i], 1e-9);
     }
 
-    // ── Transforms ──────────────────────────────────────────────
     {
         Cx L1 = laplaceTransform([](Scalar) { return 1.0; }, Cx(3.0));
         CHECK_NEAR(L1.real(), 1.0 / 3.0, 1e-4);
@@ -429,7 +405,6 @@ int main()
         }
     }
 
-    // ── SpecialFunctions ────────────────────────────────────────
     {
         CHECK_NEAR(besselJ0(0.0), 1.0, 1e-12);
         CHECK_NEAR(besselJ0(1.0), 0.7651976866, 1e-7);
@@ -440,7 +415,6 @@ int main()
         CHECK_NEAR(besselY1(1.0), -0.7812128213, 1e-7);
         CHECK_NEAR(betaFunction(2.0, 3.0), 1.0 / 12.0, 1e-9);
 
-        // Модифицированные функции Бесселя Iₙ / Kₙ.
         CHECK_NEAR(besselI0(0.0), 1.0, 1e-12);
         CHECK_NEAR(besselI0(1.0), 1.2660658778, 1e-7);
         CHECK_NEAR(besselI1(1.0), 0.5651591039, 1e-7);
@@ -458,7 +432,6 @@ int main()
         CHECK_NEAR(besselK(5, 2.0), 9.4335181, 1e-2);
     }
 
-    // ── Iterative ───────────────────────────────────────────────
     {
         MatrixN A{{2, 1}, {1, 3}};
         VectorN b{5, 10};
@@ -473,7 +446,6 @@ int main()
         CHECK_NEAR(jc.value()[1], 3.0, 1e-6);
     }
 
-    // ── PDE ────────────────────────────────────────────────────
     {
         const Scalar kPi = std::acos(Scalar(-1));
         const int nx = 51, nt = 60;
@@ -488,7 +460,6 @@ int main()
         const Scalar waveExact = std::sin(kPi * wave.x[nx / 2]) * std::cos(kPi * Scalar(0.25));
         CHECK_NEAR(wave.snapshots.back()[nx / 2], waveExact, 2e-2);
 
-        // 2D Пуассон −Δu = 2π²·sin(πx)sin(πy), точное решение u = sin(πx)sin(πy).
         const int n2 = 41;
         auto poisson = solvePoisson2D(
             n2,
@@ -506,7 +477,6 @@ int main()
         CHECK_NEAR(maxerr, 0.0, 1e-2);
     }
 
-    // ── Sparse + Krylov ─────────────────────────────────────────
     {
         MatrixN D{{4, 0, 1}, {0, 3, 0}, {1, 0, 2}};
         auto S = toSparse(D);
@@ -518,7 +488,7 @@ int main()
         CHECK_NEAR(ys[2], yd[2], 1e-12);
 
         MatrixN A{{3, 2}, {1, 4}};
-        VectorN b{5, 6}; // решение (0.8, 1.3)
+        VectorN b{5, 6};
         auto Sa = toSparse(A);
         auto mv = [&](const VectorN& v) { return spmv(Sa, v); };
         auto xg = gmres(mv, b, 30, 500, 1e-10);
@@ -528,7 +498,6 @@ int main()
         CHECK_NEAR(xb[0], 0.8, 1e-7);
         CHECK_NEAR(xb[1], 1.3, 1e-7);
 
-        // Большая ленточная СЛАУ: сходимость Krylov по невязке.
         const int n = 60;
         MatrixN T(n, VectorN(n, Scalar(0)));
         for (int i = 0; i < n; ++i)
@@ -550,7 +519,6 @@ int main()
         CHECK_NEAR(std::sqrt(resG), 0.0, 1e-8);
     }
 
-    // ── Splines ──────────────────────────────────────────────────
     {
         std::vector<Scalar> xs, ys;
         const int N = 9;

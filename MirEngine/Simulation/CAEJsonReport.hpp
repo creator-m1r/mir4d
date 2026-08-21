@@ -148,4 +148,4 @@ private:
     std::vector<std::pair<std::string, JsonValue>> object_{};
 };
 
-} // namespace mir
+}

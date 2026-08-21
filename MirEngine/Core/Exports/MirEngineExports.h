@@ -8,22 +8,11 @@
 extern "C" {
 #endif
 
-// ============================================================
-// MIR ENGINE — C ABI
-// Swift / SwiftUI получает только этот API.
-// Внутренние C++ классы наружу не выходят.
-// ============================================================
-
 typedef struct
 {
     uint32_t width;
     uint32_t height;
 } MirEngineSize2D;
-
-
-// ------------------------------------------------------------
-// OpenGL context
-// ------------------------------------------------------------
 
 void* MirEngineCreateMacOpenGLContext(
     void* view,
@@ -34,17 +23,10 @@ void MirEngineDestroyOpenGLContext(
     void* context
 );
 
-// Перепривязывает существующий OpenGL-контекст к новому NSView (remount).
-// view == nullptr отвязывает контекст без его уничтожения.
 void MirEngineSetOpenGLContextView(
     void* context,
     void* view
 );
-
-
-// ------------------------------------------------------------
-// Renderer
-// ------------------------------------------------------------
 
 void* MirEngineCreateOpenGLRenderer(
     void* context
@@ -58,14 +40,6 @@ void MirEngineDestroyRenderer(
     void* renderer
 );
 
-
-// ------------------------------------------------------------
-// Work planes (ТЗ Этап 1)
-// ------------------------------------------------------------
-
-/// Pushes the document's work planes to the renderer for viewport overlay.
-/// Call when the plane set or selection changes (not per frame). Arrays are
-/// flat: origins/normals/xAxes/yAxes/colors hold 3*count floats.
 void MirEngineSetPlanes(
     void* renderer,
     int count,
@@ -80,15 +54,8 @@ void MirEngineSetPlanes(
     const bool* selected
 );
 
-/// Sets the cursor position in normalized device coordinates for work-plane
-/// hover picking. active=false clears the hover when the pointer leaves.
 void MirEngineSetCursor(void* renderer, float ndcX, float ndcY, bool active);
 
-/// Pushes a 2D sketch overlay (ТЗ Этап 2) drawn on a work plane. Segment
-/// endpoints are in the plane's local frame. Pass count==0 to clear. Arrays:
-///   ax,ay,bx,by : segmentCount floats each (local coords)
-///   colors      : 3*segmentCount floats (rgb per segment)
-///   origin/xAxis/yAxis : 3 floats each, the plane basis in world space
 void MirEngineSetSketch(
     void* renderer,
     int segmentCount,
@@ -101,10 +68,6 @@ void MirEngineSetSketch(
     const float* xAxis,
     const float* yAxis
 );
-
-// ------------------------------------------------------------
-// Work plane store (ТЗ Этап 1) — owns the document's planes.
-// ------------------------------------------------------------
 
 void* MirEngineCreatePlaneStore(void);
 void MirEngineDestroyPlaneStore(void* store);
@@ -124,11 +87,6 @@ int MirEnginePlaneStoreSnapshot(void* store,
                                 float* sizes,
                                 bool* active,
                                 bool* selected);
-
-
-// ------------------------------------------------------------
-// Viewport / Scene
-// ------------------------------------------------------------
 
 void* MirEngineCreateViewport(
     void* renderer,
@@ -150,11 +108,6 @@ void MirEngineRender(
     void* viewport
 );
 
-
-// ------------------------------------------------------------
-// Camera
-// ------------------------------------------------------------
-
 void MirEngineGetCameraOrientation(
     void* viewport,
     float* theta,
@@ -169,32 +122,25 @@ void MirEngineSetCameraOrientation(
     float distance
 );
 
-// Projection mode: 0 = perspective, 1 = orthographic.
 void MirEngineSetCameraProjection(
     void* viewport,
     int projection
 );
 
-// Returns the active projection mode: 0 = perspective, 1 = orthographic.
 int MirEngineGetCameraProjection(
     void* viewport
 );
 
-// Vertical field of view in radians (perspective mode only).
 void MirEngineSetCameraFov(
     void* viewport,
     float fovYRadians
 );
 
-// Camera presets for the navigation sphere:
-// 0 front, 1 back, 2 left, 3 right, 4 top, 5 bottom, 6 isometric.
 void MirEngineSetActiveCameraPreset(
     void* viewport,
     int preset
 );
 
-// Returns the orbit angles (theta, phi, distance) of a camera preset
-// without touching the viewport. Used to animate preset transitions.
 void MirEngineGetCameraPresetOrientation(
     int preset,
     float* theta,
@@ -205,11 +151,6 @@ void MirEngineGetCameraPresetOrientation(
 void MirEngineFitViewport(
     void* viewport
 );
-
-
-// ------------------------------------------------------------
-// Mouse / navigation
-// ------------------------------------------------------------
 
 void MirEngineViewportMouseDown(
     void* viewport,
@@ -236,8 +177,6 @@ void MirEngineViewportScroll(
     float delta
 );
 
-// Zoom anchored at the cursor pixel (industrial zoom-to-cursor).
-// Falls back to plain zoom when the picking ray is degenerate.
 void MirEngineViewportZoomAt(
     void* viewport,
     float delta,
@@ -264,34 +203,20 @@ void MirEngineViewportClick(
     bool addToSelection
 );
 
-// Updates the hover state from the cursor position. The hovered object
-// receives a subtler highlight than the selection; hovering never changes
-// the selection set.
 void MirEngineViewportHover(
     void* viewport,
     float x,
     float y
 );
 
-// Clears the hover state (cursor left the viewport).
 void MirEngineViewportHoverClear(
     void* viewport
 );
-
-
-// ------------------------------------------------------------
-// Selection
-// ------------------------------------------------------------
 
 uint64_t MirEngineGetSelectedObjectId(
     void* viewport
 );
 
-// Applies an in-place sculpt/push/pull deformation to the selected object's
-// tessellated mesh. `x,y,z` is the world-space brush centre, `radius` a
-// world-space radius, `strength` a signed displacement magnitude in world
-// units, and `mode` selects the displacement profile. Returns false when no
-// object is selected or the selection has no editable mesh.
 bool MirEngineDeformSelected(
     void* viewport,
     double x, double y, double z,
@@ -300,45 +225,27 @@ bool MirEngineDeformSelected(
     int mode
 );
 
-// Begins an undoable sculpt stroke on the primary selection: snapshots the
-// current mesh vertices. Pairs with MirEngineEndDeformSelected. No-op when
-// nothing is selected.
 bool MirEngineBeginDeformSelected(
     void* viewport
 );
 
-// Commits a single undoable DeformObjectCommand for the active stroke (only if
-// the mesh actually changed since MirEngineBeginDeformSelected). Pairs with
-// MirEngineBeginDeformSelected.
 bool MirEngineEndDeformSelected(
     void* viewport
 );
 
-// Deletes the primary selection through the canonical Scene API. The
-// renderer observes the scene change; nothing is removed from the renderer
-// directly. Returns true when an object was removed.
 bool MirEngineDeleteSelectedObject(
     void* viewport
 );
 
-// Clears the selection set without modifying the scene.
 void MirEngineClearSelection(
     void* viewport
 );
 
-// Selects the object with the given engine id in the viewport without a pick.
-// Keeps the engineering selection in sync with the CAD/app selection so tools
-// that read viewport selection (e.g. sculpt) work regardless of how the body
-// was picked (3D viewport click or CAD tree).
 void MirEngineSelectObject(
     void* viewport,
     uint64_t objectId
 );
 
-// Ray-casts the viewport camera through normalized screen coords (nx, ny in
-// -1..1, screen-centred, y up) and returns the world hit point on the closest
-// mesh plus the hit object id. Used to place the air-sculpt brush exactly where
-// the hand points, independent of camera orientation. Returns false on a miss.
 bool MirEnginePickWorldPoint(
     void* viewport,
     double nx, double ny,
@@ -346,18 +253,10 @@ bool MirEnginePickWorldPoint(
     uint64_t* outObjectId
 );
 
-// Aborts an active object drag and restores the drag-start transform (Esc).
-// No history entry is created.
 void MirEngineViewportDragCancel(
     void* viewport
 );
 
-// ------------------------------------------------------------
-// Hand Grab — Vertical Slice v0.1 (Pinch → point → grab → move → commit)
-// ------------------------------------------------------------
-
-/// Canonical object transform passed across the C ABI (position / rotation /
-/// scale). Mirrors mir4d::Transform in the engine.
 typedef struct
 {
     double px, py, pz;
@@ -365,8 +264,6 @@ typedef struct
     double sx, sy, sz;
 } MirTransform;
 
-/// Picks the scene against an explicit world-space hand ray. Returns the hit
-/// object id (0 on a miss) and the distance from the ray origin.
 bool MirEnginePickHandRay(
     void* viewport,
     double ox, double oy, double oz,
@@ -375,51 +272,37 @@ bool MirEnginePickHandRay(
     double* outDistance
 );
 
-/// Arms a grab on the given object, snapshots its transform and selects it.
 void MirEngineBeginGrab(
     void* viewport,
     uint64_t objectId
 );
 
-/// Live preview of the grabbed object's transform. Mutates the scene with no
-/// history entry (Preview, not Commit).
 bool MirEnginePreviewGrab(
     void* viewport,
     uint64_t objectId,
     MirTransform transform
 );
 
-/// Commits exactly one undoable Move/Transform command for the active grab.
-/// Returns false when no grab is active or nothing moved.
 bool MirEngineCommitGrab(
     void* viewport,
     uint64_t objectId
 );
 
-/// Cancels the active grab and restores the snapshot transform (no history).
 void MirEngineCancelGrab(
     void* viewport
 );
 
-/// Current world transform of an object (seed for preview deltas).
 bool MirEngineGetObjectTransform(
     void* viewport,
     uint64_t objectId,
     MirTransform* outTransform
 );
 
-/// Highlights an object under the hand (hover) without changing selection.
 void MirEngineSetHandHover(
     void* viewport,
     uint64_t objectId
 );
 
-/// Pushes the hand-skeleton overlay for the current frame (debug / assist).
-/// `mode` mirrors MIRHandSkeletonVisMode (0 off, 1 joints, 2 bones, 3 bones+ray).
-/// `positions` is handCount*21*3 doubles in LandmarkID.allCases order,
-/// `confidence` handCount*21, `handedness` handCount (0 left, 1 right, 2 none),
-/// `pinch` handCount, `gesture` handCount (index into MIRHandGestureType.allCases).
-/// A null/empty call clears the overlay.
 void MirEngineSetHandSkeleton(
     void* viewport,
     int32_t mode,
@@ -431,7 +314,6 @@ void MirEngineSetHandSkeleton(
     const int32_t* gesture
 );
 
-/// Sets the hand-skeleton overlay style (colours, sizes, transparency, depth).
 void MirEngineSetHandSkeletonStyle(
     void* viewport,
     float leftR, float leftG, float leftB,
@@ -440,19 +322,14 @@ void MirEngineSetHandSkeletonStyle(
     float alpha, int32_t depthTest
 );
 
-/// Sets the hand-skeleton bone topology. `bones` is boneCount pairs of indices
-/// (parent, child) into the 21-joint array ordered by LandmarkID.allCases.
 void MirEngineSetHandSkeletonTopology(
     void* viewport,
     int32_t boneCount,
     const int32_t* bones
 );
 
-/// Clears the hand-skeleton overlay.
 void MirEngineClearHandSkeleton(void* viewport);
 
-/// World-space camera eye used to build the hand picking ray. Returns false
-/// when the viewport / camera is not ready; outputs are left untouched then.
 bool MirEngineGetCameraEye(
     void* viewport,
     double* outX,
@@ -460,8 +337,6 @@ bool MirEngineGetCameraEye(
     double* outZ
 );
 
-// Undo / Redo of scene commands (Move / Delete). Returns true when a
-// command was reverted / reapplied.
 bool MirEngineUndo(
     void* viewport
 );
@@ -478,11 +353,6 @@ bool MirEngineCanRedo(
     void* viewport
 );
 
-
-// ------------------------------------------------------------
-// Geometry
-// ------------------------------------------------------------
-
 bool MirEngineCreateBox(
     void* viewport,
     double width,
@@ -491,11 +361,6 @@ bool MirEngineCreateBox(
     uint64_t* objectId
 );
 
-// Extracts real geometry metrics (bounding box, size, volume, surface area,
-// vertex/face counts) from the primary selected object in the viewport scene.
-// Writes a JSON document into outJson (capacity outCapacity) and returns true
-// when the buffer was written. When nothing is selected or the object has no
-// tessellated mesh, writes {"hasGeometry":false}.
 bool MirEngineGetSelectedObjectMetrics(
     void* viewport,
     char* outJson,
@@ -513,40 +378,27 @@ bool MirEngineExportStl(
     bool selectionOnly
 );
 
-// Opens a STEP (.step / .stp) model and inserts its tessellated geometry
-// into the viewport scene as a render mesh.
 bool MirEngineImportStep(
     void* viewport,
     const char* path
 );
 
-// Opens a STEP (.step / .stp) model and inserts its exact B-Rep geometry
-// (native BRepStepBridge) tessellated into the viewport scene as a render mesh.
 bool MirEngineImportStepBRep(
     void* viewport,
     const char* path
 );
 
-// Saves the exact B-Rep sources of the viewport scene (or the current
-// selection) to a STEP model using the native BRepStepBridge writer.
 bool MirEngineExportStepBRep(
     void* viewport,
     const char* path,
     bool selectionOnly
 );
 
-// Saves the viewport scene (or the current selection) as a STEP model using
-// the native faceted_brep writer.
 bool MirEngineExportStep(
     void* viewport,
     const char* path,
     bool selectionOnly
 );
-
-
-// ------------------------------------------------------------
-// Materials (procedural MaterialLibrary, no textures)
-// ------------------------------------------------------------
 
 int32_t MirEngineMaterialCount(void);
 
@@ -562,21 +414,11 @@ bool MirEngineSetObjectMaterial(
     int32_t materialId
 );
 
-
-// ------------------------------------------------------------
-// OpenGL diagnostics
-// ------------------------------------------------------------
-
 bool MirEngineGetOpenGLDiagnostics(
     void* renderer,
     char* buffer,
     size_t bufferSize
 );
-
-
-// ------------------------------------------------------------
-// Sketch solver (universal constraint solver)
-// ------------------------------------------------------------
 
 typedef struct MirEngineSketchDocument MirEngineSketchDocument;
 
@@ -625,10 +467,6 @@ void MirEngineSketchSetPlane(void* doc, uint32_t planeId,
 bool MirEngineSketchRemoveConstraint(void* doc, uint32_t id);
 uint32_t MirEngineSketchConstraintCount(void* doc);
 bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
-
-// ------------------------------------------------------------
-// Error handling
-// ------------------------------------------------------------
 
 const char* MirEngineGetLastError(
     void* viewport

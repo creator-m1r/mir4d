@@ -8,9 +8,6 @@
 namespace mir4d
 {
 
-/// Immutable description of the spatial state of a MIR 4D document.
-/// Time itself belongs to Document; this snapshot stores the scene at one
-/// point in that history.
 struct DocumentSnapshotNode
 {
     ObjectId id{InvalidObjectId};
@@ -45,11 +42,7 @@ public:
 
     [[nodiscard]] bool restore(mir::Scene& scene) const
     {
-        // Validate the complete snapshot before mutating the destination.
-        // Restoring through a temporary Scene used to replace the destination's
-        // ObjectRegistry pointer with a pointer to a temporary registry. That
-        // left a dangling registry after this function returned and could cause
-        // undefined behaviour in the next object allocation.
+
         for (const auto& state : nodes_)
         {
             if (!isValidObjectId(state.id) || !state.model ||
@@ -59,9 +52,6 @@ public:
             }
         }
 
-        // Keep the destination Scene (and therefore its Document-owned
-        // ObjectRegistry) alive. clear() releases old IDs; add() then reserves
-        // the snapshot IDs in the same registry.
         scene.clear();
 
         for (const auto& state : nodes_)
@@ -104,4 +94,4 @@ private:
     std::vector<DocumentSnapshotNode> nodes_;
 };
 
-} // namespace mir4d
+}

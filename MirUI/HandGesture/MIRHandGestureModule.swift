@@ -2,12 +2,6 @@ import Foundation
 import simd
 import Combine
 
-/// Top-level facade for the MIR 4D hand-gesture subsystem.
-///
-/// It is the single, stable contract between the recognition engine and the
-/// rest of the application (Spatial Menu, CAD). It deliberately never exposes
-/// camera or recognition internals; consumers read the derived `spatialContext`
-/// and receive `MIRHandIntent` through `MIRIntentRouter`.
 @MainActor
 public final class MIRHandGestureModule: ObservableObject {
     public static let shared = MIRHandGestureModule()
@@ -21,13 +15,10 @@ public final class MIRHandGestureModule: ObservableObject {
 
     var status: MIRHandTrackingStatus { session.status }
 
-    // MARK: - Lifecycle
-
     public func startCamera() {
         session.start()
     }
 
-    /// Test/diagnostic entry point: drive the pipeline from synthetic poses.
     func startMock(_ frames: [[MIRHandPose]], mode: MIRMockTrackingSource.Mode = .once) {
         session.startMock(frames, mode: mode)
     }
@@ -36,19 +27,14 @@ public final class MIRHandGestureModule: ObservableObject {
         session.stop()
     }
 
-    // MARK: - Spatial Menu interface
-
-    /// The only state the Spatial Menu needs to read.
     var spatialContext: MIRHandSpatialContext {
         session.spatialContext()
     }
 
-    /// Primary (first tracked) hand position in scene space, if available.
     var handPosition: SIMD3<Double>? {
         spatialContext.hands.first?.position
     }
 
-    /// Primary hand pointing direction (from its active gesture), if available.
     var handDirection: SIMD3<Double>? {
         spatialContext.hands.first?.direction
     }
@@ -65,8 +51,6 @@ public final class MIRHandGestureModule: ObservableObject {
         spatialContext.twoHandGesture
     }
 
-    // MARK: - Debug
-
     var debugInfo: MIRHandGestureDebugInfo? {
         session.debugInfo
     }
@@ -77,8 +61,6 @@ public final class MIRHandGestureModule: ObservableObject {
         configuration = config
     }
 
-    /// Включает/выключает режим визуализации скелета кистей (debug / assist).
-    /// По умолчанию выключен; не влияет на CAD-геометрию и History.
     public func setSkeletonVisualizationMode(_ mode: MIRHandSkeletonVisMode) {
         var config = configuration
         config.skeletonVisualizationMode = mode

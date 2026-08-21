@@ -27,4 +27,4 @@ struct CollisionEvent
     Scalar impulse{0.0};
 };
 
-} // namespace mir
+}

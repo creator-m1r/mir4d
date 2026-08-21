@@ -1,10 +1,3 @@
-// MirEngine/Rendering/OpenGL/OpenGLShader.cpp
-// =================================================================================
-// OpenGLShader implementation without external dependencies.
-//
-// Compile/link failures are reported with the offending source snippet so a
-// broken GLSL program is diagnosable without a debugger.
-// =================================================================================
 
 #include "OpenGLShader.h"
 
@@ -212,4 +205,4 @@ bool OpenGLShader::checkLinkStatus()
     return false;
 }
 
-} // namespace MirEngine::Rendering
+}

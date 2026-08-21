@@ -1,6 +1,3 @@
-// MirUI/Core/Layout/LayoutNode.hpp
-// Describes the layout of a single widget: its geometry, margins, padding, direction, and spacing.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -16,15 +13,15 @@ enum class LayoutDirection {
 };
 
 struct LayoutNode {
-    WidgetID widget;   // The widget this node lays out.
+    WidgetID widget;
 
-    Rect rect;         // Final computed rectangle for the widget.
+    Rect rect;
 
-    Insets margin;     // External spacing around the widget.
-    Insets padding;    // Internal spacing inside the widget.
+    Insets margin;
+    Insets padding;
 
-    LayoutDirection direction = LayoutDirection::Vertical; // Child layout direction.
-    double spacing = 0.0; // Spacing between children.
+    LayoutDirection direction = LayoutDirection::Vertical;
+    double spacing = 0.0;
 };
 
-} // namespace MirUI
+}

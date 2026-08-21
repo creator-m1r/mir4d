@@ -32,8 +32,6 @@ struct SketchResolvedCurve
     double endAngle{0.0};
 };
 
-/// Resolves a geometry ID into exact mathematical curve data.
-/// No tessellation and no document mutation happen here.
 class SketchProfileGeometryResolver
 {
 public:
@@ -105,4 +103,4 @@ public:
     }
 };
 
-} // namespace mir
+}

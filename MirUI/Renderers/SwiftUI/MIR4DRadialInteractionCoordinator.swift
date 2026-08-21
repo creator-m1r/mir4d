@@ -1,10 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Global interaction bridge for the immersive radial menu.
-/// `]` is a hold gesture: press = open, trackpad motion = navigate, release = commit.
-/// While held, the directional vector is magnetically stabilized so the selection feels
-/// like a physical radial instrument rather than a collection of buttons.
 @MainActor
 final class MIR4DRadialInteractionCoordinator: ObservableObject {
     static let shared = MIR4DRadialInteractionCoordinator()
@@ -84,45 +80,31 @@ final class MIR4DRadialInteractionCoordinator: ObservableObject {
             return
         }
 
-        let sectorWidth = (Double.pi * 2) / Double(panels.count)
-        let rawAngle = normalizedAngle(atan2(-rawVector.dy, rawVector.dx) + Double.pi / 2)
-        let candidate = min(Int((rawAngle / sectorWidth).rounded(.down)), panels.count - 1)
+        guard let candidate = RadialMenuGeometry.panelIndex(for: rawVector.dx, dy: rawVector.dy, settings: settings) else {
+            vector = rawVector
+            return
+        }
 
-        // Hysteresis prevents the highlight from flickering when the finger travels
-        // near a sector boundary. A sector can only change after crossing its inner
-        // boundary plus a small angular buffer.
         if let current = lockedSector, current != candidate {
-            let currentCenter = -Double.pi / 2 + sectorWidth * Double(current)
-            let delta = angularDistance(rawAngle, normalizedAngle(currentCenter))
-            let switchThreshold = sectorWidth * 0.58
+            let currentCenter = RadialMenuGeometry.sectorCenter(current, panels.count)
+            let delta = angularDistance(normalizedAngle(atan2(rawVector.dy, rawVector.dx)), currentCenter)
+            let switchThreshold = (Double.pi * 2 / Double(panels.count)) * (0.5 + settings.magneticHysteresis)
             if delta < switchThreshold {
-                return applyMagnet(angle: normalizedAngle(currentCenter), distance: distance)
+                applyMagnet(angle: currentCenter, distance: distance)
+                return
             }
         }
 
         lockedSector = candidate
-        let targetAngle = normalizedAngle(-Double.pi / 2 + sectorWidth * Double(candidate))
-        applyMagnet(angle: targetAngle, distance: distance)
+        applyMagnet(angle: RadialMenuGeometry.sectorCenter(candidate, panels.count), distance: distance)
     }
 
     private func applyMagnet(angle: Double, distance: Double) {
         let settings = RadialMenuSettingsStore.shared.settings
-        let strength: Double
-        if distance <= settings.deadZone {
-            strength = 0
-        } else {
-            let normalizedDistance = min(max((distance - settings.deadZone) / 120.0, 0), 1)
-            // Stronger magnetic pull as the gesture travels outward. Near the centre
-            // the hand remains free; farther out the selection becomes stable.
-            strength = 0.18 + normalizedDistance * 0.42
-        }
-
-        let rawAngle = atan2(-rawVector.dy, rawVector.dx) + Double.pi / 2
+        let strength = RadialMenuGeometry.magneticStrength(forDistance: distance, settings: settings)
+        let rawAngle = atan2(rawVector.dy, rawVector.dx)
         let blended = shortestBlend(from: rawAngle, to: angle, amount: strength)
-        vector = CGVector(
-            dx: cos(blended - Double.pi / 2) * distance,
-            dy: -sin(blended - Double.pi / 2) * distance
-        )
+        vector = CGVector(dx: cos(blended) * distance, dy: sin(blended) * distance)
     }
 
     private func normalizedAngle(_ angle: Double) -> Double {

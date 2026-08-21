@@ -1,11 +1,5 @@
 import SwiftUI
 
-/// Navigation Sphere МИР 4D.
-///
-/// MirEngine uses a Z-up world. The sphere is a navigation instrument, not a
-/// second camera model: all orientation is derived from the viewport orbit
-/// values supplied by MirGLView. World directions are projected through the
-/// same camera basis used by MirEngine::Camera.
 struct NavigationSphereView: View {
     var theta: Double
     var phi: Double
@@ -101,8 +95,6 @@ struct NavigationSphereView: View {
         .allowsHitTesting(false)
     }
 
-    /// Horizontal directions are VIEW directions, not camera positions.
-    /// The signs match the Z-up convention used by MirEngine::Camera::forward().
     private var directionPresets: [(MirCameraPreset, SIMD3<Double>)] {
         [
             (.front, SIMD3(0, -1, 0)),
@@ -158,11 +150,6 @@ struct NavigationSphereView: View {
             .allowsHitTesting(false)
     }
 
-    /// The previous implementation projected cameraForward itself. That always
-    /// produces (0,0), because cameraForward is the screen normal. The useful
-    /// orientation indicator is therefore the world-up vector projected into
-    /// the current camera plane: it gives a stable horizon/up cue while the
-    /// highlighted markers identify the active view direction.
     private func orientationIndicator(center: CGPoint, radius: CGFloat) -> some View {
         let worldUp = SIMD3<Double>(0, 0, 1)
         let projection = project(worldUp, radius: radius * 0.55)
@@ -292,14 +279,10 @@ struct NavigationSphereView: View {
         .help(help)
     }
 
-    /// MirEngine::Camera::forward() is target - eye. With the orbit model this
-    /// is the negative of the camera position vector relative to its target.
     private var cameraForward: SIMD3<Double> {
         normalized(SIMD3(-sin(phi) * sin(theta), -sin(phi) * cos(theta), -cos(phi)))
     }
 
-    /// Projects a world direction into the current camera screen plane using
-    /// the same Z-up basis as MirEngine::Camera.
     private func project(_ world: SIMD3<Double>, radius: CGFloat) -> ProjectedDirection {
         let forward = cameraForward
         let worldUp = SIMD3<Double>(0, 0, 1)
@@ -314,8 +297,6 @@ struct NavigationSphereView: View {
         )
     }
 
-    /// Horizontal snap is intentionally limited to the eight planar views.
-    /// Vertical/diagonal presets are selected explicitly by their controls.
     private var nearestHorizontalPreset: MirCameraPreset {
         directionPresets.min { lhs, rhs in
             dot(cameraForward, lhs.1) > dot(cameraForward, rhs.1)

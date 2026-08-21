@@ -43,4 +43,4 @@ struct OpticalMaterial
     }
 };
 
-} // namespace mir
+}

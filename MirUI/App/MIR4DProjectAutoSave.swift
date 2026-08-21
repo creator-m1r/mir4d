@@ -1,15 +1,9 @@
 import Foundation
 
-/// Debounced autosave for the active MIR 4D project.
-///
-/// Autosave waits for a quiet period, skips unchanged model revisions, and never
-/// starts a second save while the previous save is still encoding/writing.
 @MainActor
 final class MIR4DProjectAutoSave {
     private weak var appState: CADAppState?
-    // These two resources are also released from deinit, which is nonisolated in Swift 6.
-    // `nonisolated(unsafe)` is intentional here: all normal access remains on MainActor,
-    // while deinitialization only performs cancellation/removal during object teardown.
+
     nonisolated(unsafe) private var modelObserver: NSObjectProtocol?
     nonisolated(unsafe) private var saveWorkItem: DispatchWorkItem?
 
@@ -48,12 +42,11 @@ final class MIR4DProjectAutoSave {
         }
     }
 
-    /// Schedule one save after the model has remained unchanged for the debounce interval.
     func scheduleSave() {
         guard let appState, appState.documentDirty else { return }
 
         if isSaving {
-            // The current save owns an older snapshot. Preserve the fact that another save is required.
+
             needsResave = true
             return
         }
@@ -71,15 +64,12 @@ final class MIR4DProjectAutoSave {
         )
     }
 
-    /// Cancel a pending automatic save.
     func stop() {
         saveWorkItem?.cancel()
         saveWorkItem = nil
         needsResave = false
     }
 
-    /// Explicit close/quit path: persist the current model immediately.
-    /// The actual JSON encoding and disk write happen off the main actor.
     func flush() {
         saveWorkItem?.cancel()
         saveWorkItem = nil
@@ -114,7 +104,7 @@ final class MIR4DProjectAutoSave {
         Task { @MainActor [weak self, weak appState] in
             guard let self, let appState else { return }
             do {
-                // Model-only autosave avoids rewriting UI/workbench state on every geometry change.
+
                 try await MIR4DProjectSession.shared.saveAsync(appState: appState, scope: .modelOnly)
                 self.lastSaveDate = Date()
             } catch {

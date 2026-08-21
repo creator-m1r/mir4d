@@ -39,4 +39,4 @@ struct ProcessMaterial
     }
 };
 
-} // namespace mir
+}

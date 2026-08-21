@@ -2,13 +2,10 @@ import XCTest
 import simd
 @testable import MirUIHandGesture
 
-/// Verifies the normalised-camera → scene-space projection used by the real
-/// camera pipeline (MIRHandTrackingSource → MIRHandTrackingSession).
 final class MIRHandSpatialMapperTests: XCTestCase {
     func testMirrorAndFlipOrigin() {
         let mapper = MIRHandSpatialMapper()
-        // Normalised (0,0) = bottom-left in Vision space.
-        // Mirror X -> 1.0; flip Y -> 1.0.
+
         let p = mapper.map(normalized: SIMD3(0, 0, 0))
         XCTAssertEqual(p.x, (1.0 - 0.5) * mapper.volume.width, accuracy: 1e-9)
         XCTAssertEqual(p.y, (1.0 - 0.5) * mapper.volume.height, accuracy: 1e-9)

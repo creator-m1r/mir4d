@@ -1,12 +1,6 @@
 import Foundation
 import Combine
 
-/// Trackpad navigation scheme, Blender-style:
-/// - two fingers drag -> orbit (default, like Blender's trackpad rotate)
-/// - Shift + two fingers -> pan
-/// - Control + two fingers -> zoom
-/// - Option + left mouse drag -> orbit (macOS middle-button emulation)
-/// Wheel and pinch keep their zoom behavior.
 enum MirTrackpadGesture: String, Codable, CaseIterable, Identifiable {
     case orbit
     case pan

@@ -1,18 +1,3 @@
-// MirUI/Core/Theme/ThemeResolver.hpp
-// 🧩 Преобразователь темы — с каскадным наследованием стилей.
-//    Для каждого виджета (тип + состояние + родительский контейнер)
-//    возвращает полностью заполненный WidgetStyle.
-//
-// Каскадное наследование:
-//   • Если виджет не задаёт какое-либо свойство (transparent фон, нулевой шрифт…),
-//     значение автоматически берётся из родительского контейнера (по карте наследования).
-//   • Если родитель тоже не задаёт – используется глобальный базовый стиль темы.
-//
-// Пример:
-//   resolver.resolve(WidgetType::Button, WidgetState::Normal, WidgetType::Toolbar);
-//   → кнопка унаследует фон и шрифт тулбара.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -26,17 +11,13 @@ namespace MirUI {
 
 class ThemeResolver {
 public:
-    // ── Конструктор ──────────────────────────────────────────
+
     explicit ThemeResolver(const Theme& theme)
-        : m_theme(theme)   // копируем тему внутрь
+        : m_theme(theme)
     {
         buildInheritanceMap();
     }
 
-    // ── Главный метод: получить стиль с учётом родительского контекста ──
-    //   type           — тип виджета (Button, Label, …)
-    //   state          — состояние (Normal, Hover, …)
-    //   parentContext  — тип родительского контейнера (по умолчанию Window)
     [[nodiscard]] WidgetStyle resolve(WidgetType type,
                                       WidgetState state = WidgetState::Normal,
                                       WidgetType parentContext = WidgetType::Window) const {
@@ -45,22 +26,19 @@ public:
         return cascade(base, parentStyle);
     }
 
-    // ── Удобный метод: стиль по умолчанию (normal, контекст Window) ──
     [[nodiscard]] WidgetStyle resolveNormal(WidgetType type) const {
         return resolve(type, WidgetState::Normal, WidgetType::Window);
     }
 
-    // ── Смена темы «на лету» ─────────────────────────────────
     void setTheme(const Theme& theme) {
         m_theme = theme;
     }
     [[nodiscard]] const Theme& theme() const { return m_theme; }
 
 private:
-    Theme m_theme;   // храним копию темы, чтобы можно было обновлять
+    Theme m_theme;
     std::unordered_map<WidgetType, WidgetType> m_inheritanceMap;
 
-    // ── Карта наследования: для каждого типа виджета — его типичный контейнер ──
     void buildInheritanceMap() {
         m_inheritanceMap[WidgetType::Button]       = WidgetType::Toolbar;
         m_inheritanceMap[WidgetType::Label]        = WidgetType::Panel;
@@ -83,11 +61,9 @@ private:
         m_inheritanceMap[WidgetType::Window]       = WidgetType::Window;
     }
 
-    // ── Базовый стиль типа с учётом состояния (без наследования) ──
     [[nodiscard]] WidgetStyle getBaseStyle(WidgetType type, WidgetState state) const {
         WidgetStyle style;
 
-        // Общие значения из палитры темы
         style.background   = m_theme.colors.surface;
         style.foreground   = m_theme.colors.textPrimary;
         style.border       = m_theme.colors.border;
@@ -95,7 +71,6 @@ private:
         style.font         = m_theme.typography.body;
         style.opacity      = 1.0;
 
-        // Специфичные значения для типов
         switch (type) {
             case WidgetType::Button:
                 style.background   = m_theme.colors.accent;
@@ -104,7 +79,7 @@ private:
                 style.font         = m_theme.typography.button;
                 break;
             case WidgetType::Label:
-                style.background   = Color::transparent();   // будет унаследован
+                style.background   = Color::transparent();
                 style.foreground   = m_theme.colors.textPrimary;
                 break;
             case WidgetType::TextField:
@@ -128,41 +103,38 @@ private:
                 break;
         }
 
-        // Применяем состояние (hover, pressed…)
         WidgetStateStyle stateOverride = getStateOverride(type, state);
         return mergeWithState(style, stateOverride);
     }
 
-    // ── Каскадное слияние: заполняем пустые поля из родительского стиля ──
     [[nodiscard]] WidgetStyle cascade(const WidgetStyle& childStyle,
                                       const WidgetStyle& parentStyle) const {
         WidgetStyle result = childStyle;
 
-        // Фон
         if (result.background == Color::transparent()) {
             result.background = (parentStyle.background != Color::transparent())
                                 ? parentStyle.background
                                 : m_theme.colors.surface;
         }
-        // Рамка
+
         if (result.border == Color::transparent()) {
             result.border = (parentStyle.border != Color::transparent())
                             ? parentStyle.border
                             : m_theme.colors.border;
         }
-        // Скругление
+
         if (result.cornerRadius == 0.0 && parentStyle.cornerRadius > 0.0) {
             result.cornerRadius = parentStyle.cornerRadius;
         }
-        // Шрифт (размер 0 означает «не задан»)
+
         if (result.font.size == 0.0) {
             result.font = (parentStyle.font.size > 0.0) ? parentStyle.font : m_theme.typography.body;
         }
-        // Прозрачность
+
         if (result.opacity >= 1.0 && parentStyle.opacity < 1.0) {
             result.opacity = parentStyle.opacity;
         }
-        // Тень
+
         if (result.shadow.color == Color::transparent()) {
             result.shadow = (parentStyle.shadow.color != Color::transparent())
                             ? parentStyle.shadow
@@ -172,8 +144,7 @@ private:
         return result;
     }
 
-    // ── Стиль состояния (hover, pressed, …) ──────────────────
-    [[nodiscard]] WidgetStateStyle getStateOverride(WidgetType /*type*/, WidgetState state) const {
+    [[nodiscard]] WidgetStateStyle getStateOverride(WidgetType , WidgetState state) const {
         WidgetStateStyle s;
         s.visible = true;
 
@@ -207,7 +178,6 @@ private:
         return s;
     }
 
-    // ── Применение состояния к базовому стилю ─────────────────
     [[nodiscard]] static WidgetStyle mergeWithState(const WidgetStyle& base,
                                                     const WidgetStateStyle& state) {
         WidgetStyle result = base;
@@ -221,4 +191,4 @@ private:
     }
 };
 
-} // namespace MirUI
+}

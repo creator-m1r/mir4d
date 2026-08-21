@@ -1,7 +1,3 @@
-// MirEngine/Math/Matrix3.hpp
-// 🧮 Матрица 3×3 — линейные преобразования в трёхмерном пространстве.
-//
-// C++23
 
 #pragma once
 
@@ -144,4 +140,4 @@ private:
     std::array<Scalar, 9> m_data{};
 };
 
-} // namespace mir
+}

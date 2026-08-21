@@ -17,7 +17,6 @@
 namespace mir4d
 {
 
-/// Creates a real document mesh from a rectangular profile extruded along +Z.
 class CreateBoxCommandHandler final : public CommandHandler
 {
 public:
@@ -97,4 +96,4 @@ private:
     }
 };
 
-} // namespace mir4d
+}

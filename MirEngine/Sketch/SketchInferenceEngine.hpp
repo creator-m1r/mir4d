@@ -138,4 +138,4 @@ private:
     double pointTolerance_;
 };
 
-} // namespace mir
+}

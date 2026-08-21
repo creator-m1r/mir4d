@@ -1,29 +1,3 @@
-// MirUI/Designer/Themes/WidgetStyleEditor.hpp
-// 🎨 Редактор стиля виджета — позволяет точечно настраивать внешний вид
-//    любого типа виджета и любого его состояния.
-//
-// WidgetStyleEditor объединяет в себе возможности ColorTokenEditor,
-// ShadowEditor, MetricsEditor, TypographyEditor и AnimationEditor,
-// но сфокусирован на одном конкретном WidgetType и одном WidgetState.
-//
-// Что он умеет:
-//   • Выбрать тип виджета (Button, Label, Panel…) и состояние (Normal, Hover…).
-//   • Изменить цвет фона, текста, рамки (через Color).
-//   • Настроить шрифт (семейство, размер, жирность, стиль).
-//   • Настроить тень (offset X/Y, blur, spread, цвет).
-//   • Задать радиус скругления и непрозрачность.
-//   • Все изменения автоматически применяются к текущей теме документа
-//     и попадают в историю Undo/Redo.
-//
-// Как это работает:
-//   1. Редактор получает UIDocument и конкретный WidgetType + WidgetState.
-//   2. При создании загружает текущие значения из темы (через ThemeResolver).
-//   3. При изменении любого поля создаёт команду WidgetStyleEditCommand,
-//      которая запоминает старые и новые значения всех полей.
-//   4. Команда выполняется через CommandHistory, обновляет тему и документ.
-//   5. Тема помечается изменённой, рендерер перерисовывает интерфейс.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -45,9 +19,7 @@ namespace MirUI {
 
 class WidgetStyleEditor {
 public:
-    // ── Конструктор ──────────────────────────────────────────
-    // Принимает документ, тип виджета и состояние, которое редактируем.
-    // Загружает текущие значения стиля из темы.
+
     WidgetStyleEditor(UIDocument& doc, WidgetType widgetType, WidgetState state = WidgetState::Normal)
         : m_doc(doc)
         , m_widgetType(widgetType)
@@ -56,7 +28,6 @@ public:
         loadFromTheme();
     }
 
-    // ── Переключение типа виджета или состояния ──────────────
     void setWidgetType(WidgetType type) {
         if (type == m_widgetType) return;
         m_widgetType = type;
@@ -69,7 +40,6 @@ public:
         loadFromTheme();
     }
 
-    // ── Текущие значения (для отображения в UI) ──────────────
     [[nodiscard]] WidgetType widgetType() const { return m_widgetType; }
     [[nodiscard]] WidgetState widgetState() const { return m_state; }
 
@@ -80,20 +50,16 @@ public:
     [[nodiscard]] double opacity()         const { return m_opacity; }
     [[nodiscard]] bool   visible()         const { return m_visible; }
 
-    // Шрифт
     [[nodiscard]] Font        font()          const { return m_font; }
     [[nodiscard]] std::string fontFamily()    const { return m_font.family; }
     [[nodiscard]] double      fontSize()      const { return m_font.size; }
     [[nodiscard]] FontWeight  fontWeight()    const { return m_font.weight; }
     [[nodiscard]] FontStyle   fontStyle()     const { return m_font.style; }
 
-    // Тень
     [[nodiscard]] Color  shadowColor()   const { return m_shadow.color; }
     [[nodiscard]] double shadowOffsetX() const { return m_shadow.offsetX; }
     [[nodiscard]] double shadowOffsetY() const { return m_shadow.offsetY; }
     [[nodiscard]] double shadowBlur()    const { return m_shadow.blurRadius; }
-
-    // ── Установка новых значений ────────────────────────────
 
     void setBackgroundColor(const Color& color) {
         if (color == m_background) return;
@@ -131,7 +97,6 @@ public:
             [this, visible]() { m_visible = visible; });
     }
 
-    // ── Шрифт ────────────────────────────────────────────────
     void setFont(const Font& font) {
         if (font == m_font) return;
         executeEditCommand("Изменить шрифт",
@@ -162,7 +127,6 @@ public:
             [this, style]() { m_font.style = style; });
     }
 
-    // ── Тень ─────────────────────────────────────────────────
     void setShadowColor(const Color& color) {
         if (color == m_shadow.color) return;
         executeEditCommand("Изменить цвет тени",
@@ -187,10 +151,9 @@ public:
             [this, blur]() { m_shadow.blurRadius = std::max(0.0, blur); });
     }
 
-    // ── Сброс к значениям по умолчанию ───────────────────────
     void resetToDefault() {
         WidgetStyle defaultStyle;
-        // Загружаем значения по умолчанию из ThemeResolver для этого типа.
+
         Theme current = m_doc.themeManager().current();
         ThemeResolver resolver(current);
         WidgetStyle resolved = resolver.resolve(m_widgetType, m_state);
@@ -208,7 +171,6 @@ public:
         setShadowBlur(resolved.shadow.blurRadius);
     }
 
-    // ── Доступ к документу (для создания подредакторов) ─────
     [[nodiscard]] UIDocument& document() { return m_doc; }
     [[nodiscard]] const UIDocument& document() const { return m_doc; }
 
@@ -217,7 +179,6 @@ private:
     WidgetType  m_widgetType;
     WidgetState m_state;
 
-    // Текущие значения всех полей (загружены из темы)
     Color  m_background   = Color::transparent();
     Color  m_foreground   = Color::black();
     Color  m_border       = Color::transparent();
@@ -228,7 +189,6 @@ private:
     Font       m_font;
     ShadowData m_shadow;
 
-    // ── Загрузка текущего стиля из темы ──────────────────────
     void loadFromTheme() {
         Theme current = m_doc.themeManager().current();
         ThemeResolver resolver(current);
@@ -244,39 +204,26 @@ private:
         m_shadow       = style.shadow;
     }
 
-    // ── Применение текущих значений к теме ───────────────────
     void applyToTheme() {
-        // Пока у нас нет прямого доступа к Theme::widgetStyles[тип][состояние].
-        // Поэтому изменения сохраняются локально, а команда просто помечает
-        // документ как изменённый. В будущем мы добавим в Theme карту стилей.
+
         m_doc.setModified(true);
 
-        // В будущем здесь будет:
-        // Theme current = m_doc.themeManager().current();
-        // current.widgetStyles[m_widgetType] = ...;
-        // m_doc.themeManager().setTheme(current);
     }
 
-    // ── Универсальный метод выполнения команды ──────────────
     void executeEditCommand(const std::string& description, std::function<void()> applyNewValues) {
-        // Сохраняем старые значения для возможности отката.
+
         auto oldState = captureState();
 
-        // Применяем новые значения (временно).
         applyNewValues();
 
-        // Сохраняем новые значения.
         auto newState = captureState();
 
-        // Откатываем обратно, чтобы команда применила их через execute().
         restoreState(oldState);
 
-        // Создаём и выполняем команду.
         auto cmd = std::make_unique<WidgetStyleEditCommand>(*this, oldState, newState, description);
         m_doc.history().execute(std::move(cmd));
     }
 
-    // ── Захват / восстановление полного состояния редактора ──
     struct StateSnapshot {
         Color  background, foreground, border;
         double cornerRadius, opacity;
@@ -301,7 +248,6 @@ private:
         m_shadow       = s.shadow;
     }
 
-    // ── Внутренняя команда для Undo/Redo ─────────────────────
     class WidgetStyleEditCommand : public ICommand {
     public:
         WidgetStyleEditCommand(WidgetStyleEditor& editor,
@@ -338,4 +284,4 @@ private:
     };
 };
 
-} // namespace MirUI
+}

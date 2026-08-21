@@ -47,4 +47,4 @@ struct SelectionChangedEvent : Event
     }
 };
 
-} // namespace MirUI
+}

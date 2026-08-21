@@ -1,6 +1,3 @@
-// MirUI/Core/Events/Event.hpp
-// Base event structure. Platform-independent.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -15,10 +12,8 @@ struct Event {
     WidgetID target{};
     bool handled = false;
 
-    // Generic payload slots for lightweight application events.
-    // SelectionChanged uses data0 = selection kind, data1 = selection ID.
     std::uint64_t data0 = 0;
     std::uint64_t data1 = 0;
 };
 
-} // namespace MirUI
+}

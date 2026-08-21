@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Visual feedback for the active sketch snap candidate.
 struct SketchSnapOverlay: View {
     let snap: SketchSnapUI?
 

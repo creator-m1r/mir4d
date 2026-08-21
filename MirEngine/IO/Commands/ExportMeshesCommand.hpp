@@ -10,7 +10,6 @@
 namespace mir::io
 {
 
-/// Factory for the persistent mesh export action.
 struct ExportMeshesCommand
 {
     [[nodiscard]] static Command make(
@@ -36,4 +35,4 @@ struct ExportMeshesCommand
     }
 };
 
-} // namespace mir::io
+}

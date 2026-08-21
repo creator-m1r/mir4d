@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Visual annotation layer for sketch dimensions.
-/// Values are presentation-only until connected to MirEngine constraint data.
 struct SketchDimensionOverlay: View {
     let start: CGPoint
     let end: CGPoint

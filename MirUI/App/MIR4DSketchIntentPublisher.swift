@@ -1,8 +1,6 @@
 import Combine
 import Foundation
 
-/// App-layer stream of hand-drawn sketch strokes, emitted by the spatial-menu
-/// hand adapter while the Sketch workbench is active.
 @MainActor
 final class MIR4DSketchIntentPublisher {
     static let shared = MIR4DSketchIntentPublisher()

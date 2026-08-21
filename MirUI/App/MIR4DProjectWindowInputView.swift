@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Applies MIR 4D spatial input to a floating project window.
-/// The same view can later receive hand intents through the input router.
 struct MIR4DProjectWindowInputView<Content: View>: View {
     let windowID: UUID
     let content: () -> Content

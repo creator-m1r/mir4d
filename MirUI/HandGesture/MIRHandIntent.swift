@@ -1,7 +1,6 @@
 import Foundation
 import simd
 
-/// Lifecycle phase of an emitted hand intent.
 public enum MIRHandIntentPhase: String, Sendable {
     case began
     case changed
@@ -9,10 +8,6 @@ public enum MIRHandIntentPhase: String, Sendable {
     case cancelled
 }
 
-/// Structured spatial intention produced by the hand module.
-///
-/// Recognition never triggers an operation directly. The intent is the only
-/// contract between the hand module and the rest of MIR 4D (Spatial Menu, CAD).
 public struct MIRHandIntent: Sendable {
     public let gesture: MIRHandGesture
     public let phase: MIRHandIntentPhase
@@ -43,7 +38,6 @@ public struct MIRHandIntent: Sendable {
         self.timestamp = timestamp
     }
 
-    /// Bridge into the universal, device-independent intent bus.
     func toMIRIntent() -> MIRIntent {
         let phase: MIRIntent.Phase
         switch self.phase {
@@ -64,8 +58,6 @@ public struct MIRHandIntent: Sendable {
     }
 }
 
-/// Publishes hand intents onto the shared `MIRIntentRouter`.
-/// Calling `publish` must happen on the main actor (the router is main-isolated).
 @MainActor
 struct MIRHandIntentEmitter {
     func publish(_ intent: MIRHandIntent) {

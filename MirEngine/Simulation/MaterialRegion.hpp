@@ -72,4 +72,4 @@ private:
     std::unordered_map<std::uint64_t, MaterialRegion> regions_;
 };
 
-} // namespace mir
+}

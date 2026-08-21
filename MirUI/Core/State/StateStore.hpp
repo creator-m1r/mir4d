@@ -1,6 +1,3 @@
-// MirUI/Core/State/StateStore.hpp
-// Central store for all UI state values.
-// Pure C++23, no platform dependencies.
 
 #pragma once
 
@@ -41,4 +38,4 @@ private:
     std::unordered_map<StateKey, StateValue, std::hash<StateKey>> m_values;
 };
 
-} // namespace MirUI
+}

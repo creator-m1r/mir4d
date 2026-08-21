@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Shared visual language for floating MIR 4D windows.
 struct MIR4DSpatialWindow<Content: View>: View {
     let title: String
     let subtitle: String?

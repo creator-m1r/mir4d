@@ -1,17 +1,3 @@
-// MirEngine/Math/Numeric/Interpolation.hpp
-// 🧮 Интерполяция и параметрические кривые — инженерное ядро MIR 4D.
-//
-// Содержит:
-//   • Полиномы:        evaluatePolynomial (схема Горнера), derivativePolynomial.
-//   • Интерполяция:    lagrangeInterpolate (глобальная), linearInterpolate (кусочно-линейная).
-//   • Кривые (Vector3): cubicBezier, bezierPoint (алгоритм де Кастельжо),
-//                       catmullRom, cubicHermite.
-//
-// Кривые возвращают mir::Vector3, поэтому модуль применим напрямую в
-// геометрии профилей, траекторий и путей. Интерполяция «по значению»
-// возвращает mir4d::Result при некорректных данных.
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -36,12 +22,6 @@ namespace mir::math
 }
 #endif
 
-// ═══════════════════════════════════════════════════════════════
-//  Полиномы
-// ═══════════════════════════════════════════════════════════════
-
-/// Вычисляет P(x) = Σ coeffs[i]·xⁱ (coeffs[0] — свободный член),
-/// используя устойчивую схему Горнера.
 [[nodiscard]] inline Scalar evaluatePolynomial(
     const std::vector<Scalar>& coeffs,
     Scalar x)
@@ -52,8 +32,6 @@ namespace mir::math
     return result;
 }
 
-/// Возвращает коэффициенты производной P'(x) (степень на единицу ниже).
-/// Для константы возвращает пустой вектор.
 [[nodiscard]] inline std::vector<Scalar> derivativePolynomial(
     const std::vector<Scalar>& coeffs)
 {
@@ -66,12 +44,6 @@ namespace mir::math
     return derivative;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Интерполяция по скаляру
-// ═══════════════════════════════════════════════════════════════
-
-/// Значение интерполяционного многочлена Лагранжа через узлы (x, y).
-/// При дублирующихся x или менее двух узлах возвращает ошибку.
 [[nodiscard]] inline mir4d::Result<Scalar> lagrangeInterpolate(
     const std::vector<std::pair<Scalar, Scalar>>& points,
     Scalar x)
@@ -104,8 +76,6 @@ namespace mir::math
     return mir4d::success(result);
 }
 
-/// Кусочно-линейная интерполяция по отсортированным/несортированным узлам.
-/// Вне диапазона — линейная экстраполяция по крайним узлам.
 [[nodiscard]] inline mir4d::Result<Scalar> linearInterpolate(
     const std::vector<std::pair<Scalar, Scalar>>& points,
     Scalar x)
@@ -113,7 +83,6 @@ namespace mir::math
     if (points.size() < 2)
         return fail(mir4d::ErrorCode::InvalidArgument, "Нужно не менее двух узлов");
 
-    // Поиск сегмента [a, b], содержащего x.
     for (std::size_t i = 0; i + 1 < points.size(); ++i)
     {
         const Scalar x0 = points[i].first;
@@ -131,7 +100,6 @@ namespace mir::math
         }
     }
 
-    // Экстраполяция: берём крайний сегмент.
     const std::pair<Scalar, Scalar>& a = points.front();
     const std::pair<Scalar, Scalar>& b = points.back();
     const Scalar denom = b.first - a.first;
@@ -141,11 +109,6 @@ namespace mir::math
     return mir4d::success(a.second + t * (b.second - a.second));
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Параметрические кривые (Vector3)
-// ═══════════════════════════════════════════════════════════════
-
-/// Кубическая кривая Безье B(t) для t ∈ [0, 1].
 [[nodiscard]] inline Vector3 cubicBezier(
     const Vector3& p0,
     const Vector3& p1,
@@ -167,8 +130,6 @@ namespace mir::math
         a * p0.z + b * p1.z + c * p2.z + d * p3.z};
 }
 
-/// Точка произвольной кривой Безье алгоритмом де Кастельжо.
-/// \param control опорные точки (≥ 1).
 [[nodiscard]] inline mir4d::Result<Vector3> bezierPoint(
     const std::vector<Vector3>& control,
     Scalar t)
@@ -194,8 +155,6 @@ namespace mir::math
     return mir4d::success(pts.front());
 }
 
-/// Сегмент сплайна Катмулла–Рома между p1 и p2 (p0, p3 — соседи).
-/// Возвращает точку для t ∈ [0, 1].
 [[nodiscard]] inline Vector3 catmullRom(
     const Vector3& p0,
     const Vector3& p1,
@@ -221,7 +180,6 @@ namespace mir::math
         comp(p0.z, p1.z, p2.z, p3.z)};
 }
 
-/// Кубическая Эрмитова кривая между p0 и p1 с касательными m0, m1.
 [[nodiscard]] inline Vector3 cubicHermite(
     const Vector3& p0,
     const Vector3& p1,
@@ -242,4 +200,4 @@ namespace mir::math
         h00 * p0.z + h10 * m0.z + h01 * p1.z + h11 * m1.z};
 }
 
-} // namespace mir::math
+}

@@ -1,12 +1,3 @@
-// MirEngine/Math/Vector/Vector2.hpp
-//
-// 🧭 Двумерный вектор МИР 4D.
-//
-// Vector2 используется для 2D-эскизов, UV-координат,
-// плоской геометрии и других двумерных расчётов.
-//
-// C++23
-// Без внешних зависимостей.
 
 #pragma once
 
@@ -21,16 +12,9 @@ namespace mir
 
 struct Vector2
 {
-    // ---------------------------------------------------------
-    // Components
-    // ---------------------------------------------------------
 
     Scalar x{0.0};
     Scalar y{0.0};
-
-    // ---------------------------------------------------------
-    // Constructors
-    // ---------------------------------------------------------
 
     constexpr Vector2() noexcept = default;
 
@@ -41,10 +25,6 @@ struct Vector2
         , y(y_)
     {
     }
-
-    // ---------------------------------------------------------
-    // Constants
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector2 zero() noexcept
@@ -70,10 +50,6 @@ struct Vector2
         return {0.0, 1.0};
     }
 
-    // ---------------------------------------------------------
-    // Length
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     constexpr Scalar lengthSquared() const noexcept
     {
@@ -85,10 +61,6 @@ struct Vector2
     {
         return std::sqrt(lengthSquared());
     }
-
-    // ---------------------------------------------------------
-    // Normalization
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     Vector2 normalized(
@@ -118,10 +90,6 @@ struct Vector2
         return true;
     }
 
-    // ---------------------------------------------------------
-    // Dot product
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     static constexpr Scalar dot(
         const Vector2& a,
@@ -137,11 +105,6 @@ struct Vector2
         return dot(*this, other);
     }
 
-    // ---------------------------------------------------------
-    // 2D cross product
-    // ---------------------------------------------------------
-
-    // Возвращает Z-компоненту векторного произведения.
     [[nodiscard]]
     static constexpr Scalar cross(
         const Vector2& a,
@@ -156,10 +119,6 @@ struct Vector2
     {
         return cross(*this, other);
     }
-
-    // ---------------------------------------------------------
-    // Distance
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Scalar distanceSquared(
@@ -178,10 +137,6 @@ struct Vector2
             distanceSquared(a, b)
         );
     }
-
-    // ---------------------------------------------------------
-    // Angle
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     Scalar angleTo(
@@ -209,10 +164,6 @@ struct Vector2
         return std::acos(cosine);
     }
 
-    // ---------------------------------------------------------
-    // Linear interpolation
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     static constexpr Vector2 lerp(
         const Vector2& a,
@@ -225,10 +176,6 @@ struct Vector2
             a.y + (b.y - a.y) * t
         };
     }
-
-    // ---------------------------------------------------------
-    // Component operations
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     static constexpr Vector2 componentMin(
@@ -264,10 +211,6 @@ struct Vector2
             std::abs(value.y)
         };
     }
-
-    // ---------------------------------------------------------
-    // Arithmetic
-    // ---------------------------------------------------------
 
     friend constexpr Vector2 operator+(
         const Vector2& a,
@@ -350,10 +293,6 @@ struct Vector2
         return *this;
     }
 
-    // ---------------------------------------------------------
-    // Index access
-    // ---------------------------------------------------------
-
     [[nodiscard]]
     constexpr Scalar& operator[](
         std::size_t index) noexcept
@@ -367,10 +306,6 @@ struct Vector2
     {
         return index == 0 ? x : y;
     }
-
-    // ---------------------------------------------------------
-    // State
-    // ---------------------------------------------------------
 
     [[nodiscard]]
     bool isZero(
@@ -389,10 +324,6 @@ struct Vector2
             std::isfinite(y);
     }
 
-    // ---------------------------------------------------------
-    // Comparison
-    // ---------------------------------------------------------
-
     friend constexpr bool operator==(
         const Vector2& a,
         const Vector2& b) noexcept
@@ -408,4 +339,4 @@ struct Vector2
     }
 };
 
-} // namespace mir
+}

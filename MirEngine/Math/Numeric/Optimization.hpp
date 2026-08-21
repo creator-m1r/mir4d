@@ -1,17 +1,3 @@
-// MirEngine/Math/Numeric/Optimization.hpp
-// 🧮 Многомерная оптимизация и нелинейные системы — ядро CAE/FEM.
-//
-// Содержит:
-//   • solveNonlinearSystem — многомерный метод Ньютона–Рафсона
-//     для системы уравнений F(x) = 0 (шагает через solveLinearSystem).
-//   • minimizeGradientDescent — градиентный спуск по градиенту g(x).
-//   • minimizeNewton         — Ньютоновская минимизация по grad + Hessian.
-//
-// Все методы принимают вектор-функции и возвращают mir4d::Result.
-// Это основа для решения остаточных уравнений МКЭ и безусловной
-// оптимизации параметров.
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -52,12 +38,6 @@ using HessianN = std::function<MatrixN(const VectorN&)>;
     return std::sqrt(acc);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Нелинейные системы уравнений
-// ═══════════════════════════════════════════════════════════════
-
-/// Решает F(x) = 0 многомерным методом Ньютона–Рафсона.
-/// На каждой итерации решает J(x)·Δ = −F(x) и обновляет x += Δ.
 [[nodiscard]] inline mir4d::Result<VectorN> solveNonlinearSystem(
     FunctionN f,
     JacobianN jacobian,
@@ -97,12 +77,6 @@ using HessianN = std::function<MatrixN(const VectorN&)>;
     return fail(mir4d::ErrorCode::Internal, "Нелинейная система не сошлась за maxIter");
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Безусловная минимизация
-// ═══════════════════════════════════════════════════════════════
-
-/// Минимизирует f(x) градиентным спуском: x ← x − rate·g(x).
-/// Останавливается при ‖g(x)‖ ≤ tol.
 [[nodiscard]] inline mir4d::Result<VectorN> minimizeGradientDescent(
     GradientN gradient,
     VectorN x,
@@ -126,8 +100,6 @@ using HessianN = std::function<MatrixN(const VectorN&)>;
     return fail(mir4d::ErrorCode::Internal, "Градиентный спуск не сошёлся за maxIter");
 }
 
-/// Минимизирует f(x) методом Ньютона: x ← x − H(x)⁻¹·g(x).
-/// Требует градиент и гессиан; сходится за метрику ‖Δ‖ ≤ tol.
 [[nodiscard]] inline mir4d::Result<VectorN> minimizeNewton(
     GradientN gradient,
     HessianN hessian,
@@ -168,10 +140,8 @@ using HessianN = std::function<MatrixN(const VectorN&)>;
 }
 
 using ObjectiveN = std::function<Scalar(const VectorN&)>;
-using ResidualN = std::function<VectorN(const VectorN&)>;  // r(x) — вектор невязок
+using ResidualN = std::function<VectorN(const VectorN&)>;
 
-/// Минимизирует f(x) квазиньютоновским методом BFGS (обратная гессиана
-/// аппроксимируется, требуется только градиент). Линейный поиск — Армихо.
 [[nodiscard]] inline mir4d::Result<VectorN> minimizeBFGS(
     ObjectiveN objective,
     GradientN gradient,
@@ -262,11 +232,6 @@ using ResidualN = std::function<VectorN(const VectorN&)>;  // r(x) — вект�
     return fail(mir4d::ErrorCode::Internal, "BFGS не сошёлся за maxIter");
 }
 
-/// Решает задачу нелинейных наименьших квадратов: минимизирует
-/// Φ(x) = ½·‖r(x)‖² методом Левенберга–Марквардта.
-/// r(x) — вектор невязок, J(x) — его якобиан (строки = невязки,
-/// столбцы = параметры). На каждом шаге решается система
-/// (JᵀJ + λ·diag(JᵀJ))·Δ = −Jᵀr; λ растёт при ухудшении, падает при успехе.
 [[nodiscard]] inline mir4d::Result<VectorN> solveNonlinearLeastSquares(
     ResidualN residuals,
     JacobianN jacobian,
@@ -291,7 +256,7 @@ using ResidualN = std::function<VectorN(const VectorN&)>;  // r(x) — вект�
             return mir4d::success(x);
 
         const MatrixN J = jacobian(x);
-        // JtJ = Jᵀ·J  (n×n) и Jtr = Jᵀ·r  (n).
+
         MatrixN JtJ(n, VectorN(n, Scalar(0)));
         VectorN Jtr(n, Scalar(0));
         for (std::size_t i = 0; i < n; ++i)
@@ -357,4 +322,4 @@ using ResidualN = std::function<VectorN(const VectorN&)>;  // r(x) — вект�
     return fail(mir4d::ErrorCode::Internal, "Нелинейный МНК не сошёлся за maxIter");
 }
 
-} // namespace mir::math
+}

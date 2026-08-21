@@ -1,12 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Validator/BRepGeometryValidator.hpp
-// Geometry-link validation for the canonical B-Rep validation layer.
-//
-// This validator checks that topology-to-geometry links resolve to live
-// geometry records. Full structural validation remains the responsibility
-// of BRepValidator.
-
 #include "MirEngine/BRep/Geometry/BRepGeometryLinks.hpp"
 #include "MirEngine/BRep/Geometry/BRepGeometryStore.hpp"
 #include "MirEngine/BRep/Topology/BRepTopologyStore.hpp"
@@ -53,4 +46,4 @@ public:
     }
 };
 
-} // namespace mir
+}

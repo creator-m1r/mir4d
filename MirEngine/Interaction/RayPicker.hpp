@@ -17,29 +17,22 @@ struct PickResult
 {
     mir4d::ObjectId objectId{mir4d::InvalidObjectId};
     Scalar distance{std::numeric_limits<Scalar>::max()};
-    // Source B-Rep face of the hit triangle (TriangleMesh3::Triangle::sourceFaceId).
-    // Zero means the mesh carries no face provenance.
+
     std::uint64_t faceId{0};
 
     [[nodiscard]] bool hit() const noexcept { return mir4d::isValidObjectId(objectId); }
 };
 
-/// World-space picking ray. Valid for both perspective and orthographic
-/// projections: in orthographic mode the origin lies on the near clip plane
-/// and the direction is parallel to the view axis.
 struct PickRay
 {
     Point3 origin{};
     Vector3 direction{};
 };
 
-/// CPU ray picker over canonical document meshes.
-/// BRep topology remains authoritative; TriangleMesh3 is the render/pick representation.
 class RayPicker
 {
 public:
-    /// Screen-space entry point: builds the world ray through a pixel and
-    /// delegates to `pick(scene, ray)`.
+
     [[nodiscard]] static PickResult pick(
         const Scene& scene,
         const Camera& camera,
@@ -53,9 +46,6 @@ public:
         return pick(scene, ray);
     }
 
-    /// Picks against a pre-built world-space ray. Used by spatial input
-    /// (hand tracking): the caller supplies the ray origin/direction directly
-    /// instead of a screen pixel, so no camera projection is needed.
     [[nodiscard]] static PickResult pick(
         const Scene& scene,
         const PickRay& worldRay) noexcept
@@ -105,9 +95,6 @@ public:
         return result;
     }
 
-    /// Builds the world-space picking ray through a screen pixel.
-    /// Works for perspective and orthographic projections alike because it
-    /// inverts the composed (projection * view) matrix.
     [[nodiscard]] static PickRay buildRay(
         const Camera& camera,
         Scalar screenX,
@@ -124,9 +111,7 @@ public:
         const Matrix4 inverse = (projection * view).inverse();
 
         const Scalar ndcX = (Scalar(2) * screenX / Scalar(viewportWidth)) - Scalar(1);
-        // screenY arrives in view-local space with the origin at the bottom
-        // (AppKit NSView / OpenGL framebuffer convention, y increasing upward),
-        // matching the renderer: NDC y = +1 maps to the top of the viewport.
+
         const Scalar ndcY = (Scalar(2) * screenY / Scalar(viewportHeight)) - Scalar(1);
 
         const Vector4 nearClip{ndcX, ndcY, Scalar(-1), Scalar(1)};
@@ -182,4 +167,4 @@ private:
     }
 };
 
-} // namespace mir
+}

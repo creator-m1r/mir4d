@@ -1,5 +1,3 @@
-// MirEngine/Tests/Sketch/SketchDocumentSolverTest.cpp
-// Tests for the universal sketch constraint solver (SketchDocumentSolver).
 
 #include "MirEngine/Sketch/SketchDocument.hpp"
 #include "MirEngine/Sketch/SketchDocumentSolver.hpp"
@@ -51,11 +49,11 @@ const mir::SketchCircle2D& getCircle(const mir::SketchGeometryStore& g, std::uin
     return std::get<mir::SketchCircle2D>(*p);
 }
 
-} // namespace
+}
 
 int main()
 {
-    // Scenario 1: linked contour (A bottom, B right, D left).
+
     {
         mir::SketchDocument doc;
         auto& g = doc.geometry();
@@ -97,7 +95,6 @@ int main()
         std::cout << "[PASS] Scenario 1: linked contour + equal/parallel/perpendicular/angle\n";
     }
 
-    // Scenario 2: circles concentric + equal radius (relative).
     {
         mir::SketchDocument doc;
         auto& g = doc.geometry();
@@ -119,7 +116,6 @@ int main()
         std::cout << "[PASS] Scenario 2: circles concentric + equal radius\n";
     }
 
-    // Scenario 3: circle radius driving.
     {
         mir::SketchDocument doc;
         auto& g = doc.geometry();
@@ -134,7 +130,6 @@ int main()
         std::cout << "[PASS] Scenario 3: circle radius\n";
     }
 
-    // Scenario 4: circle tangent to line (line free to translate -> verify relation).
     {
         mir::SketchDocument doc;
         auto& g = doc.geometry();
@@ -152,7 +147,6 @@ int main()
         std::cout << "[PASS] Scenario 4: tangent circle-to-line\n";
     }
 
-    // Scenario 5: coincident line join.
     {
         mir::SketchDocument doc;
         auto& g = doc.geometry();
@@ -170,7 +164,6 @@ int main()
         std::cout << "[PASS] Scenario 5: coincident line join\n";
     }
 
-    // Scenario 6: closed rectangle (4 lines, full loop, length anchored).
     {
         mir::SketchDocument doc2;
         auto& g = doc2.geometry();
@@ -224,7 +217,6 @@ int main()
         checkNear(dot(g3, g4), 0.0, 1.0e-4, "rect L3.L4 perpendicular");
         checkNear(dot(g4, gl), 0.0, 1.0e-4, "rect L4.L1 perpendicular");
 
-        // closure: L4.end == L1.start
         checkNear(g4.end.x, gl.start.x, 1.0e-4, "rect closed x");
         checkNear(g4.end.y, gl.start.y, 1.0e-4, "rect closed y");
         std::cout << "[PASS] Scenario 6: closed rectangle (4 lines, loop)\n";

@@ -13,9 +13,6 @@
 namespace mir
 {
 
-/// Builds profile loops from ordered line geometry. Full circles are accepted
-/// as standalone closed loops; arcs are represented by their exact endpoints.
-/// The detector is intentionally transient and never modifies the sketch.
 class SketchProfileLoopDetector
 {
 public:
@@ -42,7 +39,6 @@ public:
             result.loops.push_back(*loop);
         }
 
-        // Largest absolute area is the natural outer contour candidate.
         double largest = -1.0;
         for (std::size_t i = 0; i < result.loops.size(); ++i)
         {
@@ -71,7 +67,6 @@ private:
         if (ids.empty())
             return std::nullopt;
 
-        // A complete circle is already a closed loop.
         if (ids.size() == 1)
         {
             const auto* geometry = find(store, ids.front());
@@ -83,7 +78,6 @@ private:
                 if (circle->construction || circle->radius <= tolerance_)
                     return std::nullopt;
 
-                // Positive area denotes the conventional outer orientation.
                 return SketchProfileLoop{
                     {circle->id},
                     M_PI * circle->radius * circle->radius,
@@ -226,4 +220,4 @@ private:
     double tolerance_;
 };
 
-} // namespace mir
+}

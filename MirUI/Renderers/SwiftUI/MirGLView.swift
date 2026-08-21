@@ -3,8 +3,6 @@ import AppKit
 import QuartzCore
 import os
 
-// MARK: - Notifications
-
 extension Notification.Name {
     static let mir4DImportMesh = Notification.Name("MIR4D.ImportMesh")
     static let mir4DImportStepBRep = Notification.Name("MIR4D.ImportStepBRep")
@@ -20,52 +18,28 @@ extension Notification.Name {
     static let mir4DSketchSolved = Notification.Name("MIR4D.SketchSolved")
 }
 
-// MARK: - OpenGL / MirEngine View
-
 final class MirGLCustomView: NSView {
-
-    // MARK: Callbacks
 
     var onSelectionChanged: ((UInt64) -> Void)?
     var onIOError: ((String) -> Void)?
     var onCameraOrientationChanged:
         ((Double, Double, Double) -> Void)?
 
-    // MARK: Work plane gating (ТЗ: цветные плоскости — только при создании эскиза)
-
     var appState: CADAppState?
     private var lastSyncedWorkbench: CADWorkbench? = nil
-
-    // MARK: MirEngine objects
 
     private var context: UnsafeMutableRawPointer?
     private var renderer: UnsafeMutableRawPointer?
     private var viewport: UnsafeMutableRawPointer?
 
-    // MARK: Rendering
-
     private var displayLink: CADisplayLink?
     private var isRunning = false
 
-    // Protects MirEngine objects from display-link / UI races.
-    // Static so the display-link callback can take it without touching any
-    // MainActor-isolated instance state (NSView subclasses are @MainActor).
-    //
-    // nonisolated(unsafe): MirGLCustomView inherits from @MainActor NSView, so
-    // its static members are main-isolated by default in Swift 6. NSLock is
-    // thread-safe by design, so the marker is sound.
-    // `OSAllocatedUnfairLock` (not `NSLock`) provides priority inheritance, so a
-    // User-interactive DisplayLink thread never inverts priority behind a
-    // Default-QoS engine accessor (Xcode Hang Risk 17459).
     nonisolated private static let engineLock = OSAllocatedUnfairLock(initialState: ())
 
-    // Renders one frame. NSView.displayLink(target:selector:) fires on the
-    // main run loop, so this is MainActor-isolated; the lock still protects
-    // against any non-main MirEngine access.
     @objc
     private func renderTick(_ displayLink: CADisplayLink) {
-        // ТЗ §3/§7: callback не должен трогать MainActor-состояние вне lock.
-        // Считываем указатель engine под lock, затем рендерим под тем же lock.
+
         MirGLCustomView.engineLock.lock()
         let vp = viewport
         if let vp {
@@ -74,9 +48,6 @@ final class MirGLCustomView: NSView {
         MirGLCustomView.engineLock.unlock()
     }
 
-    // Renders the very first frame synchronously right after engine setup, so
-    // the startup scene is visible immediately even before the display link
-    // fires (also lets the MIR4D_SCREENSHOT=1 FBO capture run headlessly).
     private func renderFirstFrameIfNeeded() {
 
         guard viewport != nil else {
@@ -108,12 +79,8 @@ final class MirGLCustomView: NSView {
     private var sketchObserver: NSObjectProtocol?
     private var workbenchObserverToken: UUID?
 
-    // MARK: Mouse interaction
-
     private var leftMouseDownPoint: NSPoint?
     private var leftMouseDidDrag = false
-
-    // MARK: Radial menu
 
     private enum RadialTrigger {
         case keyboard
@@ -129,8 +96,6 @@ final class MirGLCustomView: NSView {
     private let radialSettings =
         RadialMenuSettingsStore.shared
 
-    // MARK: NSView
-
     override var isOpaque: Bool {
         true
     }
@@ -142,8 +107,6 @@ final class MirGLCustomView: NSView {
     override var acceptsFirstResponder: Bool {
         true
     }
-
-    // MARK: Lifecycle
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -194,8 +157,6 @@ final class MirGLCustomView: NSView {
         resizeEngine()
     }
 
-    // MARK: Geometry
-
     private func backingScale() -> CGFloat {
         window?.backingScaleFactor
             ?? NSScreen.main?.backingScaleFactor
@@ -235,8 +196,6 @@ final class MirGLCustomView: NSView {
         )
     }
 
-    // MARK: Engine initialization
-
     private func setupEngine() {
 
         guard context == nil else {
@@ -252,13 +211,6 @@ final class MirGLCustomView: NSView {
         let viewPointer =
             Unmanaged.passUnretained(self).toOpaque()
 
-        // The OpenGL context is owned process-lifetime by MIR4DModelRuntime so
-        // it survives NSView remounts (launch creates the view, then AppKit
-        // remounts it once). Reuse the existing context and merely rebind it to
-        // the new NSView instead of destroying and recreating the (expensive)
-        // NSOpenGLContext. The renderer + viewport (with their scene) are
-        // recreated per mount — matching the original scene lifecycle — so a
-        // project switch still resets the 3D scene correctly.
         if let existingContext = MIR4DModelRuntime.shared.glContext {
 
             MirGLCustomView.engineLock.lock()
@@ -319,8 +271,6 @@ final class MirGLCustomView: NSView {
         }
         print("TRACE: setupEngine lock ok")
 
-        // IMPORTANT:
-        // OpenGL context belongs to MirEngine.
         context = MirEngineCreateMacOpenGLContext(
             viewPointer,
             MirEngineSize2D(
@@ -339,7 +289,6 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // Context is created once and kept alive in the runtime across remounts.
         MIR4DModelRuntime.shared.glContext = context
 
         renderer =
@@ -396,12 +345,6 @@ final class MirGLCustomView: NSView {
             print("TRACE: setupEngine box done")
         }
 
-        // ТЗ Этап 1: опубликовать базовые рабочие плоскости в оверлее вьюпорта.
-        // Показываем их только в режиме создания эскиза; в остальных режимах
-        // видна только серая горизонтальная сетка (GridPass).
-        // ВАЖНО: syncWorkPlanesIfNeeded() берёт engineLock, поэтому вызывать
-        // его можно только вне критической секции setupEngine (NSLock не
-        // реентерабелен). Вызов перенесён в viewDidMoveToWindow после setupEngine().
         guard viewport != nil else {
 
             print(
@@ -424,22 +367,6 @@ final class MirGLCustomView: NSView {
         )
     }
 
-    // MARK: Rendering
-
-    // This method is intentionally NOT actor-isolated.
-    //
-    // The display link fires on the main run loop but it must not
-    // call any @MainActor / NSView method.
-    //
-    // The actual MirEngine rendering is protected by engineLock.
-    //
-    // IMPORTANT: the C callback must never touch Swift object state.
-    // MirGLCustomView inherits NSView, which is @MainActor-isolated in the
-    // modern AppKit SDK; touching `self` from the display-link thread traps
-    // with EXC_BREAKPOINT (incorrect actor executor assumption).
-    // The only state passed is the raw MirEngine viewport pointer, which is
-    // naturally Sendable and is rendered via the pure C ABI below.
-
     private func resizeEngine() {
 
         let size = physicalSize()
@@ -459,8 +386,6 @@ final class MirGLCustomView: NSView {
             size.height
         )
     }
-
-    // MARK: Display Link
 
     private func startDisplayLink() {
 
@@ -503,10 +428,8 @@ final class MirGLCustomView: NSView {
         MIR4DLog("DISPLAYLINK", "stopped")
     }
 
-    // MARK: Camera
-
     private func publishCameraOrientation() {
-        // ТЗ §23: не вызывать SwiftUI-callback внутри engineLock.
+
         var theta: Float = 0
         var phi: Float = 0
         var distance: Float = 0
@@ -528,8 +451,6 @@ final class MirGLCustomView: NSView {
             Double(distance)
         )
     }
-
-    // MARK: Notifications
 
     private func observeImportRequests() {
 
@@ -810,9 +731,6 @@ final class MirGLCustomView: NSView {
         }
         MirGLCustomView.engineLock.unlock()
 
-        // publishCameraOrientation() takes engineLock itself, so it must be
-        // called outside the critical section above: NSLock is not
-        // reentrant, and locking it twice from the same thread deadlocks.
         if activeViewport != nil {
             publishCameraOrientation()
         }
@@ -846,8 +764,6 @@ final class MirGLCustomView: NSView {
                 }
             }
     }
-
-    // MARK: Camera orbit (navigation sphere)
 
     private func observeCameraOrbitRequests() {
 
@@ -927,18 +843,11 @@ final class MirGLCustomView: NSView {
         }
         MirGLCustomView.engineLock.unlock()
 
-        // publishCameraOrientation() takes engineLock itself, so it must be
-        // called outside the critical section above: NSLock is not
-        // reentrant, and locking it twice from the same thread deadlocks.
         if !animated, activeViewport != nil {
             publishCameraOrientation()
         }
     }
 
-    /// Smoothly interpolates the camera orbit to the target orientation.
-    /// Runs on the main thread; the display link render thread only reads
-    /// the camera state (which is written under engineLock by
-    /// MirEngineSetCameraOrientation).
     private func startCameraTransition(
         from start: (theta: Double, phi: Double, distance: Double),
         to target: (theta: Double, phi: Double, distance: Double)
@@ -948,7 +857,7 @@ final class MirGLCustomView: NSView {
         cameraTransitionStart = start
         cameraTransitionTarget = target
         cameraTransitionStartTime = CACurrentMediaTime()
-        // Unwrap the theta delta so the camera turns the short way around.
+
         cameraTransitionDeltaTheta = atan2(
             sin(target.theta - start.theta),
             cos(target.theta - start.theta)
@@ -1000,8 +909,6 @@ final class MirGLCustomView: NSView {
             publishCameraOrientation()
         }
     }
-
-    // MARK: Work planes (ТЗ Этап 1)
 
     private func observeWorkPlaneRequests() {
 
@@ -1062,8 +969,6 @@ final class MirGLCustomView: NSView {
         print("MIR4D: work plane created (id=\(newId))")
     }
 
-    // ТЗ: рабочие плоскости (цветные) показываем только в режиме создания
-    // эскиза. В остальных режимах — только серая горизонтальная сетка.
     func syncWorkPlanesIfNeeded() {
         MirGLCustomView.engineLock.lock()
         defer { MirGLCustomView.engineLock.unlock() }
@@ -1078,9 +983,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-
-    // ТЗ: при смене рабочего стола (в т.ч. вход в «Эскиз») заново
-    // синхронизируем видимость рабочих плоскостей с гейтом режима.
     private func observeWorkbenchChanges() {
         guard workbenchObserverToken == nil else {
             return
@@ -1091,8 +993,6 @@ final class MirGLCustomView: NSView {
             }
         }
     }
-
-    // MARK: Sketch overlay (ТЗ Этап 2)
 
     private func observeSketchSolvedRequests() {
         guard sketchObserver == nil else { return }
@@ -1166,7 +1066,6 @@ final class MirGLCustomView: NSView {
             workbenchObserverToken = nil
         }
 
-
         if let observer = importObserver {
             NotificationCenter.default.removeObserver(
                 observer
@@ -1234,8 +1133,6 @@ final class MirGLCustomView: NSView {
         cameraAnimationTimer = nil
     }
 
-    // MARK: Engine shutdown
-
     private func shutdownEngine() {
 
         MirGLCustomView.engineLock.lock()
@@ -1248,10 +1145,7 @@ final class MirGLCustomView: NSView {
             MirEngineDestroyViewport(viewport)
 
             self.viewport = nil
-            // Инвалидируем и общий указатель: MIR4DModelRuntime держит его для
-            // C++-вызовов (clearHandSkeleton/setHandSkeleton). Без сброса после
-            // teardown указатель остаётся висячим и следующий вызов падает с
-            // EXC_BAD_ACCESS в ViewportRuntime::clearHandSkeleton().
+
             MIR4DModelRuntime.shared.viewport = nil
         }
 
@@ -1265,10 +1159,6 @@ final class MirGLCustomView: NSView {
 
         if let context {
 
-            // The OpenGL context is owned process-lifetime by MIR4DModelRuntime:
-            // detach it from this (about-to-be-discarded) NSView instead of
-            // destroying it, so a subsequent NSView remount can rebind and reuse
-            // it. The context itself stays alive in MIR4DModelRuntime.glContext.
             MirEngineSetOpenGLContextView(context, nil)
 
             self.context = nil
@@ -1279,8 +1169,6 @@ final class MirGLCustomView: NSView {
         )
         MIR4DLog("ENGINE", "shutdown (context kept=\(MIR4DModelRuntime.shared.glContext != nil) renderer=\(renderer != nil) viewport=\(viewport != nil))")
     }
-
-    // MARK: Errors
 
     private func engineErrorMessage(
         _ viewport: UnsafeMutableRawPointer
@@ -1295,8 +1183,6 @@ final class MirGLCustomView: NSView {
 
         return mirCString(pointer) ?? "Неизвестная ошибка MirEngine"
     }
-
-    // MARK: Import
 
     private func importMesh(path: String) {
 
@@ -1351,8 +1237,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-    // MARK: Import STEP (exact B-Rep)
-
     private func importStepBRep(path: String) {
 
         var success = false
@@ -1393,8 +1277,6 @@ final class MirGLCustomView: NSView {
             )
         }
     }
-
-    // MARK: Export STEP (exact B-Rep)
 
     private func exportStepBRep(
         path: String,
@@ -1440,8 +1322,6 @@ final class MirGLCustomView: NSView {
             )
         }
     }
-
-    // MARK: Export STL
 
     private func exportStl(
         path: String,
@@ -1489,8 +1369,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-    // MARK: Export STEP
-
     private func exportStep(
         path: String,
         selectionOnly: Bool
@@ -1537,8 +1415,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-    // MARK: Create Box
-
     private func createBox(
         width: Double,
         depth: Double,
@@ -1570,7 +1446,6 @@ final class MirGLCustomView: NSView {
         }
         MirGLCustomView.engineLock.unlock()
 
-        // ТЗ §22/§24: UI- и SwiftUI-callbacks вне engineLock.
         if success {
 
             if let bodyID {
@@ -1599,8 +1474,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-    // MARK: Fit All
-
     private func fitViewport() {
 
         MirGLCustomView.engineLock.lock()
@@ -1610,16 +1483,10 @@ final class MirGLCustomView: NSView {
         }
         MirGLCustomView.engineLock.unlock()
 
-        // publishCameraOrientation() takes engineLock itself, so it must be
-        // called outside the critical section above: NSLock is not
-        // reentrant, and locking it twice from the same thread deadlocks
-        // the main thread (and starves the display link render tick).
         if viewportAvailable {
             publishCameraOrientation()
         }
     }
-
-    // MARK: Selection
 
     private func publishSelection() {
 
@@ -1633,8 +1500,6 @@ final class MirGLCustomView: NSView {
 
         onSelectionChanged?(objectID)
     }
-
-    // MARK: Radial Menu
 
     private func scheduleRadialMenu(
         at point: NSPoint,
@@ -1818,8 +1683,6 @@ final class MirGLCustomView: NSView {
         )
     }
 
-    // MARK: Keyboard
-
     override func keyDown(
         with event: NSEvent
     ) {
@@ -1911,16 +1774,10 @@ final class MirGLCustomView: NSView {
         super.keyUp(with: event)
     }
 
-    // MARK: Deinit
-
     deinit {
-        // ТЗ §37: диагностика жизненного цикла. Полная очистка (DisplayLink,
-        // observers, engine) выполняется в viewDidMoveToWindow(window == nil)
-        // на MainActor — deinit не должен обращаться к MainActor-свойствам.
+
         MIR4DLog("LIFECYCLE", "MirGLCustomView deinit")
     }
-
-    // MARK: Mouse
 
     override func mouseDown(
         with event: NSEvent
@@ -2044,8 +1901,6 @@ final class MirGLCustomView: NSView {
         publishCameraOrientation()
     }
 
-    // MARK: Hover
-
     override func updateTrackingAreas() {
 
         super.updateTrackingAreas()
@@ -2102,7 +1957,6 @@ final class MirGLCustomView: NSView {
             point.1
         )
 
-        // Передаём курсор в renderer для подсветки плоскости под указателем.
         let scale = backingScale()
         let w = bounds.width * scale
         let h = bounds.height * scale
@@ -2243,8 +2097,6 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // Mouse wheel keeps its zoom behavior, anchored at the cursor pixel
-        // (industrial zoom-to-cursor).
         let localPoint =
             convert(
                 event.locationInWindow,
@@ -2262,10 +2114,6 @@ final class MirGLCustomView: NSView {
         )
     }
 
-    /// Blender-style trackpad scheme:
-    /// - two fingers drag — orbit (configurable: pan / zoom)
-    /// - Shift + two fingers — pan
-    /// - Control + two fingers — zoom
     private func handleTrackpadScroll(
         _ event: NSEvent,
         viewport: UnsafeMutableRawPointer
@@ -2294,7 +2142,6 @@ final class MirGLCustomView: NSView {
 
         if flags.contains(.control) {
 
-            // Control + two fingers — zoom, wheel-like, anchored at the cursor.
             let zoom =
                 rawDY * Float(settings.zoomSensitivity)
                 * (settings.invertZoom ? -1 : 1)
@@ -2311,7 +2158,6 @@ final class MirGLCustomView: NSView {
 
         if flags.contains(.shift) {
 
-            // Shift + two fingers — pan.
             MirEngineViewportPan(
                 viewport,
                 rawDX,
@@ -2375,8 +2221,6 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // Trackpad pinch: spreading the fingers zooms in,
-        // pinching them together zooms out. Anchored at the cursor pixel.
         let localPoint =
             convert(
                 event.locationInWindow,
@@ -2394,9 +2238,6 @@ final class MirGLCustomView: NSView {
         )
     }
 
-    // MARK: Engine mouse forwarding
-
-    /// Esc handling: abort an active drag first, otherwise clear the selection.
     private func cancelDragOrClearSelection() {
 
         var objectID: UInt64 = 0
@@ -2417,7 +2258,6 @@ final class MirGLCustomView: NSView {
         }
     }
 
-    /// Delete / Backspace: remove the primary selection through MirEngine.
     private func deleteSelectedObject() {
 
         var objectID: UInt64 = 0
@@ -2434,7 +2274,6 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // Keep the persisted model (navigation tree) in sync with the scene.
         if objectID > 0 {
             MIR4DModelRuntime.shared.removeBody(
                 forViewportObjectID: objectID
@@ -2444,7 +2283,6 @@ final class MirGLCustomView: NSView {
         onSelectionChanged?(0)
     }
 
-    /// Cmd+Z (undo) / Cmd+Shift+Z (redo) of scene commands.
     private func undoOrRedo(isShift: Bool) {
 
         var applied = false
@@ -2461,8 +2299,6 @@ final class MirGLCustomView: NSView {
             return
         }
 
-        // The scene may have changed identity; drop the stale selection so
-        // the UI (properties panel) reflects the reverted state.
         onSelectionChanged?(0)
     }
 
@@ -2555,8 +2391,6 @@ final class MirGLCustomView: NSView {
         )
     }
 }
-
-// MARK: - SwiftUI bridge
 
 struct MirGLView: NSViewRepresentable {
 

@@ -1,6 +1,3 @@
-// MirUI/Widgets/PropertyGrid/PropertyGrid.hpp
-// Виджет «Панель свойств» (PropertyGrid).
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -77,4 +74,4 @@ private:
     std::vector<Property> m_properties;
 };
 
-} // namespace MirUI
+}

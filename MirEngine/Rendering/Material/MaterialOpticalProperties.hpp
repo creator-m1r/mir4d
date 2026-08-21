@@ -17,8 +17,7 @@ struct RGB
 
 struct MaterialOpticalProperties
 {
-    // Base reflectance in linear RGB. This is not a texture: it describes
-    // how the material responds to incident light.
+
     RGB reflectance{0.7F, 0.7F, 0.7F};
 
     float metallic{0.0F};
@@ -48,4 +47,4 @@ struct MaterialOpticalProperties
     }
 };
 
-} // namespace mir
+}

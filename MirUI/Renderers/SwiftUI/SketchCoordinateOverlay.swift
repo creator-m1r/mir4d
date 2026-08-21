@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Visual-only coordinate overlay for Sketch mode.
-/// Model coordinates remain owned by MirEngine; this layer only presents the UI state.
 struct SketchCoordinateOverlay: View {
     let cursor: CGPoint
     let size: CGSize

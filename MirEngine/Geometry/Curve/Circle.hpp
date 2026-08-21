@@ -92,4 +92,4 @@ protected:
     Vector3 basisV_{Vector3::unitY()};
 };
 
-} // namespace mir
+}

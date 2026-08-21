@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Presentation-only navigation state for the sketch viewport.
-/// The sketch model remains independent from camera/pan/zoom state.
 @MainActor
 final class SketchViewportNavigation: ObservableObject {
     @Published var zoom: CGFloat = 1.0

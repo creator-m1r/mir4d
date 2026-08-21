@@ -1,23 +1,3 @@
-// MirUI/Widgets/Slider/Slider.hpp
-// 🎚️ Виджет «Ползунок» (Slider) — выбор числа в заданном диапазоне.
-//
-// Slider отображает горизонтальную дорожку, по которой можно двигать «бегунок».
-// Пользователь тянет бегунок мышкой, и значение меняется плавно или с шагом.
-// Это идеальный виджет для настройки громкости, яркости, размера, скорости...
-//
-// Основные свойства:
-//   • value       — текущее значение (double).
-//   • minValue    — минимальное возможное значение.
-//   • maxValue    — максимальное возможное значение.
-//   • step        — шаг изменения (0 = любое значение).
-//   • enabled     — можно ли двигать ползунок.
-//   • orientation — направление: "horizontal" или "vertical".
-//
-// Как и все виджеты MirUI, Slider — чистое C++ описание.
-// SwiftUI/WinUI адаптеры читают свойства и создают нативные элементы:
-// Slider в SwiftUI, Slider в WinUI.
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -29,9 +9,9 @@ namespace MirUI {
 
 class Slider : public Widget {
 public:
-    // ── Конструктор ──────────────────────────────────────────
+
     explicit Slider(double minValue = 0.0, double maxValue = 100.0, double initialValue = 50.0)
-        : Widget(WidgetType::Slider)  // тип должен быть добавлен в WidgetType.hpp
+        : Widget(WidgetType::Slider)
     {
         setProperty("value", StateValue(initialValue));
         setProperty("minValue", StateValue(minValue));
@@ -39,18 +19,17 @@ public:
         setProperty("step", StateValue(0.0));
         setProperty("enabled", StateValue(true));
         setProperty("orientation", StateValue(std::string("horizontal")));
-        // Ползунок обычно растягивается по ширине и имеет фиксированную высоту.
+
         setLayoutData(LayoutData::fixed(200, 20));
     }
 
-    // ── Значение ─────────────────────────────────────────────
     void setValue(double value) {
         double minVal = getMinValue();
         double maxVal = getMaxValue();
         value = std::clamp(value, minVal, maxVal);
         double st = getStep();
         if (st > 0.0) {
-            // Приводим к ближайшему шагу.
+
             value = minVal + std::round((value - minVal) / st) * st;
         }
         setProperty("value", StateValue(value));
@@ -64,10 +43,9 @@ public:
         return 0.0;
     }
 
-    // ── Минимальное значение ─────────────────────────────────
     void setMinValue(double minValue) {
         setProperty("minValue", StateValue(minValue));
-        // Убедимся, что текущее значение не вышло за границы.
+
         if (getValue() < minValue) setValue(minValue);
     }
 
@@ -79,7 +57,6 @@ public:
         return 0.0;
     }
 
-    // ── Максимальное значение ────────────────────────────────
     void setMaxValue(double maxValue) {
         setProperty("maxValue", StateValue(maxValue));
         if (getValue() > maxValue) setValue(maxValue);
@@ -93,7 +70,6 @@ public:
         return 100.0;
     }
 
-    // ── Шаг ──────────────────────────────────────────────────
     void setStep(double step) {
         setProperty("step", StateValue(step));
     }
@@ -106,7 +82,6 @@ public:
         return 0.0;
     }
 
-    // ── Ориентация ───────────────────────────────────────────
     void setOrientation(const std::string& orientation) {
         setProperty("orientation", StateValue(orientation));
     }
@@ -119,7 +94,6 @@ public:
         return "horizontal";
     }
 
-    // ── Универсальный доступ к свойствам ─────────────────────
     bool setProperty(const std::string& name, const StateValue& value) override {
         if (name == "value" && std::holds_alternative<double>(value)) {
             double v = std::get<double>(value);
@@ -129,7 +103,7 @@ public:
         }
         if (name == "minValue" && std::holds_alternative<double>(value)) {
             m_properties[name] = value;
-            // Проверяем текущее значение.
+
             if (getValue() < std::get<double>(value)) setValue(std::get<double>(value));
             return true;
         }
@@ -159,4 +133,4 @@ public:
     }
 };
 
-} // namespace MirUI
+}

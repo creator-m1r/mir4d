@@ -1,8 +1,6 @@
 import SwiftUI
 import MirUIHandGesture
 
-/// Debug / assist toggle for the separate hand-skeleton 3D visualization mode.
-/// По умолчанию выключен; не влияет на CAD-геометрию и History.
 struct MIRHandSkeletonModeControl: View {
     @State private var mode: MIRHandSkeletonVisMode = .off
 

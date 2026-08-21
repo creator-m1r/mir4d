@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Fast interactive sketch workspace.
-/// Geometry remains UI-preview data until committed through the engine command bridge.
 struct SketchWorkspaceView: View {
     @State private var activeTool: SketchTool = .select
     @State private var showGrid = true
@@ -350,7 +348,7 @@ struct SketchWorkspaceView: View {
     }
 
     private var closedProfileCount: Int {
-        // Lightweight UI estimate; authoritative topology belongs to MirEngine.
+
         segments.count >= 4 && segments.count % 4 == 0 ? segments.count / 4 : 0
     }
 }

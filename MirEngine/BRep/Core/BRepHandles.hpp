@@ -1,8 +1,5 @@
 #pragma once
 
-// MirEngine/BRep/Core/BRepHandles.hpp
-// Type-safe non-owning handles for topology and geometry records.
-
 #include "MirEngine/BRep/Topology/BRepTypes.hpp"
 
 #include <functional>
@@ -218,7 +215,7 @@ struct BRepOrientedFace
     }
 };
 
-} // namespace mir
+}
 
 namespace std
 {
@@ -259,4 +256,4 @@ struct hash<mir::BRepPointHandle>
     }
 };
 
-} // namespace std
+}

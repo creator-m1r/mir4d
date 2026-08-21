@@ -1,11 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// MIR 4D start experience.
-///
-/// The launch screen is deliberately a thin coordinator. Presentation is owned
-/// by MIR4DProjectWindowHub / MIR4DProjectWindowHost while project operations
-/// remain owned by MIR4DProjectCommands and MIR4DProjectSession.
 struct MIR4DLaunchProjectSelectionView: View {
     @EnvironmentObject private var appState: CADAppState
     @Binding var isLeaving: Bool
@@ -37,6 +32,7 @@ struct MIR4DLaunchProjectSelectionView: View {
         GeometryReader { proxy in
             ZStack {
                 startupBackground
+                    .opacity(isLeaving ? 0 : 1)
 
                 MIR4DProjectWindowHub(
                     recentProjects: recentProjects,

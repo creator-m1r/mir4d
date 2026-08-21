@@ -1,15 +1,8 @@
-// MirUI/Renderers/SwiftUI/CADAppState.swift
 
 import SwiftUI
 import Combine
 import AppKit
 
-// MARK: - MIR 4D Time Coordinator
-
-/// Coordinates presentation time for the 4D interface.
-///
-/// Engineering truth remains in MirEngine.
-/// This object only represents UI/runtime time state.
 @MainActor
 final class TimeCoordinator: ObservableObject {
     @Published private(set) var currentTime: Double = 0.0
@@ -94,8 +87,6 @@ final class TimeCoordinator: ObservableObject {
     }
 }
 
-// MARK: - Notifications
-
 enum NotificationType { case info, success, warning, error }
 
 struct CADNotification: Identifiable {
@@ -104,14 +95,6 @@ struct CADNotification: Identifiable {
     let type: NotificationType
 }
 
-// MARK: - CAD Application State
-
-/// MIR 4D UI state.
-///
-/// This is a projection of engine state plus presentation state.
-/// Engineering truth remains in MirEngine.
-/// Якорь эскиза: плоскость построения и её базис в мировых координатах.
-/// `id` совпадает с базовым id плоскости в MirEngine (1=XY, 2=YZ, 3=ZX).
 struct SketchPlaneAnchor: Identifiable, Equatable, Sendable {
     let id: UInt32
     let name: String
@@ -406,8 +389,6 @@ final class CADAppState: ObservableObject {
             return
         }
 
-        // C bridge returns a NUL-terminated UTF-8 buffer. `String(cString:)` is
-        // deprecated in modern Swift, so explicitly truncate at NUL and decode.
         let json = String(
             decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
             as: UTF8.self
@@ -545,8 +526,6 @@ final class CADAppState: ObservableObject {
         }
     }
 }
-
-// MARK: - Project Tree Node
 
 struct TreeNodeData: Identifiable {
     let id: UUID

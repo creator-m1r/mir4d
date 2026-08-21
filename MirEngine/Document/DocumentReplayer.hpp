@@ -8,10 +8,6 @@
 namespace mir
 {
 
-/// Rebuilds the logical document timeline by replaying commands in order.
-///
-/// Geometry-specific command handlers are intentionally supplied by the next
-/// layer. This class currently provides deterministic timeline traversal.
 class DocumentReplayer
 {
 public:
@@ -34,4 +30,4 @@ private:
     const CommandExecutor& executor_;
 };
 
-} // namespace mir
+}

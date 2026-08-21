@@ -1,8 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// Runtime context of the radial menu. It follows the existing CAD event bus
-/// and never owns engineering state.
 @MainActor
 final class RadialMenuContextStore: ObservableObject {
     static let shared = RadialMenuContextStore()
@@ -46,10 +44,6 @@ final class RadialMenuContextStore: ObservableObject {
         applyVisibleContext()
     }
 
-    /// Projects the user's stable menu into a transient contextual hierarchy.
-    /// The settings store is never mutated by context calculation. This is
-    /// important for iPad touch input: opening the radial menu must be a pure
-    /// read of the current context and must not alter saved preferences.
     private func applyVisibleContext() {
         let settings = RadialMenuSettingsStore.shared.settings
         visiblePanels = RadialMenuContextLayout.panels(
@@ -66,7 +60,7 @@ final class RadialMenuContextStore: ObservableObject {
 }
 
 enum RadialMenuContextLayout {
-    /// Builds a transient visible hierarchy without mutating the stable menu source.
+
     static func panels(settings: RadialMenuSettings, basePanels: [RadialMenuPanel]? = nil, context: RadialMenuContextSnapshot) -> [RadialMenuPanel] {
         let base = (basePanels ?? settings.panels).filter(\.enabled)
         guard !base.isEmpty else { return [] }

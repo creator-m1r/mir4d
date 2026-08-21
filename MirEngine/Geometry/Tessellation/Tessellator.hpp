@@ -8,7 +8,6 @@
 namespace mir
 {
 
-/// Converts the explicit triangular boundary representation into a render mesh.
 class Tessellator3
 {
 public:
@@ -43,4 +42,4 @@ public:
     }
 };
 
-} // namespace mir
+}

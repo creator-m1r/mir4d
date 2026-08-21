@@ -32,4 +32,4 @@ private:
     std::unordered_map<std::string, SimulationMaterial> materials_{};
 };
 
-} // namespace mir
+}

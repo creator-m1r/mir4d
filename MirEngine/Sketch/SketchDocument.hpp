@@ -29,11 +29,6 @@ public:
         name_ = std::move(name);
     }
 
-    // ── Plane anchoring (ТЗ раздел 25) ──────────────────────────────────────
-    // Эскиз существует в локальной системе координат конкретной плоскости.
-    // localTransform_ фиксирует basis плоскости (xAxis, yAxis, normal, origin)
-    // на момент создания/открытия эскиза, поэтому эскиз остаётся привязанным
-    // к плоскости даже при последующем её перемещении (перестройка — отдельно).
     [[nodiscard]] std::uint32_t planeId() const noexcept { return planeId_; }
     void setPlane(std::uint32_t id, const Matrix4& localTransform) noexcept
     {
@@ -41,14 +36,12 @@ public:
         localTransform_ = localTransform;
     }
 
-    /// Локальная точка эскиза (lx, ly, 0) → мировая.
     [[nodiscard]] Point3 toWorld(double lx, double ly) const noexcept
     {
         const Vector3 world = localTransform_.transformPoint(Vector3{lx, ly, 0.0});
         return Point3{world.x, world.y, world.z};
     }
 
-    /// Мировая точка → локальные (lx, ly). Проекция на плоскость.
     void toLocal(const Point3& world, double& lx, double& ly) const noexcept
     {
         const Vector3 xAxis{localTransform_(0, 0), localTransform_(1, 0), localTransform_(2, 0)};
@@ -93,4 +86,4 @@ private:
     SketchConstraintStore constraints_;
 };
 
-} // namespace mir
+}

@@ -1,33 +1,3 @@
-// MirUI/Schema/PropertySchema.hpp
-// 🧾 Схема свойств MirUI — центральный реестр всех стандартных свойств виджетов.
-//
-// Когда инспектор свойств (PropertyGrid / InspectorModel) сталкивается с
-// незнакомым виджетом, он не знает, какие именно свойства у этого виджета есть
-// и как их редактировать. PropertySchema решает эту проблему:
-// здесь в одном месте описаны ВСЕ встроенные свойства, которые могут встречаться
-// в любых виджетах MirUI: их идентификаторы, типы данных, категории, названия,
-// значения по умолчанию и возможные значения для перечислений.
-//
-// Благодаря этому:
-//   • InspectorModel может автоматически построить список свойств для любого
-//     виджета, просто сопоставив фактические свойства виджета с записями в схеме.
-//   • PropertyEditor понимает, какой тип редактора (строка, число, цвет, шрифт,
-//     перечисление) нужно показать для каждого свойства.
-//   • Рендереры (SwiftUI, WinUI) могут использовать схему для документации и
-//     автоматической генерации кода.
-//   • Дизайнер (Designer) может показывать осмысленные названия на русском языке
-//     вместо технических идентификаторов.
-//
-// Каждая запись (PropertyDescriptor) содержит:
-//   • id          — строковый идентификатор свойства (например, "text", "width")
-//   • type        — ожидаемый тип значения (String, Integer, Float, Boolean, Color, Font, Enum…)
-//   • category    — категория для группировки в инспекторе ("Основные", "Геометрия", "Стиль")
-//   • name        — короткое имя на русском (например, "Текст", "Ширина")
-//   • description — подробное описание (тултип)
-//   • defaultValue — значение по умолчанию (если свойство не задано у виджета)
-//   • enumValues  — список допустимых значений, если тип — Enum (пустой для остальных)
-//
-// Чистый C++23, без платформенных зависимостей.
 
 #pragma once
 
@@ -39,40 +9,35 @@
 
 namespace MirUI {
 
-// ── Типы данных, используемых в свойствах ──────────────────
 enum class PropertyValueType {
     String,
     Integer,
     Float,
     Boolean,
-    Color,      // хранится как строка "#RRGGBBAA"
-    Font,       // хранится как строка "family;size;weight;style"
-    Enum,       // строковое значение из фиксированного списка
-    Size,       // в будущем: составной тип (ширина, высота, единицы)
-    Rect        // в будущем: составной тип (x, y, width, height)
+    Color,
+    Font,
+    Enum,
+    Size,
+    Rect
 };
 
-// ── Дескриптор одного стандартного свойства ────────────────
 struct PropertyDescriptor {
-    std::string id;              // уникальный идентификатор (например, "text", "width")
-    PropertyValueType type;      // ожидаемый тип значения
-    std::string category;        // категория ("Основные", "Геометрия", "Стиль", "Поведение")
-    std::string name;            // отображаемое имя на русском ("Текст", "Ширина")
-    std::string description;     // подробное описание для тултипа
-    StateValue defaultValue;     // значение по умолчанию (если не задано)
-    std::vector<std::string> enumValues; // возможные значения для Enum (пустой для других типов)
+    std::string id;
+    PropertyValueType type;
+    std::string category;
+    std::string name;
+    std::string description;
+    StateValue defaultValue;
+    std::vector<std::string> enumValues;
 };
 
-// ── Схема (реестр) свойств ─────────────────────────────────
 class PropertySchema {
 public:
-    // Получить полный список всех зарегистрированных свойств.
+
     [[nodiscard]] static const std::vector<PropertyDescriptor>& allProperties() {
         return properties();
     }
 
-    // Найти дескриптор свойства по его идентификатору.
-    // Возвращает указатель на дескриптор или nullptr, если свойство не найдено.
     [[nodiscard]] static const PropertyDescriptor* find(const std::string& id) {
         auto& props = properties();
         auto it = std::find_if(props.begin(), props.end(),
@@ -80,7 +45,6 @@ public:
         return (it != props.end()) ? &(*it) : nullptr;
     }
 
-    // Найти все свойства из заданной категории.
     [[nodiscard]] static std::vector<const PropertyDescriptor*> findByCategory(const std::string& category) {
         std::vector<const PropertyDescriptor*> result;
         for (const auto& desc : properties()) {
@@ -91,7 +55,6 @@ public:
         return result;
     }
 
-    // Получить список всех уникальных категорий свойств.
     [[nodiscard]] static std::vector<std::string> allCategories() {
         std::vector<std::string> categories;
         for (const auto& desc : properties()) {
@@ -102,7 +65,6 @@ public:
         return categories;
     }
 
-    // Получить значение по умолчанию для заданного свойства.
     [[nodiscard]] static std::optional<StateValue> defaultValue(const std::string& id) {
         auto desc = find(id);
         if (desc) {
@@ -112,10 +74,10 @@ public:
     }
 
 private:
-    // Статический реестр всех встроенных свойств.
+
     static std::vector<PropertyDescriptor>& properties() {
         static std::vector<PropertyDescriptor> s_properties = {
-            // ── Основные ──────────────────────────────────────
+
             {
                 "name",
                 PropertyValueType::String,
@@ -153,7 +115,6 @@ private:
                 {}
             },
 
-            // ── Геометрия ─────────────────────────────────────
             {
                 "width",
                 PropertyValueType::Float,
@@ -218,7 +179,6 @@ private:
                 {"Left", "Center", "Right"}
             },
 
-            // ── Стиль ─────────────────────────────────────────
             {
                 "color",
                 PropertyValueType::Color,
@@ -234,7 +194,7 @@ private:
                 "Стиль",
                 "Шрифт",
                 "Шрифт, используемый для отображения текста",
-                StateValue(std::string("System;14;400;0")), // family;size;weight;style
+                StateValue(std::string("System;14;400;0")),
                 {}
             },
             {
@@ -274,7 +234,6 @@ private:
                 {}
             },
 
-            // ── Поведение ─────────────────────────────────────
             {
                 "command",
                 PropertyValueType::String,
@@ -298,4 +257,4 @@ private:
     }
 };
 
-} // namespace MirUI
+}

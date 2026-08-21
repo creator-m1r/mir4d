@@ -1,15 +1,3 @@
-// MirEngine/Planes/PlaneFactory.hpp
-// =================================================================================
-// Фабрика рабочих плоскостей (ТЗ раздел 3).
-//
-// Создаёт базовые координатные плоскости и пользовательские плоскости:
-//   - по смещению (параллельно родителю);
-//   - по трём точкам;
-//   - под углом к родителю вокруг заданной оси.
-//
-// Фабрика не владеет плоскостями — она возвращает std::shared_ptr<Plane>,
-// владение передаётся PlaneStore / документу.
-// =================================================================================
 
 #pragma once
 
@@ -26,8 +14,6 @@ class PlaneFactory
 public:
     PlaneFactory() = delete;
 
-    /// Системные координатные плоскости. Возвращают готовые объекты с
-    /// фиксированными идентификаторами (kBasePlaneXY/XZ/YZ).
     static std::shared_ptr<Plane> createBaseXY()
     {
         auto p = std::make_shared<Plane>("XY Plane", PlaneType::BaseXY,
@@ -58,8 +44,6 @@ public:
         return p;
     }
 
-    /// Плоскость со смещением: параллельна родителю, сдвинута на offset
-    /// вдоль нормали родителя (ТЗ раздел 3.3).
     static std::shared_ptr<Plane> createOffset(const Plane& parent,
                                                double offset,
                                                std::uint32_t id = 0,
@@ -77,7 +61,6 @@ public:
         return p;
     }
 
-    /// Плоскость по трём точкам (ТЗ раздел 3.2).
     static std::shared_ptr<Plane> createThreePoint(const Point3& p1,
                                                    const Point3& p2,
                                                    const Point3& p3,
@@ -98,8 +81,6 @@ public:
         return p;
     }
 
-    /// Плоскость под углом: базис родителя повёрнут вокруг оси axis
-    /// на angleDeg (ТЗ раздел 3.4). Ось нормализуется.
     static std::shared_ptr<Plane> createAngle(const Plane& parent,
                                               const Vector3& axis,
                                               double angleDeg,
@@ -130,4 +111,4 @@ public:
     }
 };
 
-} // namespace mir
+}

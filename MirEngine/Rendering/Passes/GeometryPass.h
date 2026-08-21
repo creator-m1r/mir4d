@@ -21,24 +21,6 @@ class RenderContext;
 class VertexArray;
 class Shader;
 
-/// Canonical scene geometry pass.
-///
-/// Consumes the canonical mir::Scene and materializes GPU resources keyed by
-/// the canonical mir4d::ObjectId. Mesh uploads are cached against the scene
-/// content revision, so unchanged scenes are drawn without re-upload.
-///
-/// Rendering is camera-relative: model translations are shifted by the camera
-/// position in double precision on the CPU and the view matrix keeps only its
-/// rotation, so huge world coordinates never reach the GPU.
-///
-/// Selection highlight:
-///   - objects present in the RenderContext selection set get a CAD-style
-///     selection tint;
-///   - when the context carries a source face id (selectionFaceId), only the
-///     triangles of that face are tinted instead of the whole object
-///     (drawn as an overlay pass with depth func LessEqual);
-///   - the object under the cursor (RenderContext hoverObjectId) gets a
-///     subtler hover tint unless it is already selected.
 class GeometryPass final : public RenderPass
 {
 public:
@@ -51,7 +33,6 @@ public:
 
     void invalidateSceneCache() noexcept;
 
-    /// Assigns a MaterialLibrary material to an object (default: Engineering Steel).
     void setObjectMaterial(mir4d::ObjectId objectId, MaterialId materialId) noexcept
     {
         m_objectMaterials[objectId] = materialId;
@@ -70,7 +51,6 @@ private:
     const mir::Scene* m_cachedScene{nullptr};
     std::uint64_t m_cachedRevision{0};
 
-    // Face-level highlight cache (rebuilt when the selection face changes).
     std::shared_ptr<VertexArray> m_highlightVAO;
     mir4d::ObjectId m_highlightObject{mir4d::InvalidObjectId};
     std::uint64_t m_highlightFace{0};
@@ -94,9 +74,6 @@ private:
     [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
                                                     const double cameraPos[3]) noexcept;
 
-    /// Compatibility overload for RenderContext's float camera position.
-    /// Conversion to double happens before subtracting the world-space camera
-    /// position, preserving the double-precision camera-relative calculation.
     [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
                                                     const float cameraPos[3]) noexcept
     {
@@ -109,4 +86,4 @@ private:
     }
 };
 
-} // namespace MirEngine::Rendering
+}

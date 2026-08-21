@@ -252,10 +252,6 @@ struct CADMainView: View {
     private enum ResizeEdge: Hashable { case left, right, bottom }
 }
 
-// MARK: - Viewport bridge
-
-/// SwiftUI wrapper around the MirGLCustomView OpenGL viewport.
-/// Camera and selection are forwarded through the CADAppState callbacks.
 struct ViewportRepresentable: NSViewRepresentable {
     var appState: CADAppState
     var onSelectionChanged: (UInt64) -> Void

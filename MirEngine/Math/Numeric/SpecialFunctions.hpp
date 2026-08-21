@@ -1,11 +1,3 @@
-// MirEngine/Math/Numeric/SpecialFunctions.hpp
-// 🧮 Специальные функции: функции Бесселя Jₙ/Yₙ и Бета-функция.
-//
-// J₀, J₁, Y₀, Y₁ — рациональные аппроксимации (по Numerical Recipes,
-// точность ~1e-7). Общий целый порядок n — устойчивыми рекуррентными
-// схемами (вверх для x>n, вниз по Миллеру для x≤n).
-//
-// Чистый C++23, без внешних зависимостей.
 
 #pragma once
 
@@ -19,7 +11,6 @@
 namespace mir::math
 {
 
-/// J₀(x) — функция Бесселя первого рода нулевого порядка.
 [[nodiscard]] inline Scalar besselJ0(Scalar x)
 {
     if (x == Scalar(0))
@@ -44,7 +35,6 @@ namespace mir::math
     return std::sqrt(Scalar(0.636619772) / ax) * (std::cos(xx) * a1 - z * std::sin(xx) * a2);
 }
 
-/// J₁(x) — функция Бесселя первого рода первого порядка.
 [[nodiscard]] inline Scalar besselJ1(Scalar x)
 {
     if (x == Scalar(0))
@@ -71,7 +61,6 @@ namespace mir::math
     return (x < Scalar(0)) ? -ans : ans;
 }
 
-/// Jₙ(x) — функция Бесселя первого рода целого порядка n ≥ 0.
 [[nodiscard]] inline Scalar besselJ(int n, Scalar x)
 {
     if (n < 0)
@@ -99,7 +88,6 @@ namespace mir::math
         return (x < Scalar(0) && (n % 2 != 0)) ? -bj : bj;
     }
 
-    // Вниз по Миллеру (устойчиво при x ≤ n).
     const Scalar tox = Scalar(2) / ax;
     const int m = 2 * (n + static_cast<int>(std::sqrt(Scalar(40) * static_cast<Scalar>(n))) / 2);
     Scalar bjp = Scalar(0);
@@ -123,7 +111,6 @@ namespace mir::math
     return (x < Scalar(0) && (n % 2 != 0)) ? -ans : ans;
 }
 
-/// Y₀(x) — функция Бесселя второго рода (Неймана) нулевого порядка.
 [[nodiscard]] inline Scalar besselY0(Scalar x)
 {
     const Scalar ax = std::abs(x);
@@ -146,16 +133,13 @@ namespace mir::math
     return std::sqrt(Scalar(0.636619772) / ax) * (std::sin(xx) * a1 + z * std::cos(xx) * a2);
 }
 
-/// Y₁(x) — функция Бесселя второго рода первого порядка.
-/// Вычисляется точным тождеством Вронского J₁·Y₀ − J₀·Y₁ = 2/(π·x),
-/// опираясь на уже точные besselJ0/besselJ1/besselY0.
 [[nodiscard]] inline Scalar besselY1(Scalar x)
 {
     const Scalar ax = std::abs(x);
     if (ax == Scalar(0))
         return (x == Scalar(0)) ? -std::numeric_limits<Scalar>::infinity() : std::numeric_limits<Scalar>::infinity();
     const Scalar j0 = besselJ0(ax);
-    // Y₁ = (J₁·Y₀ − 2/(πx)) / J₀  (при малых |J₀| — асимптотика x>8).
+
     if (std::abs(j0) < Scalar(1e-4) && ax > Scalar(8))
     {
         const Scalar z = Scalar(8) / ax;
@@ -171,7 +155,6 @@ namespace mir::math
     return (x < Scalar(0)) ? -y1 : y1;
 }
 
-/// Yₙ(x) — функция Бесселя второго рода целого порядка n ≥ 0.
 [[nodiscard]] inline Scalar besselY(int n, Scalar x)
 {
     if (n < 0)
@@ -193,7 +176,6 @@ namespace mir::math
     return bj;
 }
 
-/// I₀(x) — модифицированная функция Бесселя первого рода нулевого порядка.
 [[nodiscard]] inline Scalar besselI0(Scalar x)
 {
     const Scalar ax = std::abs(x);
@@ -209,7 +191,6 @@ namespace mir::math
         y * (Scalar(-0.02057706) + y * Scalar(0.00936543)))))));
 }
 
-/// I₁(x) — модифицированная функция Бесселя первого рода первого порядка.
 [[nodiscard]] inline Scalar besselI1(Scalar x)
 {
     const Scalar ax = std::abs(x);
@@ -227,7 +208,6 @@ namespace mir::math
     return (x < Scalar(0)) ? -ans : ans;
 }
 
-/// Iₙ(x) — модифицированная функция Бесселя первого рода целого порядка n ≥ 0.
 [[nodiscard]] inline Scalar besselI(int n, Scalar x)
 {
     if (n < 0)
@@ -277,9 +257,7 @@ namespace mir::math
 
 namespace detail
 {
-/// K_μ(x) = ∫₀^∞ e^{−x·cosh t}·cosh(μ·t) dt  (численное интегрирование,
-/// устойчиво для 0 < x ≤ 2). Используется как эталонная реализация K₀/K₁,
-/// поскольку замкнутые ряды вблизи x≈2 нестабильны.
+
 [[nodiscard]] inline Scalar besselKint(int mu, Scalar x)
 {
     const Scalar tmax = std::max(std::log(Scalar(80) / x) + Scalar(2), Scalar(8));
@@ -289,10 +267,8 @@ namespace detail
         sum += std::exp(-x * std::cosh(t)) * std::cosh(static_cast<Scalar>(mu) * t) * dt;
     return sum;
 }
-} // namespace detail
+}
 
-/// K₀(x) — модифицированная функция Бесселя второго рода нулевого порядка.
-/// Для x ≥ 2 — асимптотика (точность ~1e-7); для 0 < x < 2 — интегрирование.
 [[nodiscard]] inline Scalar besselK0(Scalar x)
 {
     if (x == Scalar(0))
@@ -308,7 +284,6 @@ namespace detail
     return detail::besselKint(0, x);
 }
 
-/// K₁(x) — модифицированная функция Бесселя второго рода первого порядка.
 [[nodiscard]] inline Scalar besselK1(Scalar x)
 {
     if (x == Scalar(0))
@@ -324,7 +299,6 @@ namespace detail
     return detail::besselKint(1, x);
 }
 
-/// Kₙ(x) — модифицированная функция Бесселя второго рода целого порядка n ≥ 0.
 [[nodiscard]] inline Scalar besselK(int n, Scalar x)
 {
     if (n < 0)
@@ -345,10 +319,9 @@ namespace detail
     return bk;
 }
 
-/// Бета-функция B(a, b) = Γ(a)·Γ(b) / Γ(a+b).
 [[nodiscard]] inline Scalar betaFunction(Scalar a, Scalar b)
 {
     return std::exp(logGamma(a) + logGamma(b) - logGamma(a + b));
 }
 
-} // namespace mir::math
+}

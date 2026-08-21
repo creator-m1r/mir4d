@@ -19,8 +19,6 @@ struct SketchExtrudeParameters
     bool symmetric{false};
 };
 
-/// Converts a validated planar profile into a mathematical extrusion result.
-/// This layer intentionally does not construct a render mesh or B-Rep.
 class SketchExtrudeBuilder
 {
 public:
@@ -35,16 +33,10 @@ public:
         if (!direction)
             return std::nullopt;
 
-        // The topology layer currently stores loop IDs. Exact 2D curve
-        // tessellation belongs to the downstream geometry kernel. Therefore
-        // this builder returns a valid feature shell descriptor only when
-        // a concrete planar realization is supplied by that kernel.
         SketchExtrudeResult result;
         result.valid = true;
         result.vertices.reserve(profile.regions.size() * 2);
 
-        // Two representative section origins make the extrusion state
-        // explicit without inventing polygon vertices from topology IDs.
         const double half = parameters.symmetric ? parameters.distance * 0.5 : 0.0;
         result.vertices.push_back({0.0, 0.0, -half});
         result.vertices.push_back({0.0, 0.0,
@@ -76,4 +68,4 @@ private:
     }
 };
 
-} // namespace mir
+}

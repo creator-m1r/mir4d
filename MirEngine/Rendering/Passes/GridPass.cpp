@@ -1,12 +1,3 @@
-// MirEngine/Rendering/Passes/GridPass.cpp
-// =================================================================================
-// Процедурная инженерная сетка рабочей плоскости.
-//
-// Сетка рисуется как один full-screen треугольник; фрагментный шейдер
-// восстанавливает мировую точку на плоскости для каждого пикселя и рисует
-// анти-алиасинговые линии (minor/major) плюс две оси плоскости. Никаких
-// ежекадровых загрузок вершинных буферов не производится.
-// =================================================================================
 
 #include "GridPass.h"
 
@@ -165,9 +156,6 @@ void main()
 }
 )GLSL";
 
-// World-space axis gizmo drawn as GL_LINES. Positions are transformed by the
-// inverse view-projection; colors ride in the vertex normal slot (location 1)
-// so the existing VertexArray attribute layout can be reused unchanged.
 constexpr char kAxisVertSrc[] = R"GLSL(
 #version 410 core
 layout(location = 0) in vec3 aPos;
@@ -210,10 +198,6 @@ Matrix4Raw matrixToRaw(const mir::Matrix4& m)
     return r;
 }
 
-// Агрегированный охват сцены: центр и радиус описывающей сферы самого
-// крупного объекта (по всем мешего-несущим узлам). Используется, чтобы
-// «туман сокрытия» сетки начинался за пределами геометрии, а не за
-// пределами плоскости отсечения камеры.
 void computeSceneExtent(mir::Scene& scene, float center[3], float& radius) noexcept
 {
     double minX = 0.0, maxX = 0.0, minY = 0.0, maxY = 0.0, minZ = 0.0, maxZ = 0.0;
@@ -267,7 +251,7 @@ void computeSceneExtent(mir::Scene& scene, float center[3], float& radius) noexc
     radius = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz));
 }
 
-} // namespace
+}
 
 GridPass::GridPass() = default;
 GridPass::~GridPass() = default;
@@ -299,7 +283,7 @@ bool GridPass::createShaders()
 
 void GridPass::buildBackground(RenderDevice& device)
 {
-    // Full-screen quad, static, built once.
+
     std::vector<Vertex> verts(6);
     verts[0].position = {-1.0f, -1.0f, 0.0f};
     verts[0].uv = {0.0f, 0.0f};
@@ -326,7 +310,7 @@ void GridPass::buildBackground(RenderDevice& device)
 
 void GridPass::buildGridQuad(RenderDevice& device)
 {
-    // Full-screen triangle (clip space). Only position is used by the shader.
+
     std::vector<Vertex> verts(3);
     verts[0].position = {-1.0f, -1.0f, 0.0f};
     verts[1].position = {3.0f, -1.0f, 0.0f};
@@ -344,21 +328,20 @@ void GridPass::buildGridQuad(RenderDevice& device)
 
 void GridPass::buildAxisGizmo(RenderDevice& device)
 {
-    // Origin gizmo: X (red), Y (green), Z (blue) as world-space lines.
-    // Colors are packed into the Vertex normal slot (location 1).
+
     const float len = 1.0f;
     std::vector<Vertex> verts(6);
-    // X
+
     verts[0].position = {0.0f, 0.0f, 0.0f};
     verts[0].normal = {0.90f, 0.22f, 0.18f};
     verts[1].position = {len, 0.0f, 0.0f};
     verts[1].normal = {0.90f, 0.22f, 0.18f};
-    // Y
+
     verts[2].position = {0.0f, 0.0f, 0.0f};
     verts[2].normal = {0.20f, 0.70f, 0.30f};
     verts[3].position = {0.0f, len, 0.0f};
     verts[3].normal = {0.20f, 0.70f, 0.30f};
-    // Z (vertical)
+
     verts[4].position = {0.0f, 0.0f, 0.0f};
     verts[4].normal = {0.22f, 0.34f, 0.95f};
     verts[5].position = {0.0f, 0.0f, len};
@@ -437,11 +420,8 @@ void GridPass::execute(RenderContext& context,
 {
     if (!m_initialized) return;
 
-    // Overlay geometry is double-sided: disable back-face culling for the
-    // full-screen background and grid passes.
     device.setCullFace(false);
 
-    // Background gradient (static, opaque, drawn first).
     device.setDepthTest(false);
     device.setBlend(false);
     m_bgShader->bind();
@@ -488,15 +468,13 @@ void GridPass::execute(RenderContext& context,
     float fade = 0.0f;
     if (m_fadeDistanceOverride > 0.0f)
     {
-        // Явное переопределение (например, из UI) имеет приоритет.
+
         fade = m_fadeDistanceOverride;
         fadeInner = 0.0f;
     }
     else
     {
-        // Сетка всегда рисуется дальше самого крупного объекта с запасом,
-        // а «туман сокрытия» плавно нарастает за его пределами. При пустой
-        // сцене — разумный минимум дальности.
+
         fadeInner = sceneRadius;
         fade = std::max(sceneRadius * 3.0f, 150.0f);
     }
@@ -534,8 +512,6 @@ void GridPass::execute(RenderContext& context,
 
     m_gridShader->unbind();
 
-    // World-space origin gizmo: X (red), Y (green) on the floor plane, Z (blue)
-    // vertical. Drawn depth-test-free so it stays readable behind geometry.
     if (m_showAxes && m_axisShader && m_axisVAO)
     {
         const float axisLen = static_cast<float>(
@@ -558,4 +534,4 @@ void GridPass::execute(RenderContext& context,
     device.setCullFace(true);
 }
 
-} // namespace MirEngine::Rendering
+}

@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Device-independent input contract for MIR 4D floating windows.
-/// Mouse, touch, trackpad and future hand tracking can feed this same model.
 struct MIR4DProjectWindowInput: Equatable {
     enum Phase: Equatable {
         case began

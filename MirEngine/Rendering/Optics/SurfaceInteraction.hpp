@@ -50,9 +50,6 @@ public:
             const float absorption = std::clamp(material.absorptionAt(channel), 0.0F, 1.0F);
             const float transmission = std::clamp(material.transmissionAt(channel), 0.0F, 1.0F);
 
-            // Schlick-style angular response. This is an inexpensive first
-            // approximation intended for the runtime path; a spectral/BRDF
-            // solver can replace it later without changing the material API.
             const float f0 = metallic * reflectance +
                 (1.0F - metallic) * dielectricReflectance(material.indexOfRefraction);
             const float viewFactor = std::clamp(
@@ -93,4 +90,4 @@ private:
     }
 };
 
-} // namespace mir
+}
