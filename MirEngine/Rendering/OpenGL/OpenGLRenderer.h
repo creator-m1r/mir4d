@@ -20,6 +20,8 @@
 namespace MirEngine::Rendering
 {
 
+class OpenGLVFXSink;
+
 /// OpenGL implementation of the Renderer contract.
 ///
 /// Owns the device, the shader library and the pass pipeline:
@@ -108,6 +110,7 @@ private:
     std::unique_ptr<PlanePass> m_planePass;
     std::unique_ptr<SketchPass> m_sketchPass;
     std::unique_ptr<HandSkeletonPass> m_handSkeletonPass;
+    std::unique_ptr<OpenGLVFXSink> m_vfxSink;
     std::vector<PlaneRenderData> m_planes;
     std::vector<SketchRenderData> m_sketches;
     float m_cursorNDC[2]{0.0f, 0.0f};

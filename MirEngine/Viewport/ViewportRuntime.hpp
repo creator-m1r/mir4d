@@ -314,21 +314,75 @@ public:
 
     /// Recomputes the hovered object from the cursor position.
     /// Hover is purely presentational: it never mutates selection.
+    ///
+    /// Stabilization:
+    ///  - throttle: the pick is only recomputed once the cursor has moved at
+    ///    least `kHoverThrottlePx` since the last pick (avoids recomputing on
+    ///    every mouse-moved pixel and reduces cost on dense meshes);
+    ///  - hysteresis: a switch to a *different* element is only committed once
+    ///    the cursor has moved at least `kHoverHysteresisPx` away from where the
+    ///    current hover was established, preventing flicker on face/edge borders.
     void updateHover(Scalar x, Scalar y) noexcept
     {
         if (!scene_)
         {
             state_.hoveredObjectId = mir4d::InvalidObjectId;
+            state_.hoveredKind = PickKind::Body;
+            state_.hoveredElementId = 0;
             return;
         }
+
+        constexpr Scalar kHoverThrottlePx = 1.0f;
+        constexpr Scalar kHoverHysteresisPx = 8.0f;
+
+        // Throttle: keep the current hover until the cursor moves enough.
+        if (state_.hoveredObjectId != mir4d::InvalidObjectId)
+        {
+            const Scalar dx = x - state_.lastHoverPickX;
+            const Scalar dy = y - state_.lastHoverPickY;
+            if (dx * dx + dy * dy < kHoverThrottlePx * kHoverThrottlePx)
+                return;
+        }
+        state_.lastHoverPickX = x;
+        state_.lastHoverPickY = y;
+
         const PickResult result = state_.pick(*scene_, x, y);
-        state_.hoveredObjectId =
-            result.hit() ? result.objectId : mir4d::InvalidObjectId;
+
+        if (!result.hit())
+        {
+            state_.hoveredObjectId = mir4d::InvalidObjectId;
+            state_.hoveredKind = PickKind::Body;
+            state_.hoveredElementId = 0;
+            return;
+        }
+
+        const bool changed =
+            result.objectId != state_.hoveredObjectId ||
+            result.kind != state_.hoveredKind ||
+            result.elementId != state_.hoveredElementId;
+
+        if (changed && state_.hoveredObjectId != mir4d::InvalidObjectId)
+        {
+            const Scalar dx = x - state_.lastHoverChangeX;
+            const Scalar dy = y - state_.lastHoverChangeY;
+            if (dx * dx + dy * dy < kHoverHysteresisPx * kHoverHysteresisPx)
+                return; // keep current hover until the cursor moves away
+        }
+
+        state_.hoveredObjectId = result.objectId;
+        state_.hoveredKind = result.kind;
+        state_.hoveredElementId = result.elementId;
+        state_.lastHoverChangeX = x;
+        state_.lastHoverChangeY = y;
     }
 
     void clearHover() noexcept
     {
         state_.hoveredObjectId = mir4d::InvalidObjectId;
+        state_.hoveredKind = PickKind::Body;
+        state_.hoveredElementId = 0;
+        state_.lastHoverChangeX = 0;
+        state_.lastHoverChangeY = 0;
     }
 
     [[nodiscard]] mir4d::ObjectId hoveredObjectId() const noexcept
@@ -341,6 +395,8 @@ public:
     void setHandHover(mir4d::ObjectId objectId) noexcept
     {
         state_.hoveredObjectId = objectId;
+        state_.hoveredKind = PickKind::Body;
+        state_.hoveredElementId = 0;
     }
 
     /// Pushes the transient hand-skeleton overlay data for the current frame
@@ -463,6 +519,11 @@ public:
                 static_cast<std::int32_t>(materialId));
     }
 
+    void setPickFilter(PickFilter filter) noexcept
+    {
+        state_.setPickFilter(filter);
+    }
+
     bool selectAt(Scalar x, Scalar y, bool additive = false) noexcept
     {
         const PickResult result = pick(x, y);
@@ -474,11 +535,9 @@ public:
         }
 
         if (additive)
-            state_.selection.toggle(result.objectId);
-        else if (result.faceId != 0)
-            state_.selection.selectFace(result.objectId, result.faceId);
+            state_.selection.toggleElement(result.kind, result.objectId, result.elementId);
         else
-            state_.selection.select(result.objectId, false);
+            state_.selection.selectElement(result.kind, result.objectId, result.elementId);
         return true;
     }
 
@@ -597,20 +656,45 @@ public:
                                   static_cast<float>(position.y),
                                   static_cast<float>(position.z));
 
-        // Selection highlight set for the geometry pass. When the primary
-        // selection carries a source face id, only that face is highlighted
-        // instead of the whole object.
-        if (state_.selection.faceId() != 0)
+        // Selection highlight set for the geometry pass. Sub-object selection
+        // (face / edge / vertex) highlights only that element; the whole object
+        // still receives a subtle selection tint.
+        const auto& sel = state_.selection;
+        const auto primaryId =
+            static_cast<std::uint64_t>(sel.primary());
+        if (sel.kind() == PickKind::Face && sel.elementId() != 0)
         {
-            context.setSelectionFace(static_cast<std::uint64_t>(state_.selection.primary()),
-                                     state_.selection.faceId());
+            context.setSelectionFace(primaryId, sel.elementId());
+        }
+        else if (sel.kind() == PickKind::Edge)
+        {
+            context.setSelection(&sel.ids());
+            context.setSelectionEdge(primaryId, sel.elementId());
+        }
+        else if (sel.kind() == PickKind::Vertex)
+        {
+            context.setSelection(&sel.ids());
+            context.setSelectionVertex(primaryId, sel.elementId());
         }
         else
         {
-            context.setSelection(&state_.selection.ids());
+            context.setSelection(&sel.ids());
         }
 
-        context.setHover(static_cast<std::uint64_t>(state_.hoveredObjectId));
+        if (state_.hoveredObjectId != mir4d::InvalidObjectId)
+        {
+            if (state_.hoveredKind == PickKind::Edge)
+                context.setHoverEdge(
+                    static_cast<std::uint64_t>(state_.hoveredObjectId),
+                    state_.hoveredElementId);
+            else if (state_.hoveredKind == PickKind::Vertex)
+                context.setHoverVertex(
+                    static_cast<std::uint64_t>(state_.hoveredObjectId),
+                    state_.hoveredElementId);
+            else
+                context.setHover(
+                    static_cast<std::uint64_t>(state_.hoveredObjectId));
+        }
 
         // Hand-skeleton overlay is a transient sensor view; copy it into the
         // per-frame context for the renderer's HandSkeletonPass.

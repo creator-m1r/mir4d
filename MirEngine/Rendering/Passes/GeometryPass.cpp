@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <algorithm>
 #include <iostream>
 #include <vector>
 
@@ -161,7 +162,10 @@ void GeometryPass::execute(RenderContext& context,mir::Scene& scene,RenderDevice
         if(selection!=nullptr&&!(faceSelectionActive&&node->id()==context.selectionObjectId))for(const std::uint64_t id:*selection)if(id==node->id()){selected=true;break;}
         const bool hovered=!selected&&context.hoverObjectId==node->id(); processNode(*node,context,device,shader.get(),selected,hovered);
     }
-    if(faceSelectionActive)drawHighlightFace(scene,context,device,shader.get()); shader->unbind();
+    if(faceSelectionActive)drawHighlightFace(scene,context,device,shader.get());
+    drawHighlightEdge(scene,context,device,shader.get());
+    drawHighlightVertex(scene,context,device,shader.get());
+    shader->unbind();
 }
 
 void GeometryPass::processNode(const mir::ModelNode& node,
@@ -360,6 +364,200 @@ void GeometryPass::drawHighlightFace(mir::Scene& scene,
                    nullptr);
     m_highlightVAO->unbind();
     device.setDepthFunc(RenderDevice::DepthFunc::Less);
+}
+
+void GeometryPass::drawHighlightEdge(mir::Scene& scene,
+                                     RenderContext& context,
+                                     RenderDevice& device,
+                                     Shader* shader)
+{
+    if (!shader) return;
+
+    auto drawOne = [&](std::uint64_t objectId, std::uint64_t edgeId, bool hover)
+    {
+        if (objectId == mir4d::InvalidObjectId) return;
+
+        const mir::ModelNode* node = nullptr;
+        for (const auto& n : scene.nodes()) {
+            if (n && n->id() == objectId && n->model() && n->model()->hasMesh()) {
+                node = n.get();
+                break;
+            }
+        }
+        if (!node) return;
+
+        const auto& mesh = node->model()->mesh();
+        if (!mesh.isValid()) return;
+
+        const std::size_t ti = static_cast<std::size_t>(edgeId / 3);
+        const int e = static_cast<int>(edgeId % 3);
+        if (ti >= mesh.triangles.size()) return;
+        const auto& tri = mesh.triangles[ti];
+        const std::size_t ends[2] = {
+            (e == 0) ? tri.a : (e == 1) ? tri.b : tri.c,
+            (e == 0) ? tri.b : (e == 1) ? tri.c : tri.a};
+
+        std::vector<Vertex> verts;
+        for (const std::size_t idx : ends) {
+            const auto& p = mesh.vertices[idx];
+            verts.emplace_back(
+                Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)},
+                Vector3{}, Vector2{});
+        }
+        std::vector<std::uint32_t> indices = {0, 1};
+
+        auto vao = device.createVertexArray();
+        auto vbo = device.createVertexBuffer();
+        auto ibo = device.createIndexBuffer();
+        if (!vao || !vbo || !ibo) return;
+        vbo->uploadVertices(verts);
+        ibo->uploadIndices(indices);
+        vao->setVertexBuffer(vbo);
+        vao->setIndexBuffer(ibo);
+
+        const double cameraPos[3] = {
+            static_cast<double>(context.cameraPosition[0]),
+            static_cast<double>(context.cameraPosition[1]),
+            static_cast<double>(context.cameraPosition[2]) };
+        shader->setMatrix("u_model", makeModelMatrix(node->transform(), cameraPos));
+        shader->setInt("u_selected", 1);
+        shader->setInt("u_hover", hover ? 1 : 0);
+        if (hover) {
+            shader->setVec3("u_baseColor", 0.5f, 0.9f, 1.0f);
+            shader->setVec3("u_emission", 0.10f, 0.40f, 0.50f);
+            shader->setFloat("u_opacity", 0.7f);
+        } else {
+            shader->setVec3("u_baseColor", 0.20f, 0.90f, 1.0f);
+            shader->setVec3("u_emission", 0.15f, 0.50f, 0.55f);
+            shader->setFloat("u_opacity", 1.0f);
+        }
+        shader->setFloat("u_roughness", 0.4f);
+        shader->setFloat("u_metallic", 0.0f);
+        shader->setFloat("u_specular", 0.5f);
+
+        device.setDepthFunc(RenderDevice::DepthFunc::LessEqual);
+        vao->bind();
+        glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, nullptr);
+        vao->unbind();
+        device.setDepthFunc(RenderDevice::DepthFunc::Less);
+    };
+
+    if (context.selectionEdgeActive)
+        drawOne(context.selectionObjectId, context.selectionEdgeId, false);
+    if (context.hoverEdgeActive && context.hoverEdgeId != context.selectionEdgeId)
+        drawOne(context.hoverObjectId, context.hoverEdgeId, true);
+}
+
+void GeometryPass::drawHighlightVertex(mir::Scene& scene,
+                                       RenderContext& context,
+                                       RenderDevice& device,
+                                       Shader* shader)
+{
+    if (!shader) return;
+
+    auto drawOne = [&](std::uint64_t objectId, std::uint64_t vertexId, bool hover)
+    {
+        if (objectId == mir4d::InvalidObjectId) return;
+
+        const mir::ModelNode* node = nullptr;
+        for (const auto& n : scene.nodes()) {
+            if (n && n->id() == objectId && n->model() && n->model()->hasMesh()) {
+                node = n.get();
+                break;
+            }
+        }
+        if (!node) return;
+
+        const auto& mesh = node->model()->mesh();
+        if (!mesh.isValid()) return;
+        if (vertexId >= mesh.vertices.size()) return;
+
+        const auto& vref = mesh.vertices[vertexId];
+        const mir::Point3 worldP = node->transform().transformPoint(vref);
+        // Marker is built in camera-relative space so it stays screen-aligned
+        // (does not rotate with the body) and uses an identity model matrix.
+        const mir::Vector3 camRel{
+            worldP.x - context.cameraPosition[0],
+            worldP.y - context.cameraPosition[1],
+            worldP.z - context.cameraPosition[2]};
+        const float dist = static_cast<float>(camRel.length());
+
+        float marker = 1e-4f;
+        const float fy = context.projectionMatrix[5];
+        if (context.viewportHeight > 0 && fy > 1e-5f)
+        {
+            // Perspective: derive a constant on-screen marker size
+            // (~6px radius) from the vertical FOV and vertex distance.
+            const float tanHalfFovY = 1.0f / fy;
+            const float worldPerPixel =
+                (2.0f * dist * tanHalfFovY) / static_cast<float>(context.viewportHeight);
+            marker = std::max(worldPerPixel * 6.0f, 1e-4f);
+        }
+        else
+        {
+            // Non-perspective fallback: scale with the mesh extent.
+            mir::Vector3 mn = mir::Vector3::zero();
+            mir::Vector3 mx = mir::Vector3::zero();
+            bool first = true;
+            for (const auto& v : mesh.vertices) {
+                const mir::Vector3 p{v.x, v.y, v.z};
+                if (first) { mn = p; mx = p; first = false; }
+                else {
+                    mn.x = std::min(mn.x, p.x); mn.y = std::min(mn.y, p.y); mn.z = std::min(mn.z, p.z);
+                    mx.x = std::max(mx.x, p.x); mx.y = std::max(mx.y, p.y); mx.z = std::max(mx.z, p.z);
+                }
+            }
+            const float extent = static_cast<float>(
+                mir::Vector3{mx.x - mn.x, mx.y - mn.y, mx.z - mn.z}.length());
+            marker = std::max(extent * 0.04f, 1e-4f);
+        }
+
+        std::vector<Vertex> verts;
+        const float cx = static_cast<float>(camRel.x);
+        const float cy = static_cast<float>(camRel.y);
+        const float cz = static_cast<float>(camRel.z);
+        verts.emplace_back(Vector3{cx - marker, cy, cz}, Vector3{}, Vector2{});
+        verts.emplace_back(Vector3{cx + marker, cy, cz}, Vector3{}, Vector2{});
+        verts.emplace_back(Vector3{cx, cy - marker, cz}, Vector3{}, Vector2{});
+        verts.emplace_back(Vector3{cx, cy + marker, cz}, Vector3{}, Vector2{});
+        std::vector<std::uint32_t> indices = {0, 1, 2, 3};
+
+        auto vao = device.createVertexArray();
+        auto vbo = device.createVertexBuffer();
+        auto ibo = device.createIndexBuffer();
+        if (!vao || !vbo || !ibo) return;
+        vbo->uploadVertices(verts);
+        ibo->uploadIndices(indices);
+        vao->setVertexBuffer(vbo);
+        vao->setIndexBuffer(ibo);
+
+        shader->setMatrix("u_model", IdentityMatrix4());
+        shader->setInt("u_selected", 1);
+        shader->setInt("u_hover", hover ? 1 : 0);
+        if (hover) {
+            shader->setVec3("u_baseColor", 1.0f, 0.9f, 0.4f);
+            shader->setVec3("u_emission", 0.45f, 0.40f, 0.12f);
+            shader->setFloat("u_opacity", 0.8f);
+        } else {
+            shader->setVec3("u_baseColor", 1.0f, 0.85f, 0.10f);
+            shader->setVec3("u_emission", 0.55f, 0.45f, 0.05f);
+            shader->setFloat("u_opacity", 1.0f);
+        }
+        shader->setFloat("u_roughness", 0.4f);
+        shader->setFloat("u_metallic", 0.0f);
+        shader->setFloat("u_specular", 0.5f);
+
+        device.setDepthFunc(RenderDevice::DepthFunc::LessEqual);
+        vao->bind();
+        glDrawElements(GL_LINES, 4, GL_UNSIGNED_INT, nullptr);
+        vao->unbind();
+        device.setDepthFunc(RenderDevice::DepthFunc::Less);
+    };
+
+    if (context.selectionVertexActive)
+        drawOne(context.selectionObjectId, context.selectionVertexId, false);
+    if (context.hoverVertexActive && context.hoverVertexId != context.selectionVertexId)
+        drawOne(context.hoverObjectId, context.hoverVertexId, true);
 }
 
 Matrix4Raw GeometryPass::makeModelMatrix(const mir::Transform& transform,

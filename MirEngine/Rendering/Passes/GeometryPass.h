@@ -91,6 +91,18 @@ private:
                            RenderDevice& device,
                            Shader* shader);
 
+    /// Highlights a single selected/hovered edge (selectionEdgeId / hoverEdgeId)
+    /// as a bright line, or a single vertex (selectionVertexId / hoverVertexId)
+    /// as a small cross. Mirrors the face highlight's overlay technique.
+    void drawHighlightEdge(mir::Scene& scene,
+                           RenderContext& context,
+                           RenderDevice& device,
+                           Shader* shader);
+    void drawHighlightVertex(mir::Scene& scene,
+                            RenderContext& context,
+                            RenderDevice& device,
+                            Shader* shader);
+
     [[nodiscard]] static Matrix4Raw makeModelMatrix(const mir::Transform& transform,
                                                     const double cameraPos[3]) noexcept;
 

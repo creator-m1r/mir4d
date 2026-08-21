@@ -287,6 +287,26 @@ uint64_t MirEngineGetSelectedObjectId(
     void* viewport
 );
 
+// Sets the active pick/selection filter from a coarse mode.
+// 0 = Body, 1 = Face, 2 = Edge, 3 = Vertex. The picker only returns the
+// enabled kinds, enabling mode-aware sub-object selection.
+void MirEngineSetSelectionFilter(
+    void* viewport,
+    int mode
+);
+
+// Returns the hierarchical kind of the primary selection:
+// 0 = None, 1 = Vertex, 2 = Edge, 3 = Face, 4 = Body.
+int MirEngineGetSelectionKind(
+    void* viewport
+);
+
+// Returns the element id (vertex/edge index or B-Rep face id) of the primary
+// selection. Valid when MirEngineGetSelectionKind reports a sub-object kind.
+uint64_t MirEngineGetSelectionElementId(
+    void* viewport
+);
+
 // Applies an in-place sculpt/push/pull deformation to the selected object's
 // tessellated mesh. `x,y,z` is the world-space brush centre, `radius` a
 // world-space radius, `strength` a signed displacement magnitude in world
@@ -625,6 +645,16 @@ void MirEngineSketchSetPlane(void* doc, uint32_t planeId,
 bool MirEngineSketchRemoveConstraint(void* doc, uint32_t id);
 uint32_t MirEngineSketchConstraintCount(void* doc);
 bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
+
+// ------------------------------------------------------------
+// VFX — собственная подсистема визуальных эффектов (MirEngine::VFX)
+// ------------------------------------------------------------
+
+/// kind: 0=Confetti 1=Balloons 2=Fireworks 3=Rain 4=Hearts 5=Lasers
+void MirEngineVFXTrigger(int kind);
+void MirEngineVFXUpdate(float dt);
+void MirEngineVFXRender();
+void MirEngineVFXReset();
 
 // ------------------------------------------------------------
 // Error handling

@@ -29,6 +29,8 @@
 #include <iostream>
 #include "../../Sketch/SketchDocument.hpp"
 #include "../../Sketch/SketchDocumentSolver.hpp"
+#include "../../VFX/EffectSystem.hpp"
+#include "../../VFX/Effect.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1053,6 +1055,48 @@ uint64_t MirEngineGetSelectedObjectId(
     return static_cast<uint64_t>(
         native->runtime->state().selection.primary()
     );
+}
+
+void MirEngineSetSelectionFilter(
+    void* viewport,
+    int mode
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return;
+
+    native->runtime->setPickFilter(mir::makePickFilter(mode));
+}
+
+int MirEngineGetSelectionKind(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return 0;
+
+    return static_cast<int>(
+        native->runtime->state().selection.kind()
+    );
+}
+
+uint64_t MirEngineGetSelectionElementId(
+    void* viewport
+)
+{
+    auto* native =
+        asViewport(viewport);
+
+    if (!native || !native->runtime)
+        return 0;
+
+    return native->runtime->state().selection.elementId();
 }
 
 
@@ -2449,6 +2493,33 @@ bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint3
     if (g2) *g2 = c.secondGeometry;
     if (value) *value = c.value;
     return true;
+}
+
+// ------------------------------------------------------------
+// VFX — собственная подсистема визуальных эффектов
+// ------------------------------------------------------------
+
+void MirEngineVFXTrigger(int kind)
+{
+    using namespace MirEngine::VFX;
+    if (kind < 0 || kind >= static_cast<int>(EffectKind::Count))
+        return;
+    EffectSystem::instance().trigger(static_cast<EffectKind>(kind));
+}
+
+void MirEngineVFXUpdate(float dt)
+{
+    MirEngine::VFX::EffectSystem::instance().update(dt);
+}
+
+void MirEngineVFXRender()
+{
+    MirEngine::VFX::EffectSystem::instance().render();
+}
+
+void MirEngineVFXReset()
+{
+    MirEngine::VFX::EffectSystem::instance().reset();
 }
 
 }

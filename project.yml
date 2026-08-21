@@ -149,6 +149,7 @@ targets:
       - path: MirEngine/Core/Exports/MirEngineExports.cpp
       - path: MirEngine/Core/Logging/Logger.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLRenderer.cpp
+      - path: MirEngine/Rendering/OpenGL/OpenGLVFXSink.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLCapabilities.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLDebug.cpp
       - path: MirEngine/Rendering/OpenGL/OpenGLDevice.cpp
@@ -162,6 +163,7 @@ targets:
       - path: MirEngine/Rendering/Passes/PlanePass.cpp
       - path: MirEngine/Rendering/Passes/SketchPass.cpp
       - path: MirEngine/Rendering/Passes/HandSkeletonPass.cpp
+      - path: MirEngine/VFX/EffectSystem.cpp
       - path: MirEngine/Rendering/Resources/ShaderLibrary.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionProperties.cpp
       - path: MirEngine/Rendering/Selection/RenderSelectionPropertiesFormatter.cpp

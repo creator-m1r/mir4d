@@ -18,6 +18,8 @@ extension Notification.Name {
     static let mir4DOpenProject = Notification.Name("MIR4D.OpenProject")
     static let mir4DStartWorkspace = Notification.Name("MIR4D.StartWorkspace")
     static let mir4DSketchSolved = Notification.Name("MIR4D.SketchSolved")
+    static let mir4DVFXTrigger = Notification.Name("MIR4D.VFXTrigger")
+    static let mir4DSelectionModeChanged = Notification.Name("MIR4D.SelectionModeChanged")
 }
 
 // MARK: - OpenGL / MirEngine View
@@ -26,7 +28,7 @@ final class MirGLCustomView: NSView {
 
     // MARK: Callbacks
 
-    var onSelectionChanged: ((UInt64) -> Void)?
+    var onSelectionChanged: ((UInt64, Int32, UInt64) -> Void)?
     var onIOError: ((String) -> Void)?
     var onCameraOrientationChanged:
         ((Double, Double, Double) -> Void)?
@@ -64,6 +66,12 @@ final class MirGLCustomView: NSView {
     // against any non-main MirEngine access.
     @objc
     private func renderTick(_ displayLink: CADisplayLink) {
+        // Собственная VFX-подсистема MIR4D: продвигаем симуляцию частиц
+        // на dt кадра (рисование частиц происходит внутри MirEngineRender
+        // через зарегистрированный OpenGL- sink).
+        let dt = Float(min(max(displayLink.duration, 0.001), 0.1))
+        MIRVFX.update(dt)
+
         // ТЗ §3/§7: callback не должен трогать MainActor-состояние вне lock.
         // Считываем указатель engine под lock, затем рендерим под тем же lock.
         MirGLCustomView.engineLock.lock()
@@ -106,6 +114,9 @@ final class MirGLCustomView: NSView {
     private let cameraTransitionDuration: CFTimeInterval = 0.38
     private var workPlaneObserver: NSObjectProtocol?
     private var sketchObserver: NSObjectProtocol?
+    private var vfxObserver: NSObjectProtocol?
+    private var vfxDemoTimer: Timer?
+    private var selectionModeObserver: NSObjectProtocol?
     private var workbenchObserverToken: UUID?
 
     // MARK: Mouse interaction
@@ -165,6 +176,9 @@ final class MirGLCustomView: NSView {
             observeWorkPlaneRequests()
             observeSketchSolvedRequests()
             observeWorkbenchChanges()
+            observeVFXTriggerRequests()
+            observeSelectionModeChanges()
+            startVFXDemoIfRequested()
             print("TRACE: observers done")
 
             print("TRACE: setupEngine...")
@@ -1136,6 +1150,87 @@ final class MirGLCustomView: NSView {
         print("MIR4D: sketch overlay pushed (\(segments.count) segments)")
     }
 
+    // MARK: VFX (собственная подсистема эффектов MIR4D)
+
+    /// Запускает эффект в собственной VFX-подсистеме MIR4D.
+    private func triggerVFX(_ kind: MIRVFXKind) {
+        MIRVFX.trigger(kind)
+    }
+
+    private func observeVFXTriggerRequests() {
+        guard vfxObserver == nil else { return }
+        vfxObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DVFXTrigger,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                let raw = notification.userInfo?["kind"] as? Int
+                    ?? notification.object as? Int
+                let kind = MIRVFXKind(rawValue: Int32(raw ?? 0)) ?? .confetti
+                DispatchQueue.main.async { [weak self] in
+                    self?.triggerVFX(kind)
+                }
+            }
+    }
+
+    /// Пробрасывает выбранный в overlay режим выделения (Body/Face/Edge/Vertex)
+    /// в движок, чтобы pick-запросы фильтровались по mode.
+    private func observeSelectionModeChanges() {
+        guard selectionModeObserver == nil else { return }
+        selectionModeObserver =
+            NotificationCenter.default.addObserver(
+                forName: .mir4DSelectionModeChanged,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let modeString = notification.userInfo?["mode"] as? String else {
+                    return
+                }
+                // 0 = Body, 1 = Face, 2 = Edge, 3 = Vertex
+                let modeIndex: Int32
+                switch modeString {
+                    case "body": modeIndex = 0
+                    case "face": modeIndex = 1
+                    case "edge": modeIndex = 2
+                    case "vertex": modeIndex = 3
+                    default: modeIndex = 0
+                }
+                DispatchQueue.main.async { [weak self] in
+                    MirGLCustomView.engineLock.lock()
+                    if let viewport = self?.viewport {
+                        MirEngineSetSelectionFilter(viewport, modeIndex)
+                    }
+                    MirGLCustomView.engineLock.unlock()
+                    let cursor: NSCursor = (modeString == "body") ? .arrow : .crosshair
+                    cursor.set()
+                }
+            }
+    }
+
+    /// Опциональная демонстрация: при MIR4D_VFX_DEMO=1 периодически
+    /// запускает случайные эффекты, чтобы визуально проверить работу
+    /// собственного VFX-движка (выключено по умолчанию).
+    private func startVFXDemoIfRequested() {
+        guard ProcessInfo.processInfo.environment["MIR4D_VFX_DEMO"] != nil else {
+            return
+        }
+        vfxDemoTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) {
+            failed in
+            let all: [MIRVFXKind] = [
+                .confetti, .balloons, .fireworks, .rain, .hearts, .lasers,
+                .sparks, .snow, .bubbles, .sparkles, .petals, .streamers,
+                .scanGrid, .assemble, .smoke, .fire, .warnBurst,
+                .selectPulse, .success
+            ]
+            let pick = all.randomElement() ?? .confetti
+            MIRVFX.trigger(pick)
+        }
+        vfxDemoTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
     private func applyCameraProjection(_ projection: Int32) {
 
         MirGLCustomView.engineLock.lock()
@@ -1164,6 +1259,18 @@ final class MirGLCustomView: NSView {
         if let token = workbenchObserverToken {
             MirEventBus.shared.unsubscribe(token)
             workbenchObserverToken = nil
+        }
+
+        if let observer = vfxObserver {
+            NotificationCenter.default.removeObserver(observer)
+            vfxObserver = nil
+        }
+        vfxDemoTimer?.invalidate()
+        vfxDemoTimer = nil
+
+        if let observer = selectionModeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            selectionModeObserver = nil
         }
 
 
@@ -1582,7 +1689,7 @@ final class MirGLCustomView: NSView {
                 }
             }
 
-            onSelectionChanged?(objectID)
+            publishSelection()
 
             print(
                 "✅ MIR4D create body: \(objectID)"
@@ -1624,14 +1731,18 @@ final class MirGLCustomView: NSView {
     private func publishSelection() {
 
         var objectID: UInt64 = 0
+        var kind: Int32 = 0
+        var elementId: UInt64 = 0
 
         MirGLCustomView.engineLock.lock()
         if let viewport {
             objectID = MirEngineGetSelectedObjectId(viewport)
+            kind = MirEngineGetSelectionKind(viewport)
+            elementId = MirEngineGetSelectionElementId(viewport)
         }
         MirGLCustomView.engineLock.unlock()
 
-        onSelectionChanged?(objectID)
+        onSelectionChanged?(objectID, kind, elementId)
     }
 
     // MARK: Radial Menu
@@ -2015,7 +2126,7 @@ final class MirGLCustomView: NSView {
         }
         MirGLCustomView.engineLock.unlock()
 
-        onSelectionChanged?(objectID)
+        publishSelection()
     }
 
     override func mouseDragged(
@@ -2413,7 +2524,7 @@ final class MirGLCustomView: NSView {
 
         if objectID != 0 {
 
-            onSelectionChanged?(0)
+            publishSelection()
         }
     }
 
@@ -2441,7 +2552,7 @@ final class MirGLCustomView: NSView {
             )
         }
 
-        onSelectionChanged?(0)
+        publishSelection()
     }
 
     /// Cmd+Z (undo) / Cmd+Shift+Z (redo) of scene commands.
@@ -2463,7 +2574,7 @@ final class MirGLCustomView: NSView {
 
         // The scene may have changed identity; drop the stale selection so
         // the UI (properties panel) reflects the reverted state.
-        onSelectionChanged?(0)
+        publishSelection()
     }
 
     private func forwardMouseDown(
@@ -2561,7 +2672,7 @@ final class MirGLCustomView: NSView {
 struct MirGLView: NSViewRepresentable {
 
     var onSelectionChanged:
-        ((UInt64) -> Void)?
+        ((UInt64, Int32, UInt64) -> Void)?
 
     var onIOError:
         ((String) -> Void)?

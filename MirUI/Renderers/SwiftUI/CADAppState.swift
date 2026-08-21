@@ -248,14 +248,16 @@ final class CADAppState: ObservableObject {
     func toggleLanguage() { ui.language = ui.language == .russian ? .english : .russian }
     func toggleExperience() { ui.experience = ui.experience == .expert ? .beginner : .expert }
 
-    func setSelection(ids: [String], kind: CADSelectionKind) {
+    func setSelection(ids: [String], kind: CADSelectionKind, elementId: UInt64 = 0) {
         let normalizedIDs = ids.compactMap { rawID -> String? in
             if UUID(uuidString: rawID) != nil { return rawID }
             guard kind == .body, let engineID = UInt64(rawID), engineID > 0 else { return rawID }
             return modelRuntime.document.bodyID(forEngineObjectID: engineID)?.uuidString
         }
 
-        selection = CADSelectionState(ids: normalizedIDs, primaryKind: kind)
+        var next = CADSelectionState(ids: normalizedIDs, primaryKind: kind)
+        next.primaryElementId = elementId
+        selection = next
         MirEventBus.shared.publish(.selectionChanged(selection))
     }
 

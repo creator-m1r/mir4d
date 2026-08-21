@@ -194,6 +194,20 @@ public:
     // a subtler tint than the selection highlight. Zero means no hover.
     std::uint64_t hoverObjectId{0};
 
+    // Sub-object selection / hover (Edge / Vertex) ids. These complement the
+    // face-level selectionObjectId / selectionFaceId and let the geometry pass
+    // highlight a single edge or vertex instead of the whole object.
+    // NOTE: element ids may legitimately be 0, so the *Active flags (not the
+    // id value) indicate whether a sub-object highlight is requested.
+    std::uint64_t selectionEdgeId{0};
+    std::uint64_t selectionVertexId{0};
+    std::uint64_t hoverEdgeId{0};
+    std::uint64_t hoverVertexId{0};
+    bool selectionEdgeActive{false};
+    bool selectionVertexActive{false};
+    bool hoverEdgeActive{false};
+    bool hoverVertexActive{false};
+
     // Cursor position in normalized device coordinates (x,y in [-1,1]) used to
     // pick the work plane under the pointer. cursorActive is false when the
     // pointer left the viewport.
@@ -280,6 +294,38 @@ public:
         hoverObjectId = objectId;
     }
 
+    // Selects a single edge of an object for highlight.
+    void setSelectionEdge(std::uint64_t objectId, std::uint64_t edgeId) noexcept
+    {
+        selectionObjectId = objectId;
+        selectionEdgeId = edgeId;
+        selectionEdgeActive = true;
+    }
+
+    // Selects a single vertex of an object for highlight.
+    void setSelectionVertex(std::uint64_t objectId, std::uint64_t vertexId) noexcept
+    {
+        selectionObjectId = objectId;
+        selectionVertexId = vertexId;
+        selectionVertexActive = true;
+    }
+
+    // Sets the edge currently under the cursor (hover highlight).
+    void setHoverEdge(std::uint64_t objectId, std::uint64_t edgeId) noexcept
+    {
+        hoverObjectId = objectId;
+        hoverEdgeId = edgeId;
+        hoverEdgeActive = true;
+    }
+
+    // Sets the vertex currently under the cursor (hover highlight).
+    void setHoverVertex(std::uint64_t objectId, std::uint64_t vertexId) noexcept
+    {
+        hoverObjectId = objectId;
+        hoverVertexId = vertexId;
+        hoverVertexActive = true;
+    }
+
     // Copies the hand-skeleton overlay data for the frame (sensor view only).
     void setHandSkeleton(const HandSkeletonRenderData& data) noexcept
     {
@@ -304,7 +350,15 @@ public:
         selectionIds = nullptr;
         selectionObjectId = 0;
         selectionFaceId = 0;
+        selectionEdgeId = 0;
+        selectionVertexId = 0;
         hoverObjectId = 0;
+        hoverEdgeId = 0;
+        hoverVertexId = 0;
+        selectionEdgeActive = false;
+        selectionVertexActive = false;
+        hoverEdgeActive = false;
+        hoverVertexActive = false;
         handSkeleton.clear();
     }
 

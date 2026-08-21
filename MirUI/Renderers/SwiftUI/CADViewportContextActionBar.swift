@@ -74,17 +74,32 @@ struct CADViewportContextActionBar: View {
 
     private var selectionBadge: some View {
         HStack(spacing: 6) {
-            Image(systemName: count > 1 ? "square.stack.3d.up" : "cube.transparent")
+            Image(systemName: badgeIcon)
                 .foregroundStyle(MirTheme.Colors.accentBright)
-            Text(count > 1
-                 ? "\(count) \(ru ? "объекта" : "objects")"
-                 : (appState.selectedTreeItem.isEmpty ? (ru ? "Объект" : "Object") : appState.selectedTreeItem))
+            Text(badgeText)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(MirTheme.Colors.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .frame(maxWidth: 170)
+        .frame(maxWidth: 200)
+    }
+
+    private var badgeIcon: String {
+        switch appState.selection.primaryKind {
+            case .vertex: return "circle.dotted"
+            case .edge: return "skew"
+            case .face: return "square.transparent"
+            case .body: return count > 1 ? "square.stack.3d.up" : "cube.transparent"
+            default: return "cube.transparent"
+        }
+    }
+
+    private var badgeText: String {
+        if count > 1 {
+            return "\(appState.selection.primaryLabel) · \(count)"
+        }
+        return appState.selection.primaryLabel
     }
 
     private func commandButton(_ command: CADCommand) -> some View {

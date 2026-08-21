@@ -362,10 +362,26 @@ enum CADSelectionKind: String, Hashable {
 struct CADSelectionState: Equatable {
     var ids: [String] = []
     var primaryKind: CADSelectionKind = .none
+    /// Element id of the primary sub-object selection (vertex / edge / face
+    /// index as reported by the engine). 0 for body-level or empty selection.
+    var primaryElementId: UInt64 = 0
 
     var count: Int { ids.count }
     var hasSelection: Bool { !ids.isEmpty }
     var isMultiSelection: Bool { ids.count > 1 }
+
+    /// Human-readable label for the primary selection, e.g. "Грань #12",
+    /// "Ребро #5", "Вершина #3", "Тело", or "Нет выделения".
+    var primaryLabel: String {
+        guard hasSelection else { return "Нет выделения" }
+        switch primaryKind {
+            case .vertex: return "Вершина #\(primaryElementId)"
+            case .edge: return "Ребро #\(primaryElementId)"
+            case .face: return "Грань #\(primaryElementId)"
+            case .body: return "Тело"
+            default: return "Элемент"
+        }
+    }
 }
 
 // MARK: - Time / 4D

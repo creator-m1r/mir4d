@@ -20,9 +20,22 @@ struct ViewportState
     // Object id currently under the cursor (hover). Invalid when the cursor
     // is over empty space. Hover never mutates selection.
     mir4d::ObjectId hoveredObjectId{mir4d::InvalidObjectId};
+    // Hierarchical kind / element of the hovered sub-object (Body by default).
+    PickKind hoveredKind{PickKind::Body};
+    std::uint64_t hoveredElementId{0};
+
+    // Hover stabilization bookkeeping (throttle + hysteresis). Pixel positions
+    // are in the same bottom-left screen convention as pick().
+    Scalar lastHoverPickX{0};
+    Scalar lastHoverPickY{0};
+    Scalar lastHoverChangeX{0};
+    Scalar lastHoverChangeY{0};
 
     std::uint32_t width{1};
     std::uint32_t height{1};
+
+    /// Active pick filter (selection mode). Defaults to selecting everything.
+    PickFilter pickFilter{};
 
     void resize(std::uint32_t newWidth, std::uint32_t newHeight) noexcept
     {
@@ -31,11 +44,16 @@ struct ViewportState
         camera.setAspect(static_cast<Scalar>(width) / static_cast<Scalar>(height));
     }
 
+    void setPickFilter(PickFilter filter) noexcept
+    {
+        pickFilter = filter;
+    }
+
     [[nodiscard]] PickResult pick(const Scene& scene,
                                   Scalar x,
                                   Scalar y) const noexcept
     {
-        return RayPicker::pick(scene, camera, x, y, width, height);
+        return RayPicker::pick(scene, camera, x, y, width, height, pickFilter);
     }
 };
 

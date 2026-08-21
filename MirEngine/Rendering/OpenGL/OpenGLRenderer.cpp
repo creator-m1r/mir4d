@@ -6,8 +6,10 @@
 #include "OpenGLContext.h"
 #include "OpenGLDebug.h"
 #include "OpenGLDevice.h"
+#include "OpenGLVFXSink.hpp"
 
 #include "MirEngine/Core/Identity/ObjectId.hpp"
+#include "MirEngine/VFX/EffectSystem.hpp"
 
 #include "../Core/RenderDevice.h"
 #include "../Core/RenderContext.h"
@@ -65,7 +67,13 @@ OpenGLRenderer::OpenGLRenderer(OpenGLContext* context)
 {
 }
 
-OpenGLRenderer::~OpenGLRenderer() = default;
+OpenGLRenderer::~OpenGLRenderer()
+{
+    // Detach the owned VFX sink from the global EffectSystem before the
+    // sink (and this renderer) is destroyed, so the subsystem never holds a
+    // dangling pointer across renderer remounts.
+    MirEngine::VFX::EffectSystem::instance().setSink(nullptr);
+}
 
 bool OpenGLRenderer::initialize()
 {
@@ -134,6 +142,13 @@ bool OpenGLRenderer::initialize()
     dbgTimestamp("initialize: logReport done");
     OpenGLDebug::enableDebugOutput();
     dbgTimestamp("initialize: debug output done");
+
+    // Owned MIR 4D VFX subsystem: register the GL draw sink so the
+    // renderer-agnostic EffectSystem can submit particles to the GPU.
+    // This is the project's own effects engine, replacing any external
+    // effect noise with deterministic, controlled behaviour.
+    m_vfxSink = std::make_unique<OpenGLVFXSink>();
+    MirEngine::VFX::EffectSystem::instance().setSink(m_vfxSink.get());
 
     m_initialized = true;
     dbgTimestamp("initialize: DONE");
@@ -210,6 +225,15 @@ void OpenGLRenderer::render(mir::Scene& scene,
     // Hand-skeleton overlay drawn after the solid geometry (sensor view).
     if (m_handSkeletonPass && m_handSkeletonPass->isInitialized())
         m_handSkeletonPass->execute(context, scene, *m_device);
+
+    // Owned MIR 4D VFX: advance is driven from the display-link tick
+    // (MirEngineVFXUpdate); here we submit live particles to the GL sink.
+    {
+        auto& vfx = MirEngine::VFX::EffectSystem::instance();
+        vfx.render();
+        if (m_vfxSink)
+            m_vfxSink->flush();
+    }
 
     m_device->endFrame();
 }
@@ -296,6 +320,13 @@ void OpenGLRenderer::captureDiagnosticFrame(RenderContext& context,
 
     if (m_handSkeletonPass && m_handSkeletonPass->isInitialized())
         m_handSkeletonPass->execute(context, scene, device);
+
+    {
+        auto& vfx = MirEngine::VFX::EffectSystem::instance();
+        vfx.render();
+        if (m_vfxSink)
+            m_vfxSink->flush();
+    }
 
     std::vector<unsigned char> px(static_cast<std::size_t>(w) * h * 3);
     glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px.data());

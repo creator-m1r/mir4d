@@ -16,8 +16,22 @@ struct MIR4DViewportWorkspace: View {
         ZStack(alignment: .bottom) {
             ViewportRepresentable(
                 appState: appState,
-                onSelectionChanged: { objectID in
-                    appState.setSelection(ids: objectID > 0 ? ["\(objectID)"] : [], kind: objectID > 0 ? .body : .none)
+                onSelectionChanged: { objectID, kind, elementId in
+                    let mapped: CADSelectionKind = {
+                        switch kind {
+                            case 1: return .vertex
+                            case 2: return .edge
+                            case 3: return .face
+                            case 4: return .body
+                            default: return .none
+                        }
+                    }()
+                    let finalKind: CADSelectionKind = objectID > 0 ? mapped : .none
+                    appState.setSelection(
+                        ids: objectID > 0 ? ["\(objectID)"] : [],
+                        kind: finalKind,
+                        elementId: objectID > 0 ? elementId : 0
+                    )
                 },
                 onIOError: { message in onIOError?(message) },
                 onCameraOrientationChanged: { theta, phi, distance in
