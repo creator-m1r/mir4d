@@ -146,7 +146,7 @@ struct SketchWorkspaceView: View {
             .disabled(model.selectedIDs.isEmpty)
 
             Button("Массив ↻") {
-                model.patternCircular(count: patternCount, center: .zero, angleDegrees: 360.0 / Double(patternCount))
+                model.patternCircular(count: patternCount, center: model.selectionCenter(), angleDegrees: 360.0 / Double(patternCount))
                 status = "Круговой массив: \(patternCount) копий"
             }
             .buttonStyle(.bordered)
@@ -185,7 +185,7 @@ struct SketchWorkspaceView: View {
                     : "Нет профиля для выдавливания"
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.geometryCountValue() < 3)
+            .disabled(!model.hasValidProfile)
         }
         .padding(8)
     }
@@ -413,35 +413,12 @@ struct SketchWorkspaceView: View {
 
     private func snap(_ point: CGPoint) -> CGPoint {
         guard snapEnabled else { return point }
-        if let vertex = nearestVertex(point) {
+        if let vertex = model.snapVertex(point, tolerance: 6 / scale) {
             return vertex
         }
         let step: CGFloat = 10
         return CGPoint(x: (point.x / step).rounded() * step,
                        y: (point.y / step).rounded() * step)
-    }
-
-    /// Ближайшая вершина существующей геометрии (inference/привязка).
-    private func nearestVertex(_ world: CGPoint) -> CGPoint? {
-        let threshold = 6.0 / scale
-        var best: CGPoint?
-        var bestDist = threshold
-        for index in 0..<model.geometryCountValue() {
-            var points: [CGPoint] = []
-            switch model.geometryKind(at: index) {
-            case .line:
-                if let line = model.line(at: index) { points = [line.start, line.end] }
-            case .circle, .arc:
-                if let circle = model.circle(at: index) { points = [circle.center] }
-            case .spline:
-                if let spl = model.spline(at: index) { points = spl.points }
-            }
-            for p in points {
-                let d = hypot(p.x - world.x, p.y - world.y)
-                if d < bestDist { bestDist = d; best = p }
-            }
-        }
-        return best
     }
 
     private func worldToScreen(_ point: CGPoint, in size: CGSize) -> CGPoint {
@@ -489,13 +466,30 @@ struct SketchWorkspaceView: View {
             Text("Геометрия: \(model.geometryCountValue()) · Связей: \(model.constraintCountValue())")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("DOF: \(model.degreesOfFreedom.map(String.init) ?? "—") · \(model.solverStatus)")
+            HStack(spacing: 6) {
+                Circle().fill(constraintState.color).frame(width: 8, height: 8)
+                Text(constraintState.text)
+            }
+            .font(.caption)
+            .foregroundStyle(constraintState.color)
+            Text(model.solverStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
         }
         .frame(width: 230)
         .padding(10)
+    }
+
+    private var constraintState: (text: String, color: Color) {
+        guard let dof = model.degreesOfFreedom else {
+            return ("DOF: —", .secondary)
+        }
+        if dof == 0 { return ("Полностью зафиксировано", .green) }
+        if dof < 0 { return ("Переопределено (лишние связи)", .red) }
+        return ("Степени свободы: \(dof)", .orange)
     }
 
     private var statusBar: some View {
@@ -505,7 +499,13 @@ struct SketchWorkspaceView: View {
             Spacer()
             Text("Геометрия: \(model.geometryCountValue())")
             Text("Связей: \(model.constraintCountValue())")
-            Text("DOF: \(model.degreesOfFreedom.map(String.init) ?? "—")")
+            let cs = constraintState
+            Label {
+                Text(cs.text)
+            } icon: {
+                Circle().fill(cs.color).frame(width: 8, height: 8)
+            }
+            .foregroundStyle(cs.color)
             Text(model.solverStatus)
         }
         .font(.caption)
@@ -614,25 +614,7 @@ struct SketchWorkspaceView: View {
     }
 
     private func hitTest(_ world: CGPoint, in size: CGSize) -> UInt32? {
-        var best: UInt32?
-        var bestDist = 10.0 / scale
-        for index in 0..<model.geometryCountValue() {
-            let id = model.geometryId(at: index)
-            var candidate: [CGPoint] = []
-            switch model.geometryKind(at: index) {
-            case .line:
-                if let l = model.line(at: index) { candidate = [l.start, l.end] }
-            case .circle, .arc:
-                if let c = model.circle(at: index) { candidate = [c.center] }
-            case .spline:
-                break
-            }
-            for p in candidate {
-                let d = distance(p, world)
-                if d < bestDist { bestDist = d; best = id }
-            }
-        }
-        return best
+        model.pickGeometry(world, tolerance: 10 / scale)
     }
 
     /// Опорная точка геометрии (середина линии / центр окружности) для бейджа связи.

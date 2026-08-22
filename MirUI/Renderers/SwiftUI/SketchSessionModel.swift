@@ -17,8 +17,12 @@ final class SketchSessionModel: ObservableObject {
     @Published private(set) var lastGeometryID: UInt32?
     @Published private(set) var geometryCount: UInt32 = 0
     @Published private(set) var constraintCount: UInt32 = 0
+    @Published private(set) var profileCount: UInt32 = 0
     @Published private(set) var inferredConstraints: [String] = []
     @Published private(set) var lastExtrudedID: UInt64 = 0
+
+    /// Есть хотя бы один замкнутый профиль, пригодный для выдавливания.
+    var hasValidProfile: Bool { profileCount > 0 }
 
     private var session: OpaquePointer?
 
@@ -106,113 +110,28 @@ final class SketchSessionModel: ObservableObject {
 
     /// Отражает выбранную геометрию относительно оси X (y → -y).
     /// Создаёт зеркальные копии через штатные команды создания.
+        /// Отражение выбранной геометрии относительно оси X (y → -y).
+    /// Одна запись History (TransformSelectionCommand в движке).
     func mirrorSelectionX() {
-        let ids = selectedIDs
-        guard !ids.isEmpty else { return }
-        for id in ids {
-            for index in 0..<geometryCountValue() {
-                guard geometryId(at: index) == id else { continue }
-                switch geometryKind(at: index) {
-                case .line:
-                    if let l = line(at: index) {
-                        createLine(from: CGPoint(x: l.start.x, y: -l.start.y),
-                                   to: CGPoint(x: l.end.x, y: -l.end.y))
-                    }
-                case .circle:
-                    if let c = circle(at: index) {
-                        createCircle(center: CGPoint(x: c.center.x, y: -c.center.y), radius: c.radius)
-                    }
-                case .arc:
-                    if let a = arc(at: index) {
-                        createArc(center: CGPoint(x: a.center.x, y: -a.center.y),
-                                  radius: a.radius,
-                                  startAngle: -a.end,
-                                  endAngle: -a.start)
-                    }
-                case .spline:
-                    break
-                }
-            }
-        }
-        clearSelection()
+        guard let session, !selectedIDs.isEmpty else { return }
+        _ = MirEngineSketchSessionMirrorSelection(session, 0, 0, 1, 0)
+        commit()
     }
 
     /// Линейный массив выбранной геометрии: count копий со смещением (dx, dy).
+        /// Линейный массив выбранной геометрии: count копий со смещением (dx, dy).
     func patternLinear(count: Int, dx: Double, dy: Double) {
-        let ids = selectedIDs
-        guard count > 1, !ids.isEmpty else { return }
-        for id in ids {
-            for index in 0..<geometryCountValue() {
-                guard geometryId(at: index) == id else { continue }
-                for k in 1..<count {
-                    let ox = dx * Double(k)
-                    let oy = dy * Double(k)
-                    switch geometryKind(at: index) {
-                    case .line:
-                        if let l = line(at: index) {
-                            createLine(from: CGPoint(x: l.start.x + ox, y: l.start.y + oy),
-                                       to: CGPoint(x: l.end.x + ox, y: l.end.y + oy))
-                        }
-                    case .circle:
-                        if let c = circle(at: index) {
-                            createCircle(center: CGPoint(x: c.center.x + ox, y: c.center.y + oy),
-                                         radius: c.radius)
-                        }
-                    case .arc:
-                        if let a = arc(at: index) {
-                            createArc(center: CGPoint(x: a.center.x + ox, y: a.center.y + oy),
-                                      radius: a.radius, startAngle: a.start, endAngle: a.end)
-                        }
-                    case .spline:
-                        break
-                    }
-                }
-            }
-        }
-        clearSelection()
+        guard let session, count > 1, !selectedIDs.isEmpty else { return }
+        _ = MirEngineSketchSessionPatternLinear(session, Int32(count), Float(dx), Float(dy))
+        commit()
     }
 
     /// Круговой массив выбранной геометрии вокруг центра ( angleDegrees на шаг).
+        /// Круговой массив выбранной геометрии вокруг центра (angleDegrees на шаг).
     func patternCircular(count: Int, center: CGPoint, angleDegrees: Double) {
-        let ids = selectedIDs
-        guard count > 1, !ids.isEmpty else { return }
-        let base = angleDegrees * .pi / 180
-        for id in ids {
-            for index in 0..<geometryCountValue() {
-                guard geometryId(at: index) == id else { continue }
-                for k in 1..<count {
-                    let ang = base * Double(k)
-                    let cs = cos(ang)
-                    let sn = sin(ang)
-                    let rot: (CGPoint) -> CGPoint = { p in
-                        let x = p.x - center.x
-                        let y = p.y - center.y
-                        return CGPoint(x: center.x + x * cs - y * sn,
-                                       y: center.y + x * sn + y * cs)
-                    }
-                    switch geometryKind(at: index) {
-                    case .line:
-                        if let l = line(at: index) {
-                            createLine(from: rot(l.start), to: rot(l.end))
-                        }
-                    case .circle:
-                        if let c = circle(at: index) {
-                            createCircle(center: rot(c.center), radius: c.radius)
-                        }
-                    case .arc:
-                        if let a = arc(at: index) {
-                            createArc(center: rot(a.center),
-                                      radius: a.radius,
-                                      startAngle: a.start + ang,
-                                      endAngle: a.end + ang)
-                        }
-                    case .spline:
-                        break
-                    }
-                }
-            }
-        }
-        clearSelection()
+        guard let session, count > 1, !selectedIDs.isEmpty else { return }
+        _ = MirEngineSketchSessionPatternCircular(session, Int32(count), Float(center.x), Float(center.y), Float(angleDegrees))
+        commit()
     }
 
     @discardableResult
@@ -416,6 +335,7 @@ final class SketchSessionModel: ObservableObject {
         canRedo = state.canRedo
         geometryCount = UInt32(state.geometryCount)
         constraintCount = UInt32(state.constraintCount)
+        profileCount = UInt32(state.profileCount)
         return (degreesOfFreedom, solverStatus)
     }
 
@@ -426,6 +346,7 @@ final class SketchSessionModel: ObservableObject {
         }
         canUndo = state.canUndo
         canRedo = state.canRedo
+        profileCount = UInt32(state.profileCount)
     }
 
     private static func solverStatusString(_ raw: Int32) -> String {
@@ -438,44 +359,54 @@ final class SketchSessionModel: ObservableObject {
         }
     }
 
-    /// Смещение выбранной геометрии на расстояние distance (параллель/концентрично).
-    func offsetSelection(distance: Double) {
-        let ids = selectedIDs
-        guard distance != 0, !ids.isEmpty else { return }
-        for id in ids {
+    /// Центр выделенной геометрии (среднее точек вершин). Для массивов/зеркал.
+    func selectionCenter() -> CGPoint {
+        var sx = 0.0, sy = 0.0, n = 0
+        for id in selectedIDs {
             for index in 0..<geometryCountValue() {
                 guard geometryId(at: index) == id else { continue }
                 switch geometryKind(at: index) {
                 case .line:
-                    if let l = line(at: index) {
-                        let dx = l.end.x - l.start.x
-                        let dy = l.end.y - l.start.y
-                        let len = hypot(dx, dy)
-                        guard len > 1e-9 else { continue }
-                        let nx = -dy / len
-                        let ny = dx / len
-                        let ox = nx * distance
-                        let oy = ny * distance
-                        createLine(from: CGPoint(x: l.start.x + ox, y: l.start.y + oy),
-                                   to: CGPoint(x: l.end.x + ox, y: l.end.y + oy))
-                    }
+                    if let l = line(at: index) { sx += l.start.x + l.end.x; sy += l.start.y + l.end.y; n += 2 }
                 case .circle:
-                    if let c = circle(at: index) {
-                        let r = c.radius + distance
-                        guard r > 0 else { continue }
-                        createCircle(center: c.center, radius: r)
-                    }
+                    if let c = circle(at: index) { sx += c.center.x; sy += c.center.y; n += 1 }
                 case .arc:
-                    if let a = arc(at: index) {
-                        let r = a.radius + distance
-                        guard r > 0 else { continue }
-                        createArc(center: a.center, radius: r, startAngle: a.start, endAngle: a.end)
-                    }
+                    if let a = arc(at: index) { sx += a.center.x; sy += a.center.y; n += 1 }
                 case .spline:
-                    break
+                    if let sp = spline(at: index) { for p in sp.points { sx += p.x; sy += p.y; n += 1 } }
                 }
             }
         }
-        clearSelection()
+        guard n > 0 else { return .zero }
+        return CGPoint(x: sx / Double(n), y: sy / Double(n))
+    }
+
+    /// Pick ближайшей геометрии (hit-test) через движок SketchSnapEngine.
+    func pickGeometry(_ point: CGPoint, tolerance: Double = 10) -> UInt32? {
+        guard let session else { return nil }
+        var id: UInt32 = 0
+        let ok = MirEngineSketchSessionPickGeometry(session,
+                                                     Float(point.x), Float(point.y),
+                                                     Float(tolerance), &id)
+        return ok ? id : nil
+    }
+
+    /// Vertex-inference (Endpoint/Midpoint/Center) через движок SketchSnapEngine.
+    func snapVertex(_ point: CGPoint, tolerance: Double = 6) -> CGPoint? {
+        guard let session else { return nil }
+        var ox: Float = 0, oy: Float = 0
+        let ok = MirEngineSketchSessionSnapVertex(session,
+                                                  Float(point.x), Float(point.y),
+                                                  Float(tolerance), &ox, &oy)
+        guard ok else { return nil }
+        return CGPoint(x: Double(ox), y: Double(oy))
+    }
+
+    /// Смещение выбранной геометрии на расстояние distance (параллель/концентрично).
+    /// Одна запись History.
+    func offsetSelection(distance: Double) {
+        guard let session, distance != 0, !selectedIDs.isEmpty else { return }
+        _ = MirEngineSketchSessionOffsetSelection(session, Float(distance))
+        commit()
     }
 }

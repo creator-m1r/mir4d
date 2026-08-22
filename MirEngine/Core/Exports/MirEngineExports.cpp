@@ -33,6 +33,7 @@
 #include "../../Sketch/SketchCreateGeometryCommand.hpp"
 #include "../../Sketch/SketchConstraintCommands.hpp"
 #include "../../Sketch/SketchProfileLoopDetector.hpp"
+#include "../../Sketch/SketchSnap.hpp"
 #include "../../VFX/EffectSystem.hpp"
 #include "../../VFX/Effect.hpp"
 
@@ -3956,3 +3957,256 @@ void MirEngineVFXReset()
 }
 
 }
+
+namespace {
+
+// Atomic transform of the current selection (mirror / linear pattern /
+// circular pattern / offset). All generated copies belong to ONE history
+// entry so a single Undo reverts the whole gesture.
+struct TransformSelectionCommand final : mir::ISketchCommand
+{
+    enum class Mode { Mirror, PatternLinear, PatternCircular, Offset };
+    Mode mode{Mode::Mirror};
+    std::vector<std::uint32_t> ids{};
+
+    double ax{0}, ay{0}, dx{1}, dy{0};     // Mirror: axis through (ax,ay) dir (dx,dy)
+    int count{1}; double offx{0}, offy{0}; // PatternLinear
+    double cx{0}, cy{0}, angleDeg{0};      // PatternCircular
+    double distance{0};                     // Offset
+
+    std::vector<std::uint32_t> created{};
+    bool done{false};
+
+    mir::SketchPoint2D mirrorP(const mir::SketchPoint2D& p) const
+    {
+        const double len = std::hypot(dx, dy);
+        if (len < 1e-12) return p;
+        const double ux = dx / len, uy = dy / len;
+        const double t = (p.x - ax) * ux + (p.y - ay) * uy;
+        const double projx = ax + t * ux, projy = ay + t * uy;
+        return {2.0 * projx - p.x, 2.0 * projy - p.y};
+    }
+    mir::SketchPoint2D translateP(const mir::SketchPoint2D& p, double kx, double ky) const
+    {
+        return {p.x + kx, p.y + ky};
+    }
+    mir::SketchPoint2D rotateP(const mir::SketchPoint2D& p, double a) const
+    {
+        const double ca = std::cos(a), sa = std::sin(a);
+        return {cx + (p.x - cx) * ca - (p.y - cy) * sa,
+                cy + (p.x - cx) * sa + (p.y - cy) * ca};
+    }
+
+    bool execute(mir::SketchDocument& document) override
+    {
+        if (done) return true;
+        const double aRad = angleDeg * 3.141592653589793 / 180.0;
+        const double phi = std::atan2(dy, dx);
+        for (std::uint32_t id : ids)
+        {
+            const auto* g = document.geometry().find(id);
+            if (!g) continue;
+            std::visit([&](const auto& it) {
+                using T = std::decay_t<decltype(it)>;
+                if constexpr (std::is_same_v<T, mir::SketchLine2D>)
+                {
+                    if (mode == Mode::Mirror)
+                        created.push_back(document.geometry().addLine(mirrorP(it.start), mirrorP(it.end)));
+                    else if (mode == Mode::PatternLinear)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addLine(
+                                translateP(it.start, offx * k, offy * k),
+                                translateP(it.end, offx * k, offy * k)));
+                    else if (mode == Mode::PatternCircular)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addLine(
+                                rotateP(it.start, aRad * k), rotateP(it.end, aRad * k)));
+                    else if (mode == Mode::Offset)
+                    {
+                        const double lx = it.end.x - it.start.x, ly = it.end.y - it.start.y;
+                        const double len = std::hypot(lx, ly);
+                        if (len < 1e-9) return;
+                        const double nx = -ly / len, ny = lx / len;
+                        created.push_back(document.geometry().addLine(
+                            {it.start.x + nx * distance, it.start.y + ny * distance},
+                            {it.end.x + nx * distance, it.end.y + ny * distance}));
+                    }
+                }
+                else if constexpr (std::is_same_v<T, mir::SketchCircle2D>)
+                {
+                    if (mode == Mode::Mirror)
+                        created.push_back(document.geometry().addCircle(mirrorP(it.center), it.radius));
+                    else if (mode == Mode::PatternLinear)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addCircle(
+                                translateP(it.center, offx * k, offy * k), it.radius));
+                    else if (mode == Mode::PatternCircular)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addCircle(
+                                rotateP(it.center, aRad * k), it.radius));
+                    else if (mode == Mode::Offset)
+                    {
+                        const double r = it.radius + distance;
+                        if (r > 0) created.push_back(document.geometry().addCircle(it.center, r));
+                    }
+                }
+                else if constexpr (std::is_same_v<T, mir::SketchArc2D>)
+                {
+                    if (mode == Mode::Mirror)
+                    {
+                        const auto c = mirrorP(it.center);
+                        created.push_back(document.geometry().addArc(
+                            c, it.radius, 2.0 * phi - it.endAngle, 2.0 * phi - it.startAngle));
+                    }
+                    else if (mode == Mode::PatternLinear)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addArc(
+                                translateP(it.center, offx * k, offy * k), it.radius, it.startAngle, it.endAngle));
+                    else if (mode == Mode::PatternCircular)
+                        for (int k = 1; k < count; ++k)
+                            created.push_back(document.geometry().addArc(
+                                rotateP(it.center, aRad * k), it.radius, it.startAngle + aRad * k, it.endAngle + aRad * k));
+                    else if (mode == Mode::Offset)
+                    {
+                        const double r = it.radius + distance;
+                        if (r > 0) created.push_back(document.geometry().addArc(it.center, r, it.startAngle, it.endAngle));
+                    }
+                }
+                else if constexpr (std::is_same_v<T, mir::SketchSpline2D>)
+                {
+                    if (mode == Mode::Mirror)
+                    {
+                        std::vector<mir::SketchPoint2D> pts;
+                        pts.reserve(it.controlPoints.size());
+                        for (const auto& cp : it.controlPoints) pts.push_back(mirrorP(cp));
+                        created.push_back(document.geometry().addSpline(std::move(pts), it.closed));
+                    }
+                    else if (mode == Mode::PatternLinear)
+                        for (int k = 1; k < count; ++k)
+                        {
+                            std::vector<mir::SketchPoint2D> pts;
+                            pts.reserve(it.controlPoints.size());
+                            for (const auto& cp : it.controlPoints) pts.push_back(translateP(cp, offx * k, offy * k));
+                            created.push_back(document.geometry().addSpline(std::move(pts), it.closed));
+                        }
+                    else if (mode == Mode::PatternCircular)
+                        for (int k = 1; k < count; ++k)
+                        {
+                            std::vector<mir::SketchPoint2D> pts;
+                            pts.reserve(it.controlPoints.size());
+                            for (const auto& cp : it.controlPoints) pts.push_back(rotateP(cp, aRad * k));
+                            created.push_back(document.geometry().addSpline(std::move(pts), it.closed));
+                        }
+                }
+            }, *g);
+        }
+        done = true;
+        return true;
+    }
+
+    bool undo(mir::SketchDocument& document) override
+    {
+        if (!done) return false;
+        for (auto it = created.rbegin(); it != created.rend(); ++it)
+            document.geometry().remove(*it);
+        created.clear();
+        done = false;
+        return true;
+    }
+};
+
+} // namespace
+
+bool MirEngineSketchSessionMirrorSelection(MirEngineSketchSession* session, float px, float py, float dx, float dy)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s) return false;
+    auto cmd = std::make_unique<TransformSelectionCommand>();
+    cmd->mode = TransformSelectionCommand::Mode::Mirror;
+    cmd->ax = double(px); cmd->ay = double(py);
+    cmd->dx = double(dx); cmd->dy = double(dy);
+    const auto sel = s->selection().ids();
+    if (sel.empty()) return false;
+    cmd->ids = sel;
+    if (!s->history().execute(std::move(cmd), s->document())) return false;
+    s->touch();
+    return true;
+}
+
+bool MirEngineSketchSessionPatternLinear(MirEngineSketchSession* session, int count, float offx, float offy)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || count < 2) return false;
+    auto cmd = std::make_unique<TransformSelectionCommand>();
+    cmd->mode = TransformSelectionCommand::Mode::PatternLinear;
+    cmd->count = count;
+    cmd->offx = double(offx); cmd->offy = double(offy);
+    const auto sel = s->selection().ids();
+    if (sel.empty()) return false;
+    cmd->ids = sel;
+    if (!s->history().execute(std::move(cmd), s->document())) return false;
+    s->touch();
+    return true;
+}
+
+bool MirEngineSketchSessionPatternCircular(MirEngineSketchSession* session, int count, float cx, float cy, float angleDeg)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || count < 2) return false;
+    auto cmd = std::make_unique<TransformSelectionCommand>();
+    cmd->mode = TransformSelectionCommand::Mode::PatternCircular;
+    cmd->count = count;
+    cmd->cx = double(cx); cmd->cy = double(cy);
+    cmd->angleDeg = double(angleDeg);
+    const auto sel = s->selection().ids();
+    if (sel.empty()) return false;
+    cmd->ids = sel;
+    if (!s->history().execute(std::move(cmd), s->document())) return false;
+    s->touch();
+    return true;
+}
+
+bool MirEngineSketchSessionOffsetSelection(MirEngineSketchSession* session, float distance)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s) return false;
+    auto cmd = std::make_unique<TransformSelectionCommand>();
+    cmd->mode = TransformSelectionCommand::Mode::Offset;
+    cmd->distance = double(distance);
+    const auto sel = s->selection().ids();
+    if (sel.empty()) return false;
+    cmd->ids = sel;
+    if (!s->history().execute(std::move(cmd), s->document())) return false;
+    s->touch();
+    return true;
+}
+
+
+bool MirEngineSketchSessionSnapVertex(MirEngineSketchSession* session,
+                                       float x, float y, float tolerance,
+                                       float* outX, float* outY)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || !outX || !outY) return false;
+    mir::SketchSnapEngine engine{double(tolerance)};
+    auto cand = engine.nearest(s->document().geometry(), {double(x), double(y)});
+    if (!cand) return false;
+    *outX = float(cand->point.x);
+    *outY = float(cand->point.y);
+    return true;
+}
+
+
+bool MirEngineSketchSessionPickGeometry(MirEngineSketchSession* session,
+                                         float x, float y, float tolerance,
+                                         uint32_t* outId)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || !outId) return false;
+    mir::SketchSnapEngine engine{double(tolerance)};
+    auto cand = engine.nearest(s->document().geometry(), {double(x), double(y)});
+    if (!cand) return false;
+    *outId = cand->geometryId;
+    return true;
+}
+

@@ -832,6 +832,13 @@ bool MirEngineSketchSessionLineAt(MirEngineSketchSession* session, uint32_t inde
 bool MirEngineSketchSessionArcAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r, float* sa, float* ea);
 bool MirEngineSketchSessionCircleAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r);
 bool MirEngineSketchSessionSplineAt(MirEngineSketchSession* session, uint32_t index, float* xs, float* ys, uint32_t* count, bool* closed);
+
+bool MirEngineSketchSessionMirrorSelection(MirEngineSketchSession* session, float px, float py, float dx, float dy);
+bool MirEngineSketchSessionPatternLinear(MirEngineSketchSession* session, int count, float offx, float offy);
+bool MirEngineSketchSessionPatternCircular(MirEngineSketchSession* session, int count, float cx, float cy, float angleDeg);
+bool MirEngineSketchSessionOffsetSelection(MirEngineSketchSession* session, float distance);
+bool MirEngineSketchSessionSnapVertex(MirEngineSketchSession* session, float x, float y, float tolerance, float* outX, float* outY);
+bool MirEngineSketchSessionPickGeometry(MirEngineSketchSession* session, float x, float y, float tolerance, uint32_t* outId);
 uint32_t MirEngineSketchSessionConstraintCount(MirEngineSketchSession* session);
 bool MirEngineSketchSessionConstraintAt(MirEngineSketchSession* session, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
 
