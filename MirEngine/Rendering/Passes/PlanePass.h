@@ -43,6 +43,12 @@ public:
 
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
+    /// Ray-casts an NDC point (cx,cy in [-1,1]) against the work planes and
+    /// returns the index of the best-matching plane, or -1 if none. Shared by
+    /// the hover highlight (execute) and explicit picking (MirEnginePickPlane).
+    [[nodiscard]] static int pickPlaneIndex(const RenderContext& context,
+                                            float ndcX, float ndcY);
+
 private:
     bool m_initialized{false};
 

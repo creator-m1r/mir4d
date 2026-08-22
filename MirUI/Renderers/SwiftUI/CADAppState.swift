@@ -129,10 +129,10 @@ struct SketchPlaneAnchor: Identifiable, Equatable, Sendable {
         id: 1, name: "XY", preset: .front,
         origin: (0, 0, 0), normal: (0, 0, 1), xAxis: (1, 0, 0), yAxis: (0, 1, 0))
     static let yz = SketchPlaneAnchor(
-        id: 2, name: "YZ", preset: .right,
+        id: 3, name: "YZ", preset: .right,
         origin: (0, 0, 0), normal: (1, 0, 0), xAxis: (0, 1, 0), yAxis: (0, 0, 1))
     static let zx = SketchPlaneAnchor(
-        id: 3, name: "ZX", preset: .top,
+        id: 2, name: "ZX", preset: .top,
         origin: (0, 0, 0), normal: (0, 1, 0), xAxis: (0, 0, 1), yAxis: (1, 0, 0))
 
     static let standard: [SketchPlaneAnchor] = [.xy, .yz, .zx]
@@ -158,8 +158,16 @@ final class CADAppState: ObservableObject {
     @Published var sectionMode: Bool = false
 
     @Published var sketchPlane: SketchPlaneAnchor? {
-        didSet { modelRuntime.activeSketchPlane = sketchPlane }
+        didSet {
+            modelRuntime.activeSketchPlane = sketchPlane
+            WorkPlaneController.shared.setSelected(sketchPlane?.id ?? 0,
+                                                   to: modelRuntime.renderer)
+        }
     }
+
+    /// true — рисуем в 2D-оверлее; false — оверлей скрыт, события идут в 3D-вид,
+    /// можно орбитировать и рассматривать эскиз прямо на плоскости в 3D.
+    @Published var sketchOverlayVisible: Bool = true
 
     let time = TimeCoordinator()
     private var cancellables = Set<AnyCancellable>()

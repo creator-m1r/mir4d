@@ -12,6 +12,11 @@ struct SketchViewportView: View {
 
     @State private var lastMagnification: CGFloat = 1.0
     @State private var showGrid = true
+    @State private var extrudeDepth: Double = 5.0
+    @State private var extrudeOnExit: Bool = true
+    @State private var moveU: Double = 0.0
+    @State private var moveV: Double = 0.0
+    @State private var moveN: Double = 0.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +27,17 @@ struct SketchViewportView: View {
             statusBar
         }
         .background(MirTheme.Colors.viewport)
+        .overlay(alignment: .bottomLeading) {
+            if !controller.lastMetricsJson.isEmpty {
+                Text(controller.lastMetricsJson)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(8)
+            }
+        }
         .onAppear { controller.setSubMode(appState.subMode) }
         .onChange(of: appState.subMode) { _, newMode in controller.setSubMode(newMode) }
         .onChange(of: appState.sketchPlane) { _, newPlane in
@@ -47,6 +63,39 @@ struct SketchViewportView: View {
                 toolButton("Прямоугольник", .rectangle, systemImage: "rectangle")
                 toolButton("Дуга", .arc, systemImage: "arc")
                 toolButton("Сплайн", .spline, systemImage: "waveform.path")
+                Divider()
+                Stepper("Глубина: \(extrudeDepth, specifier: "%.1f")",
+                        value: $extrudeDepth, in: 0.2...200, step: 0.5)
+                    .controlSize(.small)
+                    .onChange(of: extrudeDepth) { _, newValue in controller.updateDepth(newValue) }
+                Button { doExtrude() } label: {
+                    Label("Выдавить", systemImage: "cube.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Toggle("при выходе", isOn: $extrudeOnExit)
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                Button {
+                    if extrudeOnExit { doExtrude() }
+                    appState.workbench = .model
+                } label: {
+                    Label("Готово", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Divider()
+                HStack(spacing: 6) {
+                    Stepper("U", value: $moveU, in: -100...100, step: 0.5)
+                        .controlSize(.small)
+                        .onChange(of: moveU) { _, _ in controller.updateMove(moveU, moveV, moveN) }
+                    Stepper("V", value: $moveV, in: -100...100, step: 0.5)
+                        .controlSize(.small)
+                        .onChange(of: moveV) { _, _ in controller.updateMove(moveU, moveV, moveN) }
+                    Stepper("N", value: $moveN, in: -100...100, step: 0.5)
+                        .controlSize(.small)
+                        .onChange(of: moveN) { _, _ in controller.updateMove(moveU, moveV, moveN) }
+                }
             case .sketchEdit:
                 toolButton("Выбор", .select, systemImage: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left")
             case .sketchConstraint:
@@ -95,6 +144,12 @@ struct SketchViewportView: View {
         Binding(get: { controller.pendingConstraintType }, set: { controller.pendingConstraintType = $0 })
     }
 
+    /// Экструзия со сбросом параметрических смещений предыдущего тела.
+    private func doExtrude() {
+        moveU = 0; moveV = 0; moveN = 0
+        _ = controller.extrude(distance: extrudeDepth)
+    }
+
     private func toolButton(_ title: String, _ tool: SketchTool, systemImage: String) -> some View {
         Button {
             controller.setTool(tool)
@@ -112,7 +167,7 @@ struct SketchViewportView: View {
         GeometryReader { proxy in
             let cs = coordinateSpace(in: proxy.size)
             ZStack {
-                Color.black
+                Color.clear
 
                 if showGrid {
                     SketchInfiniteGridView(zoom: navigation.zoom, pan: navigation.pan)

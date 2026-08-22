@@ -236,6 +236,17 @@ void OpenGLRenderer::render(mir::Scene& scene,
     }
 
     m_device->endFrame();
+
+    // Keep a snapshot of the fully-populated context for off-render picking.
+    m_lastContext = context;
+}
+
+std::uint32_t OpenGLRenderer::pickPlane(float ndcX, float ndcY) const noexcept
+{
+    const int idx = PlanePass::pickPlaneIndex(m_lastContext, ndcX, ndcY);
+    if (idx < 0 || idx >= static_cast<int>(m_lastContext.planes.size()))
+        return 0;
+    return m_lastContext.planes[static_cast<std::size_t>(idx)].id;
 }
 
 void OpenGLRenderer::captureDiagnosticFrame(RenderContext& context,

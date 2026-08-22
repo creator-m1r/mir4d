@@ -111,6 +111,127 @@ static mir4d::Transform fromMirTransform(const MirTransform& m) noexcept
     return t;
 }
 
+namespace
+{
+/// Кватернион поворота из ортонормированного базиса (столбцы x, y, z).
+/// Перевод матрицы вращения в кватернион (стандартный алгоритм).
+mir::Quaternion quaternionFromBasis(const mir::Vector3& x,
+                                    const mir::Vector3& y,
+                                    const mir::Vector3& z)
+{
+    const double m00 = x.x, m01 = y.x, m02 = z.x;
+    const double m10 = x.y, m11 = y.y, m12 = z.y;
+    const double m20 = x.z, m21 = y.z, m22 = z.z;
+    const double tr = m00 + m11 + m22;
+    mir::Quaternion q;
+    if (tr > 0.0)
+    {
+        const double s = 0.5 / std::sqrt(tr + 1.0);
+        q.w = 0.25 / s;
+        q.x = (m21 - m12) * s;
+        q.y = (m02 - m20) * s;
+        q.z = (m10 - m01) * s;
+    }
+    else if (m00 > m11 && m00 > m22)
+    {
+        const double s = 2.0 * std::sqrt(1.0 + m00 - m11 - m22);
+        q.w = (m21 - m12) / s;
+        q.x = 0.25 * s;
+        q.y = (m01 + m10) / s;
+        q.z = (m02 + m20) / s;
+    }
+    else if (m11 > m22)
+    {
+        const double s = 2.0 * std::sqrt(1.0 + m11 - m00 - m22);
+        q.w = (m02 - m20) / s;
+        q.x = (m01 + m10) / s;
+        q.y = 0.25 * s;
+        q.z = (m12 + m21) / s;
+    }
+    else
+    {
+        const double s = 2.0 * std::sqrt(1.0 + m22 - m00 - m11);
+        q.w = (m10 - m01) / s;
+        q.x = (m02 + m20) / s;
+        q.y = (m12 + m21) / s;
+        q.z = 0.25 * s;
+    }
+    return q;
+}
+
+/// Строит призматическое тело из замкнутого полигонального профиля
+/// (локальные точки в плоскости XY: z = 0) и помещает его в сцену,
+/// ориентируя по базису рабочей плоскости.
+/// Возвращает id созданного объекта (0 при неудаче).
+uint64_t extrudePolygonIntoScene(void* viewport,
+                                 const std::vector<mir::Vector3>& localPts,
+                                 double depth,
+                                 const mir::Vector3& planeOrigin,
+                                 const mir::Vector3& xAxis,
+                                 const mir::Vector3& yAxis,
+                                 const mir::Vector3& normal)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene)
+        return 0;
+    if (localPts.size() < 3 || !(depth > 0.0))
+        return 0;
+
+    mir::BRepModel brep;
+    mir::BRepBuilderAPI builder(brep);
+
+    std::vector<mir::BRepVertexHandle> verts;
+    verts.reserve(localPts.size());
+    for (const auto& p : localPts)
+    {
+        const auto v = builder.makeVertex(p, mir::DefaultBRepTolerance.linear);
+        if (!v.valid())
+            return 0;
+        verts.push_back(v);
+    }
+
+    const std::size_t n = verts.size();
+    std::vector<mir::BRepEdgeHandle> edges;
+    edges.reserve(n);
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        const std::size_t j = (i + 1) % n;
+        const auto e = builder.makeEdgeLine(verts[i], verts[j], mir::DefaultBRepTolerance.linear);
+        if (!e.valid())
+            return 0;
+        edges.push_back(e);
+    }
+
+    const auto wire = builder.makeWireFromEdges(edges, true);
+    if (!wire.valid())
+        return 0;
+
+    const auto extruded = mir::BRepExtrudeBuilder::extrudeWire(
+        brep, wire, mir::Vector3::unitZ(), mir::Scalar(depth), mir::DefaultBRepTolerance);
+    if (!extruded.success)
+        return 0;
+
+    mir::BRepToModelOptions options{};
+    options.tolerance = mir::DefaultBRepTolerance;
+    const auto converted = mir::BRepToModel::convertSolid(brep, extruded.solid, options);
+    if (!converted.success)
+        return 0;
+
+    const mir::Quaternion q = quaternionFromBasis(xAxis, yAxis, normal);
+    const mir::Point3 center{planeOrigin.x, planeOrigin.y, planeOrigin.z};
+    const mir::Transform tf(center, q, mir::Vector3{1.0, 1.0, 1.0});
+
+    const auto inserted = mir4d::BRepSceneBridge::insertModel(*native->scene, converted.model, tf);
+    if (!inserted.success)
+        return 0;
+
+    if (auto node = native->scene->find(inserted.objectId))
+        node->setBrep(std::make_shared<mir::BRepModel>(brep));
+
+    return static_cast<uint64_t>(inserted.objectId);
+}
+} // namespace
+
 extern "C"
 {
 
@@ -363,6 +484,21 @@ uint32_t MirEnginePlaneStoreCreateOffsetPlane(void* store,
     return plane->id();
 }
 
+void MirEnginePlaneStoreSetSelected(void* store, uint32_t id)
+{
+    if (!store)
+        return;
+    static_cast<mir::PlaneStore*>(store)->setSelectedId(id);
+}
+
+uint32_t MirEnginePickPlane(void* renderer, float ndcX, float ndcY)
+{
+    if (!renderer)
+        return 0;
+    auto* native = static_cast<OpenGLRenderer*>(renderer);
+    return native->pickPlane(ndcX, ndcY);
+}
+
 int MirEnginePlaneStoreSnapshot(void* store,
                                 int maxCount,
                                 uint32_t* ids,
@@ -407,8 +543,10 @@ int MirEnginePlaneStoreSnapshot(void* store,
         colors[o + 1] = c[1];
         colors[o + 2] = c[2];
         sizes[i] = 10.0f;
-        active[i] = (p->id() == mir::kBasePlaneXY);
-        selected[i] = false;
+        // Выбранная плоскость — самая заметная; до выбора активна базовая XY.
+        const bool isSelected = (p->id() == s->selectedId());
+        active[i] = isSelected || (s->selectedId() == 0 && p->id() == mir::kBasePlaneXY);
+        selected[i] = isSelected;
     }
     return count;
 }
@@ -1881,6 +2019,48 @@ bool MirEngineGetObjectTransform(
     return true;
 }
 
+void MirEngineSetObjectTransform(
+    void* viewport,
+    uint64_t objectId,
+    const MirTransform* t
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !native->scene || !t)
+        return;
+
+    auto node = native->scene->find(mir4d::ObjectId(objectId));
+    if (!node)
+        return;
+
+    const mir::Transform tf(
+        mir::Point3{t->px, t->py, t->pz},
+        mir::Quaternion{t->qx, t->qy, t->qz, t->qw},
+        mir::Vector3{t->sx, t->sy, t->sz});
+    node->setTransform(tf);
+}
+
+void MirEngineViewportRay(
+    void* viewport,
+    float x,
+    float y,
+    double origin[3],
+    double dir[3]
+)
+{
+    auto* native = asViewport(viewport);
+    if (!native || !native->runtime || !origin || !dir)
+        return;
+
+    const auto ray = native->runtime->pickRay(x, y);
+    origin[0] = ray.origin.x;
+    origin[1] = ray.origin.y;
+    origin[2] = ray.origin.z;
+    dir[0] = ray.direction.x;
+    dir[1] = ray.direction.y;
+    dir[2] = ray.direction.z;
+}
+
 void MirEngineSetHandHover(
     void* viewport,
     uint64_t objectId
@@ -2061,6 +2241,67 @@ bool MirEngineCreateBox(
 
     setLastError(native, nullptr);
     return true;
+}
+
+uint64_t MirEngineExtrudeSketch(void* viewport,
+                                double width,
+                                double height,
+                                double cu,
+                                double cv,
+                                double distance,
+                                double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double xx, double xy, double xz,
+                                double yx, double yy, double yz)
+{
+    if (!(width > 0.0) || !(height > 0.0) || !(distance > 0.0))
+        return 0;
+
+    // Восстанавливаем углы габаритного прямоугольника в локальных UV
+    // (профиль строится в тех же координатах, что и набросок — без смещения).
+    const double uMin = cu - width * 0.5;
+    const double uMax = cu + width * 0.5;
+    const double vMin = cv - height * 0.5;
+    const double vMax = cv + height * 0.5;
+
+    const std::vector<mir::Vector3> pts = {
+        mir::Vector3{uMin, vMin, 0.0},
+        mir::Vector3{uMax, vMin, 0.0},
+        mir::Vector3{uMax, vMax, 0.0},
+        mir::Vector3{uMin, vMax, 0.0},
+    };
+
+    return extrudePolygonIntoScene(
+        viewport, pts, distance,
+        mir::Vector3(ox, oy, oz),
+        mir::Vector3(xx, xy, xz),
+        mir::Vector3(yx, yy, yz),
+        mir::Vector3(nx, ny, nz));
+}
+
+uint64_t MirEngineExtrudeContour(void* viewport,
+                                const double* uv,
+                                int count,
+                                double distance,
+                                double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double xx, double xy, double xz,
+                                double yx, double yy, double yz)
+{
+    if (!uv || count < 3 || !(distance > 0.0))
+        return 0;
+
+    std::vector<mir::Vector3> pts;
+    pts.reserve(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i)
+        pts.push_back(mir::Vector3{uv[2 * i], uv[2 * i + 1], 0.0});
+
+    return extrudePolygonIntoScene(
+        viewport, pts, distance,
+        mir::Vector3(ox, oy, oz),
+        mir::Vector3(xx, xy, xz),
+        mir::Vector3(yx, yy, yz),
+        mir::Vector3(nx, ny, nz));
 }
 
 

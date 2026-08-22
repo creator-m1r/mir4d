@@ -436,6 +436,144 @@ void runBRepEdgeLengthTests()
     assert(tested);
 }
 
+void runCylinderTessellationTests()
+{
+    // Build a minimal lateral cylinder solid manually: one cylindrical face
+    // bounded by two circular edges (bottom/top) and two seam edges.
+    const double R = 2.0;
+    const double H = 5.0;
+    const double PI = 3.14159265358979323846;
+
+    mir::BRepModel model;
+    auto& geo = model.geometry();
+    auto& topo = model.topology();
+
+    mir::BRepSurfaceGeometry surf;
+    surf.type = mir::BRepSurfaceType::Cylinder;
+    surf.uRange = {0.0, 2.0 * PI};
+    surf.vRange = {0.0, H};
+    surf.cylinder.location = {0.0, 0.0, 0.0};
+    surf.cylinder.axis = mir::Vector3::unitZ();
+    surf.cylinder.xDir = mir::Vector3::unitX();
+    surf.cylinder.radius = R;
+    const mir::BRepSurfaceHandle sH = geo.addSurface(surf);
+
+    auto makeCircle = [&](double z) {
+        mir::BRepCurveGeometry c;
+        c.type = mir::BRepCurveType::Circle;
+        c.range = {0.0, 2.0 * PI};
+        c.circle.center = {0.0, 0.0, z};
+        c.circle.normal = mir::Vector3::unitZ();
+        c.circle.xDir = mir::Vector3::unitX();
+        c.circle.radius = R;
+        return geo.addCurve(c);
+    };
+    const mir::BRepCurveHandle cBottomH = makeCircle(0.0);
+    const mir::BRepCurveHandle cTopH = makeCircle(H);
+
+    mir::BRepCurveGeometry cSeam;
+    cSeam.type = mir::BRepCurveType::Line;
+    cSeam.range = {0.0, H};
+    cSeam.line.location = {R, 0.0, 0.0};
+    cSeam.line.direction = mir::Vector3::unitZ();
+    const mir::BRepCurveHandle cSeamAH = geo.addCurve(cSeam);
+    const mir::BRepCurveHandle cSeamBH = geo.addCurve(cSeam);
+
+    mir::BRepPointGeometry p0; p0.point = {R, 0.0, 0.0};
+    mir::BRepPointGeometry p1; p1.point = {R, 0.0, H};
+    const mir::BRepPointHandle p0H = geo.addPoint(p0);
+    const mir::BRepPointHandle p1H = geo.addPoint(p1);
+
+    mir::BRepVertex v0; v0.point = p0H; v0.free = false;
+    mir::BRepVertex v1; v1.point = p1H; v1.free = false;
+    const mir::BRepVertexHandle v0H = topo.addVertex(v0);
+    const mir::BRepVertexHandle v1H = topo.addVertex(v1);
+
+    auto makeEdge = [&](mir::BRepCurveHandle ch, mir::BRepVertexHandle s, mir::BRepVertexHandle e) {
+        mir::BRepEdge edge;
+        edge.curve = ch;
+        edge.range = geo.curve(ch)->range;
+        edge.start = s;
+        edge.end = e;
+        edge.free = false;
+        return topo.addEdge(edge);
+    };
+    const mir::BRepEdgeHandle eBottomH = makeEdge(cBottomH, v0H, v0H);
+    const mir::BRepEdgeHandle eTopH = makeEdge(cTopH, v1H, v1H);
+    const mir::BRepEdgeHandle eSeamAH = makeEdge(cSeamAH, v0H, v1H);
+    const mir::BRepEdgeHandle eSeamBH = makeEdge(cSeamBH, v0H, v1H);
+
+    mir::BRepWire wire;
+    auto addOE = [&](mir::BRepEdgeHandle eh, mir::BRepOrientation o) {
+        mir::BRepOrientedEdge oe; oe.edge = eh; oe.orientation = o; wire.edges.push_back(oe);
+    };
+    addOE(eBottomH, mir::BRepOrientation::Forward);
+    addOE(eSeamBH, mir::BRepOrientation::Forward);
+    addOE(eTopH, mir::BRepOrientation::Reversed);
+    addOE(eSeamAH, mir::BRepOrientation::Reversed);
+    wire.closed = true;
+    const mir::BRepWireHandle wireH = topo.addWire(wire);
+
+    mir::BRepFace face;
+    face.surface = sH;
+    face.outer.wire = wireH;
+    face.outer.orientation = mir::BRepOrientation::Forward;
+    face.free = false;
+    const mir::BRepFaceHandle faceH = topo.addFace(face);
+
+    mir::BRepShell shell;
+    mir::BRepOrientedFace of; of.face = faceH; of.orientation = mir::BRepOrientation::Forward;
+    shell.faces.push_back(of);
+    const mir::BRepShellHandle shellH = topo.addShell(shell);
+
+    mir::BRepSolid solid;
+    solid.shells.push_back(shellH);
+    const mir::BRepSolidHandle solidH = topo.addSolid(solid);
+
+    model.addRootSolid(solidH);
+
+    // Tessellate and validate.
+    const mir::TriangleMesh3 mesh = mir::BRepTessellator::tessellateModel(model);
+    assert(!mesh.empty());
+    assert(mesh.isValid());
+
+    // Every vertex lies on the cylinder of radius R about the Z axis, so the
+    // face is genuinely curved (not planar).
+    for (const mir::Point3& p : mesh.vertices)
+    {
+        const double r = std::sqrt(p.x * p.x + p.y * p.y);
+        assert(std::fabs(r - R) < 1e-6);
+        assert(p.z >= -1e-6 && p.z <= H + 1e-6);
+    }
+
+    // Every triangle carries the single face id.
+    for (const auto& t : mesh.triangles)
+        assert(t.sourceFaceId == static_cast<std::uint64_t>(faceH.index));
+
+    // Boundary chords must be tagged with real source edge ids, and each such
+    // edge's exact length must match either the circumference (circle) or the
+    // height (seam).
+    std::set<std::uint64_t> tagged;
+    for (const auto& t : mesh.triangles)
+        for (int k = 0; k < 3; ++k)
+            if (t.sourceEdgeId[k] != mir::kInvalidSourceEdge)
+                tagged.insert(t.sourceEdgeId[k]);
+    assert(tagged.size() >= 2);
+
+    for (std::uint64_t sid : tagged)
+    {
+        mir::BRepEdgeHandle eh;
+        eh.index = sid;
+        assert(topo.edge(eh) != nullptr);
+        mir::BRepAdaptor_Curve curve(model, eh);
+        assert(curve.isBound());
+        const double L = curve.lengthEstimate();
+        const bool isCircle = std::fabs(L - 2.0 * PI * R) < 0.1;
+        const bool isSeam = std::fabs(L - H) < 1e-3;
+        assert(isCircle || isSeam);
+    }
+}
+
 int main()
 {
     mir4d::Document document("RayPicker Y-orientation test");
@@ -494,6 +632,7 @@ int main()
     runEdgeSourceIdTests();
     runElementBoxSelectionTests();
     runBRepEdgeLengthTests();
+    runCylinderTessellationTests();
 
     std::cout << "MIR4D RAYPICKER: OK\n";
     return 0;

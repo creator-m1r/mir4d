@@ -69,4 +69,10 @@ final class WorkPlaneController {
     func push(to renderer: UnsafeMutableRawPointer?) {
         MirEnginePushWorkPlanes(renderer, snapshot())
     }
+
+    /// Помечает плоскость выбранной (подсветка в 3D) и перепубликует снимок.
+    func setSelected(_ id: UInt32, to renderer: UnsafeMutableRawPointer?) {
+        MirEnginePlaneStoreSetSelected(store, id)
+        push(to: renderer)
+    }
 }

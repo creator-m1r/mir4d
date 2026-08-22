@@ -507,7 +507,16 @@ public:
     {
         if (!scene_)
             return {};
+
         return RayPicker::pick(*scene_, PickRay{origin, direction}, state_.pickFilter);
+    }
+
+    /// Мировой луч через пиксель экрана (для перетаскивания объектов мышью).
+    [[nodiscard]] PickRay pickRay(Scalar x, Scalar y) const noexcept
+    {
+        if (!scene_)
+            return {};
+        return RayPicker::buildRay(state_.camera, x, y, state_.width, state_.height);
     }
 
     /// Assigns a MaterialLibrary material id to an object.

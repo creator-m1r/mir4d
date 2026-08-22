@@ -88,6 +88,11 @@ public:
 
     [[nodiscard]] std::size_t size() const noexcept { return planes_.size(); }
 
+    /// Выбранная пользователем плоскость (ТЗ: подсветка активной плоскости в 3D).
+    /// Значение 0 означает «ничего не выбрано».
+    [[nodiscard]] std::uint32_t selectedId() const noexcept { return selectedId_; }
+    void setSelectedId(std::uint32_t id) noexcept { selectedId_ = id; }
+
 private:
     static bool isReservedId(std::uint32_t id) noexcept
     {
@@ -103,6 +108,7 @@ private:
 
     std::unordered_map<std::uint32_t, std::shared_ptr<Plane>> planes_;
     std::uint32_t nextUserId_{100};
+    std::uint32_t selectedId_{0};
 };
 
 } // namespace mir

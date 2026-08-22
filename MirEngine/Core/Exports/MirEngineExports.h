@@ -111,8 +111,10 @@ void MirEngineDestroyPlaneStore(void* store);
 void MirEnginePlaneStoreAddBasePlanes(void* store);
 uint32_t MirEnginePlaneStoreCreateOffsetPlane(void* store,
                                               uint32_t basePlane,
-                                              double offset,
-                                              double angleDeg);
+                                               double offset,
+                                               double angleDeg);
+void MirEnginePlaneStoreSetSelected(void* store, uint32_t id);
+uint32_t MirEnginePickPlane(void* renderer, float ndcX, float ndcY);
 int MirEnginePlaneStoreSnapshot(void* store,
                                 int maxCount,
                                 uint32_t* ids,
@@ -481,6 +483,25 @@ bool MirEngineGetObjectTransform(
     MirTransform* outTransform
 );
 
+/// Устанавливает мировой transform объекта (позиция / поворот / масштаб).
+/// Используется, например, для параметрической правки тела без пересоздания
+/// геометрии (масштаб вдоль нормали плоскости = глубина выдавливания).
+void MirEngineSetObjectTransform(
+    void* viewport,
+    uint64_t objectId,
+    const MirTransform* transform
+);
+
+/// Строит мировой луч через пиксель экрана (для перетаскивания объектов).
+/// origin/dir — массивы из 3 double (точка и направление луча).
+void MirEngineViewportRay(
+    void* viewport,
+    float x,
+    float y,
+    double origin[3],
+    double dir[3]
+);
+
 /// Highlights an object under the hand (hover) without changing selection.
 void MirEngineSetHandHover(
     void* viewport,
@@ -563,6 +584,36 @@ bool MirEngineCreateBox(
     double height,
     uint64_t* objectId
 );
+
+/// Выдавливает прямоугольный профиль эскиза в твёрдое тело на рабочей плоскости.
+/// (width, height) — размеры профиля; (cu, cv) — центр профиля в локальных
+/// координатах плоскости (U,V); distance — глубина выдавливания;
+/// (ox,oy,oz) — origin плоскости; (nx,ny,nz) — нормаль; (xx,xy,xz)/(yx,yy,yz) —
+/// оси X/Y плоскости. Возвращает id созданного объекта (0 при неудаче).
+uint64_t MirEngineExtrudeSketch(void* viewport,
+                                double width,
+                                double height,
+                                double cu,
+                                double cv,
+                                double distance,
+                                double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double xx, double xy, double xz,
+                                double yx, double yy, double yz);
+
+/// Выдавливает произвольный замкнутый контур эскиза в твёрдое тело.
+/// uv — плоский массив [u0,v0,u1,v1,...] (локальные координаты плоскости,
+/// совпадающие с наброском); count — число точек; distance — глубина;
+/// остальные параметры задают плоскость (см. MirEngineExtrudeSketch).
+/// Возвращает id созданного объекта (0 при неудаче).
+uint64_t MirEngineExtrudeContour(void* viewport,
+                                 const double* uv,
+                                 int count,
+                                 double distance,
+                                 double ox, double oy, double oz,
+                                 double nx, double ny, double nz,
+                                 double xx, double xy, double xz,
+                                 double yx, double yy, double yz);
 
 // Extracts real geometry metrics (bounding box, size, volume, surface area,
 // vertex/face counts) from the primary selected object in the viewport scene.

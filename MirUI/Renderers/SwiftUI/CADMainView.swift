@@ -100,6 +100,7 @@ struct CADMainView: View {
                     if appState.sketchPlane == nil {
                         SketchPlaneChooser(onPick: { appState.sketchPlane = $0 })
                     }
+                    sketchViewToggle
                 }
             }
             .background(MirTheme.Colors.viewport)
@@ -109,10 +110,57 @@ struct CADMainView: View {
     }
 
     private var sketchLayer: some View {
-        SketchViewportView()
-            .environmentObject(appState)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(true)
+        GeometryReader { proxy in
+            if appState.sketchOverlayVisible {
+                SketchViewportView()
+                    .environmentObject(appState)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(true)
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        pickPlaneInScene(at: location, size: proxy.size)
+                    }
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Плавающая кнопка 2D/3D: в 3D-режиме 2D-оверлей скрыт, события идут в 3D-вид
+    /// (можно орбитировать и видеть эскиз на плоскости).
+    private var sketchViewToggle: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button {
+                    appState.sketchOverlayVisible.toggle()
+                } label: {
+                    Image(systemName: appState.sketchOverlayVisible ? "arrow.down.right.and.arrow.up.left" : "pencil.and.ruler")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(appState.sketchOverlayVisible ? "Перейти в 3D-вид (орбита)" : "Вернуться к 2D-эскизу")
+            }
+            Spacer()
+        }
+        .padding(8)
+    }
+
+    /// Клик по рабочей плоскости прямо на 3D-сцене: восстанавливает луч по NDC
+    /// через последний кадр рендерера и выбирает соответствующую плоскость.
+    private func pickPlaneInScene(at location: CGPoint, size: CGSize) {
+        guard appState.sketchPlane == nil,
+              let renderer = MIR4DModelRuntime.shared.renderer,
+              size.width > 0, size.height > 0 else { return }
+        let ndcX = Float((location.x / size.width) * 2 - 1)
+        let ndcY = Float(1 - (location.y / size.height) * 2)
+        let id = MirEnginePickPlane(renderer, ndcX, ndcY)
+        guard id != 0 else { return }
+        if let anchor = SketchPlaneAnchor.standard.first(where: { $0.id == id }) {
+            appState.sketchPlane = anchor
+        }
     }
 
     private var viewport: some View {

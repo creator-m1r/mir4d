@@ -132,6 +132,13 @@ final class MirGLCustomView: NSView {
     private var isBoxSelecting = false
     private let boxOverlay = BoxSelectionOverlayView()
 
+    // Drag-to-move of the selected object (Command-drag). The body follows the
+    // cursor in a plane parallel to the view through the object's grab point.
+    private var isMovingObject = false
+    private var moveObjectId: UInt64 = 0
+    private var moveDragNormal: (Double, Double, Double) = (0, 0, 1)
+    private var moveGrabOffset: (Double, Double, Double) = (0, 0, 0)
+
     // MARK: Radial menu
 
     private enum RadialTrigger {
@@ -2075,6 +2082,20 @@ final class MirGLCustomView: NSView {
                 from: nil
             )
 
+        // Command-drag moves the selected object (instead of orbiting).
+        if event.modifierFlags.contains(.command) {
+            var objectID: UInt64 = 0
+            MirGLCustomView.engineLock.lock()
+            if let viewport {
+                objectID = MirEngineGetSelectedObjectId(viewport)
+            }
+            MirGLCustomView.engineLock.unlock()
+            if objectID != 0 {
+                beginObjectMove(objectID, at: localPoint)
+                return
+            }
+        }
+
         // Option-drag starts a rectangle (box) selection instead of orbit.
         if event.modifierFlags.contains(.option) {
             isBoxSelecting = true
@@ -2099,6 +2120,12 @@ final class MirGLCustomView: NSView {
     override func mouseUp(
         with event: NSEvent
     ) {
+
+        if isMovingObject {
+            isMovingObject = false
+            moveObjectId = 0
+            return
+        }
 
         // Finish a rectangle selection drag.
         if isBoxSelecting {
@@ -2206,6 +2233,11 @@ final class MirGLCustomView: NSView {
         with event: NSEvent
     ) {
 
+        if isMovingObject {
+            dragObjectMove(with: event)
+            return
+        }
+
         if radialMenuActive {
 
             updateRadialMenu(
@@ -2268,6 +2300,77 @@ final class MirGLCustomView: NSView {
         boxOverlay.rect = NSRect(x: x, y: y, width: w, height: h)
         boxOverlay.isHidden = (w < 1 && h < 1)
         boxOverlay.needsDisplay = true
+    }
+
+    // MARK: Drag-to-move selected object
+
+    /// Начинает перетаскивание выбранного объекта: строит луч через курсор,
+    /// пересекает его с плоскостью, параллельной виду и проходящей через
+    /// объект, и запоминает смещение захвата.
+    private func beginObjectMove(_ id: UInt64, at localPoint: NSPoint) {
+        guard let viewport = viewport else { return }
+        let point = enginePoint(localPoint)
+        var o = [Double](repeating: 0, count: 3)
+        var d = [Double](repeating: 0, count: 3)
+        MirEngineViewportRay(viewport, Float(point.0), Float(point.1), &o, &d)
+        var t = MirTransform()
+        guard MirEngineGetObjectTransform(viewport, id, &t) else { return }
+        let objPos = (t.px, t.py, t.pz)
+        let normal = (d[0], d[1], d[2])
+        guard let hit = rayPlane(
+            origin: (o[0], o[1], o[2]),
+            dir: (d[0], d[1], d[2]),
+            planePoint: objPos,
+            normal: normal)
+        else { return }
+        moveObjectId = id
+        moveDragNormal = normal
+        moveGrabOffset = (objPos.0 - hit.0, objPos.1 - hit.1, objPos.2 - hit.2)
+        isMovingObject = true
+    }
+
+    /// Перемещает объект за курсором вдоль плоскости захвата.
+    private func dragObjectMove(with event: NSEvent) {
+        guard let viewport = viewport else { return }
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let point = enginePoint(localPoint)
+        var o = [Double](repeating: 0, count: 3)
+        var d = [Double](repeating: 0, count: 3)
+        MirEngineViewportRay(viewport, Float(point.0), Float(point.1), &o, &d)
+        guard let hit = rayPlane(
+            origin: (o[0], o[1], o[2]),
+            dir: (d[0], d[1], d[2]),
+            planePoint: (0, 0, 0),
+            normal: moveDragNormal)
+        else { return }
+        let newPos = (
+            hit.0 + moveGrabOffset.0,
+            hit.1 + moveGrabOffset.1,
+            hit.2 + moveGrabOffset.2
+        )
+        var t = MirTransform()
+        guard MirEngineGetObjectTransform(viewport, moveObjectId, &t) else { return }
+        t.px = newPos.0
+        t.py = newPos.1
+        t.pz = newPos.2
+        MirEngineSetObjectTransform(viewport, moveObjectId, &t)
+    }
+
+    /// Пересечение луча (origin, dir) с плоскостью (planePoint, normal).
+    private func rayPlane(
+        origin: (Double, Double, Double),
+        dir: (Double, Double, Double),
+        planePoint: (Double, Double, Double),
+        normal: (Double, Double, Double)
+    ) -> (Double, Double, Double)? {
+        let denom = dir.0 * normal.0 + dir.1 * normal.1 + dir.2 * normal.2
+        guard abs(denom) > 1e-9 else { return nil }
+        let px = planePoint.0 - origin.0
+        let py = planePoint.1 - origin.1
+        let pz = planePoint.2 - origin.2
+        let tt = (px * normal.0 + py * normal.1 + pz * normal.2) / denom
+        guard tt >= 0 else { return nil }
+        return (origin.0 + dir.0 * tt, origin.1 + dir.1 * tt, origin.2 + dir.2 * tt)
     }
 
     // MARK: Hover

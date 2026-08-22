@@ -85,6 +85,10 @@ public:
     [[nodiscard]] const OpenGLDevice* device() const noexcept { return m_device.get(); }
     [[nodiscard]] bool isInitialized() const noexcept { return m_initialized; }
 
+    /// Picks the work plane under the given NDC point (x,y in [-1,1]) and returns
+    /// its id, or 0 if none. Uses the last rendered frame's context.
+    [[nodiscard]] std::uint32_t pickPlane(float ndcX, float ndcY) const noexcept;
+
     /// Forwards the hand-skeleton overlay style (colours / sizes / depth) to the
     /// dedicated pass. Called once (or when the configuration changes).
     void setHandSkeletonStyle(const HandSkeletonStyle& style) noexcept override
@@ -113,6 +117,9 @@ private:
     std::unique_ptr<OpenGLVFXSink> m_vfxSink;
     std::vector<PlaneRenderData> m_planes;
     std::vector<SketchRenderData> m_sketches;
+    /// Snapshot of the most recently rendered frame's context, reused for
+    /// off-render picking (MirEnginePickPlane).
+    RenderContext m_lastContext;
     float m_cursorNDC[2]{0.0f, 0.0f};
     bool m_cursorActive{false};
     bool m_initialized{false};

@@ -136,6 +136,26 @@ private:
                            TriangleMesh3& mesh,
                            const BRepTessellationOptions& options)
     {
+        BRepAdaptor_Surface surfaceAdaptor(model, faceHandle);
+        if (!surfaceAdaptor.isBound()) return;
+        switch (surfaceAdaptor.type())
+        {
+            case BRepSurfaceType::Plane:
+                appendPlanarFace(model, faceHandle, mesh, options);
+                break;
+            case BRepSurfaceType::Cylinder:
+                appendCylinderFace(model, faceHandle, mesh, options);
+                break;
+            default:
+                break;
+        }
+    }
+
+    static void appendPlanarFace(const BRepModel& model,
+                                 BRepFaceHandle faceHandle,
+                                 TriangleMesh3& mesh,
+                                 const BRepTessellationOptions& options)
+    {
         const BRepFace* face = model.topology().face(faceHandle);
         if (!face) return;
 
@@ -248,6 +268,144 @@ private:
                                         : kInvalidSourceEdge;
             }
             mesh.triangles.push_back(t);
+        }
+    }
+
+    /// Parametric grid tessellation for a cylindrical B-Rep face. The cylinder
+    /// surface is parameterised by (angle u, height v); the wire edges are
+    /// classified into constant-u seams and constant-v circles so each boundary
+    /// chord can be tagged with its stable source edge id.
+    static void appendCylinderFace(const BRepModel& model,
+                                   BRepFaceHandle faceHandle,
+                                   TriangleMesh3& mesh,
+                                   const BRepTessellationOptions& options)
+    {
+        const BRepFace* face = model.topology().face(faceHandle);
+        if (!face) return;
+        BRepAdaptor_Surface surfaceAdaptor(model, faceHandle);
+        if (!surfaceAdaptor.isBound() || surfaceAdaptor.type() != BRepSurfaceType::Cylinder)
+            return;
+
+        const BRepSurfaceGeometry* surface = model.geometry().surface(face->surface);
+        if (!surface || surface->type != BRepSurfaceType::Cylinder) return;
+        const BRepCylinderSurface& cyl = surface->cylinder;
+        if (!cyl.isValid()) return;
+
+        const double u0 = surface->uRange.first;
+        const double u1 = surface->uRange.last;
+        const double v0 = surface->vRange.first;
+        const double v1 = surface->vRange.last;
+        const double du = u1 - u0;
+        const double dv = v1 - v0;
+        if (!std::isfinite(du) || !std::isfinite(dv) || du <= 0.0 || dv <= 0.0) return;
+
+        const BRepWire* outer = model.topology().wire(face->outer.wire);
+        if (!outer || outer->edges.empty()) return;
+
+        const Vector3 yDir = Vector3::cross(cyl.axis, cyl.xDir).normalized();
+        auto toUV = [&](const Vector3& p) -> Vec2 {
+            const Vector3 d = p - cyl.location;
+            const double v = Vector3::dot(d, cyl.axis);
+            const double ang = std::atan2(Vector3::dot(d, yDir), Vector3::dot(d, cyl.xDir));
+            return {ang, v};
+        };
+
+        struct Classified { BRepEdgeHandle edge; double meanU{0.0}; double meanV{0.0}; };
+        std::vector<Classified> seams;
+        std::vector<Classified> circles;
+        const int NS = 16;
+        for (const BRepOrientedEdge& oe : outer->edges)
+        {
+            BRepAdaptor_Curve curve(model, oe.edge);
+            if (!curve.isBound()) continue;
+            const BRepRange r = curve.range();
+            double uLo = 1e300, uHi = -1e300, vLo = 1e300, vHi = -1e300;
+            double su = 0.0, sv = 0.0;
+            for (int s = 0; s <= NS; ++s)
+            {
+                const double t = r.first + (r.last - r.first) * (double)s / (double)NS;
+                const Vec2 uv = toUV(curve.value(t));
+                uLo = std::min(uLo, uv.x); uHi = std::max(uHi, uv.x);
+                vLo = std::min(vLo, uv.y); vHi = std::max(vHi, uv.y);
+                su += uv.x; sv += uv.y;
+            }
+            Classified c{oe.edge, su / (NS + 1.0), sv / (NS + 1.0)};
+            if ((uHi - uLo) <= (vHi - vLo)) seams.push_back(c);
+            else circles.push_back(c);
+        }
+
+        BRepEdgeHandle uMinId{};
+        BRepEdgeHandle uMaxId{};
+        BRepEdgeHandle vMinId{};
+        BRepEdgeHandle vMaxId{};
+        if (seams.size() >= 1) uMinId = seams[0].edge;
+        if (seams.size() >= 2) uMaxId = seams[1].edge;
+        if (circles.size() >= 1)
+        {
+            std::sort(circles.begin(), circles.end(),
+                      [](const Classified& a, const Classified& b) { return a.meanV < b.meanV; });
+            vMinId = circles.front().edge;
+            vMaxId = circles.back().edge;
+        }
+
+        const double radius = cyl.radius;
+        const double arcLen = std::fabs(du) * radius;
+        const double height = std::fabs(dv);
+        const int nu = std::max(2, static_cast<int>(std::ceil(arcLen / options.deflection)) + 1);
+        const int nv = std::max(2, static_cast<int>(std::ceil(height / options.deflection)) + 1);
+
+        const std::size_t base = mesh.vertices.size();
+        auto vid = [&](int i, int j) -> std::size_t {
+            return base + static_cast<std::size_t>(i) * (static_cast<std::size_t>(nv) + 1u)
+                       + static_cast<std::size_t>(j);
+        };
+        for (int i = 0; i <= nu; ++i)
+        {
+            const double u = u0 + du * (double)i / (double)nu;
+            for (int j = 0; j <= nv; ++j)
+            {
+                const double v = v0 + dv * (double)j / (double)nv;
+                const Vector3 p = surface->valueAt(u, v);
+                mesh.vertices.push_back(Point3{p.x, p.y, p.z});
+            }
+        }
+
+        const std::uint64_t faceId = static_cast<std::uint64_t>(faceHandle.index);
+        auto tagSeam = [&](std::size_t i) -> std::uint64_t {
+            if (i == 0 && uMinId.valid()) return uMinId.index;
+            if (i == static_cast<std::size_t>(nu) && uMaxId.valid()) return uMaxId.index;
+            return kInvalidSourceEdge;
+        };
+        auto tagCircle = [&](std::size_t j) -> std::uint64_t {
+            if (j == 0 && vMinId.valid()) return vMinId.index;
+            if (j == static_cast<std::size_t>(nv) && vMaxId.valid()) return vMaxId.index;
+            return kInvalidSourceEdge;
+        };
+
+        for (int i = 0; i < nu; ++i)
+        {
+            for (int j = 0; j < nv; ++j)
+            {
+                TriangleMesh3::Triangle t1;
+                t1.a = vid(i, j);
+                t1.b = vid(i + 1, j);
+                t1.c = vid(i + 1, j + 1);
+                t1.sourceFaceId = faceId;
+                t1.sourceEdgeId[0] = tagCircle(static_cast<std::size_t>(j));
+                t1.sourceEdgeId[1] = tagSeam(static_cast<std::size_t>(i + 1));
+                t1.sourceEdgeId[2] = kInvalidSourceEdge;
+                mesh.triangles.push_back(t1);
+
+                TriangleMesh3::Triangle t2;
+                t2.a = vid(i, j);
+                t2.b = vid(i + 1, j + 1);
+                t2.c = vid(i, j + 1);
+                t2.sourceFaceId = faceId;
+                t2.sourceEdgeId[0] = kInvalidSourceEdge;
+                t2.sourceEdgeId[1] = tagCircle(static_cast<std::size_t>(j + 1));
+                t2.sourceEdgeId[2] = tagSeam(static_cast<std::size_t>(i));
+                mesh.triangles.push_back(t2);
+            }
         }
     }
 

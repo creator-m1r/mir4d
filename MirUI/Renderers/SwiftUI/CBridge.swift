@@ -138,6 +138,8 @@ public func MirEnginePreviewGrab(_ viewport: UnsafeMutableRawPointer?, _ objectI
 public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) -> Bool { false }
 public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?) {}
 public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool { false }
+public func MirEngineSetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: UnsafePointer<MirTransform>?) {}
+public func MirEngineViewportRay(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ origin: UnsafeMutablePointer<Double>?, _ dir: UnsafeMutablePointer<Double>?) {}
 public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) {}
 // Hand skeleton visualization (debug / assist). SwiftPM stubs.
 public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?, _ gesture: UnsafePointer<Int32>?) {}
@@ -189,6 +191,10 @@ public func MirEngineDestroyPlaneStore(_ store: UnsafeMutableRawPointer?) {}
 public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?) {}
 public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32 { 0 }
 public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32 { 0 }
+public func MirEnginePlaneStoreSetSelected(_ store: UnsafeMutableRawPointer?, _ id: UInt32) {}
+public func MirEnginePickPlane(_ renderer: UnsafeMutableRawPointer?, _ ndcX: Float, _ ndcY: Float) -> UInt32 { 0 }
+public func MirEngineExtrudeSketch(_ viewport: UnsafeMutableRawPointer?, _ width: Double, _ height: Double, _ cu: Double, _ cv: Double, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64 { 0 }
+public func MirEngineExtrudeContour(_ viewport: UnsafeMutableRawPointer?, _ uv: UnsafePointer<Double>?, _ count: Int32, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64 { 0 }
 public func MirEngineSketchCreateDocument() -> UnsafeMutableRawPointer? { nil }
 public func MirEngineSketchDestroyDocument(_ doc: UnsafeMutableRawPointer?) {}
 public func MirEngineSketchAddLine(_ doc: UnsafeMutableRawPointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32 { 0 }
@@ -292,6 +298,8 @@ public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJs
 @_silgen_name("MirEngineCommitGrab") public func MirEngineCommitGrab(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64) -> Bool
 @_silgen_name("MirEngineCancelGrab") public func MirEngineCancelGrab(_ viewport: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineGetObjectTransform") public func MirEngineGetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ outTransform: UnsafeMutablePointer<MirTransform>?) -> Bool
+@_silgen_name("MirEngineSetObjectTransform") public func MirEngineSetObjectTransform(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64, _ transform: UnsafePointer<MirTransform>?)
+@_silgen_name("MirEngineViewportRay") public func MirEngineViewportRay(_ viewport: UnsafeMutableRawPointer?, _ x: Float, _ y: Float, _ origin: UnsafeMutablePointer<Double>?, _ dir: UnsafeMutablePointer<Double>?)
 @_silgen_name("MirEngineSetHandHover") public func MirEngineSetHandHover(_ viewport: UnsafeMutableRawPointer?, _ objectId: UInt64)
 @_silgen_name("MirEngineSetHandSkeleton") public func MirEngineSetHandSkeleton(_ viewport: UnsafeMutableRawPointer?, _ mode: Int32, _ handCount: Int32, _ positions: UnsafePointer<Double>?, _ confidence: UnsafePointer<Double>?, _ handedness: UnsafePointer<Int32>?, _ pinch: UnsafePointer<Double>?, _ gesture: UnsafePointer<Int32>?)
 @_silgen_name("MirEngineSetHandSkeletonStyle") public func MirEngineSetHandSkeletonStyle(_ viewport: UnsafeMutableRawPointer?, _ leftR: Float, _ leftG: Float, _ leftB: Float, _ rightR: Float, _ rightG: Float, _ rightB: Float, _ jointSize: Float, _ tipSize: Float, _ wristSize: Float, _ alpha: Float, _ depthTest: Int32)
@@ -445,6 +453,10 @@ public func MirEnginePushSketch(
 @_silgen_name("MirEnginePlaneStoreAddBasePlanes") public func MirEnginePlaneStoreAddBasePlanes(_ store: UnsafeMutableRawPointer?)
 @_silgen_name("MirEnginePlaneStoreCreateOffsetPlane") public func MirEnginePlaneStoreCreateOffsetPlane(_ store: UnsafeMutableRawPointer?, _ basePlane: UInt32, _ offset: Double, _ angleDeg: Double) -> UInt32
 @_silgen_name("MirEnginePlaneStoreSnapshot") public func MirEnginePlaneStoreSnapshot(_ store: UnsafeMutableRawPointer?, _ maxCount: Int32, _ ids: UnsafeMutablePointer<UInt32>?, _ origins: UnsafeMutablePointer<Float>?, _ normals: UnsafeMutablePointer<Float>?, _ xAxes: UnsafeMutablePointer<Float>?, _ yAxes: UnsafeMutablePointer<Float>?, _ colors: UnsafeMutablePointer<Float>?, _ sizes: UnsafeMutablePointer<Float>?, _ active: UnsafeMutablePointer<Bool>?, _ selected: UnsafeMutablePointer<Bool>?) -> Int32
+@_silgen_name("MirEnginePlaneStoreSetSelected") public func MirEnginePlaneStoreSetSelected(_ store: UnsafeMutableRawPointer?, _ id: UInt32)
+@_silgen_name("MirEnginePickPlane") public func MirEnginePickPlane(_ renderer: UnsafeMutableRawPointer?, _ ndcX: Float, _ ndcY: Float) -> UInt32
+@_silgen_name("MirEngineExtrudeSketch") public func MirEngineExtrudeSketch(_ viewport: UnsafeMutableRawPointer?, _ width: Double, _ height: Double, _ cu: Double, _ cv: Double, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64
+@_silgen_name("MirEngineExtrudeContour") public func MirEngineExtrudeContour(_ viewport: UnsafeMutableRawPointer?, _ uv: UnsafePointer<Double>?, _ count: Int32, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64
 @_silgen_name("MirEngineSketchCreateDocument") public func MirEngineSketchCreateDocument() -> UnsafeMutableRawPointer?
 @_silgen_name("MirEngineSketchDestroyDocument") public func MirEngineSketchDestroyDocument(_ doc: UnsafeMutableRawPointer?)
 @_silgen_name("MirEngineSketchAddLine") public func MirEngineSketchAddLine(_ doc: UnsafeMutableRawPointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32
