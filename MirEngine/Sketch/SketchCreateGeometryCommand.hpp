@@ -42,6 +42,15 @@ public:
         return removed;
     }
 
+    [[nodiscard]] std::uint32_t insertedId() const noexcept
+    {
+        if (!inserted_)
+            return 0;
+        return std::visit(
+            [](const auto& item) { return item.id; },
+            geometry_);
+    }
+
 private:
     SketchGeometry geometry_;
     bool inserted_{false};

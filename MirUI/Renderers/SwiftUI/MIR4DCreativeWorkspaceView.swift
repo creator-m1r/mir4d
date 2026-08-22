@@ -130,7 +130,7 @@ struct MIR4DCreativeWorkspaceView: View {
                 ProductionWorldView(appState: appState, store: productionStore).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
             if appState.workbench == .sketch {
-                SketchViewportView().environmentObject(appState).frame(maxWidth: .infinity, maxHeight: .infinity).allowsHitTesting(true)
+                SketchWorkspaceView(onFinish: { appState.workbench = .model }).frame(maxWidth: .infinity, maxHeight: .infinity).allowsHitTesting(true)
                 if appState.sketchPlane == nil { SketchPlaneChooser { appState.sketchPlane = $0 } }
             }
         }

@@ -775,6 +775,86 @@ uint32_t MirEngineSketchConstraintCount(void* doc);
 bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
 
 // ------------------------------------------------------------
+// Sketch Session — authoritative runtime facade for the editor
+// ------------------------------------------------------------
+
+typedef struct MirEngineSketchSession MirEngineSketchSession;
+
+typedef enum MirEngineSketchSolverStatus
+{
+    MirEngineSketchSolverNotRun = 0,
+    MirEngineSketchSolverSolved = 1,
+    MirEngineSketchSolverUnderConstrained = 2,
+    MirEngineSketchSolverOverConstrained = 3,
+    MirEngineSketchSolverFailed = 4
+} MirEngineSketchSolverStatus;
+
+typedef enum MirEngineSketchGeometryType
+{
+    MirEngineSketchGeomLine = 0,
+    MirEngineSketchGeomArc = 1,
+    MirEngineSketchGeomCircle = 2,
+    MirEngineSketchGeomSpline = 3
+} MirEngineSketchGeometryType;
+
+typedef struct MirEngineSketchSessionState
+{
+    int solverStatus;          // MirEngineSketchSolverStatus
+    int degreesOfFreedom;
+    bool canUndo;
+    bool canRedo;
+    uint64_t revision;
+    uint64_t geometryCount;
+    uint64_t constraintCount;
+    uint64_t profileCount;
+} MirEngineSketchSessionState;
+
+MirEngineSketchSession* MirEngineSketchSessionCreate(void);
+void MirEngineSketchSessionDestroy(MirEngineSketchSession* session);
+
+uint32_t MirEngineSketchSessionCreateLine(MirEngineSketchSession* session, float x1, float y1, float x2, float y2);
+uint32_t MirEngineSketchSessionCreateCircle(MirEngineSketchSession* session, float cx, float cy, float r);
+uint32_t MirEngineSketchSessionCreateArc(MirEngineSketchSession* session, float cx, float cy, float r, float startAngle, float endAngle);
+uint32_t MirEngineSketchSessionCreateRectangle(MirEngineSketchSession* session, float x1, float y1, float x2, float y2);
+uint32_t MirEngineSketchSessionCreateSpline(MirEngineSketchSession* session, const float* xs, const float* ys, uint32_t count, bool closed);
+bool MirEngineSketchSessionDeleteGeometry(MirEngineSketchSession* session, uint32_t id);
+
+uint32_t MirEngineSketchSessionAddConstraint(MirEngineSketchSession* session, int type, uint32_t g1, uint32_t g2, double value);
+bool MirEngineSketchSessionRemoveConstraint(MirEngineSketchSession* session, uint32_t id);
+
+bool MirEngineSketchSessionSolve(MirEngineSketchSession* session);
+void MirEngineSketchSessionGetState(MirEngineSketchSession* session, MirEngineSketchSessionState* out);
+
+uint32_t MirEngineSketchSessionGeometryCount(MirEngineSketchSession* session);
+int MirEngineSketchSessionGeometryTypeAt(MirEngineSketchSession* session, uint32_t index);
+uint32_t MirEngineSketchSessionGeometryIdAt(MirEngineSketchSession* session, uint32_t index);
+bool MirEngineSketchSessionLineAt(MirEngineSketchSession* session, uint32_t index, float* x1, float* y1, float* x2, float* y2);
+bool MirEngineSketchSessionArcAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r, float* sa, float* ea);
+bool MirEngineSketchSessionCircleAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r);
+bool MirEngineSketchSessionSplineAt(MirEngineSketchSession* session, uint32_t index, float* xs, float* ys, uint32_t* count, bool* closed);
+uint32_t MirEngineSketchSessionConstraintCount(MirEngineSketchSession* session);
+bool MirEngineSketchSessionConstraintAt(MirEngineSketchSession* session, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value);
+
+void MirEngineSketchSessionSelect(MirEngineSketchSession* session, uint32_t id, bool additive);
+void MirEngineSketchSessionClearSelection(MirEngineSketchSession* session);
+uint32_t MirEngineSketchSessionSelectedCount(MirEngineSketchSession* session);
+uint32_t MirEngineSketchSessionSelectedAt(MirEngineSketchSession* session, uint32_t index);
+
+bool MirEngineSketchSessionUndo(MirEngineSketchSession* session);
+bool MirEngineSketchSessionRedo(MirEngineSketchSession* session);
+
+/// Строит замкнутый профиль из геометрии сессии (линии/дуги) и выдавливает
+/// его в 3D-сцену, связанную с viewport. Возвращает id созданного объекта.
+uint64_t MirEngineSketchSessionExtrude(
+    MirEngineSketchSession* session,
+    void* viewport,
+    double distance,
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double xx, double xy, double xz,
+    double yx, double yy, double yz);
+
+// ------------------------------------------------------------
 // VFX — собственная подсистема визуальных эффектов (MirEngine::VFX)
 // ------------------------------------------------------------
 

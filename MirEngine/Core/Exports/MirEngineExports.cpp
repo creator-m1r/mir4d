@@ -29,6 +29,10 @@
 #include <iostream>
 #include "../../Sketch/SketchDocument.hpp"
 #include "../../Sketch/SketchDocumentSolver.hpp"
+#include "../../Sketch/SketchSession.hpp"
+#include "../../Sketch/SketchCreateGeometryCommand.hpp"
+#include "../../Sketch/SketchConstraintCommands.hpp"
+#include "../../Sketch/SketchProfileLoopDetector.hpp"
 #include "../../VFX/EffectSystem.hpp"
 #include "../../VFX/Effect.hpp"
 
@@ -37,6 +41,8 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 using MirEngine::Platform::macOS::MacOpenGLContext;
@@ -113,6 +119,271 @@ static mir4d::Transform fromMirTransform(const MirTransform& m) noexcept
 
 namespace
 {
+/// Находит геометрию сессии по id.
+const mir::SketchGeometry* findSketchGeom(const mir::SketchGeometryStore& store,
+                                         std::uint32_t id)
+{
+    for (const auto& g : store.all())
+        if (std::visit([id](const auto& it) { return it.id == id; }, g))
+            return &g;
+    return nullptr;
+}
+
+/// Переводит упорядоченный набор id геометрий в замкнутый полигон
+/// (локальные XY, z=0). Дуги — по начальной точке; полный круг — сэмплируется.
+std::vector<mir::Vector3> loopPointsFromIds(const mir::SketchGeometryStore& store,
+                                            const std::vector<std::uint32_t>& ids)
+{
+    std::vector<mir::Vector3> pts;
+    if (ids.size() == 1)
+    {
+        const auto* g = findSketchGeom(store, ids.front());
+        if (const auto* c = g ? std::get_if<mir::SketchCircle2D>(g) : nullptr)
+        {
+            const int n = 32;
+            for (int i = 0; i < n; ++i)
+            {
+                const double a = 2.0 * std::acos(-1.0) * i / n;
+                pts.push_back(mir::Vector3{
+                    c->center.x + c->radius * std::cos(a),
+                    c->center.y + c->radius * std::sin(a),
+                    0.0});
+            }
+            return pts;
+        }
+    }
+    for (const std::uint32_t id : ids)
+    {
+        const auto* g = findSketchGeom(store, id);
+        if (!g)
+            continue;
+        std::visit([&](const auto& it) {
+            using T = std::decay_t<decltype(it)>;
+            if constexpr (std::is_same_v<T, mir::SketchLine2D>)
+            {
+                pts.push_back(mir::Vector3{it.start.x, it.start.y, 0.0});
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchArc2D>)
+            {
+                pts.push_back(mir::Vector3{
+                    it.center.x + it.radius * std::cos(it.startAngle),
+                    it.center.y + it.radius * std::sin(it.startAngle),
+                    0.0});
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchSpline2D>)
+            {
+                for (const auto& cp : it.controlPoints)
+                    pts.push_back(mir::Vector3{cp.x, cp.y, 0.0});
+            }
+        }, *g);
+    }
+    return pts;
+}
+
+/// Жадная цепочка всех сегментов в один контур (запасной вариант).
+std::vector<mir::Vector3> greedyContour(const mir::SketchGeometryStore& store)
+{
+    struct Seg
+    {
+        std::uint32_t id{};
+        std::pair<double, double> start{};
+        std::pair<double, double> end{};
+    };
+    std::vector<Seg> segs;
+    for (const auto& g : store.all())
+    {
+        std::visit([&](const auto& it) {
+            using T = std::decay_t<decltype(it)>;
+            if constexpr (std::is_same_v<T, mir::SketchLine2D>)
+            {
+                if (!it.construction)
+                    segs.push_back({it.id, {it.start.x, it.start.y}, {it.end.x, it.end.y}});
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchArc2D>)
+            {
+                if (!it.construction && it.radius > 0.0)
+                {
+                    const double a0 = it.startAngle, a1 = it.endAngle;
+                    segs.push_back({it.id,
+                                    {it.center.x + it.radius * std::cos(a0),
+                                     it.center.y + it.radius * std::sin(a0)},
+                                    {it.center.x + it.radius * std::cos(a1),
+                                     it.center.y + it.radius * std::sin(a1)}});
+                }
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchSpline2D>)
+            {
+                if (!it.construction && it.controlPoints.size() >= 2)
+                {
+                    const auto& a = it.controlPoints.front();
+                    const auto& b = it.controlPoints.back();
+                    segs.push_back({it.id, {a.x, a.y}, {b.x, b.y}});
+                }
+            }
+        }, g);
+    }
+    if (segs.empty())
+        return {};
+
+    const double tol = 1e-6;
+    auto near = [&](const std::pair<double, double>& a,
+                    const std::pair<double, double>& b) {
+        return std::abs(a.first - b.first) <= tol &&
+               std::abs(a.second - b.second) <= tol;
+    };
+
+    std::vector<std::uint32_t> ids;
+    std::vector<bool> used(segs.size(), false);
+    ids.push_back(segs.front().id);
+    used.front() = true;
+    auto curEnd = segs.front().end;
+    bool extended = true;
+    while (extended)
+    {
+        extended = false;
+        for (std::size_t i = 0; i < segs.size(); ++i)
+        {
+            if (used[i])
+                continue;
+            if (near(segs[i].start, curEnd))
+            {
+                ids.push_back(segs[i].id);
+                used[i] = true;
+                curEnd = segs[i].end;
+                extended = true;
+                break;
+            }
+        }
+    }
+    return loopPointsFromIds(store, ids);
+}
+
+/// Строит замкнутые профили сессии (внешний контур + отверстия) через
+/// SketchProfileLoopDetector. Возвращает [outer, hole1, ...] или, при
+/// неудаче детектора, один жадный контур.
+std::vector<std::vector<mir::Vector3>> profileLoopsFromSession(const mir::SketchSession* s)
+{
+    std::vector<std::vector<mir::Vector3>> result;
+    if (!s)
+        return result;
+
+    const auto& store = s->document().geometry();
+
+    struct Seg
+    {
+        std::uint32_t id{};
+        std::pair<double, double> start{};
+        std::pair<double, double> end{};
+    };
+    std::vector<Seg> segs;
+    for (const auto& g : store.all())
+    {
+        std::visit([&](const auto& it) {
+            using T = std::decay_t<decltype(it)>;
+            if constexpr (std::is_same_v<T, mir::SketchLine2D>)
+            {
+                if (!it.construction)
+                    segs.push_back({it.id, {it.start.x, it.start.y}, {it.end.x, it.end.y}});
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchArc2D>)
+            {
+                if (!it.construction && it.radius > 0.0)
+                {
+                    const double a0 = it.startAngle, a1 = it.endAngle;
+                    segs.push_back({it.id,
+                                    {it.center.x + it.radius * std::cos(a0),
+                                     it.center.y + it.radius * std::sin(a0)},
+                                    {it.center.x + it.radius * std::cos(a1),
+                                     it.center.y + it.radius * std::sin(a1)}});
+                }
+            }
+            else if constexpr (std::is_same_v<T, mir::SketchSpline2D>)
+            {
+                if (!it.construction && it.controlPoints.size() >= 2)
+                {
+                    const auto& a = it.controlPoints.front();
+                    const auto& b = it.controlPoints.back();
+                    segs.push_back({it.id, {a.x, a.y}, {b.x, b.y}});
+                }
+            }
+        }, g);
+    }
+    if (segs.empty())
+        return result;
+
+    const double tol = 1e-6;
+    auto near = [&](const std::pair<double, double>& a,
+                    const std::pair<double, double>& b) {
+        return std::abs(a.first - b.first) <= tol &&
+               std::abs(a.second - b.second) <= tol;
+    };
+
+    std::vector<std::vector<std::uint32_t>> candidateLoops;
+    std::vector<bool> used(segs.size(), false);
+    for (std::size_t si = 0; si < segs.size(); ++si)
+    {
+        if (used[si])
+            continue;
+        std::vector<std::uint32_t> ids;
+        std::vector<std::size_t> walked;
+        std::size_t cur = si;
+        ids.push_back(segs[cur].id);
+        walked.push_back(cur);
+        auto curEnd = segs[cur].end;
+        bool closed = false;
+        while (true)
+        {
+            int next = -1;
+            for (std::size_t j = 0; j < segs.size(); ++j)
+            {
+                if (used[j])
+                    continue;
+                if (near(segs[j].start, curEnd))
+                {
+                    next = static_cast<int>(j);
+                    break;
+                }
+            }
+            if (next < 0)
+                break;
+            ids.push_back(segs[static_cast<std::size_t>(next)].id);
+            walked.push_back(static_cast<std::size_t>(next));
+            curEnd = segs[static_cast<std::size_t>(next)].end;
+            if (near(curEnd, segs[si].start))
+            {
+                closed = true;
+                break;
+            }
+        }
+        if (closed && ids.size() >= 2)
+        {
+            for (const std::size_t w : walked)
+                used[w] = true;
+            candidateLoops.push_back(ids);
+        }
+    }
+
+    if (!candidateLoops.empty())
+    {
+        mir::SketchProfileLoopDetector det(tol);
+        if (auto loops = det.detect(store, candidateLoops))
+        {
+            if (loops->outer())
+                result.push_back(loopPointsFromIds(store, loops->outer()->geometryIDs));
+            for (std::size_t i = 0; i < loops->loops.size(); ++i)
+            {
+                if (i == *loops->outerLoopIndex)
+                    continue;
+                result.push_back(loopPointsFromIds(store, loops->loops[i].geometryIDs));
+            }
+            if (!result.empty())
+                return result;
+        }
+    }
+
+    return {greedyContour(store)};
+}
+
 /// Кватернион поворота из ортонормированного базиса (столбцы x, y, z).
 /// Перевод матрицы вращения в кватернион (стандартный алгоритм).
 mir::Quaternion quaternionFromBasis(const mir::Vector3& x,
@@ -163,51 +434,64 @@ mir::Quaternion quaternionFromBasis(const mir::Vector3& x,
 /// (локальные точки в плоскости XY: z = 0) и помещает его в сцену,
 /// ориентируя по базису рабочей плоскости.
 /// Возвращает id созданного объекта (0 при неудаче).
-uint64_t extrudePolygonIntoScene(void* viewport,
-                                 const std::vector<mir::Vector3>& localPts,
-                                 double depth,
-                                 const mir::Vector3& planeOrigin,
-                                 const mir::Vector3& xAxis,
-                                 const mir::Vector3& yAxis,
-                                 const mir::Vector3& normal)
+uint64_t extrudeLoopsIntoScene(void* viewport,
+                                const std::vector<std::vector<mir::Vector3>>& loops,
+                                double depth,
+                                const mir::Vector3& planeOrigin,
+                                const mir::Vector3& xAxis,
+                                const mir::Vector3& yAxis,
+                                const mir::Vector3& normal)
 {
     auto* native = asViewport(viewport);
     if (!native || !native->runtime || !native->scene)
         return 0;
-    if (localPts.size() < 3 || !(depth > 0.0))
+    if (loops.empty() || loops.front().size() < 3 || !(depth > 0.0))
         return 0;
 
     mir::BRepModel brep;
     mir::BRepBuilderAPI builder(brep);
 
-    std::vector<mir::BRepVertexHandle> verts;
-    verts.reserve(localPts.size());
-    for (const auto& p : localPts)
-    {
-        const auto v = builder.makeVertex(p, mir::DefaultBRepTolerance.linear);
-        if (!v.valid())
-            return 0;
-        verts.push_back(v);
-    }
+    auto makeWire = [&](const std::vector<mir::Vector3>& pts) -> mir::BRepWireHandle {
+        std::vector<mir::BRepVertexHandle> verts;
+        verts.reserve(pts.size());
+        for (const auto& p : pts)
+        {
+            const auto v = builder.makeVertex(p, mir::DefaultBRepTolerance.linear);
+            if (!v.valid())
+                return {};
+            verts.push_back(v);
+        }
+        const std::size_t n = verts.size();
+        std::vector<mir::BRepEdgeHandle> edges;
+        edges.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const std::size_t j = (i + 1) % n;
+            const auto e = builder.makeEdgeLine(verts[i], verts[j], mir::DefaultBRepTolerance.linear);
+            if (!e.valid())
+                return {};
+            edges.push_back(e);
+        }
+        return builder.makeWireFromEdges(edges, true);
+    };
 
-    const std::size_t n = verts.size();
-    std::vector<mir::BRepEdgeHandle> edges;
-    edges.reserve(n);
-    for (std::size_t i = 0; i < n; ++i)
-    {
-        const std::size_t j = (i + 1) % n;
-        const auto e = builder.makeEdgeLine(verts[i], verts[j], mir::DefaultBRepTolerance.linear);
-        if (!e.valid())
-            return 0;
-        edges.push_back(e);
-    }
-
-    const auto wire = builder.makeWireFromEdges(edges, true);
-    if (!wire.valid())
+    const auto outer = makeWire(loops.front());
+    if (!outer.valid())
         return 0;
 
-    const auto extruded = mir::BRepExtrudeBuilder::extrudeWire(
-        brep, wire, mir::Vector3::unitZ(), mir::Scalar(depth), mir::DefaultBRepTolerance);
+    std::vector<mir::BRepWireHandle> holes;
+    for (std::size_t i = 1; i < loops.size(); ++i)
+    {
+        const auto h = makeWire(loops[i]);
+        if (h.valid())
+            holes.push_back(h);
+    }
+
+    const auto extruded = holes.empty()
+        ? mir::BRepExtrudeBuilder::extrudeWire(
+              brep, outer, mir::Vector3::unitZ(), mir::Scalar(depth), mir::DefaultBRepTolerance)
+        : mir::BRepExtrudeBuilder::extrudeWireWithHoles(
+              brep, outer, holes, mir::Vector3::unitZ(), mir::Scalar(depth), mir::DefaultBRepTolerance);
     if (!extruded.success)
         return 0;
 
@@ -229,6 +513,19 @@ uint64_t extrudePolygonIntoScene(void* viewport,
         node->setBrep(std::make_shared<mir::BRepModel>(brep));
 
     return static_cast<uint64_t>(inserted.objectId);
+}
+
+uint64_t extrudePolygonIntoScene(void* viewport,
+                                 const std::vector<mir::Vector3>& localPts,
+                                 double depth,
+                                 const mir::Vector3& planeOrigin,
+                                 const mir::Vector3& xAxis,
+                                 const mir::Vector3& yAxis,
+                                 const mir::Vector3& normal)
+{
+    if (localPts.size() < 3)
+        return 0;
+    return extrudeLoopsIntoScene(viewport, {localPts}, depth, planeOrigin, xAxis, yAxis, normal);
 }
 } // namespace
 
@@ -3067,6 +3364,568 @@ bool MirEngineSketchConstraintAt(void* doc, uint32_t index, int32_t* type, uint3
     if (g2) *g2 = c.secondGeometry;
     if (value) *value = c.value;
     return true;
+}
+
+// ------------------------------------------------------------
+// Sketch Session — authoritative runtime facade for the editor
+// SwiftUI never stores geometry; it only issues commands here and
+// reads the resulting state back through MirEngineSketchSessionGetState /
+// the geometry / constraint accessors.
+// ------------------------------------------------------------
+
+namespace
+{
+
+/// Atomic "create one primitive" command that records the assigned id so the
+/// caller can read it back after the command is owned by the history.
+struct CreatePrimitiveCommand final : mir::ISketchCommand
+{
+    mir::SketchGeometry geometry{};
+    std::uint32_t assignedId{0};
+    bool done{false};
+
+    bool execute(mir::SketchDocument& document) override
+    {
+        if (done)
+            return true;
+        assignedId = document.geometry().add(geometry);
+        done = assignedId != 0;
+        return done;
+    }
+
+    bool undo(mir::SketchDocument& document) override
+    {
+        if (!done)
+            return false;
+        const bool removed = document.geometry().remove(assignedId);
+        if (removed)
+        {
+            done = false;
+            assignedId = 0;
+        }
+        return removed;
+    }
+};
+
+/// Rectangle is a single logical command: 4 lines + 4 coincident + 2 horizontal
+/// + 2 vertical constraints, all committed / rolled back together.
+struct CreateRectangleCommand final : mir::ISketchCommand
+{
+    double x1{0};
+    double y1{0};
+    double x2{0};
+    double y2{0};
+    std::vector<std::uint32_t> lines{};
+    std::vector<std::uint32_t> constraints{};
+    bool done{false};
+
+    bool execute(mir::SketchDocument& document) override
+    {
+        if (done)
+            return true;
+        const auto id1 = document.geometry().addLine({x1, y1}, {x2, y1});
+        const auto id2 = document.geometry().addLine({x2, y1}, {x2, y2});
+        const auto id3 = document.geometry().addLine({x2, y2}, {x1, y2});
+        const auto id4 = document.geometry().addLine({x1, y2}, {x1, y1});
+        lines = {id1, id2, id3, id4};
+
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Coincident, id1, id2));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Coincident, id2, id3));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Coincident, id3, id4));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Coincident, id4, id1));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Horizontal, id1, 0));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Horizontal, id3, 0));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Vertical, id2, 0));
+        constraints.push_back(document.constraints().add(mir::SketchConstraintType::Vertical, id4, 0));
+
+        done = true;
+        return true;
+    }
+
+    bool undo(mir::SketchDocument& document) override
+    {
+        if (!done)
+            return false;
+        for (auto it = constraints.rbegin(); it != constraints.rend(); ++it)
+            document.constraints().remove(*it);
+        for (auto it = lines.rbegin(); it != lines.rend(); ++it)
+            document.geometry().remove(*it);
+        constraints.clear();
+        lines.clear();
+        done = false;
+        return true;
+    }
+};
+
+/// Removes a geometry entity together with every constraint that references it,
+/// restoring both on undo.
+struct DeleteGeometryCommand final : mir::ISketchCommand
+{
+    std::uint32_t id{0};
+    mir::SketchGeometry saved{};
+    std::vector<mir::SketchConstraint> savedConstraints{};
+    bool done{false};
+
+    bool execute(mir::SketchDocument& document) override
+    {
+        if (done)
+            return false;
+        const auto* g = document.geometry().find(id);
+        if (!g)
+            return false;
+        saved = *g;
+        for (const auto& c : document.constraints().all())
+        {
+            if (c.firstGeometry == id || c.secondGeometry == id)
+                savedConstraints.push_back(c);
+        }
+        for (const auto& c : savedConstraints)
+            document.constraints().remove(c.id);
+        document.geometry().remove(id);
+        done = true;
+        return true;
+    }
+
+    bool undo(mir::SketchDocument& document) override
+    {
+        if (!done)
+            return false;
+        document.geometry().add(saved);
+        for (const auto& c : savedConstraints)
+        {
+            document.constraints().add(c.type, c.firstGeometry, c.secondGeometry, c.value, c.driving);
+        }
+        done = false;
+        return true;
+    }
+};
+
+inline std::uint32_t lastGeometryId(const mir::SketchDocument& doc)
+{
+    const auto& all = doc.geometry().all();
+    if (all.empty())
+        return 0;
+    return std::visit([](const auto& g) { return g.id; }, all.back());
+}
+
+inline std::uint32_t lastConstraintId(const mir::SketchDocument& doc)
+{
+    const auto& all = doc.constraints().all();
+    if (all.empty())
+        return 0;
+    return all.back().id;
+}
+
+} // namespace
+
+MirEngineSketchSession* MirEngineSketchSessionCreate(void)
+{
+    return reinterpret_cast<MirEngineSketchSession*>(new mir::SketchSession());
+}
+
+void MirEngineSketchSessionDestroy(MirEngineSketchSession* session)
+{
+    delete reinterpret_cast<mir::SketchSession*>(session);
+}
+
+uint32_t MirEngineSketchSessionCreateLine(MirEngineSketchSession* session, float x1, float y1, float x2, float y2)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    CreatePrimitiveCommand cmd;
+    cmd.geometry = mir::SketchLine2D{0, {double(x1), double(y1)}, {double(x2), double(y2)}, false};
+    if (!s->history().execute(std::make_unique<CreatePrimitiveCommand>(cmd), s->document()))
+        return 0;
+    s->touch();
+    return lastGeometryId(s->document());
+}
+
+uint32_t MirEngineSketchSessionCreateCircle(MirEngineSketchSession* session, float cx, float cy, float r)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    CreatePrimitiveCommand cmd;
+    cmd.geometry = mir::SketchCircle2D{0, {double(cx), double(cy)}, std::max(0.0, double(r)), false};
+    if (!s->history().execute(std::make_unique<CreatePrimitiveCommand>(cmd), s->document()))
+        return 0;
+    s->touch();
+    return lastGeometryId(s->document());
+}
+
+uint32_t MirEngineSketchSessionCreateArc(MirEngineSketchSession* session, float cx, float cy, float r, float sa, float ea)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    CreatePrimitiveCommand cmd;
+    cmd.geometry = mir::SketchArc2D{0, {double(cx), double(cy)}, std::max(0.0, double(r)), double(sa), double(ea), false};
+    if (!s->history().execute(std::make_unique<CreatePrimitiveCommand>(cmd), s->document()))
+        return 0;
+    s->touch();
+    return lastGeometryId(s->document());
+}
+
+uint32_t MirEngineSketchSessionCreateRectangle(MirEngineSketchSession* session, float x1, float y1, float x2, float y2)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    auto cmd = std::make_unique<CreateRectangleCommand>();
+    cmd->x1 = double(x1);
+    cmd->y1 = double(y1);
+    cmd->x2 = double(x2);
+    cmd->y2 = double(y2);
+    if (!s->history().execute(std::move(cmd), s->document()))
+        return 0;
+    s->touch();
+    return lastGeometryId(s->document());
+}
+
+uint32_t MirEngineSketchSessionCreateSpline(
+    MirEngineSketchSession* session,
+    const float* xs, const float* ys, uint32_t count, bool closed)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || !xs || !ys || count < 2)
+        return 0;
+    std::vector<mir::SketchPoint2D> pts(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        pts[i].x = static_cast<double>(xs[i]);
+        pts[i].y = static_cast<double>(ys[i]);
+    }
+    CreatePrimitiveCommand cmd;
+    cmd.geometry = mir::SketchSpline2D{0, std::move(pts), closed, false};
+    if (!s->history().execute(std::make_unique<CreatePrimitiveCommand>(cmd), s->document()))
+        return 0;
+    s->touch();
+    return lastGeometryId(s->document());
+}
+
+bool MirEngineSketchSessionSplineAt(
+    MirEngineSketchSession* session,
+    uint32_t index,
+    float* xs, float* ys, uint32_t* count, bool* closed)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || !count)
+        return false;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return false;
+    const auto* sp = std::get_if<mir::SketchSpline2D>(&all[index]);
+    if (!sp)
+        return false;
+    const uint32_t available = static_cast<uint32_t>(sp->controlPoints.size());
+    if (closed)
+        *closed = sp->closed;
+    if (xs && ys)
+    {
+        const uint32_t toCopy = std::min(*count, available);
+        for (uint32_t i = 0; i < toCopy; ++i)
+        {
+            xs[i] = static_cast<float>(sp->controlPoints[i].x);
+            ys[i] = static_cast<float>(sp->controlPoints[i].y);
+        }
+    }
+    *count = available;
+    return true;
+}
+
+bool MirEngineSketchSessionDeleteGeometry(MirEngineSketchSession* session, uint32_t id)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || id == 0)
+        return false;
+    auto cmd = std::make_unique<DeleteGeometryCommand>();
+    cmd->id = id;
+    const bool ok = s->history().execute(std::move(cmd), s->document());
+    if (ok)
+        s->touch();
+    return ok;
+}
+
+uint32_t MirEngineSketchSessionAddConstraint(MirEngineSketchSession* session, int type, uint32_t g1, uint32_t g2, double value)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    if (!s->history().execute(
+            std::make_unique<mir::AddConstraintCommand>(
+                static_cast<mir::SketchConstraintType>(type), g1, g2, value),
+            s->document()))
+        return 0;
+    s->touch();
+    return lastConstraintId(s->document());
+}
+
+bool MirEngineSketchSessionRemoveConstraint(MirEngineSketchSession* session, uint32_t id)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || id == 0)
+        return false;
+    // RemoveConstraint maps to a single AddConstraintCommand-style inverse;
+    // reuse the engine constraint store removal wrapped in history.
+    struct RemoveConstraintCommand final : mir::ISketchCommand
+    {
+        std::uint32_t cid{0};
+        mir::SketchConstraint saved{};
+        bool done{false};
+        bool execute(mir::SketchDocument& document) override
+        {
+            const auto* c = [&]() -> const mir::SketchConstraint*
+            {
+                for (const auto& item : document.constraints().all())
+                    if (item.id == cid)
+                        return &item;
+                return nullptr;
+            }();
+            if (!c)
+                return false;
+            saved = *c;
+            document.constraints().remove(cid);
+            done = true;
+            return true;
+        }
+        bool undo(mir::SketchDocument& document) override
+        {
+            if (!done)
+                return false;
+            document.constraints().add(saved.type, saved.firstGeometry, saved.secondGeometry, saved.value, saved.driving);
+            done = false;
+            return true;
+        }
+    };
+    auto cmd = std::make_unique<RemoveConstraintCommand>();
+    cmd->cid = id;
+    const bool ok = s->history().execute(std::move(cmd), s->document());
+    if (ok)
+        s->touch();
+    return ok;
+}
+
+bool MirEngineSketchSessionSolve(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const auto result = mir::SketchDocumentSolver::analyze(s->document());
+    s->setSolverState(
+        result.solved ? mir::SketchSolverStatus::Solved : mir::SketchSolverStatus::Failed,
+        result.degreesOfFreedom);
+    s->touch();
+    return result.solved;
+}
+
+void MirEngineSketchSessionGetState(MirEngineSketchSession* session, MirEngineSketchSessionState* out)
+{
+    if (!session || !out)
+        return;
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    const auto& st = s->state();
+    out->solverStatus = static_cast<int>(st.solverStatus);
+    out->degreesOfFreedom = st.degreesOfFreedom;
+    out->canUndo = st.canUndo;
+    out->canRedo = st.canRedo;
+    out->revision = st.revision;
+    out->geometryCount = st.geometryCount;
+    out->constraintCount = st.constraintCount;
+    out->profileCount = st.profileCount;
+}
+
+uint32_t MirEngineSketchSessionGeometryCount(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    return static_cast<uint32_t>(s->document().geometry().all().size());
+}
+
+int MirEngineSketchSessionGeometryTypeAt(MirEngineSketchSession* session, uint32_t index)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return -1;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return -1;
+    return static_cast<int>(all[index].index());
+}
+
+uint32_t MirEngineSketchSessionGeometryIdAt(MirEngineSketchSession* session, uint32_t index)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return 0;
+    return std::visit([](const auto& g) { return g.id; }, all[index]);
+}
+
+bool MirEngineSketchSessionLineAt(MirEngineSketchSession* session, uint32_t index, float* x1, float* y1, float* x2, float* y2)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return false;
+    const auto* l = std::get_if<mir::SketchLine2D>(&all[index]);
+    if (!l)
+        return false;
+    if (x1) *x1 = static_cast<float>(l->start.x);
+    if (y1) *y1 = static_cast<float>(l->start.y);
+    if (x2) *x2 = static_cast<float>(l->end.x);
+    if (y2) *y2 = static_cast<float>(l->end.y);
+    return true;
+}
+
+bool MirEngineSketchSessionArcAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r, float* sa, float* ea)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return false;
+    const auto* a = std::get_if<mir::SketchArc2D>(&all[index]);
+    if (!a)
+        return false;
+    if (cx) *cx = static_cast<float>(a->center.x);
+    if (cy) *cy = static_cast<float>(a->center.y);
+    if (r) *r = static_cast<float>(a->radius);
+    if (sa) *sa = static_cast<float>(a->startAngle);
+    if (ea) *ea = static_cast<float>(a->endAngle);
+    return true;
+}
+
+bool MirEngineSketchSessionCircleAt(MirEngineSketchSession* session, uint32_t index, float* cx, float* cy, float* r)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const auto& all = s->document().geometry().all();
+    if (index >= all.size())
+        return false;
+    const auto* c = std::get_if<mir::SketchCircle2D>(&all[index]);
+    if (!c)
+        return false;
+    if (cx) *cx = static_cast<float>(c->center.x);
+    if (cy) *cy = static_cast<float>(c->center.y);
+    if (r) *r = static_cast<float>(c->radius);
+    return true;
+}
+
+uint32_t MirEngineSketchSessionConstraintCount(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    return static_cast<uint32_t>(s->document().constraints().all().size());
+}
+
+bool MirEngineSketchSessionConstraintAt(MirEngineSketchSession* session, uint32_t index, int32_t* type, uint32_t* g1, uint32_t* g2, double* value)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const auto& all = s->document().constraints().all();
+    if (index >= all.size())
+        return false;
+    const auto& c = all[index];
+    if (type) *type = static_cast<int32_t>(c.type);
+    if (g1) *g1 = c.firstGeometry;
+    if (g2) *g2 = c.secondGeometry;
+    if (value) *value = c.value;
+    return true;
+}
+
+void MirEngineSketchSessionSelect(MirEngineSketchSession* session, uint32_t id, bool additive)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return;
+    s->selection().select(id, additive);
+    s->touch();
+}
+
+void MirEngineSketchSessionClearSelection(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return;
+    s->selection().clear();
+    s->touch();
+}
+
+uint32_t MirEngineSketchSessionSelectedCount(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    return static_cast<uint32_t>(s->selection().size());
+}
+
+uint32_t MirEngineSketchSessionSelectedAt(MirEngineSketchSession* session, uint32_t index)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return 0;
+    const auto ids = s->selection().ids();
+    if (index >= ids.size())
+        return 0;
+    return ids[index];
+}
+
+bool MirEngineSketchSessionUndo(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const bool ok = s->undo();
+    if (ok)
+        s->touch();
+    return ok;
+}
+
+bool MirEngineSketchSessionRedo(MirEngineSketchSession* session)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s)
+        return false;
+    const bool ok = s->redo();
+    if (ok)
+        s->touch();
+    return ok;
+}
+
+uint64_t MirEngineSketchSessionExtrude(MirEngineSketchSession* session,
+                                       void* viewport,
+                                       double distance,
+                                       double ox, double oy, double oz,
+                                       double nx, double ny, double nz,
+                                       double xx, double xy, double xz,
+                                       double yx, double yy, double yz)
+{
+    auto* s = reinterpret_cast<mir::SketchSession*>(session);
+    if (!s || !(distance > 0.0))
+        return 0;
+
+    const auto loops = profileLoopsFromSession(s);
+    if (loops.empty() || loops.front().size() < 3)
+        return 0;
+
+    return extrudeLoopsIntoScene(
+        viewport,
+        loops,
+        distance,
+        mir::Vector3(ox, oy, oz),
+        mir::Vector3(xx, xy, xz),
+        mir::Vector3(yx, yy, yz),
+        mir::Vector3(nx, ny, nz));
 }
 
 // ------------------------------------------------------------

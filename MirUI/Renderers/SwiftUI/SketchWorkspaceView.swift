@@ -3,18 +3,32 @@ import SwiftUI
 /// Fast interactive sketch workspace.
 /// Geometry remains UI-preview data until committed through the engine command bridge.
 struct SketchWorkspaceView: View {
+    @StateObject private var model = SketchSessionModel()
     @State private var activeTool: SketchTool = .select
     @State private var showGrid = true
     @State private var showConstraints = true
     @State private var snapEnabled = true
     @State private var status = "Эскиз готов к построению"
-    @State private var points: [SketchPoint] = []
-    @State private var segments: [SketchSegment] = []
-    @State private var circles: [SketchCircle] = []
     @State private var firstPoint: CGPoint?
+    /// Накопленные точки для построения сплайна (инструмент .spline).
+    @State private var pendingSpline: [CGPoint] = []
     @State private var cursor: CGPoint = .zero
     @State private var scale: CGFloat = 1.0
     @State private var pan: CGSize = .zero
+    @State private var extrudeDepth: Double = 10
+    /// Число копий для команд массива.
+    @State private var patternCount: Int = 3
+    /// Расстояние смещения для команды «Сместить».
+    @State private var offsetDistance: Double = 10
+    /// Тип связи, ожидающей применения. Пока не nil, клики по геометрии
+    /// накапливаются в выделение, а после нужного числа — применяются.
+    @State private var constraintType: MirEngineSketchConstraint? = nil
+    /// Числовое значение для размерных связей (расстояние/угол/радиус/диаметр).
+    @State private var constraintValue: String = ""
+    /// Вызывается по завершении эскиза (аналог «Готово» старого редактора).
+    var onFinish: (() -> Void)? = nil
+
+    private var selectedIDs: Set<UInt32> { Set(model.selectedIDs) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +48,21 @@ struct SketchWorkspaceView: View {
             statusBar
         }
         .background(Color.black.opacity(0.97))
+        .onKeyPress(phases: .down) { press in
+            switch press.key {
+            case .delete, .deleteForward:
+                deleteSelected()
+                return .handled
+            case .escape:
+                firstPoint = nil
+                pendingSpline.removeAll()
+                model.clearSelection()
+                constraintType = nil
+                return .handled
+            default:
+                return .ignored
+            }
+        }
     }
 
     private var sketchToolbar: some View {
@@ -50,6 +79,29 @@ struct SketchWorkspaceView: View {
             toolButton("Обрезать", .trim)
             toolButton("Размер", .dimension)
 
+            Divider()
+
+            Picker("Связь", selection: $constraintType) {
+                Text("нет").tag(MirEngineSketchConstraint?.none)
+                ForEach(
+                    [MirEngineSketchConstraint.coincident,
+                     .horizontal, .vertical, .equal, .parallel, .perpendicular,
+                     .distance, .angle, .radius, .diameter],
+                    id: \.self
+                ) { t in
+                    Text(t.title).tag(Optional(t))
+                }
+            }
+            .controlSize(.small)
+            .help("Выберите связь, затем отметьте геометрию на холсте")
+
+            if let type = constraintType, type.needsValue {
+                TextField("Значение", text: $constraintValue)
+                    .frame(width: 72)
+                    .controlSize(.small)
+                    .help("Числовое значение связи")
+            }
+
             Spacer()
 
             Toggle("Сетка", isOn: $showGrid)
@@ -59,10 +111,50 @@ struct SketchWorkspaceView: View {
             Toggle("Связи", isOn: $showConstraints)
                 .toggleStyle(.checkbox)
 
+            Button("Отменить", action: { if !model.undo() { status = "Нечего отменять" } })
+                .buttonStyle(.bordered)
+                .disabled(!model.canUndo)
+            Button("Вернуть", action: { if !model.redo() { status = "Нечего возвращать" } })
+                .buttonStyle(.bordered)
+                .disabled(!model.canRedo)
+
+            Button("Удалить", role: .destructive) {
+                deleteSelected()
+            }
+            .buttonStyle(.bordered)
+            .disabled(model.selectedIDs.isEmpty)
+
+            Button("Зеркало") {
+                model.mirrorSelectionX()
+                status = "Отражение выполнено"
+            }
+            .buttonStyle(.bordered)
+            .disabled(model.selectedIDs.isEmpty)
+
+            Divider()
+
+            Stepper(value: $patternCount, in: 2...20) {
+                Text("Копий: \(patternCount)")
+            }
+            .frame(width: 130)
+
+            Button("Массив →") {
+                model.patternLinear(count: patternCount, dx: 30, dy: 0)
+                status = "Линейный массив: \(patternCount) копий"
+            }
+            .buttonStyle(.bordered)
+            .disabled(model.selectedIDs.isEmpty)
+
+            Button("Массив ↻") {
+                model.patternCircular(count: patternCount, center: .zero, angleDegrees: 360.0 / Double(patternCount))
+                status = "Круговой массив: \(patternCount) копий"
+            }
+            .buttonStyle(.bordered)
+            .disabled(model.selectedIDs.isEmpty)
+
             Button("Очистить") {
-                points.removeAll()
-                segments.removeAll()
-                circles.removeAll()
+                model.clearAll()
+                model.clearSelection()
                 firstPoint = nil
                 status = "Эскиз очищен"
             }
@@ -70,10 +162,30 @@ struct SketchWorkspaceView: View {
 
             Button("Завершить эскиз") {
                 firstPoint = nil
+                model.clearSelection()
                 activeTool = .select
-                status = "Эскиз завершён · замкнутых профилей: \(closedProfileCount)"
+                status = "Эскиз завершён · геометрия: \(model.geometryCountValue()), связей: \(model.constraintCountValue())"
+                onFinish?()
             }
             .buttonStyle(.borderedProminent)
+
+            Divider()
+
+            Stepper(value: $extrudeDepth, in: 1...500) {
+                Text("Глубина: \(Int(extrudeDepth))")
+            }
+            Button("Выдавить") {
+                guard let renderer = MIR4DModelRuntime.shared.renderer else {
+                    status = "Нет 3D-вида для выдавливания"
+                    return
+                }
+                let id = model.extrude(distance: extrudeDepth, viewport: renderer)
+                status = id != 0
+                    ? "Выдавлено · объект \(id)"
+                    : "Нет профиля для выдавливания"
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.geometryCountValue() < 3)
         }
         .padding(8)
     }
@@ -86,11 +198,19 @@ struct SketchWorkspaceView: View {
             toolButton("Дуга", .arc)
             toolButton("Окружность", .circle)
             toolButton("Прямоугольник", .rectangle)
+            toolButton("Сплайн", .spline)
+            if activeTool == .spline && pendingSpline.count >= 2 {
+                Button("Готово сплайн") { finishSpline() }
+                    .buttonStyle(.borderedProminent)
+            }
 
             Divider().padding(.vertical, 4)
             Text("ОПЕРАЦИИ").font(.caption.bold()).foregroundStyle(.secondary)
             toolButton("Обрезать", .trim)
             toolButton("Смещение", .offset)
+            Stepper(value: $offsetDistance, in: -500...500) {
+                Text("Смещ: \(Int(offsetDistance))")
+            }
             toolButton("Зеркало", .mirror)
             toolButton("Массив", .pattern)
             toolButton("Размер", .dimension)
@@ -115,44 +235,28 @@ struct SketchWorkspaceView: View {
 
                 coordinateAxes(in: proxy.size)
 
-                ForEach(segments) { segment in
-                    Path { path in
-                        path.move(to: worldToScreen(segment.a, in: proxy.size))
-                        path.addLine(to: worldToScreen(segment.b, in: proxy.size))
+                ForEach(0..<model.geometryCountValue(), id: \.self) { index in
+                    geometryView(index: UInt32(index), size: proxy.size)
+                }
+
+                if showConstraints {
+                    ForEach(0..<model.constraintCountValue(), id: \.self) { index in
+                        constraintView(index: UInt32(index), size: proxy.size)
                     }
-                    .stroke(Color.cyan.opacity(0.9), lineWidth: 2)
                 }
 
-                ForEach(circles) { circle in
-                    let center = worldToScreen(circle.center, in: proxy.size)
-                    Circle()
-                        .stroke(Color.cyan.opacity(0.9), lineWidth: 2)
-                        .frame(width: circle.radius * 2 * scale, height: circle.radius * 2 * scale)
-                        .position(center)
+                if let start = firstPoint {
+                    previewShape(from: start, size: proxy.size)
                 }
 
-                ForEach(points) { point in
-                    Circle()
-                        .fill(point.isSnap ? Color.yellow : Color.white)
-                        .frame(width: point.isSnap ? 8 : 6, height: point.isSnap ? 8 : 6)
-                        .position(worldToScreen(point.position, in: proxy.size))
-                }
-
-                if activeTool == .line, let start = firstPoint {
+                if !pendingSpline.isEmpty {
+                    let pts = pendingSpline.map { worldToScreen($0, in: proxy.size) }
                     Path { path in
-                        path.move(to: worldToScreen(start, in: proxy.size))
-                        path.addLine(to: cursor)
+                        guard let first = pts.first else { return }
+                        path.move(to: first)
+                        for p in pts.dropFirst() { path.addLine(to: p) }
                     }
-                    .stroke(Color.cyan.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                }
-
-                if activeTool == .circle, let start = firstPoint {
-                    let center = worldToScreen(start, in: proxy.size)
-                    let radius = hypot(cursor.x - center.x, cursor.y - center.y)
-                    Circle()
-                        .stroke(Color.cyan.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        .frame(width: radius * 2, height: radius * 2)
-                        .position(center)
+                    .stroke(Color.green, lineWidth: 2)
                 }
 
                 VStack {
@@ -197,64 +301,147 @@ struct SketchWorkspaceView: View {
         switch activeTool {
         case .line:
             if let start = firstPoint {
-                segments.append(SketchSegment(a: start, b: snapped))
-                points.append(SketchPoint(position: snapped, isSnap: true))
+                let snapped = applyOrtho(snap(world), from: start)
+                let result = model.createLine(from: start, to: snapped)
                 firstPoint = nil
-                status = "Линия создана · длина \(Int(distance(start, snapped)))"
+                if let result, result.success {
+                    status = "Линия создана · ID \(result.geometryID) · DOF \(model.degreesOfFreedom.map(String.init) ?? "—")"
+                } else {
+                    status = "Не удалось создать линию"
+                }
             } else {
                 firstPoint = snapped
-                points.append(SketchPoint(position: snapped, isSnap: true))
                 status = "Первая точка линии выбрана"
             }
         case .circle:
             if let center = firstPoint {
                 let radius = distance(center, snapped)
-                guard radius > 2 else { return }
-                circles.append(SketchCircle(center: center, radius: radius))
+                guard radius > 2 / scale else { firstPoint = nil; return }
+                let id = model.createCircle(center: center, radius: Double(radius / scale))
                 firstPoint = nil
-                status = "Окружность создана · R \(Int(radius))"
+                status = id != 0 ? "Окружность создана · R \(Int(radius / scale)) · DOF \(model.degreesOfFreedom.map(String.init) ?? "—")" : "Не удалось создать окружность"
             } else {
                 firstPoint = snapped
-                points.append(SketchPoint(position: snapped, isSnap: true))
                 status = "Центр окружности выбран"
             }
         case .rectangle:
             if let start = firstPoint {
-                let a = start
-                let b = CGPoint(x: snapped.x, y: start.y)
-                let c = snapped
-                let d = CGPoint(x: start.x, y: snapped.y)
-                segments.append(contentsOf: [
-                    SketchSegment(a: a, b: b),
-                    SketchSegment(a: b, b: c),
-                    SketchSegment(a: c, b: d),
-                    SketchSegment(a: d, b: a)
-                ])
-                points.append(contentsOf: [
-                    SketchPoint(position: a, isSnap: true),
-                    SketchPoint(position: b, isSnap: true),
-                    SketchPoint(position: c, isSnap: true),
-                    SketchPoint(position: d, isSnap: true)
-                ])
+                let id = model.createRectangle(from: start, to: snapped)
                 firstPoint = nil
-                status = "Прямоугольник создан"
+                status = id != 0 ? "Прямоугольник создан (4 линии + связи) · DOF \(model.degreesOfFreedom.map(String.init) ?? "—")" : "Не удалось создать прямоугольник"
             } else {
                 firstPoint = snapped
-                points.append(SketchPoint(position: snapped, isSnap: true))
                 status = "Первый угол выбран"
             }
+        case .arc:
+            if let center = firstPoint {
+                let radius = distance(center, snapped)
+                guard radius > 2 / scale else { firstPoint = nil; return }
+                let startAngle = atan2(snapped.y - center.y, snapped.x - center.x)
+                let id = model.createArc(center: center, radius: Double(radius / scale), startAngle: Double(startAngle), endAngle: Double(startAngle + .pi))
+                firstPoint = nil
+                status = id != 0 ? "Дуга создана · DOF \(model.degreesOfFreedom.map(String.init) ?? "—")" : "Не удалось создать дугу"
+            } else {
+                firstPoint = snapped
+                status = "Центр дуги выбран"
+            }
         case .select:
-            status = "Точка \(Int(snapped.x)) : \(Int(snapped.y)) выбрана"
+            if let id = hitTest(snapped, in: size) {
+                if constraintType != nil {
+                    model.select(geometryID: id, additive: true)
+                    tryApplyPendingConstraint()
+                } else {
+                    model.select(geometryID: id, additive: false)
+                    status = "Выбрана геометрия #\(id)"
+                }
+            } else {
+                model.clearSelection()
+                status = "Точка \(Int(snapped.x)) : \(Int(snapped.y)) — пусто"
+            }
+        case .spline:
+            pendingSpline.append(snapped)
+            status = "Сплайн: точек \(pendingSpline.count) — ЛКМ добавляет, «Готово сплайн» завершает"
+        case .offset:
+            model.offsetSelection(distance: offsetDistance)
+            status = "Смещение на \(Int(offsetDistance)) выполнено"
         default:
-            status = "Инструмент \(activeTool.title) готов к подключению к engine command bridge"
+            status = "Инструмент «\(activeTool.title)» пока не реализован в движке"
         }
+    }
+
+    private func deleteSelected() {
+        let ids = model.selectedIDs
+        guard !ids.isEmpty else { return }
+        for id in ids {
+            model.deleteGeometry(id: id)
+        }
+        model.clearSelection()
+        status = "Удалено геометрий: \(ids.count)"
+    }
+
+    private func finishSpline() {
+        guard pendingSpline.count >= 2 else { return }
+        let pts = pendingSpline
+        let id = model.createSpline(points: pts)
+        pendingSpline.removeAll()
+        status = id != 0 ? "Сплайн создан #\(id)" : "Не удалось создать сплайн"
+    }
+
+    private func tryApplyPendingConstraint() {
+        guard let type = constraintType else { return }
+        let sel = model.selectedIDs
+        let arr = Array(sel)
+        let count = arr.count
+
+        let requireTwo = type == .angle || type == .coincident ||
+            type == .equal || type == .parallel || type == .perpendicular ||
+            type == .tangent || type == .concentric || type == .symmetric
+        guard count >= (requireTwo ? 2 : 1) else { return }
+
+        let target: UInt32 = (count >= 2 && type != .radius && type != .diameter) ? arr[1] : 0
+        let value = type.needsValue ? (Double(constraintValue) ?? 0) : 0
+        let id = model.addConstraint(type: type, geometry: arr[0], target: target, value: value)
+        if id != 0 {
+            status = "Связь «\(type.title)» добавлена · DOF \(model.degreesOfFreedom.map(String.init) ?? "—")"
+        } else {
+            status = "Не удалось добавить связь «\(type.title)»"
+        }
+        model.clearSelection()
+        constraintType = nil
+        constraintValue = ""
     }
 
     private func snap(_ point: CGPoint) -> CGPoint {
         guard snapEnabled else { return point }
+        if let vertex = nearestVertex(point) {
+            return vertex
+        }
         let step: CGFloat = 10
         return CGPoint(x: (point.x / step).rounded() * step,
                        y: (point.y / step).rounded() * step)
+    }
+
+    /// Ближайшая вершина существующей геометрии (inference/привязка).
+    private func nearestVertex(_ world: CGPoint) -> CGPoint? {
+        let threshold = 6.0 / scale
+        var best: CGPoint?
+        var bestDist = threshold
+        for index in 0..<model.geometryCountValue() {
+            var points: [CGPoint] = []
+            switch model.geometryKind(at: index) {
+            case .line:
+                if let line = model.line(at: index) { points = [line.start, line.end] }
+            case .circle, .arc:
+                if let circle = model.circle(at: index) { points = [circle.center] }
+            case .spline:
+                if let spl = model.spline(at: index) { points = spl.points }
+            }
+            for p in points {
+                let d = hypot(p.x - world.x, p.y - world.y)
+                if d < bestDist { bestDist = d; best = p }
+            }
+        }
+        return best
     }
 
     private func worldToScreen(_ point: CGPoint, in size: CGSize) -> CGPoint {
@@ -299,10 +486,10 @@ struct SketchWorkspaceView: View {
 
             Divider().padding(.vertical, 4)
             Text("РАЗМЕРЫ").font(.caption.bold()).foregroundStyle(.secondary)
-            Text("Геометрия: \(segments.count) линий · \(circles.count) окружностей")
+            Text("Геометрия: \(model.geometryCountValue()) · Связей: \(model.constraintCountValue())")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("Замкнутых профилей: \(closedProfileCount)")
+            Text("DOF: \(model.degreesOfFreedom.map(String.init) ?? "—") · \(model.solverStatus)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -316,9 +503,10 @@ struct SketchWorkspaceView: View {
             Circle().fill(.green).frame(width: 6, height: 6)
             Text(status)
             Spacer()
-            Text("Геометрия: \(segments.count + circles.count)")
-            Text("мм")
-            Text("Solver: готов")
+            Text("Геометрия: \(model.geometryCountValue())")
+            Text("Связей: \(model.constraintCountValue())")
+            Text("DOF: \(model.degreesOfFreedom.map(String.init) ?? "—")")
+            Text(model.solverStatus)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -349,9 +537,174 @@ struct SketchWorkspaceView: View {
         hypot(b.x - a.x, b.y - a.y)
     }
 
-    private var closedProfileCount: Int {
-        // Lightweight UI estimate; authoritative topology belongs to MirEngine.
-        segments.count >= 4 && segments.count % 4 == 0 ? segments.count / 4 : 0
+    @ViewBuilder
+    private func geometryView(index: UInt32, size: CGSize) -> some View {
+        let id = model.geometryId(at: index)
+        let isSelected = selectedIDs.contains(id)
+        let stroke = isSelected ? Color.yellow : Color.cyan.opacity(0.9)
+        switch model.geometryKind(at: index) {
+        case .line:
+            if let line = model.line(at: index) {
+                Path { path in
+                    path.move(to: worldToScreen(line.start, in: size))
+                    path.addLine(to: worldToScreen(line.end, in: size))
+                }
+                .stroke(stroke, lineWidth: isSelected ? 3 : 2)
+            }
+        case .circle:
+            if let circle = model.circle(at: index) {
+                let center = worldToScreen(circle.center, in: size)
+                Circle()
+                    .stroke(stroke, lineWidth: isSelected ? 3 : 2)
+                    .frame(width: circle.radius * 2 * scale, height: circle.radius * 2 * scale)
+                    .position(center)
+            }
+        case .arc:
+            if let arc = model.arc(at: index) {
+                arcPath(center: arc.center, radius: arc.radius, start: arc.start, end: arc.end, in: size)
+                    .stroke(stroke, lineWidth: isSelected ? 3 : 2)
+            }
+        case .spline:
+            if let spl = model.spline(at: index) {
+                let pts = spl.points.map { worldToScreen($0, in: size) }
+                ZStack {
+                    Path { path in
+                        guard let first = pts.first else { return }
+                        path.move(to: first)
+                        for p in pts.dropFirst() { path.addLine(to: p) }
+                        if spl.closed { path.closeSubpath() }
+                    }
+                    .stroke(stroke, lineWidth: isSelected ? 3 : 2)
+                    ForEach(0..<pts.count, id: \.self) { i in
+                        Rectangle()
+                            .fill(isSelected ? Color.yellow : Color.white)
+                            .frame(width: 5, height: 5)
+                            .position(pts[i])
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func previewShape(from start: CGPoint, size: CGSize) -> some View {
+        let center = worldToScreen(start, in: size)
+        let radius = hypot(cursor.x - center.x, cursor.y - center.y)
+        switch activeTool {
+        case .line:
+            Path { path in
+                path.move(to: center)
+                path.addLine(to: cursor)
+            }
+            .stroke(Color.cyan.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        case .circle:
+            Circle()
+                .stroke(Color.cyan.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                .frame(width: radius * 2, height: radius * 2)
+                .position(center)
+        case .rectangle:
+            let origin = worldToScreen(start, in: size)
+            let rect = CGRect(x: min(origin.x, cursor.x), y: min(origin.y, cursor.y),
+                              width: abs(cursor.x - origin.x), height: abs(cursor.y - origin.y))
+            Path(rect)
+                .stroke(Color.cyan.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        default:
+            EmptyView()
+        }
+    }
+
+    private func hitTest(_ world: CGPoint, in size: CGSize) -> UInt32? {
+        var best: UInt32?
+        var bestDist = 10.0 / scale
+        for index in 0..<model.geometryCountValue() {
+            let id = model.geometryId(at: index)
+            var candidate: [CGPoint] = []
+            switch model.geometryKind(at: index) {
+            case .line:
+                if let l = model.line(at: index) { candidate = [l.start, l.end] }
+            case .circle, .arc:
+                if let c = model.circle(at: index) { candidate = [c.center] }
+            case .spline:
+                break
+            }
+            for p in candidate {
+                let d = distance(p, world)
+                if d < bestDist { bestDist = d; best = id }
+            }
+        }
+        return best
+    }
+
+    /// Опорная точка геометрии (середина линии / центр окружности) для бейджа связи.
+    private func geometryAnchor(_ id: UInt32) -> CGPoint? {
+        for index in 0..<model.geometryCountValue() {
+            guard model.geometryId(at: index) == id else { continue }
+            switch model.geometryKind(at: index) {
+            case .line:
+                if let l = model.line(at: index) {
+                    return CGPoint(x: (l.start.x + l.end.x) / 2, y: (l.start.y + l.end.y) / 2)
+                }
+            case .circle, .arc:
+                if let c = model.circle(at: index) { return c.center }
+            case .spline:
+                return nil
+            }
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func constraintView(index: UInt32, size: CGSize) -> some View {
+        if let c = model.constraint(at: index),
+           let anchor = geometryAnchor(c.first) {
+            let screen = worldToScreen(anchor, in: size)
+            let text: String = {
+                switch c.type {
+                case .distance: return String(format: "%.1f", c.value)
+                case .angle: return String(format: "%.0f°", c.value)
+                case .radius: return String(format: "R%.1f", c.value)
+                case .diameter: return String(format: "⌀%.1f", c.value)
+                default: return c.type.symbol
+                }
+            }()
+            Text(text)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.orange)
+                .padding(3)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            .position(screen)
+    }
+    }
+
+    /// Ортогональная inference: при рисовании линии привязывает угол к
+    /// 0/90/180/270°, если курсор близок (в пределах ~5°).
+    private func applyOrtho(_ point: CGPoint, from start: CGPoint) -> CGPoint {
+        let dx = point.x - start.x
+        let dy = point.y - start.y
+        let dist = hypot(dx, dy)
+        guard dist > 1e-6 else { return point }
+        let ang = atan2(dy, dx)
+        for c in [0.0, .pi / 2, .pi, -(.pi / 2), -.pi] {
+            var d = ang - c
+            while d > .pi { d -= 2 * .pi }
+            while d < -.pi { d += 2 * .pi }
+            if abs(d) < 5 * .pi / 180 {
+                return CGPoint(x: start.x + dist * cos(c), y: start.y + dist * sin(c))
+            }
+        }
+        return point
+    }
+
+    private func arcPath(center: CGPoint, radius: CGFloat, start: CGFloat, end: CGFloat, in size: CGSize) -> Path {
+        let c = worldToScreen(center, in: size)
+        let r = radius * scale
+        var path = Path()
+        path.addArc(center: c, radius: r,
+                    startAngle: .radians(-Double(start)),
+                    endAngle: .radians(-Double(end)),
+                    clockwise: end < start)
+        return path
     }
 }
 
@@ -373,24 +726,6 @@ enum SketchTool: CaseIterable {
         case .spline: return "Сплайн"
         }
     }
-}
-
-private struct SketchPoint: Identifiable {
-    let id = UUID()
-    let position: CGPoint
-    let isSnap: Bool
-}
-
-private struct SketchSegment: Identifiable {
-    let id = UUID()
-    let a: CGPoint
-    let b: CGPoint
-}
-
-private struct SketchCircle: Identifiable {
-    let id = UUID()
-    let center: CGPoint
-    let radius: CGFloat
 }
 
 private struct SketchGridView: View {

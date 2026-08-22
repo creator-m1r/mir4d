@@ -219,6 +219,36 @@ public func MirEngineSketchRemoveConstraint(_ doc: UnsafeMutableRawPointer?, _ i
 public func MirEngineSketchConstraintCount(_ doc: UnsafeMutableRawPointer?) -> UInt32 { 0 }
 public func MirEngineSketchConstraintAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool { false }
 
+// Sketch Session — SwiftPM stubs (real symbols provided by MirEngineExports).
+public func MirEngineSketchSessionCreate() -> OpaquePointer? { nil }
+public func MirEngineSketchSessionDestroy(_ session: OpaquePointer?) {}
+public func MirEngineSketchSessionCreateLine(_ session: OpaquePointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32 { 0 }
+public func MirEngineSketchSessionCreateCircle(_ session: OpaquePointer?, _ cx: Float, _ cy: Float, _ r: Float) -> UInt32 { 0 }
+public func MirEngineSketchSessionCreateArc(_ session: OpaquePointer?, _ cx: Float, _ cy: Float, _ r: Float, _ sa: Float, _ ea: Float) -> UInt32 { 0 }
+public func MirEngineSketchSessionCreateRectangle(_ session: OpaquePointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32 { 0 }
+public func MirEngineSketchSessionCreateSpline(_ session: OpaquePointer?, _ xs: UnsafePointer<Float>?, _ ys: UnsafePointer<Float>?, _ count: UInt32, _ closed: Bool) -> UInt32 { 0 }
+public func MirEngineSketchSessionSplineAt(_ session: OpaquePointer?, _ index: UInt32, _ xs: UnsafeMutablePointer<Float>?, _ ys: UnsafeMutablePointer<Float>?, _ count: UnsafeMutablePointer<UInt32>?, _ closed: UnsafeMutablePointer<Bool>?) -> Bool { false }
+public func MirEngineSketchSessionDeleteGeometry(_ session: OpaquePointer?, _ id: UInt32) -> Bool { false }
+public func MirEngineSketchSessionAddConstraint(_ session: OpaquePointer?, _ type: Int32, _ g1: UInt32, _ g2: UInt32, _ value: Double) -> UInt32 { 0 }
+public func MirEngineSketchSessionRemoveConstraint(_ session: OpaquePointer?, _ id: UInt32) -> Bool { false }
+public func MirEngineSketchSessionSolve(_ session: OpaquePointer?) -> Bool { false }
+public func MirEngineSketchSessionGetState(_ session: OpaquePointer?, _ out: UnsafeMutablePointer<MirEngineSketchSessionState>?) {}
+public func MirEngineSketchSessionGeometryCount(_ session: OpaquePointer?) -> UInt32 { 0 }
+public func MirEngineSketchSessionGeometryTypeAt(_ session: OpaquePointer?, _ index: UInt32) -> Int32 { -1 }
+public func MirEngineSketchSessionGeometryIdAt(_ session: OpaquePointer?, _ index: UInt32) -> UInt32 { 0 }
+public func MirEngineSketchSessionLineAt(_ session: OpaquePointer?, _ index: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchSessionArcAt(_ session: OpaquePointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?, _ sa: UnsafeMutablePointer<Float>?, _ ea: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchSessionCircleAt(_ session: OpaquePointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool { false }
+public func MirEngineSketchSessionConstraintCount(_ session: OpaquePointer?) -> UInt32 { 0 }
+public func MirEngineSketchSessionConstraintAt(_ session: OpaquePointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool { false }
+public func MirEngineSketchSessionSelect(_ session: OpaquePointer?, _ id: UInt32, _ additive: Bool) {}
+public func MirEngineSketchSessionClearSelection(_ session: OpaquePointer?) {}
+public func MirEngineSketchSessionSelectedCount(_ session: OpaquePointer?) -> UInt32 { 0 }
+public func MirEngineSketchSessionSelectedAt(_ session: OpaquePointer?, _ index: UInt32) -> UInt32 { 0 }
+public func MirEngineSketchSessionUndo(_ session: OpaquePointer?) -> Bool { false }
+public func MirEngineSketchSessionRedo(_ session: OpaquePointer?) -> Bool { false }
+public func MirEngineSketchSessionExtrude(_ session: OpaquePointer?, _ viewport: UnsafeMutableRawPointer?, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64 { 0 }
+
 // CAE multiphysics campaign runner — SwiftPM stub (real symbol provided by MirEngineExports).
 public func MirEngineRunCAECampaign(_ definition: UnsafePointer<CChar>?, _ outJson: UnsafeMutablePointer<CChar>?, _ outCapacity: Int) -> Bool { false }
 
@@ -481,6 +511,36 @@ public func MirEnginePushSketch(
 @_silgen_name("MirEngineSketchConstraintCount") public func MirEngineSketchConstraintCount(_ doc: UnsafeMutableRawPointer?) -> UInt32
 @_silgen_name("MirEngineSketchConstraintAt") public func MirEngineSketchConstraintAt(_ doc: UnsafeMutableRawPointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool
 
+// Sketch Session — authoritative runtime facade (real symbols in MirEngineExports).
+@_silgen_name("MirEngineSketchSessionCreate") public func MirEngineSketchSessionCreate() -> OpaquePointer?
+@_silgen_name("MirEngineSketchSessionDestroy") public func MirEngineSketchSessionDestroy(_ session: OpaquePointer?)
+@_silgen_name("MirEngineSketchSessionCreateLine") public func MirEngineSketchSessionCreateLine(_ session: OpaquePointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32
+@_silgen_name("MirEngineSketchSessionCreateCircle") public func MirEngineSketchSessionCreateCircle(_ session: OpaquePointer?, _ cx: Float, _ cy: Float, _ r: Float) -> UInt32
+@_silgen_name("MirEngineSketchSessionCreateArc") public func MirEngineSketchSessionCreateArc(_ session: OpaquePointer?, _ cx: Float, _ cy: Float, _ r: Float, _ sa: Float, _ ea: Float) -> UInt32
+@_silgen_name("MirEngineSketchSessionCreateRectangle") public func MirEngineSketchSessionCreateRectangle(_ session: OpaquePointer?, _ x1: Float, _ y1: Float, _ x2: Float, _ y2: Float) -> UInt32
+@_silgen_name("MirEngineSketchSessionCreateSpline") public func MirEngineSketchSessionCreateSpline(_ session: OpaquePointer?, _ xs: UnsafePointer<Float>?, _ ys: UnsafePointer<Float>?, _ count: UInt32, _ closed: Bool) -> UInt32
+@_silgen_name("MirEngineSketchSessionSplineAt") public func MirEngineSketchSessionSplineAt(_ session: OpaquePointer?, _ index: UInt32, _ xs: UnsafeMutablePointer<Float>?, _ ys: UnsafeMutablePointer<Float>?, _ count: UnsafeMutablePointer<UInt32>?, _ closed: UnsafeMutablePointer<Bool>?) -> Bool
+@_silgen_name("MirEngineSketchSessionDeleteGeometry") public func MirEngineSketchSessionDeleteGeometry(_ session: OpaquePointer?, _ id: UInt32) -> Bool
+@_silgen_name("MirEngineSketchSessionAddConstraint") public func MirEngineSketchSessionAddConstraint(_ session: OpaquePointer?, _ type: Int32, _ g1: UInt32, _ g2: UInt32, _ value: Double) -> UInt32
+@_silgen_name("MirEngineSketchSessionRemoveConstraint") public func MirEngineSketchSessionRemoveConstraint(_ session: OpaquePointer?, _ id: UInt32) -> Bool
+@_silgen_name("MirEngineSketchSessionSolve") public func MirEngineSketchSessionSolve(_ session: OpaquePointer?) -> Bool
+@_silgen_name("MirEngineSketchSessionGetState") public func MirEngineSketchSessionGetState(_ session: OpaquePointer?, _ out: UnsafeMutablePointer<MirEngineSketchSessionState>?)
+@_silgen_name("MirEngineSketchSessionGeometryCount") public func MirEngineSketchSessionGeometryCount(_ session: OpaquePointer?) -> UInt32
+@_silgen_name("MirEngineSketchSessionGeometryTypeAt") public func MirEngineSketchSessionGeometryTypeAt(_ session: OpaquePointer?, _ index: UInt32) -> Int32
+@_silgen_name("MirEngineSketchSessionGeometryIdAt") public func MirEngineSketchSessionGeometryIdAt(_ session: OpaquePointer?, _ index: UInt32) -> UInt32
+@_silgen_name("MirEngineSketchSessionLineAt") public func MirEngineSketchSessionLineAt(_ session: OpaquePointer?, _ index: UInt32, _ x1: UnsafeMutablePointer<Float>?, _ y1: UnsafeMutablePointer<Float>?, _ x2: UnsafeMutablePointer<Float>?, _ y2: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchSessionArcAt") public func MirEngineSketchSessionArcAt(_ session: OpaquePointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?, _ sa: UnsafeMutablePointer<Float>?, _ ea: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchSessionCircleAt") public func MirEngineSketchSessionCircleAt(_ session: OpaquePointer?, _ index: UInt32, _ cx: UnsafeMutablePointer<Float>?, _ cy: UnsafeMutablePointer<Float>?, _ r: UnsafeMutablePointer<Float>?) -> Bool
+@_silgen_name("MirEngineSketchSessionConstraintCount") public func MirEngineSketchSessionConstraintCount(_ session: OpaquePointer?) -> UInt32
+@_silgen_name("MirEngineSketchSessionConstraintAt") public func MirEngineSketchSessionConstraintAt(_ session: OpaquePointer?, _ index: UInt32, _ type: UnsafeMutablePointer<Int32>?, _ g1: UnsafeMutablePointer<UInt32>?, _ g2: UnsafeMutablePointer<UInt32>?, _ value: UnsafeMutablePointer<Double>?) -> Bool
+@_silgen_name("MirEngineSketchSessionSelect") public func MirEngineSketchSessionSelect(_ session: OpaquePointer?, _ id: UInt32, _ additive: Bool)
+@_silgen_name("MirEngineSketchSessionClearSelection") public func MirEngineSketchSessionClearSelection(_ session: OpaquePointer?)
+@_silgen_name("MirEngineSketchSessionSelectedCount") public func MirEngineSketchSessionSelectedCount(_ session: OpaquePointer?) -> UInt32
+@_silgen_name("MirEngineSketchSessionSelectedAt") public func MirEngineSketchSessionSelectedAt(_ session: OpaquePointer?, _ index: UInt32) -> UInt32
+@_silgen_name("MirEngineSketchSessionUndo") public func MirEngineSketchSessionUndo(_ session: OpaquePointer?) -> Bool
+@_silgen_name("MirEngineSketchSessionRedo") public func MirEngineSketchSessionRedo(_ session: OpaquePointer?) -> Bool
+@_silgen_name("MirEngineSketchSessionExtrude") public func MirEngineSketchSessionExtrude(_ session: OpaquePointer?, _ viewport: UnsafeMutableRawPointer?, _ distance: Double, _ ox: Double, _ oy: Double, _ oz: Double, _ nx: Double, _ ny: Double, _ nz: Double, _ xx: Double, _ xy: Double, _ xz: Double, _ yx: Double, _ yy: Double, _ yz: Double) -> UInt64
+
 #endif
 
 // Sketch constraint kinds (match MirEngineSketchConstraint in C ABI).
@@ -498,6 +558,94 @@ public enum MirEngineSketchConstraint: Int32 {
     case angle
     case radius
     case diameter
+
+    var title: String {
+        switch self {
+        case .coincident: return "Совпадение"
+        case .horizontal: return "Горизонталь"
+        case .vertical: return "Вертикаль"
+        case .parallel: return "Параллельно"
+        case .perpendicular: return "Перпендикулярно"
+        case .tangent: return "Касание"
+        case .concentric: return "Концентрично"
+        case .equal: return "Равно"
+        case .symmetric: return "Симметрия"
+        case .distance: return "Расстояние"
+        case .angle: return "Угол"
+        case .radius: return "Радиус"
+        case .diameter: return "Диаметр"
+        }
+    }
+
+    /// Количество геометрий, необходимых для применения связи.
+    var requiredGeometryCount: Int {
+        switch self {
+        case .horizontal, .vertical, .radius, .diameter:
+            return 1
+        default:
+            return 2
+        }
+    }
+
+    /// Связь требует числового значения (расстояние/угол/радиус/диаметр).
+    var needsValue: Bool {
+        switch self {
+        case .distance, .angle, .radius, .diameter:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Короткий символ для бейджа на холсте.
+    var symbol: String {
+        switch self {
+        case .coincident: return "•"
+        case .horizontal: return "H"
+        case .vertical: return "V"
+        case .parallel: return "∥"
+        case .perpendicular: return "⊥"
+        case .tangent: return "∼"
+        case .concentric: return "◎"
+        case .equal: return "="
+        case .symmetric: return "⇔"
+        case .distance: return "⤡"
+        case .angle: return "∠"
+        case .radius: return "R"
+        case .diameter: return "⌀"
+        }
+    }
+}
+
+// Sketch solver status (match MirEngineSketchSolverStatus in C ABI).
+public enum MirEngineSketchSolverStatus: Int32 {
+    case notRun = 0
+    case solved = 1
+    case underConstrained = 2
+    case overConstrained = 3
+    case failed = 4
+}
+
+// Sketch geometry kind (match MirEngineSketchGeometryType in C ABI).
+public enum MirEngineSketchGeometryKind: Int32 {
+    case line = 0
+    case arc = 1
+    case circle = 2
+    case spline = 3
+}
+
+/// Mirror of `MirEngineSketchSessionState` (C ABI). SwiftUI reads this after
+/// every committed operation to refresh its render model.
+public struct MirEngineSketchSessionState {
+    public var solverStatus: Int32 = 0
+    public var degreesOfFreedom: Int32 = 0
+    public var canUndo: Bool = false
+    public var canRedo: Bool = false
+    public var revision: UInt64 = 0
+    public var geometryCount: UInt64 = 0
+    public var constraintCount: UInt64 = 0
+    public var profileCount: UInt64 = 0
+    public init() {}
 }
 
 

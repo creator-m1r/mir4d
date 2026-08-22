@@ -26,6 +26,10 @@ struct SketchSessionState
     int degreesOfFreedom{-1};
     bool canUndo{false};
     bool canRedo{false};
+    std::uint64_t revision{0};
+    std::size_t geometryCount{0};
+    std::size_t constraintCount{0};
+    std::size_t profileCount{0};
 };
 
 /// Runtime facade for one active sketch editing session.
@@ -61,6 +65,24 @@ public:
         state_.degreesOfFreedom = degreesOfFreedom;
         syncHistoryState();
     }
+
+    /// Bumps the document revision and refreshes derived counts.
+    /// Call after every committed mutation so the UI can react.
+    void touch() noexcept
+    {
+        state_.revision += 1;
+        state_.geometryCount = document_.geometry().all().size();
+        state_.constraintCount = document_.constraints().all().size();
+        syncHistoryState();
+    }
+
+    void setProfileCount(std::size_t count) noexcept
+    {
+        state_.profileCount = count;
+        state_.revision += 1;
+    }
+
+    [[nodiscard]] std::uint64_t revision() const noexcept { return state_.revision; }
 
     void syncHistoryState() noexcept
     {

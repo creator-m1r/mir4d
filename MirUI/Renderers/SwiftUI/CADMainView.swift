@@ -112,8 +112,7 @@ struct CADMainView: View {
     private var sketchLayer: some View {
         GeometryReader { proxy in
             if appState.sketchOverlayVisible {
-                SketchViewportView()
-                    .environmentObject(appState)
+                SketchWorkspaceView(onFinish: { appState.sketchOverlayVisible = false })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .allowsHitTesting(true)
                     .contentShape(Rectangle())

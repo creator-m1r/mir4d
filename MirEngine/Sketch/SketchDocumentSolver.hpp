@@ -62,10 +62,68 @@ struct SketchDocumentSolverOptions
     double maxStep{1.0e6};
 };
 
+struct SketchSolverAnalysis
+{
+    bool solved{false};
+    int degreesOfFreedom{0};
+    double residual{std::numeric_limits<double>::infinity()};
+};
+
 class SketchDocumentSolver
 {
 public:
     using Options = SketchDocumentSolverOptions;
+
+    /// Solves the document, writes the result back into the geometry store and
+    /// reports the resulting degrees of freedom. Degrees of freedom are counted
+    /// as (number of free variables) − (number of independent constraint
+    /// equations) so a fully constrained sketch reports DOF = 0.
+    static SketchSolverAnalysis analyze(SketchDocument& doc, const Options& options = Options{})
+    {
+        auto& store = doc.geometry();
+        const auto& constraints = doc.constraints();
+
+        SketchSolveBinding binding = buildBinding(store);
+        std::vector<double> variables = initialVariables(store, binding);
+
+        SketchEquationSystem system;
+        for (const auto& con : constraints.all())
+        {
+            auto eqs = buildConstraintEquations(con, store, binding);
+            for (auto& eq : eqs)
+            {
+                system.add(std::move(eq));
+            }
+        }
+
+        SketchSolverAnalysis result;
+        result.degreesOfFreedom =
+            static_cast<int>(binding.count) - static_cast<int>(system.all().size());
+
+        if (system.all().empty())
+        {
+            result.solved = true;
+            result.residual = 0.0;
+            return result;
+        }
+
+        SketchNewtonOptions nopt;
+        nopt.tolerance = options.tolerance;
+        nopt.maxIterations = options.maxIterations;
+        nopt.finiteDifferenceStep = options.finiteDifferenceStep;
+        nopt.maxStep = options.maxStep;
+
+        SketchSolverNewton solver;
+        const auto r = solver.solve(system, variables, nopt);
+        result.solved = r.converged;
+        result.residual = r.residual;
+
+        if (r.converged)
+        {
+            writeBack(store, variables, binding);
+        }
+        return result;
+    }
 
     static SketchNewtonResult solve(SketchDocument& doc, const Options& options = Options{})
     {
